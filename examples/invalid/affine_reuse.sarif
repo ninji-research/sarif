@@ -1,0 +1,11 @@
+fn consume(text: Text) -> Text {
+    text
+}
+
+fn duplicate(text: Text) -> Bool {
+    consume(text) == consume(text)
+}
+
+fn main() -> Bool {
+    duplicate("hello")
+}
