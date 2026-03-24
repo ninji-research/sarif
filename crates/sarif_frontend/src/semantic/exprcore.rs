@@ -1,0 +1,2350 @@
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+
+use crate::hir::{Effect, Expr};
+use sarif_syntax::{Diagnostic, Span};
+
+use super::{
+    ConstSignature, EnumVariantInfo, FunctionSignature, Type, TypeArrayLen, best_match,
+    enum_variant_info, expect_type, matching_numeric_type, split_enum_variant_path,
+    suggestion_help,
+    support::{enum_literal_type_name, field_names_for_type, field_type},
+    types_compatible,
+};
+
+#[derive(Clone, Debug)]
+pub struct ExprInfo {
+    pub ty: super::Type,
+    pub calls: Vec<CallSite>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallSite {
+    pub callee: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum ExprContext {
+    Body,
+    BodyTail,
+    Statement,
+    ContractRequires,
+    ContractEnsures,
+}
+
+pub const fn nested_expr_context(context: &ExprContext) -> ExprContext {
+    match context {
+        ExprContext::Body | ExprContext::BodyTail | ExprContext::Statement => ExprContext::Body,
+        ExprContext::ContractRequires => ExprContext::ContractRequires,
+        ExprContext::ContractEnsures => ExprContext::ContractEnsures,
+    }
+}
+
+pub const fn allows_runtime_builtin_context(context: &ExprContext) -> bool {
+    matches!(
+        context,
+        ExprContext::Body | ExprContext::BodyTail | ExprContext::Statement
+    )
+}
+
+pub fn require_runtime_builtin_context(
+    code: &'static str,
+    builtin: &str,
+    span: Span,
+    diagnostics: &mut Vec<Diagnostic>,
+    context: &ExprContext,
+) {
+    if allows_runtime_builtin_context(context) {
+        return;
+    }
+    diagnostics.push(Diagnostic::new(
+        code,
+        format!("builtin `{builtin}` is only available in executable function bodies"),
+        span,
+        Some("Use this builtin inside a function body or body-tail expression.".to_owned()),
+    ));
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn infer_call_expr(
+    expr: &crate::hir::CallExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let mut calls = Vec::new();
+    let args = expr
+        .args
+        .iter()
+        .map(|arg| {
+            let info = infer_expr(
+                arg,
+                locals,
+                mutable_locals,
+                functions,
+                consts,
+                enum_variants,
+                struct_layouts,
+                diagnostics,
+                fn_name,
+                caller_effects,
+                &nested_context,
+            );
+            calls.extend(info.calls.iter().cloned());
+            info
+        })
+        .collect::<Vec<_>>();
+
+    if expr.callee == ARRAY_LEN_BUILTIN && !functions.contains_key(ARRAY_LEN_BUILTIN) {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.len-arity",
+                format!(
+                    "builtin `{ARRAY_LEN_BUILTIN}` expects 1 argument but got {}",
+                    args.len(),
+                ),
+                expr.span,
+                Some("Call `len(xs)` with exactly one array argument.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let arg = &args[0];
+        return match &arg.ty {
+            Type::Array(_, _) => ExprInfo {
+                ty: Type::I32,
+                calls,
+            },
+            Type::Error => ExprInfo {
+                ty: Type::Error,
+                calls,
+            },
+            _ => {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.len-type",
+                    format!(
+                        "builtin `{ARRAY_LEN_BUILTIN}` expects an array argument, found `{}`",
+                        arg.ty.render(),
+                    ),
+                    expr.span,
+                    Some("Pass an internal stage-0 array such as `len(xs)`.".to_owned()),
+                ));
+                ExprInfo {
+                    ty: Type::Error,
+                    calls,
+                }
+            }
+        };
+    }
+
+    if expr.callee == "text_len" && !functions.contains_key("text_len") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_len-arity",
+                format!(
+                    "builtin `text_len` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_len(text)` with exactly one Text argument.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let arg = &args[0];
+        return match &arg.ty {
+            Type::Text => ExprInfo {
+                ty: Type::I32,
+                calls,
+            },
+            Type::Error => ExprInfo {
+                ty: Type::Error,
+                calls,
+            },
+            _ => {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.text_len-type",
+                    format!(
+                        "builtin `text_len` expects a Text argument, found `{}`",
+                        arg.ty.render()
+                    ),
+                    expr.span,
+                    Some("Pass a Text argument.".to_owned()),
+                ));
+                ExprInfo {
+                    ty: Type::Error,
+                    calls,
+                }
+            }
+        };
+    }
+
+    if expr.callee == "text_byte" && !functions.contains_key("text_byte") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_byte-arity",
+                format!(
+                    "builtin `text_byte` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_byte(text, index)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let first_arg = &args[0];
+        let second_arg = &args[1];
+        if first_arg.ty != Type::Text && first_arg.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_byte-type",
+                format!(
+                    "builtin `text_byte` first argument must be Text, found `{}`",
+                    first_arg.ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text argument.".to_owned()),
+            ));
+        }
+        if second_arg.ty != Type::I32 && second_arg.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_byte-type",
+                format!(
+                    "builtin `text_byte` second argument must be I32, found `{}`",
+                    second_arg.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 index.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_concat" && !functions.contains_key("text_concat") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_concat-arity",
+                format!(
+                    "builtin `text_concat` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_concat(left, right)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let left = &args[0];
+        let right = &args[1];
+        if left.ty != Type::Text && left.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_concat-type",
+                format!(
+                    "builtin `text_concat` first argument must be Text, found `{}`",
+                    left.ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text argument.".to_owned()),
+            ));
+        }
+        if right.ty != Type::Text && right.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_concat-type",
+                format!(
+                    "builtin `text_concat` second argument must be Text, found `{}`",
+                    right.ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text argument.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_slice" && !functions.contains_key("text_slice") {
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_slice-arity",
+                format!(
+                    "builtin `text_slice` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_slice(text, start, end)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let text = &args[0];
+        let start = &args[1];
+        let end = &args[2];
+        if text.ty != Type::Text && text.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_slice-type",
+                format!(
+                    "builtin `text_slice` first argument must be Text, found `{}`",
+                    text.ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text argument.".to_owned()),
+            ));
+        }
+        if start.ty != Type::I32 && start.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_slice-type",
+                format!(
+                    "builtin `text_slice` second argument must be I32, found `{}`",
+                    start.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 start offset.".to_owned()),
+            ));
+        }
+        if end.ty != Type::I32 && end.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_slice-type",
+                format!(
+                    "builtin `text_slice` third argument must be I32, found `{}`",
+                    end.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 end offset.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_builder_new" && !functions.contains_key("text_builder_new") {
+        require_runtime_builtin_context(
+            "semantic.text_builder_new-runtime-context",
+            "text_builder_new",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if !args.is_empty() {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_new-arity",
+                format!(
+                    "builtin `text_builder_new` expects 0 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_new()` with no arguments.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_builder_append" && !functions.contains_key("text_builder_append") {
+        require_runtime_builtin_context(
+            "semantic.text_builder_append-runtime-context",
+            "text_builder_append",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append-arity",
+                format!(
+                    "builtin `text_builder_append` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_append(builder, text)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append-type",
+                format!(
+                    "builtin `text_builder_append` first argument must be TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder accumulator.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::Text && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append-type",
+                format!(
+                    "builtin `text_builder_append` second argument must be Text, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text value to append.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_builder_finish" && !functions.contains_key("text_builder_finish") {
+        require_runtime_builtin_context(
+            "semantic.text_builder_finish-runtime-context",
+            "text_builder_finish",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_finish-arity",
+                format!(
+                    "builtin `text_builder_finish` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_finish(builder)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_finish-type",
+                format!(
+                    "builtin `text_builder_finish` expects TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "f64_vec_new" && !functions.contains_key("f64_vec_new") {
+        require_runtime_builtin_context(
+            "semantic.f64_vec-runtime-context",
+            "f64_vec_new",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_new-arity",
+                format!(
+                    "builtin `f64_vec_new` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `f64_vec_new(len, fill)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::I32 && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_new-type",
+                format!(
+                    "builtin `f64_vec_new` first argument must be I32, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an integer length.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::F64 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_new-type",
+                format!(
+                    "builtin `f64_vec_new` second argument must be F64, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a float fill value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::F64Vec,
+            calls,
+        };
+    }
+
+    if expr.callee == "f64_vec_len" && !functions.contains_key("f64_vec_len") {
+        require_runtime_builtin_context(
+            "semantic.f64_vec-runtime-context",
+            "f64_vec_len",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_len-arity",
+                format!(
+                    "builtin `f64_vec_len` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `f64_vec_len(vec)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::F64Vec && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_len-type",
+                format!(
+                    "builtin `f64_vec_len` expects F64Vec, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an F64Vec value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "f64_vec_get" && !functions.contains_key("f64_vec_get") {
+        require_runtime_builtin_context(
+            "semantic.f64_vec-runtime-context",
+            "f64_vec_get",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_get-arity",
+                format!(
+                    "builtin `f64_vec_get` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `f64_vec_get(vec, index)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::F64Vec && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_get-type",
+                format!(
+                    "builtin `f64_vec_get` first argument must be F64Vec, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an F64Vec value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_get-type",
+                format!(
+                    "builtin `f64_vec_get` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an integer index.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::F64,
+            calls,
+        };
+    }
+
+    if expr.callee == "f64_vec_set" && !functions.contains_key("f64_vec_set") {
+        require_runtime_builtin_context(
+            "semantic.f64_vec-runtime-context",
+            "f64_vec_set",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_set-arity",
+                format!(
+                    "builtin `f64_vec_set` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `f64_vec_set(vec, index, value)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::F64Vec && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_set-type",
+                format!(
+                    "builtin `f64_vec_set` first argument must be F64Vec, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an F64Vec value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_set-type",
+                format!(
+                    "builtin `f64_vec_set` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an integer index.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::F64 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_vec_set-type",
+                format!(
+                    "builtin `f64_vec_set` third argument must be F64, found `{}`",
+                    args[2].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a float element value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::F64Vec,
+            calls,
+        };
+    }
+
+    if expr.callee == "f64_from_i32" && !functions.contains_key("f64_from_i32") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_from_i32-arity",
+                format!(
+                    "builtin `f64_from_i32` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `f64_from_i32(value)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::I32 && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.f64_from_i32-type",
+                format!(
+                    "builtin `f64_from_i32` expects I32, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an integer value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::F64,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_from_f64_fixed" && !functions.contains_key("text_from_f64_fixed") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_from_f64_fixed-arity",
+                format!(
+                    "builtin `text_from_f64_fixed` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_from_f64_fixed(value, digits)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::F64 && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_from_f64_fixed-type",
+                format!(
+                    "builtin `text_from_f64_fixed` first argument must be F64, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a float value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_from_f64_fixed-type",
+                format!(
+                    "builtin `text_from_f64_fixed` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an integer digit count.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "sqrt" && !functions.contains_key("sqrt") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.sqrt-arity",
+                format!("builtin `sqrt` expects 1 argument but got {}", args.len()),
+                expr.span,
+                Some("Call `sqrt(value)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::F64 && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.sqrt-type",
+                format!(
+                    "builtin `sqrt` expects F64, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a float value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::F64,
+            calls,
+        };
+    }
+
+    if expr.callee == "parse_i32" && !functions.contains_key("parse_i32") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.parse_i32-arity",
+                format!(
+                    "builtin `parse_i32` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `parse_i32(text)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.parse_i32-type",
+                format!(
+                    "builtin `parse_i32` expects Text, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "arg_count" && !functions.contains_key("arg_count") {
+        if !args.is_empty() {
+            diagnostics.push(Diagnostic::new(
+                "semantic.arg_count-arity",
+                format!(
+                    "builtin `arg_count` expects 0 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `arg_count()` with no arguments.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "arg_text" && !functions.contains_key("arg_text") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.arg_text-arity",
+                format!(
+                    "builtin `arg_text` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `arg_text(index)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::I32 && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.arg_text-type",
+                format!(
+                    "builtin `arg_text` expects I32, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer index.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "stdin_text" && !functions.contains_key("stdin_text") {
+        if !args.is_empty() {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdin_text-arity",
+                format!(
+                    "builtin `stdin_text` expects 0 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `stdin_text()` with no arguments.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "stdout_write" && !functions.contains_key("stdout_write") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdout_write-arity",
+                format!(
+                    "builtin `stdout_write` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `stdout_write(text)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdout_write-type",
+                format!(
+                    "builtin `stdout_write` expects Text, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Unit,
+            calls,
+        };
+    }
+
+    if let Some((enum_name, variant)) = enum_variant_info(&expr.callee, enum_variants) {
+        let expected_arity = usize::from(variant.payload.is_some());
+        if args.len() != expected_arity {
+            diagnostics.push(Diagnostic::new(
+                "semantic.enum-constructor-arity",
+                format!(
+                    "enum constructor `{}` expects {} argument{} but got {}",
+                    expr.callee,
+                    expected_arity,
+                    if expected_arity == 1 { "" } else { "s" },
+                    args.len(),
+                ),
+                expr.span,
+                Some("Pass exactly one payload argument for payload variants, or no arguments for plain variants.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if let (Some(expected), Some(actual)) = (&variant.payload, args.first())
+            && actual.ty != *expected
+            && actual.ty != Type::Error
+        {
+            diagnostics.push(Diagnostic::new(
+                "semantic.enum-constructor-type",
+                format!(
+                    "enum constructor `{}` expects `{}`, found `{}`",
+                    expr.callee,
+                    expected.render(),
+                    actual.ty.render(),
+                ),
+                expr.span,
+                Some("Pass a payload value of the declared variant type.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Named(enum_name.to_owned()),
+            calls,
+        };
+    }
+
+    let Some(callee) = functions.get(&expr.callee) else {
+        let suggestion = best_match(&expr.callee, functions.keys().map(String::as_str));
+        diagnostics.push(Diagnostic::new(
+            "semantic.unknown-call",
+            format!("call to unknown function `{}`", expr.callee),
+            expr.span,
+            Some(suggestion_help(suggestion, || {
+                "Declare the callee before using it.".to_owned()
+            })),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    };
+
+    if callee.params.len() != args.len() {
+        diagnostics.push(Diagnostic::new(
+            "semantic.call-arity",
+            format!(
+                "call to `{}` supplies {} arguments but {} were declared",
+                expr.callee,
+                args.len(),
+                callee.params.len(),
+            ),
+            expr.span,
+            Some("Match the argument list to the function signature.".to_owned()),
+        ));
+    }
+
+    for ((_, expected, param_span), actual) in callee.params.iter().zip(args.iter()) {
+        if !types_compatible(expected, &actual.ty) && actual.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.call-type",
+                format!(
+                    "argument type mismatch: expected `{}`, found `{}`",
+                    expected.render(),
+                    actual.ty.render(),
+                ),
+                *param_span,
+                Some("Pass an argument of the declared parameter type.".to_owned()),
+            ));
+        }
+    }
+
+    if !matches!(context, ExprContext::Body | ExprContext::BodyTail) && !callee.effects.is_empty() {
+        diagnostics.push(Diagnostic::new(
+            "semantic.contract-effect",
+            format!(
+                "contract expression calls `{}` which declares effects [{}]",
+                expr.callee,
+                callee
+                    .effects
+                    .iter()
+                    .map(Effect::keyword)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
+            expr.span,
+            Some("Contracts must remain effect-free in stage-0.".to_owned()),
+        ));
+    }
+
+    for effect in &callee.effects {
+        if matches!(context, ExprContext::Body | ExprContext::BodyTail)
+            && !caller_effects.contains(effect)
+        {
+            diagnostics.push(Diagnostic::new(
+                "semantic.missing-effect",
+                format!(
+                    "function `{fn_name}` calls `{}` but does not declare the `{}` effect",
+                    expr.callee,
+                    effect.keyword(),
+                ),
+                expr.span,
+                Some("Add the callee's effect to the caller or remove the call.".to_owned()),
+            ));
+        }
+    }
+
+    calls.push(CallSite {
+        callee: expr.callee.clone(),
+    });
+    ExprInfo {
+        ty: callee.return_type.clone(),
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_binary_expr(
+    expr: &crate::hir::BinaryExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let left = infer_expr(
+        &expr.left,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let right = infer_expr(
+        &expr.right,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let mut calls = left.calls;
+    calls.extend(right.calls);
+    let ty = match expr.op {
+        crate::hir::BinaryOp::And | crate::hir::BinaryOp::Or => {
+            expect_type(
+                diagnostics,
+                &expr.left,
+                &left.ty,
+                &Type::Bool,
+                expr.op.symbol(),
+                "left",
+                "Use boolean operands with `and` and `or`.",
+            );
+            expect_type(
+                diagnostics,
+                &expr.right,
+                &right.ty,
+                &Type::Bool,
+                expr.op.symbol(),
+                "right",
+                "Use boolean operands with `and` and `or`.",
+            );
+            Type::Bool
+        }
+        crate::hir::BinaryOp::Add
+        | crate::hir::BinaryOp::Sub
+        | crate::hir::BinaryOp::Mul
+        | crate::hir::BinaryOp::Div => {
+            if let Some(ty) = matching_numeric_type(&left.ty, &right.ty) {
+                ty
+            } else {
+                if left.ty != Type::Error && right.ty != Type::Error {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.binary-type",
+                        format!(
+                            "operands of `{}` must both be `I32` or both be `F64`, found `{}` and `{}`",
+                            expr.op.symbol(),
+                            left.ty.render(),
+                            right.ty.render(),
+                        ),
+                        expr.span,
+                        Some("Use matching numeric operand types for arithmetic.".to_owned()),
+                    ));
+                }
+                Type::Error
+            }
+        }
+        crate::hir::BinaryOp::Lt
+        | crate::hir::BinaryOp::Le
+        | crate::hir::BinaryOp::Gt
+        | crate::hir::BinaryOp::Ge => {
+            if matching_numeric_type(&left.ty, &right.ty).is_none()
+                && left.ty != Type::Error
+                && right.ty != Type::Error
+            {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.binary-type",
+                    format!(
+                        "operands of `{}` must both be `I32` or both be `F64`, found `{}` and `{}`",
+                        expr.op.symbol(),
+                        left.ty.render(),
+                        right.ty.render(),
+                    ),
+                    expr.span,
+                    Some("Use matching numeric operand types for comparisons.".to_owned()),
+                ));
+            }
+            Type::Bool
+        }
+        crate::hir::BinaryOp::Eq | crate::hir::BinaryOp::Ne => {
+            if left.ty != Type::Error && right.ty != Type::Error && left.ty != right.ty {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.binary-type",
+                    format!(
+                        "operands of `{}` must have the same type, found `{}` and `{}`",
+                        expr.op.symbol(),
+                        left.ty.render(),
+                        right.ty.render(),
+                    ),
+                    expr.span,
+                    Some("Compare values of the same type.".to_owned()),
+                ));
+            }
+            Type::Bool
+        }
+    };
+    ExprInfo {
+        ty: if left.ty == Type::Error || right.ty == Type::Error {
+            Type::Error
+        } else {
+            ty
+        },
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_unary_expr(
+    expr: &crate::hir::UnaryExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let inner = infer_expr(
+        &expr.inner,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let ty = match expr.op {
+        crate::hir::UnaryOp::Not => {
+            expect_type(
+                diagnostics,
+                &expr.inner,
+                &inner.ty,
+                &Type::Bool,
+                expr.op.symbol(),
+                "operand",
+                "Use a boolean operand with `not`.",
+            );
+            Type::Bool
+        }
+    };
+    ExprInfo {
+        ty: if inner.ty == Type::Error {
+            Type::Error
+        } else {
+            ty
+        },
+        calls: inner.calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_field_expr(
+    expr: &crate::hir::FieldExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    if let Some(enum_name) = enum_literal_type_name(
+        &expr.base,
+        &expr.field,
+        enum_variants,
+        diagnostics,
+        expr.span,
+    ) {
+        return ExprInfo {
+            ty: Type::Named(enum_name),
+            calls: Vec::new(),
+        };
+    }
+    let nested_context = nested_expr_context(context);
+    let base = infer_expr(
+        &expr.base,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let ty = if let Some(ty) = field_type(&base.ty, &expr.field, struct_layouts) {
+        ty
+    } else {
+        let suggestion =
+            field_names_for_type(&base.ty, struct_layouts).and_then(|fields: Vec<String>| {
+                best_match(&expr.field, fields.iter().map(String::as_str))
+            });
+        diagnostics.push(Diagnostic::new(
+            "semantic.field-access",
+            format!(
+                "cannot read field `{}` from value of type `{}`",
+                expr.field,
+                base.ty.render(),
+            ),
+            expr.span,
+            Some(suggestion_help(suggestion, || {
+                "Use a declared struct value and one of its field names.".to_owned()
+            })),
+        ));
+        Type::Error
+    };
+    ExprInfo {
+        ty: if base.ty == Type::Error || ty == Type::Error {
+            Type::Error
+        } else {
+            ty
+        },
+        calls: base.calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn infer_record_expr(
+    expr: &crate::hir::RecordExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let mut calls = Vec::new();
+    let field_infos = expr
+        .fields
+        .iter()
+        .map(|field| {
+            let info = infer_expr(
+                &field.value,
+                locals,
+                mutable_locals,
+                functions,
+                consts,
+                enum_variants,
+                struct_layouts,
+                diagnostics,
+                fn_name,
+                caller_effects,
+                &nested_context,
+            );
+            calls.extend(info.calls.iter().cloned());
+            (field, info)
+        })
+        .collect::<Vec<_>>();
+
+    let Some(layout) = struct_layouts.get(&expr.name) else {
+        let suggestion = best_match(&expr.name, struct_layouts.keys().map(String::as_str));
+        diagnostics.push(Diagnostic::new(
+            "semantic.record-type",
+            format!("record literal uses unknown struct `{}`", expr.name),
+            expr.span,
+            Some(suggestion_help(suggestion, || {
+                "Declare the struct before constructing it.".to_owned()
+            })),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    };
+
+    let mut ok = true;
+    let mut seen = HashSet::<String>::new();
+    for (field, info) in &field_infos {
+        let Some(expected) = layout
+            .iter()
+            .find_map(|(name, ty)| (name == &field.name).then_some(ty))
+        else {
+            let suggestion = best_match(&field.name, layout.iter().map(|(name, _)| name.as_str()));
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field",
+                format!("struct `{}` has no field `{}`", expr.name, field.name),
+                field.span,
+                Some(suggestion_help(suggestion, || {
+                    "Use one of the declared struct fields.".to_owned()
+                })),
+            ));
+            ok = false;
+            continue;
+        };
+        if !seen.insert(field.name.clone()) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field",
+                format!(
+                    "record literal for `{}` initializes field `{}` more than once",
+                    expr.name, field.name
+                ),
+                field.span,
+                Some("Initialize each field exactly once.".to_owned()),
+            ));
+            ok = false;
+        }
+        if info.ty != *expected && info.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field-type",
+                format!(
+                    "field `{}` of `{}` expects `{}`, found `{}`",
+                    field.name,
+                    expr.name,
+                    expected.render(),
+                    info.ty.render(),
+                ),
+                field.span,
+                Some("Make the field initializer match the declared field type.".to_owned()),
+            ));
+            ok = false;
+        }
+    }
+
+    for (field_name, _) in layout {
+        if !seen.contains(field_name) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field",
+                format!(
+                    "record literal for `{}` is missing field `{field_name}`",
+                    expr.name
+                ),
+                expr.span,
+                Some("Initialize every declared field exactly once.".to_owned()),
+            ));
+            ok = false;
+        }
+    }
+
+    if field_infos.iter().any(|(_, info)| info.ty == Type::Error) {
+        ok = false;
+    }
+
+    ExprInfo {
+        ty: if ok {
+            Type::Named(expr.name.clone())
+        } else {
+            Type::Error
+        },
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_comptime_expr(
+    body: &crate::hir::Body,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+) -> ExprInfo {
+    let info = super::infer_body(
+        body,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+    );
+    ExprInfo {
+        ty: info.ty,
+        calls: info.calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_handle_expr(
+    expr: &crate::hir::HandleExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+) -> ExprInfo {
+    let info = super::infer_body(
+        &expr.body,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+    );
+    ExprInfo {
+        ty: info.ty,
+        calls: info.calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn infer_array_expr(
+    expr: &crate::hir::ArrayExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let mut calls = Vec::new();
+    let mut element_type = None::<Type>;
+    let mut ok = true;
+
+    if expr.elements.is_empty() {
+        diagnostics.push(Diagnostic::new(
+            "semantic.array-empty",
+            format!("empty array literal in `{fn_name}` has no inferable type"),
+            expr.span,
+            Some("Use a non-empty array literal in stage-0.".to_owned()),
+        ));
+        ok = false;
+    }
+
+    for element in &expr.elements {
+        let info = infer_expr(
+            element,
+            locals,
+            mutable_locals,
+            functions,
+            consts,
+            enum_variants,
+            struct_layouts,
+            diagnostics,
+            fn_name,
+            caller_effects,
+            &nested_context,
+        );
+        calls.extend(info.calls);
+        if let Some(expected) = &element_type {
+            if *expected != info.ty && info.ty != Type::Error {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.array-element-type",
+                    format!(
+                        "array elements in `{fn_name}` must have the same type, found `{}` and `{}`",
+                        expected.render(),
+                        info.ty.render(),
+                    ),
+                    element.span(),
+                    Some("Make all array elements the same type.".to_owned()),
+                ));
+                ok = false;
+            }
+        } else {
+            element_type = Some(info.ty.clone());
+        }
+        if info.ty == Type::Error {
+            ok = false;
+        }
+    }
+
+    ExprInfo {
+        ty: if ok {
+            Type::Array(
+                Box::new(element_type.unwrap_or(Type::Error)),
+                TypeArrayLen::Literal(expr.elements.len()),
+            )
+        } else {
+            Type::Error
+        },
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_contract_result_expr(
+    expr: &crate::hir::ContractResultExpr,
+    locals: &HashMap<String, Type>,
+    _mutable_locals: &HashSet<String>,
+    _functions: &BTreeMap<String, FunctionSignature>,
+    _consts: &BTreeMap<String, ConstSignature>,
+    _enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    _struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    _fn_name: &str,
+    _caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    if !matches!(context, ExprContext::ContractEnsures) {
+        diagnostics.push(Diagnostic::new(
+            "semantic.contract-result-context",
+            "`result` is only available inside `ensures` clauses",
+            expr.span,
+            Some("Use local bindings or parameters instead.".to_owned()),
+        ));
+    }
+    if let Some(ty) = locals.get("result") {
+        ExprInfo {
+            ty: ty.clone(),
+            calls: Vec::new(),
+        }
+    } else {
+        ExprInfo {
+            ty: Type::Error,
+            calls: Vec::new(),
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_group_expr(
+    expr: &crate::hir::GroupExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    infer_expr(
+        &expr.inner,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_index_expr(
+    expr: &crate::hir::IndexExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let base = infer_expr(
+        &expr.base,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let index = infer_expr(
+        &expr.index,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    if index.ty != Type::I32 && index.ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            "semantic.array-index-type",
+            format!(
+                "array index in `{fn_name}` must be `I32`, found `{}`",
+                index.ty.render(),
+            ),
+            expr.index.span(),
+            Some("Use an integer index for stage-0 array access.".to_owned()),
+        ));
+    }
+    let ty = match &base.ty {
+        Type::Array(element, _) => (**element).clone(),
+        Type::Error => Type::Error,
+        other => {
+            diagnostics.push(Diagnostic::new(
+                "semantic.array-index-base",
+                format!(
+                    "cannot index value of type `{}` in `{fn_name}`",
+                    other.pretty(),
+                ),
+                expr.base.span(),
+                Some("Index into an array literal or an array-valued local binding.".to_owned()),
+            ));
+            Type::Error
+        }
+    };
+    let mut calls = base.calls;
+    calls.extend(index.calls);
+    ExprInfo {
+        ty: if base.ty == Type::Error || index.ty == Type::Error {
+            Type::Error
+        } else {
+            ty
+        },
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_if_expr(
+    expr: &crate::hir::IfExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+) -> ExprInfo {
+    let condition = infer_expr(
+        &expr.condition,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &ExprContext::Body,
+    );
+    if condition.ty != Type::Bool && condition.ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            "semantic.if-condition",
+            format!(
+                "`if` condition in `{fn_name}` must be `Bool`, found `{}`",
+                condition.ty.render(),
+            ),
+            expr.condition.span(),
+            Some("Use a boolean condition before the branch bodies.".to_owned()),
+        ));
+    }
+    let then_info = super::infer_body(
+        &expr.then_body,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+    );
+    let else_info = super::infer_body(
+        &expr.else_body,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+    );
+    let mut calls = condition.calls;
+    calls.extend(then_info.calls);
+    calls.extend(else_info.calls);
+    if then_info.ty != Type::Error
+        && else_info.ty != Type::Error
+        && !types_compatible(&then_info.ty, &else_info.ty)
+    {
+        diagnostics.push(Diagnostic::new(
+            "semantic.if-branch-type",
+            format!(
+                "`if` branches in `{fn_name}` must return the same type, found `{}` and `{}`",
+                then_info.ty.render(),
+                else_info.ty.render(),
+            ),
+            expr.span,
+            Some("Make both branch bodies produce the same type.".to_owned()),
+        ));
+    }
+    let has_type_error = condition.ty == Type::Error
+        || then_info.ty == Type::Error
+        || else_info.ty == Type::Error
+        || !types_compatible(&then_info.ty, &else_info.ty);
+    ExprInfo {
+        ty: if has_type_error {
+            Type::Error
+        } else {
+            then_info.ty
+        },
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_repeat_expr(
+    expr: &crate::hir::RepeatExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    if !matches!(context, ExprContext::BodyTail | ExprContext::Statement) {
+        diagnostics.push(Diagnostic::new(
+            "semantic.repeat-position",
+            format!(
+                "`repeat` in `{fn_name}` is only allowed as a direct body tail expression or statement"
+            ),
+            expr.span,
+            Some(
+                "Place `repeat` directly at the end of a body, or use it as an explicit statement."
+                    .to_owned(),
+            ),
+        ));
+    }
+    let count = infer_expr(
+        &expr.count,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &ExprContext::Body,
+    );
+    if count.ty != Type::I32 && count.ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            "semantic.repeat-count",
+            format!(
+                "`repeat` count in `{fn_name}` must be `I32`, found `{}`",
+                count.ty.render(),
+            ),
+            expr.count.span(),
+            Some("Use an integer iteration count for stage-0 repeat loops.".to_owned()),
+        ));
+    }
+    let mut body_locals = locals.clone();
+    if let Some(binding) = &expr.binding {
+        if body_locals.contains_key(binding) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.duplicate-local",
+                format!("local binding `{binding}` is already declared in `{fn_name}`"),
+                expr.span,
+                Some(
+                    "Use a fresh loop index name instead of shadowing parameters or earlier locals."
+                        .to_owned(),
+                ),
+            ));
+        } else {
+            body_locals.insert(binding.clone(), Type::I32);
+        }
+    }
+    let body = super::infer_body(
+        &expr.body,
+        &body_locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+    );
+    let mut calls = count.calls;
+    calls.extend(body.calls);
+    ExprInfo {
+        ty: Type::Unit,
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_while_expr(
+    expr: &crate::hir::WhileExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    if !matches!(context, ExprContext::BodyTail | ExprContext::Statement) {
+        diagnostics.push(Diagnostic::new(
+            "semantic.while-position",
+            format!(
+                "`while` in `{fn_name}` is only allowed as a direct body tail expression or statement"
+            ),
+            expr.span,
+            Some(
+                "Place `while` directly at the end of a body, or use it as an explicit statement."
+                    .to_owned(),
+            ),
+        ));
+    }
+    let condition = infer_expr(
+        &expr.condition,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &ExprContext::Body,
+    );
+    if condition.ty != Type::Bool && condition.ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            "semantic.while-condition",
+            format!(
+                "`while` condition in `{fn_name}` must be `Bool`, found `{}`",
+                condition.ty.render(),
+            ),
+            expr.condition.span(),
+            Some("Use a boolean condition for stage-0 `while` loops.".to_owned()),
+        ));
+    }
+    let body = super::infer_body(
+        &expr.body,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+    );
+    let mut calls = condition.calls;
+    calls.extend(body.calls);
+    ExprInfo {
+        ty: Type::Unit,
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn infer_match_expr(
+    expr: &crate::hir::MatchExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let scrutinee = infer_expr(
+        &expr.scrutinee,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let enum_name = match &scrutinee.ty {
+        Type::Named(name) if enum_variants.contains_key(name) => Some(name.clone()),
+        _ => None,
+    };
+    let declared_variants = enum_name
+        .as_ref()
+        .and_then(|name| enum_variants.get(name))
+        .cloned()
+        .unwrap_or_default();
+    let supported_scrutinee = matches!(
+        scrutinee.ty,
+        Type::I32 | Type::Bool | Type::Text | Type::Error
+    ) || enum_name.is_some();
+    if !supported_scrutinee && scrutinee.ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-scrutinee",
+            format!(
+                "`match` in `{fn_name}` requires `I32`, `Bool`, `Text`, or an enum scrutinee, found `{}`",
+                scrutinee.ty.render(),
+            ),
+            expr.scrutinee.span(),
+            Some("Match over an integer, boolean, text, or declared enum value.".to_owned()),
+        ));
+    }
+
+    let mut seen_enum_variants = BTreeSet::<String>::new();
+    let mut seen_int_patterns = BTreeSet::<i64>::new();
+    let mut seen_text_patterns = BTreeSet::<String>::new();
+    let mut seen_true = false;
+    let mut seen_false = false;
+    let mut has_wildcard = false;
+    let mut branch_type = None::<Type>;
+    let mut calls = scrutinee.calls;
+    let mut ok = supported_scrutinee || scrutinee.ty == Type::Error;
+    for (arm_index, arm) in expr.arms.iter().enumerate() {
+        let is_last_arm = arm_index + 1 == expr.arms.len();
+        let mut variant_payload = None::<Type>;
+
+        match (&scrutinee.ty, &arm.pattern) {
+            (_, crate::hir::MatchPattern::Wildcard { span }) => {
+                if has_wildcard {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!("wildcard arm `_` appears more than once in `{fn_name}`"),
+                        *span,
+                        Some("Keep at most one wildcard arm.".to_owned()),
+                    ));
+                    ok = false;
+                }
+                if !is_last_arm {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        "wildcard arm `_` must be the final match arm",
+                        *span,
+                        Some("Move `_` to the final arm so later arms stay reachable.".to_owned()),
+                    ));
+                    ok = false;
+                }
+                has_wildcard = true;
+            }
+            (
+                Type::Named(expected_enum),
+                crate::hir::MatchPattern::Variant {
+                    path,
+                    binding,
+                    span,
+                },
+            ) if enum_name.is_some() => {
+                let Some((pattern_enum, variant_name)) = split_enum_variant_path(&path.path) else {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "match arm in `{fn_name}` must use `Enum.variant`, found `{}`",
+                            path.path,
+                        ),
+                        *span,
+                        Some("Rewrite the arm pattern as `Enum.variant`.".to_owned()),
+                    ));
+                    ok = false;
+                    continue;
+                };
+                if pattern_enum != expected_enum {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "match arm `{}` does not belong to enum `{expected_enum}`",
+                            arm.pattern.pretty(),
+                        ),
+                        *span,
+                        Some("Use variants from the scrutinee's enum only.".to_owned()),
+                    ));
+                    ok = false;
+                } else if !declared_variants
+                    .iter()
+                    .any(|variant| variant.name == variant_name)
+                {
+                    let suggestion = best_match(
+                        variant_name,
+                        declared_variants
+                            .iter()
+                            .map(|variant| variant.name.as_str()),
+                    );
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!("enum `{expected_enum}` has no variant `{variant_name}`"),
+                        *span,
+                        Some(suggestion_help(suggestion, || {
+                            "Use one of the declared enum variants.".to_owned()
+                        })),
+                    ));
+                    ok = false;
+                } else if !seen_enum_variants.insert(variant_name.to_owned()) {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "match arm `{}` appears more than once in `{fn_name}`",
+                            arm.pattern.pretty(),
+                        ),
+                        *span,
+                        Some("Keep one arm per enum variant.".to_owned()),
+                    ));
+                    ok = false;
+                }
+
+                variant_payload = declared_variants
+                    .iter()
+                    .find(|variant| variant.name == variant_name)
+                    .and_then(|variant| variant.payload.clone());
+
+                if variant_payload.is_none() && binding.is_some() {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "payload binding `{}` is only valid for payload-carrying variants",
+                            binding.as_deref().unwrap_or("_"),
+                        ),
+                        *span,
+                        Some(
+                            "Remove the binding, or match a variant that carries a payload."
+                                .to_owned(),
+                        ),
+                    ));
+                    ok = false;
+                }
+            }
+            (Type::Bool, crate::hir::MatchPattern::Bool { value, span }) => {
+                let seen = if *value {
+                    &mut seen_true
+                } else {
+                    &mut seen_false
+                };
+                if *seen {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "match arm `{}` appears more than once in `{fn_name}`",
+                            arm.pattern.pretty(),
+                        ),
+                        *span,
+                        Some("Keep one arm per boolean value.".to_owned()),
+                    ));
+                    ok = false;
+                }
+                *seen = true;
+            }
+            (Type::I32, crate::hir::MatchPattern::Integer { value, span }) => {
+                if !seen_int_patterns.insert(*value) {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "match arm `{}` appears more than once in `{fn_name}`",
+                            arm.pattern.pretty(),
+                        ),
+                        *span,
+                        Some("Keep one arm per integer literal.".to_owned()),
+                    ));
+                    ok = false;
+                }
+            }
+            (Type::Text, crate::hir::MatchPattern::String { value, span, .. }) => {
+                if !seen_text_patterns.insert(value.clone()) {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.match-pattern",
+                        format!(
+                            "match arm `{}` appears more than once in `{fn_name}`",
+                            arm.pattern.pretty(),
+                        ),
+                        *span,
+                        Some("Keep one arm per text literal.".to_owned()),
+                    ));
+                    ok = false;
+                }
+            }
+            (Type::Error, _) => {}
+            (
+                _,
+                crate::hir::MatchPattern::Variant { span, .. }
+                | crate::hir::MatchPattern::Integer { span, .. }
+                | crate::hir::MatchPattern::String { span, .. }
+                | crate::hir::MatchPattern::Bool { span, .. },
+            ) => {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "match arm `{}` is not compatible with scrutinee type `{}`",
+                        arm.pattern.pretty(),
+                        scrutinee.ty.render(),
+                    ),
+                    *span,
+                    Some("Use enum variants, matching literal kinds, or `_`.".to_owned()),
+                ));
+                ok = false;
+            }
+        }
+
+        let mut arm_locals = locals.clone();
+        if let (
+            crate::hir::MatchPattern::Variant {
+                binding: Some(binding),
+                ..
+            },
+            Some(payload_ty),
+        ) = (&arm.pattern, variant_payload)
+        {
+            arm_locals.insert(binding.clone(), payload_ty);
+        }
+
+        let body = super::infer_body(
+            &arm.body,
+            &arm_locals,
+            mutable_locals,
+            functions,
+            consts,
+            enum_variants,
+            struct_layouts,
+            diagnostics,
+            fn_name,
+            caller_effects,
+        );
+        calls.extend(body.calls);
+        if let Some(expected) = &branch_type {
+            if !types_compatible(expected, &body.ty) && body.ty != Type::Error {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-branch-type",
+                    format!(
+                        "match arms in `{fn_name}` must return the same type, found `{}` and `{}`",
+                        expected.render(),
+                        body.ty.render(),
+                    ),
+                    arm.body.span,
+                    Some("Make every match arm produce the same type.".to_owned()),
+                ));
+                ok = false;
+            }
+        } else {
+            branch_type = Some(body.ty.clone());
+        }
+        if body.ty == Type::Error {
+            ok = false;
+        }
+    }
+    if let Some(expected_enum) = &enum_name {
+        let missing = declared_variants
+            .iter()
+            .filter(|variant| !seen_enum_variants.contains(variant.name.as_str()))
+            .map(|variant| variant.name.clone())
+            .collect::<Vec<_>>();
+        if !missing.is_empty() && !has_wildcard {
+            diagnostics.push(Diagnostic::new(
+                "semantic.match-exhaustive",
+                format!(
+                    "match in `{fn_name}` is not exhaustive for enum `{expected_enum}`; missing {}",
+                    missing.join(", "),
+                ),
+                expr.span,
+                Some("Add one arm for every declared enum variant.".to_owned()),
+            ));
+            ok = false;
+        }
+    } else if scrutinee.ty == Type::Bool {
+        if !(has_wildcard || (seen_true && seen_false)) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.match-exhaustive",
+                format!(
+                    "match in `{fn_name}` is not exhaustive for `Bool`; add the missing boolean arm or `_`"
+                ),
+                expr.span,
+                Some("Cover both `true` and `false`, or end with `_`.".to_owned()),
+            ));
+            ok = false;
+        }
+    } else if matches!(scrutinee.ty, Type::I32 | Type::Text) && !has_wildcard {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-exhaustive",
+            format!(
+                "match in `{fn_name}` over `{}` requires a final `_` fallback arm",
+                scrutinee.ty.render(),
+            ),
+            expr.span,
+            Some("End integer and text matches with `_ => { ... }`.".to_owned()),
+        ));
+        ok = false;
+    }
+    ExprInfo {
+        ty: if ok {
+            branch_type.unwrap_or(Type::Unit)
+        } else {
+            Type::Error
+        },
+        calls,
+    }
+}
+
+const ARRAY_LEN_BUILTIN: &str = "len";
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub(super) fn infer_expr(
+    expr: &Expr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    super::infer_expr(
+        expr,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        context,
+    )
+}

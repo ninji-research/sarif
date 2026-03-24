@@ -13,8 +13,6 @@
 #define SARIF_MAIN_PRINT 0
 #endif
 
-extern long long sarif_user_main(void);
-
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
@@ -67,6 +65,22 @@ struct SarifF64Vec {
 
 extern const SarifRecordDesc* sarif_get_main_record_desc(void);
 extern const SarifEnumDesc* sarif_get_main_enum_desc(void);
+
+#if SARIF_MAIN_KIND == 1
+extern int32_t sarif_user_main(void);
+#elif SARIF_MAIN_KIND == 2
+extern uint32_t sarif_user_main(void);
+#elif SARIF_MAIN_KIND == 3
+extern uintptr_t sarif_user_main(void);
+#elif SARIF_MAIN_KIND == 4
+extern uintptr_t sarif_user_main(void);
+#elif SARIF_MAIN_KIND == 5
+extern uint64_t sarif_user_main(void);
+#elif SARIF_MAIN_KIND == 6
+extern double sarif_user_main(void);
+#else
+extern void sarif_user_main(void);
+#endif
 
 void* sarif_record_alloc(uint64_t size) {
     return calloc((size_t)size, 1);
@@ -585,14 +599,12 @@ int main(int argc, char** argv) {
     }
     return fputc('\n', stdout) == EOF ? 1 : 0;
 #elif SARIF_MAIN_KIND == 5
-    if (sarif_write_enum((uint64_t)sarif_user_main(), sarif_get_main_enum_desc()) != 0) {
+    if (sarif_write_enum(sarif_user_main(), sarif_get_main_enum_desc()) != 0) {
         return 1;
     }
     return fputc('\n', stdout) == EOF ? 1 : 0;
 #elif SARIF_MAIN_KIND == 6
-    uint64_t raw = (uint64_t)sarif_user_main();
-    double value = 0.0;
-    memcpy(&value, &raw, sizeof(value));
+    double value = sarif_user_main();
 #if SARIF_MAIN_PRINT
     return fprintf(stdout, "%.17g\n", value) < 0 ? 1 : 0;
 #else

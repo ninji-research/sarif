@@ -30,7 +30,7 @@ Sarif is currently in its stage-0 bootstrap window.
     -   Native Target (Linked executables via Cranelift)
     -   Wasm Target (Binary `.wasm` via `wat`)
 -   **Tooling:** Stable `sarifc` commands for `format`, `check`, `run`, `build`, and `doc`.
--   **Experimental Self-Host Commands:** `sarifc bootstrap-format` runs the current Sarif-hosted formatter through the maintained compiler/runtime, and `sarifc bootstrap-doc` plus `sarifc bootstrap-check` now bridge to the maintained semantic doc/check surfaces on the same CLI boundary.
+-   **Bootstrap Self-Host Commands:** `sarifc bootstrap-format` runs the current Sarif-hosted formatter through the maintained compiler/runtime, and `sarifc bootstrap-doc` plus `sarifc bootstrap-check` bridge to the maintained semantic doc/check surfaces on the same CLI boundary.
 -   **Technical Integrity:** Default workspace verification is kept green with a small supported backend surface.
 -   **Benchmark Coverage:** `~/bnch` currently carries an experimental Sarif lane for `mandelbrot`, `fasta`, `nbody`, `revcomp`, and `spectralnorm`.
 -   **Retained Bootstrap Corpora:** `bootstrap-format` is pinned by manifest-backed exact retained outputs over shipped examples and bootstrap packages. `bootstrap-doc` is pinned against retained semantic markdown outputs, and `bootstrap-check` is pinned against retained maintained semantic diagnostics.

@@ -1335,6 +1335,24 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
+### fn name_text
+
+- signature: `fn name_text(source: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn doc_entry_text
+
+- signature: `fn doc_entry_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn doc_non_fn_entry_text
+
+- signature: `fn doc_non_fn_entry_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn span_text
 
 - signature: `fn span_text(source: Text, span: OptionalSpan) -> Text`
@@ -1351,6 +1369,102 @@
 
 - signature: `fn fn_signature_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text`
 - ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn doc_fn_entry_text
+
+- signature: `fn doc_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn block_item_kind_text
+
+- signature: `fn block_item_kind_text(kind: BlockItemKind) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn expr_kind_text
+
+- signature: `fn expr_kind_text(kind: ExprKind) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn block_item_text
+
+- signature: `fn block_item_text(entry: BlockItemEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn body_outline_text_from
+
+- signature: `fn body_outline_text_from(outline: BlockOutline, index: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn body_outline_text
+
+- signature: `fn body_outline_text(outline: BlockOutline) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn outline_text_from
+
+- signature: `fn outline_text_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn outline_text
+
+- signature: `fn outline_text(source: Text) -> Text`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn stream_has_truncation
+
+- signature: `fn stream_has_truncation(source: Text, state: ParseState) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn truncated_text
+
+- signature: `fn truncated_text(value: Bool) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn doc_text
+
+- signature: `fn doc_text(source: Text) -> Text`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn bool_text
+
+- signature: `fn bool_text(value: Bool) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_entry_text
+
+- signature: `fn check_entry_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_fn_entry_text
+
+- signature: `fn check_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_stream_from
+
+- signature: `fn check_stream_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_text
+
+- signature: `fn check_text(source: Text) -> Text`
+- ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 
 ### fn bool_score

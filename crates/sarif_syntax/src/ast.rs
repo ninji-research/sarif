@@ -278,6 +278,7 @@ pub enum ArrayLen {
 pub enum TypePath {
     Named { segments: Vec<String> },
     Array { element: Box<Self>, len: ArrayLen },
+    Generic { name: String, args: Vec<Self> },
 }
 
 impl std::fmt::Display for TypePath {
@@ -288,6 +289,14 @@ impl std::fmt::Display for TypePath {
                 ArrayLen::Literal(l) => write!(formatter, "[{element}; {l}]"),
                 ArrayLen::Name(n) => write!(formatter, "[{element}; {n}]"),
             },
+            Self::Generic { name, args } => {
+                let args_str = args
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(formatter, "{name}[{args_str}]")
+            }
         }
     }
 }

@@ -29,6 +29,7 @@ Sarif enforces a strict top-level declaration order to ensure predictability and
 -   `struct`: Product type with named fields.
 -   `enum`: Sum type with named variants, optionally carrying payloads.
 -   `[T; N]`: Fixed-size internal array.
+-   `fn first[N](xs: [I32; N]) -> I32`: Function generic parameters may be used as array lengths.
 
 ### Functions
 

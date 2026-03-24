@@ -12,17 +12,47 @@ use super::LoadedSource;
 use super::PackageSegment;
 #[cfg(feature = "codegen")]
 use super::load_bootstrap_tools;
+#[cfg(feature = "codegen")]
+use sarif_codegen::{Program, RuntimeValue, run_function};
+#[cfg(feature = "codegen")]
+use std::sync::OnceLock;
+
+#[cfg(feature = "codegen")]
+static BOOTSTRAP_FORMAT_PROGRAM: OnceLock<Result<Program, String>> = OnceLock::new();
 
 #[cfg(feature = "codegen")]
 pub fn render_bootstrap_format(target: &LoadedSource) -> Result<String, String> {
     target.ensure_no_diagnostics(&target.ast_diagnostics(), "bootstrap format failed")?;
-    let tools = load_bootstrap_tools()?;
+    let program = bootstrap_format_program()?;
     let mut output = String::new();
     for segment in &target.segments {
-        let formatted = tools.run_text_function(Profile::Core, "format_text", &segment.source)?;
+        let formatted = run_function(
+            program,
+            "format_text",
+            &[RuntimeValue::Text(segment.source.clone())],
+        )
+        .map_err(|error| format!("runtime error: {}", error.message))?;
+        let formatted = match formatted {
+            RuntimeValue::Text(text) => text,
+            other => {
+                return Err(format!(
+                    "bootstrap formatter must return Text, found {}",
+                    other.render()
+                ));
+            }
+        };
         append_formatted_segment(&mut output, &formatted);
     }
     Ok(output)
+}
+
+#[cfg(feature = "codegen")]
+fn bootstrap_format_program() -> Result<&'static Program, String> {
+    let cached = BOOTSTRAP_FORMAT_PROGRAM.get_or_init(|| {
+        load_bootstrap_tools()
+            .and_then(|tools| tools.lower_program(Profile::Core, "bootstrap format failed"))
+    });
+    cached.as_ref().map_err(Clone::clone)
 }
 
 pub fn render_package_diagnostics(

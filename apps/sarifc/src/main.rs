@@ -21,7 +21,7 @@ use reports::render_package_diagnostics;
 use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
 use sarif_codegen::lower as lower_mir;
-#[cfg(feature = "codegen")]
+#[cfg(all(test, feature = "codegen"))]
 use sarif_codegen::{RuntimeValue, run_function};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
@@ -47,6 +47,8 @@ struct LoadedSource {
     segments: Vec<PackageSegment>,
     database: FrontendDatabase,
     source_id: SourceId,
+    #[cfg(feature = "codegen")]
+    mir_cache: std::cell::OnceCell<sarif_codegen::MirLowering>,
     #[cfg(feature = "native-build")]
     package: PackageIdentity,
 }
@@ -78,6 +80,8 @@ impl LoadedSource {
             segments: package_source.segments,
             database,
             source_id,
+            #[cfg(feature = "codegen")]
+            mir_cache: std::cell::OnceCell::new(),
             #[cfg(feature = "native-build")]
             package: resolved.package,
         })
@@ -112,10 +116,15 @@ impl LoadedSource {
     }
 
     #[cfg(feature = "codegen")]
+    fn mir(&self) -> &sarif_codegen::MirLowering {
+        self.mir_cache
+            .get_or_init(|| lower_mir(&self.database.hir(self.source_id).module))
+    }
+
+    #[cfg(feature = "codegen")]
     fn mir_diagnostics(&self, profile: Profile) -> Vec<Diagnostic> {
         let mut diagnostics = self.semantic_diagnostics(profile);
-        let hir = self.database.hir(self.source_id);
-        diagnostics.extend(lower_mir(&hir.module).diagnostics);
+        diagnostics.extend(self.mir().diagnostics.iter().cloned());
         diagnostics
     }
 
@@ -151,8 +160,7 @@ impl LoadedSource {
             let semantic = self.database.semantic(self.source_id, profile);
             #[cfg(feature = "codegen")]
             let const_values = {
-                let hir = self.database.hir(self.source_id);
-                let mir = lower_mir(&hir.module);
+                let mir = self.mir();
                 mir.const_values
                     .iter()
                     .map(|(name, value)| (name.clone(), value.render()))
@@ -203,11 +211,10 @@ impl LoadedSource {
         failure: &str,
     ) -> Result<sarif_codegen::Program, String> {
         self.require_mir(profile, failure)?;
-        let hir = self.database.hir(self.source_id);
-        Ok(lower_mir(&hir.module).program)
+        Ok(self.mir().program.clone())
     }
 
-    #[cfg(feature = "codegen")]
+    #[cfg(all(test, feature = "codegen"))]
     fn run_text_function(
         &self,
         profile: Profile,

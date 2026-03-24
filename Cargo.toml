@@ -37,4 +37,7 @@ pedantic = "warn"
 nursery = "warn"
 
 [profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
 strip = "symbols"

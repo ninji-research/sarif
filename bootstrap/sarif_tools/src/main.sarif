@@ -417,6 +417,22 @@ fn top_level_name_text(source: Text, entry: TopLevelEntry) -> Text {
     }
 }
 
+fn name_text(source: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_slice(source, span.span.start, span.span.end)
+    } else {
+        "_"
+    }
+}
+
+fn doc_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat("- ", text_concat(top_level_kind_text(entry.kind), text_concat(" ", text_concat(top_level_name_text(source, entry), "\n"))))
+}
+
+fn doc_non_fn_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat(doc_entry_text(source, entry), text_concat("  decl: ", text_concat(top_level_source_text(source, entry), "\n")))
+}
+
 fn span_text(source: Text, span: OptionalSpan) -> Text {
     if span.present {
         text_slice(source, span.span.start, span.span.end)
@@ -443,6 +459,272 @@ fn fn_signature_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -
     let with_effects = append_span_text(source, with_return, " ", shape.effects_span);
     let with_requires = append_span_text(source, with_effects, " ", shape.requires_span);
     append_span_text(source, with_requires, " ", shape.ensures_span)
+}
+
+fn doc_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    text_concat("- ", text_concat(fn_signature_text(source, entry, shape), text_concat("\n  body: ", text_concat(body_outline_text(shape.body_outline), "\n"))))
+}
+
+fn block_item_kind_text(kind: BlockItemKind) -> Text {
+    match kind {
+        BlockItemKind.Let => {
+            "let"
+        },
+        BlockItemKind.Assign => {
+            "assign"
+        },
+        BlockItemKind.ExprStmt => {
+            "expr"
+        },
+        BlockItemKind.TailExpr => {
+            "tail"
+        },
+    }
+}
+
+fn expr_kind_text(kind: ExprKind) -> Text {
+    match kind {
+        ExprKind.Name => {
+            "name"
+        },
+        ExprKind.Integer => {
+            "integer"
+        },
+        ExprKind.String => {
+            "string"
+        },
+        ExprKind.Bool => {
+            "bool"
+        },
+        ExprKind.Group => {
+            "group"
+        },
+        ExprKind.Array => {
+            "array"
+        },
+        ExprKind.Record => {
+            "record"
+        },
+        ExprKind.If => {
+            "if"
+        },
+        ExprKind.Match => {
+            "match"
+        },
+        ExprKind.Repeat => {
+            "repeat"
+        },
+        ExprKind.While => {
+            "while"
+        },
+        ExprKind.Call => {
+            "call"
+        },
+        ExprKind.Index => {
+            "index"
+        },
+        ExprKind.Binary => {
+            "binary"
+        },
+    }
+}
+
+fn block_item_text(entry: BlockItemEntry) -> Text {
+    text_concat(block_item_kind_text(entry.kind), text_concat(" ", expr_kind_text(entry.expr_kind)))
+}
+
+fn body_outline_text_from(outline: BlockOutline, index: I32) -> Text {
+    if index >= outline.total_count {
+        ""
+    } else {
+        let item = block_item_entry_at(outline, index);
+        if item.present {
+            let current = block_item_text(item.entry);
+            let rest = body_outline_text_from(outline, index + 1);
+            if is_empty(rest) {
+                current
+            } else {
+                text_concat(current, text_concat(", ", rest))
+            }
+        } else {
+            body_outline_text_from(outline, index + 1)
+        }
+    }
+}
+
+fn body_outline_text(outline: BlockOutline) -> Text {
+    if outline.total_count == 0 {
+        "empty"
+    } else {
+        body_outline_text_from(outline, 0)
+    }
+}
+
+fn outline_text_from(source: Text, state: ParseState) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let entry = present_top_level_entry(TopLevelKind.Struct, item_start, next.last_end, name_span).entry;
+            text_concat(doc_non_fn_entry_text(source, entry), outline_text_from(source, next))
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                let next = parse_enum_item(source, state);
+                let entry = present_top_level_entry(TopLevelKind.Enum, item_start, next.last_end, name_span).entry;
+                text_concat(doc_non_fn_entry_text(source, entry), outline_text_from(source, next))
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    let next = parse_const_item(source, state);
+                    let entry = present_top_level_entry(TopLevelKind.Const, item_start, next.last_end, name_span).entry;
+                    text_concat(doc_non_fn_entry_text(source, entry), outline_text_from(source, next))
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        let entry = make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span);
+                        text_concat(doc_fn_entry_text(source, entry, parsed.shape), outline_text_from(source, parsed.state))
+                    } else {
+                        ""
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn outline_text(source: Text) -> Text {
+    let state = parse_state_new(source);
+    if state.cursor.kind == TokenKind.Eof {
+        "(empty)\n"
+    } else {
+        outline_text_from(source, state)
+    }
+}
+
+fn stream_has_truncation(source: Text, state: ParseState) -> Bool {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        false
+    } else {
+        if state.cursor.kind == TokenKind.KwStruct {
+            stream_has_truncation(source, parse_struct_item(source, state))
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                stream_has_truncation(source, parse_enum_item(source, state))
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    stream_has_truncation(source, parse_const_item(source, state))
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        parsed.shape.body_outline.truncated or stream_has_truncation(source, parsed.state)
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn truncated_text(value: Bool) -> Text {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
+}
+
+fn doc_text(source: Text) -> Text {
+    let report = parse_module_report(source);
+    if report.ok {
+        let truncated = stream_has_truncation(source, parse_state_new(source));
+        text_concat("# Module\n\n", text_concat("- truncated: ", text_concat(truncated_text(truncated), text_concat("\n", outline_text(source)))))
+    } else {
+        "# Module\n\ninvalid\n"
+    }
+}
+
+fn bool_text(value: Bool) -> Text {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
+}
+
+fn check_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat(top_level_kind_text(entry.kind), text_concat(" ", top_level_name_text(source, entry)))
+}
+
+fn check_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    text_concat(fn_signature_text(source, entry, shape), text_concat(", body ", body_outline_text(shape.body_outline)))
+}
+
+fn check_stream_from(source: Text, state: ParseState) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let current = check_entry_text(source, present_top_level_entry(TopLevelKind.Struct, item_start, next.last_end, name_span).entry);
+            let rest = check_stream_from(source, next);
+            if is_empty(rest) {
+                current
+            } else {
+                text_concat(current, text_concat(", ", rest))
+            }
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                let next = parse_enum_item(source, state);
+                let current = check_entry_text(source, present_top_level_entry(TopLevelKind.Enum, item_start, next.last_end, name_span).entry);
+                let rest = check_stream_from(source, next);
+                if is_empty(rest) {
+                    current
+                } else {
+                    text_concat(current, text_concat(", ", rest))
+                }
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    let next = parse_const_item(source, state);
+                    let current = check_entry_text(source, present_top_level_entry(TopLevelKind.Const, item_start, next.last_end, name_span).entry);
+                    let rest = check_stream_from(source, next);
+                    if is_empty(rest) {
+                        current
+                    } else {
+                        text_concat(current, text_concat(", ", rest))
+                    }
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        let entry = make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span);
+                        let current = check_fn_entry_text(source, entry, parsed.shape);
+                        let rest = check_stream_from(source, parsed.state);
+                        if is_empty(rest) {
+                            current
+                        } else {
+                            text_concat(current, text_concat(", ", rest))
+                        }
+                    } else {
+                        ""
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn check_text(source: Text) -> Text {
+    let report = parse_module_report(source);
+    if report.ok {
+        let truncated = stream_has_truncation(source, parse_state_new(source));
+        text_concat("# Check\n\n- parse: ok\n- truncated: ", text_concat(truncated_text(truncated), text_concat("\n- items: ", text_concat(check_stream_from(source, parse_state_new(source)), "\n"))))
+    } else {
+        "# Check\n\n- parse: invalid\n"
+    }
 }
 
 fn bool_score(value: Bool) -> I32 {

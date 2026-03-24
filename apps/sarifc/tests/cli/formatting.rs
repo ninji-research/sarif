@@ -160,23 +160,34 @@ fn format_multi_file_packages_respects_file_boundaries() {
 
 #[test]
 fn bootstrap_format_matches_maintained_formatter_for_shipped_inputs() {
-    for path in bootstrap_format_parity_inputs() {
-        let maintained = run_path_profiled("format", &path, "core");
-        let bootstrap = run_path_profiled("bootstrap-format", &path, "core");
+    let handles = bootstrap_format_parity_inputs()
+        .into_iter()
+        .map(|path| {
+            std::thread::spawn(move || {
+                let maintained = run_path_profiled("format", &path, "core");
+                let bootstrap = run_path_profiled("bootstrap-format", &path, "core");
 
-        assert!(
-            maintained.status.success(),
-            "{} should format cleanly",
-            path.display()
-        );
-        assert!(
-            bootstrap.status.success(),
-            "{} should bootstrap-format cleanly",
-            path.display()
-        );
-        assert_text_eq_with_context(
-            &String::from_utf8_lossy(&bootstrap.stdout),
-            &String::from_utf8_lossy(&maintained.stdout),
-        );
+                assert!(
+                    maintained.status.success(),
+                    "{} should format cleanly",
+                    path.display()
+                );
+                assert!(
+                    bootstrap.status.success(),
+                    "{} should bootstrap-format cleanly",
+                    path.display()
+                );
+                assert_text_eq_with_context(
+                    &String::from_utf8_lossy(&bootstrap.stdout),
+                    &String::from_utf8_lossy(&maintained.stdout),
+                );
+            })
+        })
+        .collect::<Vec<_>>();
+
+    for handle in handles {
+        handle
+            .join()
+            .expect("bootstrap-format parity worker should run");
     }
 }

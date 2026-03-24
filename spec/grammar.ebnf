@@ -3,7 +3,9 @@ source_file     = { item } EOF ;
 item            = const_item | fn_item | enum_item | struct_item ;
 const_item      = "const" ident ":" type_path "=" expr ";" ;
 
-fn_item         = "fn" ident "(" [ params ] ")" [ return_clause ] [ effects_clause ] [ requires_clause ] [ ensures_clause ] expr_body ;
+fn_item         = "fn" ident [ generic_param_list ] "(" [ params ] ")" [ return_clause ] [ effects_clause ] [ requires_clause ] [ ensures_clause ] expr_body ;
+generic_param_list = "[" generic_param { "," generic_param } [ "," ] "]" ;
+generic_param   = ident [ ":" ident ] ;
 params          = param { "," param } [ "," ] ;
 param           = ident ":" type_path ;
 return_clause   = "->" type_path ;
@@ -20,7 +22,10 @@ struct_item     = "struct" ident "{" [ field_list ] "}" ;
 field_list      = field { "," field } [ "," ] ;
 field           = ident ":" type_path ;
 
-type_path       = ident { "." ident } ;
+type_path       = named_type | array_type ;
+named_type      = ident { "." ident } ;
+array_type      = "[" type_path ";" array_len "]" ;
+array_len       = integer | ident ;
 let_stmt        = "let" [ "mut" ] ident "=" expr ";" ;
 assign_stmt     = ident "=" expr ";" ;
 expr_stmt       = expr ";" ;

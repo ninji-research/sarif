@@ -179,6 +179,12 @@ fn mutation_diagnostics_are_specific() {
     let array_mutation_output = run_path_profiled("check", &array_mutation, "core");
     assert!(array_mutation_output.status.success());
 
+    let const_generic_arrays = temp_source(
+        "fn first[N](xs: [I32; N]) -> I32 { xs[0] }\nfn main() -> I32 { let xs = [42]; first(xs) }",
+    );
+    let const_generic_arrays_output = run_path_profiled("check", &const_generic_arrays, "core");
+    assert!(const_generic_arrays_output.status.success());
+
     let f64_vec_mutation = temp_source(
         "fn main() -> Text { let mut xs = f64_vec_new(2, 0.0); xs = f64_vec_set(xs, 0, 1.5); xs = f64_vec_set(xs, 1, 2.25); text_from_f64_fixed(f64_vec_get(xs, 0) + f64_vec_get(xs, 1), 2) }",
     );

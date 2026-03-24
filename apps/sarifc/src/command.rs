@@ -38,9 +38,9 @@ pub fn usage() -> String {
     usage += "  check             verify semantic correctness (default)\n";
     usage += "  doc               generate markdown documentation\n";
     usage += "  format            pretty-print source code\n";
-    usage += "  bootstrap-check   experimental maintained-semantic check bridge\n";
-    usage += "  bootstrap-doc     experimental maintained-semantic doc bridge\n";
-    usage += "  bootstrap-format  experimental Sarif-hosted formatter\n";
+    usage += "  bootstrap-check   maintained-semantic check bridge\n";
+    usage += "  bootstrap-doc     maintained-semantic doc bridge\n";
+    usage += "  bootstrap-format  Sarif-hosted formatter bridge\n";
     usage += "  run               execute the program's main function\n";
     usage += "                    append `-- <args>` to pass runtime args to `main` builtins\n";
     usage += "  build             compile to a native executable or wasm (`-o` required)\n";

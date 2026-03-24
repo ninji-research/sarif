@@ -68,8 +68,10 @@ impl TrustedF64VecAccesses {
 const PAYLOAD_ENUM_SIZE: u32 = 16;
 
 fn native_kind_type(kind: &NativeValueKind) -> cranelift_codegen::ir::types::Type {
-    let _ = kind;
-    types::I64
+    match kind {
+        NativeValueKind::F64 => types::F64,
+        _ => types::I64,
+    }
 }
 
 fn float_cc(condition: IntCC) -> Option<FloatCC> {
@@ -527,8 +529,8 @@ fn lower_native_kind_comparison<M: Module>(
 ) -> Result<cranelift_codegen::ir::Value, String> {
     match kind {
         NativeValueKind::F64 => {
-            let left_float = builder.ins().bitcast(types::F64, MemFlags::new(), left);
-            let right_float = builder.ins().bitcast(types::F64, MemFlags::new(), right);
+            let left_float = left;
+            let right_float = right;
             if matches!(condition, IntCC::NotEqual) {
                 let eq = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
                 let ne = builder.ins().bnot(eq);
@@ -579,8 +581,8 @@ fn lower_native_kind_equality<M: Module>(
             Ok(builder.ins().uextend(types::I64, compare))
         }
         NativeValueKind::F64 => {
-            let left_float = builder.ins().bitcast(types::F64, MemFlags::new(), left);
-            let right_float = builder.ins().bitcast(types::F64, MemFlags::new(), right);
+            let left_float = left;
+            let right_float = right;
             let compare = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
             Ok(builder.ins().uextend(types::I64, compare))
         }
@@ -1014,8 +1016,8 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::ConstF64 { dest, bits } => {
-            let native = builder.ins().iconst(types::I64, *bits as i64);
-            values.insert(*dest, NativeValueRepr::Native(native));
+            let float = builder.ins().f64const(f64::from_bits(*bits));
+            values.insert(*dest, NativeValueRepr::Native(float));
             Ok(true)
         }
         Inst::ConstBool { dest, value } => {
@@ -1115,8 +1117,11 @@ pub fn lower_inst<M: Module>(
         Inst::F64VecNew { dest, len, value } => {
             let len_val = native_value(values, *len, function, "f64_vec_new len", backend)?;
             let value_val = native_value(values, *value, function, "f64_vec_new value", backend)?;
+            let value_bits = builder
+                .ins()
+                .bitcast(types::I64, MemFlags::new(), value_val);
             let helper = module.declare_func_in_func(f64_vec_new_id, builder.func);
-            let call = builder.ins().call(helper, &[len_val, value_val]);
+            let call = builder.ins().call(helper, &[len_val, value_bits]);
             let ptr = match builder.inst_results(call) {
                 [ptr] => *ptr,
                 _ => {
@@ -1168,7 +1173,7 @@ pub fn lower_inst<M: Module>(
             }
             let byte_offset = builder.ins().imul_imm(index_val, F64_SIZE_BYTES);
             let addr = builder.ins().iadd(header.values_ptr, byte_offset);
-            let value = builder.ins().load(types::I64, MemFlags::trusted(), addr, 0);
+            let value = builder.ins().load(types::F64, MemFlags::trusted(), addr, 0);
             values.insert(*dest, NativeValueRepr::Native(value));
             Ok(true)
         }
@@ -1207,8 +1212,7 @@ pub fn lower_inst<M: Module>(
         Inst::F64FromI32 { dest, value } => {
             let int_val = native_value(values, *value, function, "f64_from_i32 value", backend)?;
             let float = builder.ins().fcvt_from_sint(types::F64, int_val);
-            let bits = builder.ins().bitcast(types::I64, MemFlags::new(), float);
-            values.insert(*dest, NativeValueRepr::Native(bits));
+            values.insert(*dest, NativeValueRepr::Native(float));
             Ok(true)
         }
         Inst::TextLen { dest, text } => {
@@ -1527,15 +1531,9 @@ pub fn lower_inst<M: Module>(
             let right_value = native_value(values, *right, function, "add right operand", backend)?;
             let native = match left_kind {
                 NativeValueKind::F64 => {
-                    let left_float = builder
-                        .ins()
-                        .bitcast(types::F64, MemFlags::new(), left_value);
-                    let right_float =
-                        builder
-                            .ins()
-                            .bitcast(types::F64, MemFlags::new(), right_value);
-                    let sum = builder.ins().fadd(left_float, right_float);
-                    builder.ins().bitcast(types::I64, MemFlags::new(), sum)
+                    let left_float = left_value;
+                    let right_float = right_value;
+                    builder.ins().fadd(left_float, right_float)
                 }
                 _ => builder.ins().iadd(left_value, right_value),
             };
@@ -1553,15 +1551,9 @@ pub fn lower_inst<M: Module>(
             let right_value = native_value(values, *right, function, "sub right operand", backend)?;
             let native = match left_kind {
                 NativeValueKind::F64 => {
-                    let left_float = builder
-                        .ins()
-                        .bitcast(types::F64, MemFlags::new(), left_value);
-                    let right_float =
-                        builder
-                            .ins()
-                            .bitcast(types::F64, MemFlags::new(), right_value);
-                    let diff = builder.ins().fsub(left_float, right_float);
-                    builder.ins().bitcast(types::I64, MemFlags::new(), diff)
+                    let left_float = left_value;
+                    let right_float = right_value;
+                    builder.ins().fsub(left_float, right_float)
                 }
                 _ => builder.ins().isub(left_value, right_value),
             };
@@ -1579,15 +1571,9 @@ pub fn lower_inst<M: Module>(
             let right_value = native_value(values, *right, function, "mul right operand", backend)?;
             let native = match left_kind {
                 NativeValueKind::F64 => {
-                    let left_float = builder
-                        .ins()
-                        .bitcast(types::F64, MemFlags::new(), left_value);
-                    let right_float =
-                        builder
-                            .ins()
-                            .bitcast(types::F64, MemFlags::new(), right_value);
-                    let product = builder.ins().fmul(left_float, right_float);
-                    builder.ins().bitcast(types::I64, MemFlags::new(), product)
+                    let left_float = left_value;
+                    let right_float = right_value;
+                    builder.ins().fmul(left_float, right_float)
                 }
                 _ => builder.ins().imul(left_value, right_value),
             };
@@ -1605,15 +1591,9 @@ pub fn lower_inst<M: Module>(
             let right_value = native_value(values, *right, function, "div right operand", backend)?;
             let native = match left_kind {
                 NativeValueKind::F64 => {
-                    let left_float = builder
-                        .ins()
-                        .bitcast(types::F64, MemFlags::new(), left_value);
-                    let right_float =
-                        builder
-                            .ins()
-                            .bitcast(types::F64, MemFlags::new(), right_value);
-                    let quotient = builder.ins().fdiv(left_float, right_float);
-                    builder.ins().bitcast(types::I64, MemFlags::new(), quotient)
+                    let left_float = left_value;
+                    let right_float = right_value;
+                    builder.ins().fdiv(left_float, right_float)
                 }
                 _ => builder.ins().sdiv(left_value, right_value),
             };
@@ -1745,11 +1725,9 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::Sqrt { dest, value } => {
-            let bits = native_value(values, *value, function, "sqrt operand", backend)?;
-            let float = builder.ins().bitcast(types::F64, MemFlags::new(), bits);
+            let float = native_value(values, *value, function, "sqrt operand", backend)?;
             let sqrt = builder.ins().sqrt(float);
-            let native = builder.ins().bitcast(types::I64, MemFlags::new(), sqrt);
-            values.insert(*dest, NativeValueRepr::Native(native));
+            values.insert(*dest, NativeValueRepr::Native(sqrt));
             Ok(true)
         }
         Inst::Call { dest, callee, args } => {
@@ -1796,9 +1774,10 @@ pub fn lower_inst<M: Module>(
             let else_block = builder.create_block();
             let merge_block = builder.create_block();
             let dest_type = match value_kinds.get(dest) {
-                Some(_) => {
-                    builder.append_block_param(merge_block, types::I64);
-                    Some(types::I64)
+                Some(kind) => {
+                    let ty = native_kind_type(kind);
+                    builder.append_block_param(merge_block, ty);
+                    Some(ty)
                 }
                 None => None,
             };
@@ -2445,8 +2424,8 @@ pub fn native_type(
     match name {
         "Unit" => Ok(types::INVALID),
         other => {
-            native_value_kind(other, records, enums)?;
-            Ok(types::I64)
+            let kind = native_value_kind(other, records, enums)?;
+            Ok(native_kind_type(&kind))
         }
     }
 }
