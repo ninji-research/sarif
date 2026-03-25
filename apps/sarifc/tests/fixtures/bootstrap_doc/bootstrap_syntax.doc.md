@@ -62,7 +62,7 @@
 
 ### enum ExprKind
 
-- variants: `14`
+- variants: `15`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -104,7 +104,7 @@
 
 ### enum TokenKind
 
-- variants: `52`
+- variants: `57`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -159,8 +159,8 @@
 
 ### struct ModuleReport
 
-- ownership: `plain value`
-- rt status: `profile-compatible`
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
 
 ### struct BlockEntry
 
@@ -399,9 +399,9 @@
 
 ### fn make_module_report
 
-- signature: `fn make_module_report(ok: Bool, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, module_span: Span) -> ModuleReport`
+- signature: `fn make_module_report(ok: Bool, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, module_span: Span, diagnostics: Text) -> ModuleReport`
 - ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
+- rt status: `blocked in rt`
 
 ### fn make_top_level_outline
 
@@ -544,20 +544,20 @@
 ### fn report_matches_sample
 
 - signature: `fn report_matches_sample(report: ModuleReport) -> Bool`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
 
 ### fn report_matches_empty_module
 
 - signature: `fn report_matches_empty_module(report: ModuleReport) -> Bool`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
 
 ### fn report_score
 
 - signature: `fn report_score(report: ModuleReport) -> I32`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
 
 ### fn i32_from_bool
 
@@ -997,21 +997,15 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
-### fn parse_effect_list
+### fn parse_optional_return_type
 
-- signature: `fn parse_effect_list(source: Text, state: ParseState) -> ParseState`
+- signature: `fn parse_optional_return_type(source: Text, state: ParseState) -> SpannedParse`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
 ### fn parse_effects_clause
 
 - signature: `fn parse_effects_clause(source: Text, state: ParseState) -> ParseState`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_optional_return_type
-
-- signature: `fn parse_optional_return_type(source: Text, state: ParseState) -> SpannedParse`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
@@ -1033,15 +1027,9 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
-### fn parse_named_type_span
+### fn parse_stmt
 
-- signature: `fn parse_named_type_span(source: Text, state: ParseState) -> SpannedParse`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_expr_span
-
-- signature: `fn parse_expr_span(source: Text, state: ParseState) -> SpannedParse`
+- signature: `fn parse_stmt(source: Text, state: ParseState) -> BlockEntry`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
@@ -1051,51 +1039,15 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
-### fn parse_let_stmt
+### fn parse_block_with_outline
 
-- signature: `fn parse_let_stmt(source: Text, state: ParseState) -> ParseState`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_let_stmt_entry
-
-- signature: `fn parse_let_stmt_entry(source: Text, state: ParseState) -> BlockEntry`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_assign_stmt
-
-- signature: `fn parse_assign_stmt(source: Text, state: ParseState) -> ParseState`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_assign_stmt_entry
-
-- signature: `fn parse_assign_stmt_entry(source: Text, state: ParseState) -> BlockEntry`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_expr_stmt_or_tail
-
-- signature: `fn parse_expr_stmt_or_tail(source: Text, state: ParseState) -> BlockEntry`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_block_entry
-
-- signature: `fn parse_block_entry(source: Text, state: ParseState) -> BlockEntry`
+- signature: `fn parse_block_with_outline(source: Text, state: ParseState) -> FnItemParse`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
 ### fn parse_block
 
 - signature: `fn parse_block(source: Text, state: ParseState) -> ParseState`
-- ownership: `consumes affine arguments`
-- rt status: `blocked in rt`
-
-### fn parse_block_with_outline
-
-- signature: `fn parse_block_with_outline(source: Text, state: ParseState) -> FnItemParse`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
@@ -1140,6 +1092,18 @@
 - signature: `fn syntax_selfcheck() -> I32`
 - ownership: `affine-safe in stage-0`
 - rt status: `profile-compatible`
+
+### fn parse_f64
+
+- signature: `fn parse_f64(source: Text) -> F64`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn text_from_f64_fixed
+
+- signature: `fn text_from_f64_fixed(value: F64, digits: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
 
 ## bootstrap/sarif_syntax/src/selfcheck.sarif
 

@@ -104,7 +104,7 @@ pub(super) fn type_contains_affine_values(
 }
 
 pub(super) const fn mutable_local_allows_affine_values(ty: &Type) -> bool {
-    matches!(ty, Type::Text | Type::TextBuilder | Type::F64Vec)
+    matches!(ty, Type::Text | Type::TextBuilder | Type::List(_))
 }
 
 fn type_contains_affine_values_inner(
@@ -117,6 +117,10 @@ fn type_contains_affine_values_inner(
         Type::Text => true,
         Type::Array(element, _) => {
             type_contains_affine_values_inner(element, struct_layouts, enum_variants, visiting)
+        }
+        Type::Pair(left, right) => {
+            type_contains_affine_values_inner(left, struct_layouts, enum_variants, visiting)
+                || type_contains_affine_values_inner(right, struct_layouts, enum_variants, visiting)
         }
         Type::Named(name) => {
             if !visiting.insert(name.clone()) {
@@ -151,7 +155,7 @@ fn type_contains_affine_values_inner(
             visiting.remove(name);
             true
         }
-        Type::TextBuilder | Type::F64Vec => true,
+        Type::TextBuilder | Type::List(_) => true,
         Type::Param(_) => false,
         Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => false,
     }

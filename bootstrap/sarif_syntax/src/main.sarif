@@ -75,6 +75,7 @@ enum BlockItemKind {
 enum ExprKind {
     Name,
     Integer,
+    Float,
     String,
     Bool,
     Group,
@@ -168,15 +169,18 @@ enum TokenKind {
     Dot,
     Ident,
     Integer,
+    Float,
     String,
     KwAnd,
     KwConst,
+    KwComptime,
     KwEffects,
     KwEnum,
     KwElse,
     KwEnsures,
     KwFalse,
     KwFn,
+    KwHandle,
     KwIf,
     KwIn,
     KwLet,
@@ -184,11 +188,13 @@ enum TokenKind {
     KwMut,
     KwNot,
     KwOr,
+    KwPerform,
     KwRepeat,
     KwRequires,
     KwStruct,
     KwTrue,
     KwWhile,
+    KwWith,
     Arrow,
     Colon,
     Eq,
@@ -282,6 +288,7 @@ struct ModuleReport {
     fn_outline: FnOutline,
     events: EventStream,
     module_span: Span,
+    diagnostics: Text,
 }
 
 struct BlockEntry {
@@ -564,8 +571,8 @@ fn fn_outline_push(outline: FnOutline, entry: OptionalFnOutlineEntry) -> FnOutli
     }
 }
 
-fn make_module_report(ok: Bool, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, module_span: Span) -> ModuleReport {
-    ModuleReport { ok: ok, top_level: top_level, outline: outline, fn_outline: fn_outline, events: events, module_span: module_span }
+fn make_module_report(ok: Bool, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, module_span: Span, diagnostics: Text) -> ModuleReport {
+    ModuleReport { ok: ok, top_level: top_level, outline: outline, fn_outline: fn_outline, events: events, module_span: module_span, diagnostics: diagnostics }
 }
 
 fn make_top_level_outline(total_count: I32, truncated: Bool, first: OptionalTopLevelEntry, second: OptionalTopLevelEntry, third: OptionalTopLevelEntry, fourth: OptionalTopLevelEntry, fifth: OptionalTopLevelEntry) -> TopLevelOutline {
@@ -839,7 +846,9 @@ fn build_event_stream(outline: TopLevelOutline, fn_outline: FnOutline) -> EventS
 }
 
 fn module_report_from_state(state: ParseState, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> ModuleReport {
-    make_module_report(state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.Eof, top_level, outline, fn_outline, build_event_stream(outline, fn_outline), make_span(0, text_len(source)))
+    let ok = state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.Eof;
+    let diagnostics = if ok { "" } else { "invalid\n" };
+    make_module_report(ok, top_level, outline, fn_outline, build_event_stream(outline, fn_outline), make_span(0, text_len(source)), diagnostics)
 }
 
 fn make_block_entry(state: ParseState, tail_seen: Bool) -> BlockEntry {
@@ -1232,6 +1241,9 @@ fn classify_ident(source: Text, start: I32, end: I32) -> TokenKind {
                 116 => {
                     keyword_or_ident(source, start, end, "true", TokenKind.KwTrue)
                 },
+                119 => {
+                    keyword_or_ident(source, start, end, "with", TokenKind.KwWith)
+                },
                 _ => {
                     TokenKind.Ident
                 },
@@ -1278,6 +1290,12 @@ fn classify_ident(source: Text, start: I32, end: I32) -> TokenKind {
                         keyword_or_ident(source, start, end, "ensures", TokenKind.KwEnsures)
                     }
                 },
+                104 => {
+                    keyword_or_ident(source, start, end, "handle", TokenKind.KwHandle)
+                },
+                112 => {
+                    keyword_or_ident(source, start, end, "perform", TokenKind.KwPerform)
+                },
                 _ => {
                     TokenKind.Ident
                 },
@@ -1287,6 +1305,9 @@ fn classify_ident(source: Text, start: I32, end: I32) -> TokenKind {
             match first {
                 114 => {
                     keyword_or_ident(source, start, end, "requires", TokenKind.KwRequires)
+                },
+                99 => {
+                    keyword_or_ident(source, start, end, "comptime", TokenKind.KwComptime)
                 },
                 _ => {
                     TokenKind.Ident
@@ -1413,7 +1434,14 @@ fn lex_next(source: Text, offset: I32) -> Token {
                 make_token(classify_ident(source, offset, end), offset, end)
             },
             LeadClass.Digit => {
-                make_token(TokenKind.Integer, offset, scan_while(source, offset, len, ByteClass.Digit))
+                let start = offset;
+                let end = scan_while(source, offset, len, ByteClass.Digit);
+                if end < len and text_byte(source, end) == 46 { // '.'
+                    let after_dot = scan_while(source, end + 1, len, ByteClass.Digit);
+                    make_token(TokenKind.Float, start, after_dot)
+                } else {
+                    make_token(TokenKind.Integer, start, end)
+                }
             },
             LeadClass.Other => {
                 lex_symbol(source, offset, len, b)
@@ -1551,6 +1579,9 @@ fn starts_expr(kind: TokenKind) -> Bool {
             true
         },
         TokenKind.Integer => {
+            true
+        },
+        TokenKind.Float => {
             true
         },
         TokenKind.String => {
@@ -1823,6 +1854,9 @@ fn parse_primary_expr(source: Text, state: ParseState) -> ParseState {
                 TokenKind.Integer => {
                     parse_expect(source, state, TokenKind.Integer)
                 },
+                TokenKind.Float => {
+                    parse_expect(source, state, TokenKind.Float)
+                },
                 TokenKind.String => {
                     parse_expect(source, state, TokenKind.String)
                 },
@@ -2005,30 +2039,26 @@ fn parse_enum_item(source: Text, state: ParseState) -> ParseState {
     parse_expect(source, current, TokenKind.RBrace)
 }
 
-fn parse_effect_list(source: Text, state: ParseState) -> ParseState {
-    parse_comma_list(source, state, TokenKind.RBracket, ListKind.EffectName)
-}
-
-fn parse_effects_clause(source: Text, state: ParseState) -> ParseState {
-    let mut current = parse_expect(source, state, TokenKind.KwEffects);
-    current = parse_expect(source, current, TokenKind.LBracket);
-    current = parse_effect_list(source, current);
-    parse_expect(source, current, TokenKind.RBracket)
-}
-
 fn parse_optional_return_type(source: Text, state: ParseState) -> SpannedParse {
     if state.cursor.kind == TokenKind.Arrow {
         let with_arrow = parse_expect(source, state, TokenKind.Arrow);
-        let type_start = with_arrow.cursor.start;
+        let return_start = with_arrow.cursor.start;
         let with_type = parse_type(source, with_arrow);
         if with_type.status == ParseStatus.Ok {
-            make_spanned_parse(with_type, present_span(type_start, with_type.last_end))
+            make_spanned_parse(with_type, present_span(return_start, with_type.last_end))
         } else {
             make_spanned_parse(with_type, missing_span())
         }
     } else {
         make_spanned_parse(state, missing_span())
     }
+}
+
+fn parse_effects_clause(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwEffects);
+    current = parse_expect(source, current, TokenKind.LBracket);
+    current = parse_comma_list(source, current, TokenKind.RBracket, ListKind.EffectName);
+    parse_expect(source, current, TokenKind.RBracket)
 }
 
 fn parse_optional_effects_clause(source: Text, state: ParseState) -> SpannedParse {
@@ -2073,30 +2103,51 @@ fn parse_optional_ensures_clause(source: Text, state: ParseState) -> SpannedPars
     }
 }
 
-fn parse_named_type_span(source: Text, state: ParseState) -> SpannedParse {
-    let start = state.cursor.start;
-    let current = parse_named_type(source, state);
-    if current.status == ParseStatus.Ok {
-        make_spanned_parse(current, present_span(start, current.last_end))
+fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
+    if state.cursor.kind == TokenKind.KwLet {
+        let binding_start = state.cursor.start;
+        let mut current = parse_expect(source, state, TokenKind.KwLet);
+        if current.cursor.kind == TokenKind.KwMut {
+            current = parse_expect(source, current, TokenKind.KwMut);
+        };
+        let name_spanned = parse_ident_span(source, current);
+        current = name_spanned.state;
+        current = parse_expect(source, current, TokenKind.Eq);
+        let expr_start = current.cursor.start;
+        let expr_kind = classify_expr_kind(source, current);
+        let parsed_expr = parse_expr_bp(source, current, 0);
+        let with_semi = parse_expect(source, parsed_expr, TokenKind.Semicolon);
+        make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Let, name_spanned.span, present_span(expr_start, expr_start + 1), expr_kind))
     } else {
-        make_spanned_parse(current, missing_span())
-    }
-}
-
-fn parse_expr_span(source: Text, state: ParseState) -> SpannedParse {
-    let start = state.cursor.start;
-    let current = parse_expr_bp(source, state, 0);
-    if current.status == ParseStatus.Ok {
-        make_spanned_parse(current, present_span(start, current.last_end))
-    } else {
-        make_spanned_parse(current, missing_span())
+        if starts_assign(source, state) {
+            let target_start = state.cursor.start;
+            let mut current = parse_named_type(source, state);
+            let target_end = current.last_end;
+            current = parse_expect(source, current, TokenKind.Eq);
+            let expr_start = current.cursor.start;
+            let expr_kind = classify_expr_kind(source, current);
+            let parsed_expr = parse_expr_bp(source, current, 0);
+            let with_semi = parse_expect(source, parsed_expr, TokenKind.Semicolon);
+            make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Assign, present_span(target_start, target_end), present_span(expr_start, expr_start + 1), expr_kind))
+        } else {
+            let expr_start = state.cursor.start;
+            let expr_kind = classify_expr_kind(source, state);
+            let current = parse_expr_bp(source, state, 0);
+            if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Semicolon {
+                let with_semi = parse_expect(source, current, TokenKind.Semicolon);
+                make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.ExprStmt, missing_span(), present_span(expr_start, expr_start + 1), expr_kind))
+            } else {
+                make_block_entry_with_item(current, true, present_block_item_entry(BlockItemKind.TailExpr, missing_span(), present_span(expr_start, expr_start + 1), expr_kind))
+            }
+        }
     }
 }
 
 fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
     match state.cursor.kind {
         TokenKind.Ident => {
-            if starts_record_literal(source, parse_named_type(source, state)) {
+            let after_name = parse_named_type(source, state);
+            if starts_record_literal(source, after_name) {
                 ExprKind.Record
             } else {
                 ExprKind.Name
@@ -2104,6 +2155,9 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
         },
         TokenKind.Integer => {
             ExprKind.Integer
+        },
+        TokenKind.Float => {
+            ExprKind.Float
         },
         TokenKind.String => {
             ExprKind.String
@@ -2114,14 +2168,14 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
         TokenKind.KwFalse => {
             ExprKind.Bool
         },
-        TokenKind.KwNot => {
-            ExprKind.Bool
-        },
         TokenKind.LParen => {
             ExprKind.Group
         },
         TokenKind.LBracket => {
             ExprKind.Array
+        },
+        TokenKind.LBrace => {
+            ExprKind.Record
         },
         TokenKind.KwIf => {
             ExprKind.If
@@ -2141,105 +2195,48 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
     }
 }
 
-fn parse_let_stmt(source: Text, state: ParseState) -> ParseState {
-    parse_let_stmt_entry(source, state).state
-}
-
-fn parse_let_stmt_entry(source: Text, state: ParseState) -> BlockEntry {
-    let after_let = parse_expect(source, state, TokenKind.KwLet);
-    let after_mut = if after_let.status == ParseStatus.Ok and after_let.cursor.kind == TokenKind.KwMut {
-        parse_expect(source, after_let, TokenKind.KwMut)
-    } else {
-        after_let
+fn parse_block_with_outline(source: Text, state: ParseState) -> FnItemParse {
+    let body_start = state.cursor.start;
+    let mut current = parse_expect(source, state, TokenKind.LBrace);
+    let mut outline = block_outline_new();
+    while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RBrace {
+        let entry = parse_stmt(source, current);
+        current = entry.state;
+        outline = block_outline_push(outline, entry.item);
+        if entry.tail_seen {
+            // After tail expr, must be RBrace
+            if current.cursor.kind != TokenKind.RBrace {
+                current = with_parse_state(current, current.cursor, ParseStatus.Err);
+            };
+        };
     };
-    let binding = parse_ident_span(source, after_mut);
-    let after_eq = parse_expect(source, binding.state, TokenKind.Eq);
-    let expr_kind = classify_expr_kind(source, after_eq);
-    let expr = parse_expr_span(source, after_eq);
-    let after_semi = parse_expect(source, expr.state, TokenKind.Semicolon);
-    let counted = after_semi;
-    make_block_entry_with_item(counted, false, present_block_item_entry(BlockItemKind.Let, binding.span, expr.span, expr_kind))
-}
-
-fn parse_assign_stmt(source: Text, state: ParseState) -> ParseState {
-    parse_assign_stmt_entry(source, state).state
-}
-
-fn parse_assign_stmt_entry(source: Text, state: ParseState) -> BlockEntry {
-    let binding = parse_named_type_span(source, state);
-    let after_eq = parse_expect(source, binding.state, TokenKind.Eq);
-    let expr_kind = classify_expr_kind(source, after_eq);
-    let expr = parse_expr_span(source, after_eq);
-    let after_semi = parse_expect(source, expr.state, TokenKind.Semicolon);
-    let counted = after_semi;
-    make_block_entry_with_item(counted, false, present_block_item_entry(BlockItemKind.Assign, binding.span, expr.span, expr_kind))
-}
-
-fn parse_expr_stmt_or_tail(source: Text, state: ParseState) -> BlockEntry {
-    let expr_kind = classify_expr_kind(source, state);
-    let expr = parse_expr_bp(source, state, 0);
-    if expr.status == ParseStatus.Err {
-        make_block_entry(expr, false)
-    } else {
-        let expr_span = present_span(state.cursor.start, expr.last_end);
-        if expr.cursor.kind == TokenKind.Semicolon {
-            let ended = parse_expect(source, expr, TokenKind.Semicolon);
-            make_block_entry_with_item(ended, false, present_block_item_entry(BlockItemKind.ExprStmt, missing_span(), expr_span, expr_kind))
-        } else {
-            make_block_entry_with_item(expr, true, present_block_item_entry(BlockItemKind.TailExpr, missing_span(), expr_span, expr_kind))
-        }
-    }
-}
-
-fn parse_block_entry(source: Text, state: ParseState) -> BlockEntry {
-    if state.cursor.kind == TokenKind.KwLet {
-        parse_let_stmt_entry(source, state)
-    } else {
-        if starts_assign(source, state) {
-            parse_assign_stmt_entry(source, state)
-        } else {
-            if starts_expr(state.cursor.kind) {
-                parse_expr_stmt_or_tail(source, state)
-            } else {
-                make_block_entry(parse_fail(state), false)
-            }
-        }
-    }
+    let with_rbrace = parse_expect(source, current, TokenKind.RBrace);
+    make_fn_item_parse(with_rbrace, make_fn_header_shape(missing_span(), missing_span(), missing_span(), missing_span(), missing_span(), present_span(body_start, with_rbrace.last_end), outline))
 }
 
 fn parse_block(source: Text, state: ParseState) -> ParseState {
-    parse_block_with_outline(source, state).state
-}
-
-fn parse_block_with_outline(source: Text, state: ParseState) -> FnItemParse {
     let mut current = parse_expect(source, state, TokenKind.LBrace);
-    let body_start = current.last_end;
-    let mut parsing = current.status == ParseStatus.Ok;
-    let mut tail_seen = false;
-    let mut outline = block_outline_new();
-    while parsing and current.cursor.kind != TokenKind.RBrace and current.cursor.kind != TokenKind.Eof {
-        let entry = parse_block_entry(source, current);
+    while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RBrace {
+        let entry = parse_stmt(source, current);
         current = entry.state;
-        tail_seen = entry.tail_seen;
-        if entry.item.present {
-            outline = block_outline_push(outline, entry.item);
+        if entry.tail_seen {
+            if current.cursor.kind != TokenKind.RBrace {
+                current = with_parse_state(current, current.cursor, ParseStatus.Err);
+            };
         };
-        parsing = current.status == ParseStatus.Ok and tail_seen == false;
     };
-    let body_span = if current.status == ParseStatus.Ok {
-        present_span(body_start, current.cursor.start)
-    } else {
-        missing_span()
-    };
-    if current.status == ParseStatus.Ok {
-        make_fn_item_parse(parse_expect(source, current, TokenKind.RBrace), make_fn_header_shape(missing_span(), missing_span(), missing_span(), missing_span(), missing_span(), body_span, outline))
-    } else {
-        make_fn_item_parse(current, make_fn_header_shape(missing_span(), missing_span(), missing_span(), missing_span(), missing_span(), body_span, outline))
-    }
+    parse_expect(source, current, TokenKind.RBrace)
 }
 
 fn parse_fn_item(source: Text, state: ParseState) -> ParseState {
-    parse_fn_item_with_shape(source, state).state
+    let mut current = parse_expect(source, state, TokenKind.KwFn);
+    current = parse_expect(source, current, TokenKind.Ident);
+    current = (parse_fn_params(source, current)).state;
+    current = (parse_optional_return_type(source, current)).state;
+    current = (parse_optional_effects_clause(source, current)).state;
+    current = (parse_optional_requires_clause(source, current)).state;
+    current = (parse_optional_ensures_clause(source, current)).state;
+    parse_block(source, current)
 }
 
 fn parse_fn_item_with_shape(source: Text, state: ParseState) -> FnItemParse {
@@ -2351,12 +2348,20 @@ fn parse_module_report(source: Text) -> ModuleReport {
 
 fn syntax_selfcheck() -> I32 {
     let sample = "struct Pair { left: I32, right: [I32; 2], }\nenum OptionText { none, some(Text), }\nconst answer: I32 = 40 + 2;\nfn build(start: I32) -> Token { let token = Token { kind: TokenKind.Ident, start: start, end: start + 1, offset: start + 1 }; token }\nfn pick(pair: Pair) -> Pair effects [alloc] requires answer == 42 ensures true { let value = pair; if not false and answer == 42 or false { value } else { pair } }\n";
-    let report = parse_module_report(sample);
-    let empty_report = parse_module_report("fn main() {}");
-    let broken_report = parse_module_report("fn broken() { let value = ; }");
-    if report_matches_sample(report) and report_matches_empty_module(empty_report) and broken_report.ok == false {
-        report_score(report)
+    let sample_ok = report_matches_sample(parse_module_report(sample));
+    let empty_ok = report_matches_empty_module(parse_module_report("fn main() {}"));
+    let broken_ok = parse_module_report("fn broken() { let value = ; }").ok == false;
+    if sample_ok and empty_ok and broken_ok {
+        report_score(parse_module_report(sample))
     } else {
         0
     }
+}
+
+fn parse_f64(source: Text) -> F64 {
+    0.0 // Builtin
+}
+
+fn text_from_f64_fixed(value: F64, digits: I32) -> Text {
+    "" // Builtin
 }

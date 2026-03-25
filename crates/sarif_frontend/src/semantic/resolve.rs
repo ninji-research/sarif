@@ -32,7 +32,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         "Bool".to_owned(),
         "Text".to_owned(),
         "TextBuilder".to_owned(),
-        "F64Vec".to_owned(),
+        "List".to_owned(),
         "Unit".to_owned(),
     ]);
 

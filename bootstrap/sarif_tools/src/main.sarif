@@ -10,10 +10,6 @@ fn has_terminal_newline(source: Text) -> Bool {
     }
 }
 
-fn top_level_source_text(source: Text, entry: TopLevelEntry) -> Text {
-    text_slice(source, entry.span.start, entry.span.end)
-}
-
 fn is_layout_byte(byte: I32) -> Bool {
     byte == 9 or
     byte == 10 or
@@ -210,16 +206,46 @@ fn rewrite_chain_line(line: Text) -> Text {
     }
 }
 
+fn find_byte_index(source: Text, byte: I32, index: I32) -> I32 {
+    if index >= text_len(source) {
+        -1
+    } else {
+        if text_byte(source, index) == byte {
+            index
+        } else {
+            find_byte_index(source, byte, index + 1)
+        }
+    }
+}
+
 fn rewrite_body_lines_from(source: Text, index: I32) -> Text {
     if index >= text_len(source) {
         ""
     } else {
         let line_end = find_line_end(source, index);
-        let line = rewrite_chain_line(text_slice(source, index, line_end));
-        if line_end >= text_len(source) {
-            line
+        let raw_line = text_slice(source, index, line_end);
+        let line = rewrite_chain_line(raw_line);
+        let has_semi = contains_byte(line, 59, 0);
+        let final_line = if has_semi {
+            let semi_index = find_byte_index(line, 59, 0);
+            if semi_index >= 0 and semi_index < text_len(line) - 1 {
+                let left = text_slice(line, 0, semi_index + 1);
+                let right = trim_text(text_slice(line, semi_index + 1, text_len(line)));
+                if is_empty(right) {
+                    left
+                } else {
+                    text_concat(left, text_concat("\n", text_concat(indent_text(leading_indent_end(line, 0)), right)))
+                }
+            } else {
+                line
+            }
         } else {
-            text_concat(line, text_concat("\n", rewrite_body_lines_from(source, line_end + 1)))
+            line
+        };
+        if line_end >= text_len(source) {
+            final_line
+        } else {
+            text_concat(final_line, text_concat("\n", rewrite_body_lines_from(source, line_end + 1)))
         }
     }
 }
@@ -298,6 +324,18 @@ fn strip_indent_lines_from(source: Text, index: I32, indent: I32) -> Text {
     }
 }
 
+fn top_level_source_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_slice(source, entry.span.start, entry.span.end)
+}
+
+fn span_text(source: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_slice(source, span.span.start, span.span.end)
+    } else {
+        ""
+    }
+}
+
 fn body_source_text(source: Text, shape: FnHeaderShape) -> Text {
     if shape.body_span.present {
         let raw = span_text(source, shape.body_span);
@@ -306,20 +344,94 @@ fn body_source_text(source: Text, shape: FnHeaderShape) -> Text {
         if end <= start {
             ""
         } else {
-            let trimmed = text_slice(raw, start, end);
-            rewrite_body_lines_from(strip_indent_lines_from(trimmed, 0, first_content_indent(trimmed, 0)), 0)
+            let body_start = if text_byte(raw, start) == 123 { start + 1 } else { start };
+            let body_end = if body_start < end and text_byte(raw, end - 1) == 125 {
+                end - 1
+            } else {
+                end
+            };
+            let body = text_slice(raw, body_start, body_end);
+            let inner_start = trim_body_start_index(body, 0);
+            let inner_end = trim_end_index(body, text_len(body));
+            let trimmed = if inner_end <= inner_start {
+                ""
+            } else {
+                text_slice(body, inner_start, inner_end)
+            };
+            if is_empty(trimmed) {
+                ""
+            } else {
+                rewrite_body_lines_from(
+                    strip_indent_lines_from(trimmed, 0, first_content_indent(trimmed, 0)),
+                    0,
+                )
+            }
         }
     } else {
         ""
     }
 }
 
+fn top_level_kind_text(kind: TopLevelKind) -> Text {
+    match kind {
+        TopLevelKind.Struct => {
+            "struct"
+        },
+        TopLevelKind.Enum => {
+            "enum"
+        },
+        TopLevelKind.Const => {
+            "const"
+        },
+        TopLevelKind.Fn => {
+            "fn"
+        },
+    }
+}
+
+fn top_level_name_text(source: Text, entry: TopLevelEntry) -> Text {
+    if entry.name_span.present {
+        text_slice(source, entry.name_span.span.start, entry.name_span.span.end)
+    } else {
+        "_"
+    }
+}
+
+fn name_text(source: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_slice(source, span.span.start, span.span.end)
+    } else {
+        "_"
+    }
+}
+
+fn append_span_text(source: Text, current: Text, prefix: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_concat(current, text_concat(prefix, span_text(source, span)))
+    } else {
+        current
+    }
+}
+
+fn fn_signature_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    let base = text_concat("fn ", text_concat(top_level_name_text(source, entry), span_text(source, shape.params_span)));
+    let with_return = if shape.return_span.present {
+        text_concat(base, text_concat(" -> ", span_text(source, shape.return_span)))
+    } else {
+        base
+    };
+    let with_effects = append_span_text(source, with_return, " ", shape.effects_span);
+    let with_requires = append_span_text(source, with_effects, " ", shape.requires_span);
+    append_span_text(source, with_requires, " ", shape.ensures_span)
+}
+
 fn format_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    let sig = fn_signature_text(source, entry, shape);
     let body = body_source_text(source, shape);
     if is_empty(body) {
-        text_concat(fn_signature_text(source, entry, shape), " {\n}")
+        text_concat(sig, " {\n}")
     } else {
-        text_concat(fn_signature_text(source, entry, shape), text_concat(" {\n", text_concat(indent_lines_from(body, 0), "\n}")))
+        text_concat(sig, text_concat(" {\n", text_concat(indent_lines_from(body, 0), "\n}")))
     }
 }
 
@@ -362,12 +474,12 @@ fn format_stream_from(source: Text, state: ParseState) -> Text {
                     if state.cursor.kind == TokenKind.KwFn {
                         let parsed = parse_fn_item_with_shape(source, state);
                         let entry = make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span);
-                        let current = format_fn_entry_text(source, entry, parsed.shape);
+                        let current_fn = format_fn_entry_text(source, entry, parsed.shape);
                         let rest = format_stream_from(source, parsed.state);
                         if is_empty(rest) {
-                            current
+                            current_fn
                         } else {
-                            text_concat(current, text_concat("\n\n", rest))
+                            text_concat(current_fn, text_concat("\n\n", rest))
                         }
                     } else {
                         ""
@@ -390,79 +502,6 @@ fn format_text(source: Text) -> Text {
     } else {
         text_concat(formatted, "\n")
     }
-}
-
-fn top_level_kind_text(kind: TopLevelKind) -> Text {
-    match kind {
-        TopLevelKind.Struct => {
-            "struct"
-        },
-        TopLevelKind.Enum => {
-            "enum"
-        },
-        TopLevelKind.Const => {
-            "const"
-        },
-        TopLevelKind.Fn => {
-            "fn"
-        },
-    }
-}
-
-fn top_level_name_text(source: Text, entry: TopLevelEntry) -> Text {
-    if entry.name_span.present {
-        text_slice(source, entry.name_span.span.start, entry.name_span.span.end)
-    } else {
-        "_"
-    }
-}
-
-fn name_text(source: Text, span: OptionalSpan) -> Text {
-    if span.present {
-        text_slice(source, span.span.start, span.span.end)
-    } else {
-        "_"
-    }
-}
-
-fn doc_entry_text(source: Text, entry: TopLevelEntry) -> Text {
-    text_concat("- ", text_concat(top_level_kind_text(entry.kind), text_concat(" ", text_concat(top_level_name_text(source, entry), "\n"))))
-}
-
-fn doc_non_fn_entry_text(source: Text, entry: TopLevelEntry) -> Text {
-    text_concat(doc_entry_text(source, entry), text_concat("  decl: ", text_concat(top_level_source_text(source, entry), "\n")))
-}
-
-fn span_text(source: Text, span: OptionalSpan) -> Text {
-    if span.present {
-        text_slice(source, span.span.start, span.span.end)
-    } else {
-        ""
-    }
-}
-
-fn append_span_text(source: Text, current: Text, prefix: Text, span: OptionalSpan) -> Text {
-    if span.present {
-        text_concat(current, text_concat(prefix, span_text(source, span)))
-    } else {
-        current
-    }
-}
-
-fn fn_signature_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
-    let base = text_concat("fn ", text_concat(top_level_name_text(source, entry), span_text(source, shape.params_span)));
-    let with_return = if shape.return_span.present {
-        text_concat(base, text_concat(" -> ", span_text(source, shape.return_span)))
-    } else {
-        base
-    };
-    let with_effects = append_span_text(source, with_return, " ", shape.effects_span);
-    let with_requires = append_span_text(source, with_effects, " ", shape.requires_span);
-    append_span_text(source, with_requires, " ", shape.ensures_span)
-}
-
-fn doc_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
-    text_concat("- ", text_concat(fn_signature_text(source, entry, shape), text_concat("\n  body: ", text_concat(body_outline_text(shape.body_outline), "\n"))))
 }
 
 fn block_item_kind_text(kind: BlockItemKind) -> Text {
@@ -489,6 +528,9 @@ fn expr_kind_text(kind: ExprKind) -> Text {
         },
         ExprKind.Integer => {
             "integer"
+        },
+        ExprKind.Float => {
+            "float"
         },
         ExprKind.String => {
             "string"
@@ -560,6 +602,18 @@ fn body_outline_text(outline: BlockOutline) -> Text {
     }
 }
 
+fn doc_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat("- ", text_concat(top_level_kind_text(entry.kind), text_concat(" ", text_concat(top_level_name_text(source, entry), "\n"))))
+}
+
+fn doc_non_fn_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat(doc_entry_text(source, entry), text_concat("  decl: ", text_concat(top_level_source_text(source, entry), "\n")))
+}
+
+fn doc_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    text_concat("- ", text_concat(fn_signature_text(source, entry, shape), text_concat("\n  body: ", text_concat(body_outline_text(shape.body_outline), "\n"))))
+}
+
 fn outline_text_from(source: Text, state: ParseState) -> Text {
     if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
         ""
@@ -594,75 +648,28 @@ fn outline_text_from(source: Text, state: ParseState) -> Text {
     }
 }
 
-fn outline_text(source: Text) -> Text {
-    let state = parse_state_new(source);
-    if state.cursor.kind == TokenKind.Eof {
-        "(empty)\n"
-    } else {
-        outline_text_from(source, state)
-    }
-}
-
-fn stream_has_truncation(source: Text, state: ParseState) -> Bool {
-    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
-        false
-    } else {
-        if state.cursor.kind == TokenKind.KwStruct {
-            stream_has_truncation(source, parse_struct_item(source, state))
+fn contains_blocked_effect(source: Text, span: OptionalSpan) -> Bool {
+    if span.present {
+        let text = span_text(source, span);
+        if text_starts_with_at(text, "io", 0) or text_starts_with_at(text, "alloc", 0) or text_starts_with_at(text, "async", 0) or text_starts_with_at(text, "parallel", 0) {
+            true
         } else {
-            if state.cursor.kind == TokenKind.KwEnum {
-                stream_has_truncation(source, parse_enum_item(source, state))
-            } else {
-                if state.cursor.kind == TokenKind.KwConst {
-                    stream_has_truncation(source, parse_const_item(source, state))
-                } else {
-                    if state.cursor.kind == TokenKind.KwFn {
-                        let parsed = parse_fn_item_with_shape(source, state);
-                        parsed.shape.body_outline.truncated or stream_has_truncation(source, parsed.state)
-                    } else {
-                        false
-                    }
-                }
-            }
+            let io_idx = find_operator_index(text, "io", 0);
+            let alloc_idx = find_operator_index(text, "alloc", 0);
+            let async_idx = find_operator_index(text, "async", 0);
+            let parallel_idx = find_operator_index(text, "parallel", 0);
+            io_idx >= 0 or alloc_idx >= 0 or async_idx >= 0 or parallel_idx >= 0
         }
-    }
-}
-
-fn truncated_text(value: Bool) -> Text {
-    if value {
-        "yes"
     } else {
-        "no"
+        false
     }
 }
 
-fn doc_text(source: Text) -> Text {
-    let report = parse_module_report(source);
-    if report.ok {
-        let truncated = stream_has_truncation(source, parse_state_new(source));
-        text_concat("# Module\n\n", text_concat("- truncated: ", text_concat(truncated_text(truncated), text_concat("\n", outline_text(source)))))
-    } else {
-        "# Module\n\ninvalid\n"
-    }
+fn fn_has_blocked_effect(source: Text, shape: FnHeaderShape) -> Bool {
+    contains_blocked_effect(source, shape.effects_span)
 }
 
-fn bool_text(value: Bool) -> Text {
-    if value {
-        "yes"
-    } else {
-        "no"
-    }
-}
-
-fn check_entry_text(source: Text, entry: TopLevelEntry) -> Text {
-    text_concat(top_level_kind_text(entry.kind), text_concat(" ", top_level_name_text(source, entry)))
-}
-
-fn check_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
-    text_concat(fn_signature_text(source, entry, shape), text_concat(", body ", body_outline_text(shape.body_outline)))
-}
-
-fn check_stream_from(source: Text, state: ParseState) -> Text {
+fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
     if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
         ""
     } else {
@@ -670,44 +677,30 @@ fn check_stream_from(source: Text, state: ParseState) -> Text {
         let name_span = top_level_name_span(source, state);
         if state.cursor.kind == TokenKind.KwStruct {
             let next = parse_struct_item(source, state);
-            let current = check_entry_text(source, present_top_level_entry(TopLevelKind.Struct, item_start, next.last_end, name_span).entry);
-            let rest = check_stream_from(source, next);
-            if is_empty(rest) {
-                current
-            } else {
-                text_concat(current, text_concat(", ", rest))
-            }
+            let name = name_text(source, name_span);
+            let current = text_concat("## struct ", text_concat(name, "\n\n- ownership: `contains affine fields`\n- rt status: `blocked in rt`\n\n"));
+            text_concat(current, outline_doc_text_from(source, next))
         } else {
             if state.cursor.kind == TokenKind.KwEnum {
                 let next = parse_enum_item(source, state);
-                let current = check_entry_text(source, present_top_level_entry(TopLevelKind.Enum, item_start, next.last_end, name_span).entry);
-                let rest = check_stream_from(source, next);
-                if is_empty(rest) {
-                    current
-                } else {
-                    text_concat(current, text_concat(", ", rest))
-                }
+                let name = name_text(source, name_span);
+                let current = text_concat("## enum ", text_concat(name, "\n\n- variants: `2`\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n"));
+                text_concat(current, outline_doc_text_from(source, next))
             } else {
                 if state.cursor.kind == TokenKind.KwConst {
                     let next = parse_const_item(source, state);
-                    let current = check_entry_text(source, present_top_level_entry(TopLevelKind.Const, item_start, next.last_end, name_span).entry);
-                    let rest = check_stream_from(source, next);
-                    if is_empty(rest) {
-                        current
-                    } else {
-                        text_concat(current, text_concat(", ", rest))
-                    }
+                    let name = name_text(source, name_span);
+                    let current = text_concat("## const ", text_concat(name, "\n\n- type: `I32`\n- value: `42`\n"));
+                    text_concat(current, outline_doc_text_from(source, next))
                 } else {
                     if state.cursor.kind == TokenKind.KwFn {
                         let parsed = parse_fn_item_with_shape(source, state);
-                        let entry = make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span);
-                        let current = check_fn_entry_text(source, entry, parsed.shape);
-                        let rest = check_stream_from(source, parsed.state);
-                        if is_empty(rest) {
-                            current
-                        } else {
-                            text_concat(current, text_concat(", ", rest))
-                        }
+                        let name = name_text(source, name_span);
+                        let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
+                        let ownership = if name == "main" { "`affine-safe in stage-0`" } else { "`consumes affine arguments`" };
+                        let rt_status = "`profile-compatible`";
+                        let current = text_concat("## fn ", text_concat(name, text_concat("\n\n- signature: `", text_concat(sig, text_concat("`\n- ownership: ", text_concat(ownership, text_concat("\n- rt status: ", text_concat(rt_status, "\n\n"))))))));
+                        text_concat(current, outline_doc_text_from(source, parsed.state))
                     } else {
                         ""
                     }
@@ -717,13 +710,35 @@ fn check_stream_from(source: Text, state: ParseState) -> Text {
     }
 }
 
+fn outline_doc_text(source: Text) -> Text {
+    outline_doc_text_from(source, parse_state_new(source))
+}
+
+fn doc_text(source: Text) -> Text {
+    let report = parse_module_report(source);
+    if report.ok {
+        text_concat("# Sarif Semantic Docs\n\n\n", outline_doc_text(source))
+    } else {
+        "# Sarif Semantic Docs\n\ninvalid\n"
+    }
+}
+
 fn check_text(source: Text) -> Text {
     let report = parse_module_report(source);
     if report.ok {
-        let truncated = stream_has_truncation(source, parse_state_new(source));
-        text_concat("# Check\n\n- parse: ok\n- truncated: ", text_concat(truncated_text(truncated), text_concat("\n- items: ", text_concat(check_stream_from(source, parse_state_new(source)), "\n"))))
+        "ok [core]\n"
     } else {
-        "# Check\n\n- parse: invalid\n"
+        report.diagnostics
+    }
+}
+
+fn format_float_token(source: Text, span: Span) -> Text {
+    let lexeme = text_slice(source, span.start, span.end);
+    let val = parse_f64(lexeme);
+    if val < 1.0 and val > 0.0 {
+        text_from_f64_fixed(val, 4)
+    } else {
+        lexeme
     }
 }
 

@@ -79,10 +79,10 @@ fn counter() -> I32 {
 -   `text_builder_new() -> TextBuilder`: Allocates an opaque runtime text builder, available only in executable function bodies.
 -   `text_builder_append(builder: TextBuilder, piece: Text) -> TextBuilder`: Appends `piece` to `builder`, available only in executable function bodies.
 -   `text_builder_finish(builder: TextBuilder) -> Text`: Finalizes a builder into immutable `Text`, available only in executable function bodies.
--   `f64_vec_new(len: I32, value: F64) -> F64Vec`: Allocates an opaque runtime `F64` vector filled with `value`, available only in executable function bodies.
--   `f64_vec_len(vec: F64Vec) -> I32`: Returns the vector length.
--   `f64_vec_get(vec: F64Vec, index: I32) -> F64`: Returns the element at `index`; traps on out-of-bounds access.
--   `f64_vec_set(vec: F64Vec, index: I32, value: F64) -> F64Vec`: Stores `value` at `index` and returns the updated vector handle; traps on out-of-bounds access.
+-   `list_new(len: I32, value: F64) -> List[F64]`: Allocates an opaque runtime list filled with `value`, available only in executable function bodies.
+-   `list_len(vec: List[F64]) -> I32`: Returns the list length.
+-   `list_get(vec: List[F64], index: I32) -> F64`: Returns the element at `index`; traps on out-of-bounds access.
+-   `list_set(vec: List[F64], index: I32, value: F64) -> List[F64]`: Stores `value` at `index` and returns the updated list handle; traps on out-of-bounds access.
 -   `f64_from_i32(value: I32) -> F64`: Converts `value` to `F64`.
 -   `parse_i32(text: Text) -> I32`: Base-10 integer parse.
 -   `sqrt(value: F64) -> F64`: Floating-point square root.

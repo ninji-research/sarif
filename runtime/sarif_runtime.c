@@ -23,7 +23,7 @@ typedef struct SarifRecordDesc SarifRecordDesc;
 typedef struct SarifEnumDesc SarifEnumDesc;
 typedef struct SarifVariantDesc SarifVariantDesc;
 typedef struct SarifTextBuilder SarifTextBuilder;
-typedef struct SarifF64Vec SarifF64Vec;
+typedef struct SarifList SarifList;
 
 typedef struct SarifFieldDesc {
     const char* name;
@@ -58,7 +58,7 @@ struct SarifTextBuilder {
     unsigned char* bytes;
 };
 
-struct SarifF64Vec {
+struct SarifList {
     uint64_t len;
     double* values;
 };
@@ -186,23 +186,21 @@ void* sarif_text_builder_finish(void* raw_builder) {
     return text;
 }
 
-void* sarif_f64_vec_new(int64_t len, uint64_t fill_bits) {
-    SarifF64Vec* vec = NULL;
-    double fill = 0.0;
+void* sarif_list_new(int64_t len, double fill) {
+    SarifList* vec = NULL;
     uint64_t index = 0;
     if (len < 0) {
         return NULL;
     }
-    memcpy(&fill, &fill_bits, sizeof(fill));
     if ((uint64_t)len > (uint64_t)SIZE_MAX / sizeof(double)) {
         return NULL;
     }
-    vec = calloc(1u, sizeof(SarifF64Vec));
+    vec = calloc(1u, sizeof(SarifList));
     if (vec == NULL) {
         return NULL;
     }
     vec->len = (uint64_t)len;
-    if (fill_bits == 0) {
+    if (fill == 0.0) {
         vec->values = calloc((size_t)len, sizeof(double));
         if (vec->values == NULL) {
             free(vec);
@@ -314,12 +312,10 @@ void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) 
     return result;
 }
 
-void* sarif_text_from_f64_fixed(uint64_t bits, int64_t digits) {
-    double value = 0.0;
+void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     int precision = 0;
     int len = 0;
     unsigned char* result = NULL;
-    memcpy(&value, &bits, sizeof(value));
     if (digits > 0) {
         precision = digits > 1000 ? 1000 : (int)digits;
     }
@@ -366,6 +362,36 @@ int64_t sarif_parse_i32(const unsigned char* text) {
     }
     free(buffer);
     return (int64_t)value;
+}
+
+double sarif_parse_f64(const unsigned char* text) {
+    uint64_t len = 0;
+    char* buffer = NULL;
+    char* end = NULL;
+    double value = 0.0;
+    if (text == NULL) {
+        return 0.0;
+    }
+    len = sarif_load_u64(text, 0);
+    if (len > (uint64_t)SIZE_MAX - 1u) {
+        return 0.0;
+    }
+    buffer = malloc((size_t)len + 1u);
+    if (buffer == NULL) {
+        return 0.0;
+    }
+    if (len != 0) {
+        memcpy(buffer, text + 8, (size_t)len);
+    }
+    buffer[len] = '\0';
+    errno = 0;
+    value = strtod(buffer, &end);
+    if (end == buffer || *end != '\0' || errno != 0) {
+        free(buffer);
+        return 0.0;
+    }
+    free(buffer);
+    return value;
 }
 
 uint64_t sarif_arg_count(void) {

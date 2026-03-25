@@ -11,7 +11,11 @@ use wasmtime::{Engine, Instance, Module, Store, TypedFunc};
 fn assert_run_parity(source: &str, expected: &str) {
     let path = temp_source(source);
     let output = run_profiled("run", &path);
-    assert!(output.status.success(), "run should succeed");
+    assert!(
+        output.status.success(),
+        "run should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
 }
 
@@ -112,9 +116,9 @@ fn run_executes_text_builder_consistently() {
 }
 
 #[test]
-fn run_executes_f64_vec_consistently() {
+fn run_executes_list_f64_consistently() {
     assert_run_parity(
-        "fn main() -> Text { let mut xs = f64_vec_new(3, 0.0); xs = f64_vec_set(xs, 0, 1.5); xs = f64_vec_set(xs, 1, 2.25); xs = f64_vec_set(xs, 2, f64_vec_get(xs, 0) + f64_vec_get(xs, 1)); text_from_f64_fixed(f64_vec_get(xs, 2), 2) }",
+        "fn main() -> Text { let mut xs = list_new(3, 0.0); xs = list_set(xs, 0, 1.5); xs = list_set(xs, 1, 2.25); xs = list_set(xs, 2, list_get(xs, 0) + list_get(xs, 1)); text_from_f64_fixed(list_get(xs, 2), 2) }",
         "3.75",
     );
 }
@@ -431,16 +435,16 @@ fn stable_build_executes_text_builder_programs() {
 
 #[cfg(feature = "native-build")]
 #[test]
-fn stable_build_executes_f64_vec_programs() {
+fn stable_build_executes_list_f64_programs() {
     let path = temp_source(
-        "fn main() -> Text { let mut xs = f64_vec_new(3, 0.0); xs = f64_vec_set(xs, 0, 1.5); xs = f64_vec_set(xs, 1, 2.25); xs = f64_vec_set(xs, 2, f64_vec_get(xs, 0) + f64_vec_get(xs, 1)); text_from_f64_fixed(f64_vec_get(xs, 2), 2) }",
+        "fn main() -> Text { let mut xs = list_new(3, 0.0); xs = list_set(xs, 0, 1.5); xs = list_set(xs, 1, 2.25); xs = list_set(xs, 2, list_get(xs, 0) + list_get(xs, 1)); text_from_f64_fixed(list_get(xs, 2), 2) }",
     );
-    let binary_path = super::support::temp_artifact("f64_vec_build", "bin");
+    let binary_path = super::support::temp_artifact("list_f64_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
 
     assert!(
         build.status.success(),
-        "f64 vec program should build on the native target"
+        "list f64 program should build on the native target"
     );
     let native = Command::new(&binary_path)
         .output()
@@ -693,23 +697,23 @@ fn wasm_build_rejects_text_builder_modules() {
     );
 }
 
-#[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_accepts_f64_vec_modules() {
-    let path = temp_source("fn carry(xs: F64Vec) -> F64Vec { xs }\nfn main() { }");
-    let wasm_path = temp_output("f64_vec_build", "wasm");
+#[cfg(feature = "wasm")]
+fn wasm_build_accepts_list_f64_modules() {
+    let path = temp_source("fn carry(xs: List[F64]) -> List[F64] { xs }\nfn main() { }");
+    let wasm_path = temp_output("list_f64_build", "wasm");
     let build = run_sarif(&[
         "build",
         path.to_str().expect("utf-8 path"),
         "--target",
         "wasm",
         "-o",
-        wasm_path.to_str().expect("utf-8 path"),
+        wasm_path.to_str().expect("utf-8 output path"),
     ]);
 
     assert!(
         build.status.success(),
-        "f64 vec builtins should be accepted on the wasm backend:\n{}",
+        "list f64 builtins should be accepted on the wasm backend:\n{}",
         String::from_utf8_lossy(&build.stderr)
     );
 }

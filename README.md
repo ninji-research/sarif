@@ -28,7 +28,7 @@ Sarif is currently in its stage-0 bootstrap window.
 -   **Stable Execution Paths:**
     -   MIR Interpreter (Reference Oracle)
     -   Native Target (Linked executables via Cranelift)
-    -   Wasm Target (Binary `.wasm` via `wat`)
+    -   Wasm Target (Binary `.wasm` via `wat`, including stage-0 text builtins and bootstrap package execution)
 -   **Tooling:** Stable `sarifc` commands for `format`, `check`, `run`, `build`, and `doc`.
 -   **Bootstrap Self-Host Commands:** `sarifc bootstrap-format` runs the current Sarif-hosted formatter through the maintained compiler/runtime, and `sarifc bootstrap-doc` plus `sarifc bootstrap-check` bridge to the maintained semantic doc/check surfaces on the same CLI boundary.
 -   **Technical Integrity:** Default workspace verification is kept green with a small supported backend surface.
@@ -47,6 +47,7 @@ Sarif is currently in its stage-0 bootstrap window.
 -   **Experimental self-host checker:** `bootstrap-check` now bridges to the maintained semantic checker on the CLI surface, but the maintained release authority is still Rust-owned rather than Sarif-hosted.
 -   **Semantic self-host docs:** `bootstrap-doc` now reuses the maintained semantic markdown renderer; the remaining doc authority gap is that the maintained release path is still Rust-owned rather than Sarif-hosted.
 -   **Formatter authority:** `bootstrap-format` now matches the maintained formatter on the retained shipped parity corpus, including the shipped bootstrap packages, but it is still an experimental tool path rather than the maintained authority.
+-   **Rust archival:** the Rust implementation is still the release and backend authority, so it is not ready to archive.
 
 ## Verification Baseline
 

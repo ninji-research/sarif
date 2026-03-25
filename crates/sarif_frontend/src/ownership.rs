@@ -482,8 +482,8 @@ impl AffineUseChecker<'_> {
                     || expr.callee == "text_len"
                     || expr.callee == "text_slice"
                     || expr.callee == "text_byte"
-                    || expr.callee == "f64_vec_len"
-                    || expr.callee == "f64_vec_get"
+                    || expr.callee == "list_len"
+                    || expr.callee == "list_get"
                 {
                     for arg in &expr.args {
                         self.collect(arg, true);
@@ -499,6 +499,11 @@ impl AffineUseChecker<'_> {
                     borrow_only || matches!(expr.op, BinaryOp::Eq | BinaryOp::Ne);
                 self.collect(&expr.left, operand_borrow_only);
                 self.collect(&expr.right, operand_borrow_only);
+            }
+            Expr::Perform(expr) => {
+                for arg in &expr.args {
+                    self.collect(arg, borrow_only);
+                }
             }
         }
     }
@@ -1051,8 +1056,8 @@ fn collect_param_modes(
                 || expr.callee == "text_len"
                 || expr.callee == "text_slice"
                 || expr.callee == "text_byte"
-                || expr.callee == "f64_vec_len"
-                || expr.callee == "f64_vec_get"
+                || expr.callee == "list_len"
+                || expr.callee == "list_get"
             {
                 for arg in &expr.args {
                     collect_param_modes(
@@ -1160,6 +1165,21 @@ fn collect_param_modes(
                 aliases,
                 usages,
             );
+        }
+        Expr::Perform(expr) => {
+            for arg in &expr.args {
+                collect_param_modes(
+                    arg,
+                    default_mode.clone(),
+                    locals,
+                    functions,
+                    enum_variants,
+                    struct_fields,
+                    struct_layouts,
+                    aliases,
+                    usages,
+                );
+            }
         }
     }
 }
@@ -1287,7 +1307,7 @@ fn expr_type_for_ownership(
             }
             Some(Type::Array(
                 Box::new(first),
-                crate::semantic::TypeArrayLen::Literal(expr.elements.len()),
+                crate::hir::ConstExpr::Literal(u32::try_from(expr.elements.len()).unwrap_or(0)),
             ))
         }
         Expr::Index(expr) => {
@@ -1311,12 +1331,13 @@ fn expr_type_for_ownership(
         Expr::Call(expr) => match expr.callee.as_str() {
             "text_builder_new" | "text_builder_append" => Some(Type::TextBuilder),
             "text_builder_finish" => Some(Type::Text),
-            "f64_vec_new" | "f64_vec_set" => Some(Type::F64Vec),
-            "f64_vec_len" => Some(Type::I32),
-            "f64_vec_get" => Some(Type::F64),
+            "list_new" | "list_push" | "list_pop" => Some(Type::List(Box::new(Type::Error))), // Placeholder, we can refine this later if needed.
+            "list_len" => Some(Type::I32),
+            "list_get" => Some(Type::F64),
             _ => None,
         },
         Expr::Binary(_) => None,
+        Expr::Perform(_) => Some(Type::Unit), // Assume Unit for now
     }
 }
 
@@ -1351,7 +1372,8 @@ fn access_path_for_ownership_with_aliases(
         | Expr::Call(_)
         | Expr::Binary(_)
         | Expr::Comptime(_)
-        | Expr::Handle(_) => None,
+        | Expr::Handle(_)
+        | Expr::Perform(_) => None,
     }
 }
 
@@ -1390,7 +1412,12 @@ fn is_affine_type_inner(
     visiting: &mut BTreeSet<String>,
 ) -> bool {
     match ty {
-        Type::Text | Type::TextBuilder | Type::F64Vec => true,
+        Type::Text | Type::TextBuilder => true,
+        Type::List(_) => true,
+        Type::Pair(left, right) => {
+            is_affine_type_inner(left, struct_fields, enum_variants, visiting)
+                || is_affine_type_inner(right, struct_fields, enum_variants, visiting)
+        }
         Type::Named(name) => {
             if !visiting.insert(name.clone()) {
                 return false;
@@ -1762,7 +1789,7 @@ fn expr_falls_through(expr: &Expr) -> bool {
         Expr::Group(expr) => expr_falls_through(&expr.inner),
         Expr::Unary(expr) => expr_falls_through(&expr.inner),
         Expr::Comptime(body) => body_falls_through(body),
-        Expr::Handle(_) => true,
+        Expr::Handle(_) | Expr::Perform(_) => true,
         Expr::Integer(_)
         | Expr::Float(_)
         | Expr::String(_)

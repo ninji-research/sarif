@@ -7,7 +7,7 @@ use super::memory::{
     read_text_from_memory, runtime_value_to_wasm_arg, unpack_text_value,
 };
 use super::{WasmEmitter, WasmEnum, WasmError, WasmRecord, enum_is_payload_free};
-use crate::{Program, RuntimeValue, emit_wasm, run_function, run_main};
+use crate::{Program, RuntimeError, RuntimeValue, emit_wasm, run_function, run_main};
 
 /// # Errors
 ///
@@ -16,9 +16,14 @@ use crate::{Program, RuntimeValue, emit_wasm, run_function, run_main};
 /// program.
 pub fn run_main_wasm(program: &Program) -> Result<RuntimeValue, WasmError> {
     run_main(program).map_err(|error| {
+        let message = match error {
+            RuntimeError::Message(m) => m,
+            RuntimeError::EffectUnwind {
+                effect, operation, ..
+            } => format!("unhandled effect {effect}.{operation}"),
+        };
         WasmError::new(format!(
-            "interpreter preflight failed before wasm execution: {}",
-            error.message
+            "interpreter preflight failed before wasm execution: {message}"
         ))
     })?;
     let wasm = emit_wasm(program)?;
@@ -52,9 +57,14 @@ pub fn run_function_wasm(
     args: &[RuntimeValue],
 ) -> Result<RuntimeValue, WasmError> {
     let interpreter_result = run_function(program, name, args).map_err(|error| {
+        let message = match error {
+            RuntimeError::Message(m) => m,
+            RuntimeError::EffectUnwind {
+                effect, operation, ..
+            } => format!("unhandled effect {effect}.{operation}"),
+        };
         WasmError::new(format!(
-            "interpreter preflight failed before wasm execution: {}",
-            error.message
+            "interpreter preflight failed before wasm execution: {message}"
         ))
     })?;
     let wasm = emit_wasm(program)?;
@@ -64,10 +74,6 @@ pub fn run_function_wasm(
         .iter()
         .find(|function| function.name == name)
         .ok_or_else(|| WasmError::new(format!("missing `{name}` function")))?;
-    let signature = emitter
-        .signatures
-        .get(name)
-        .ok_or_else(|| WasmError::new(format!("missing wasm signature for `{name}`")))?;
     if function.params.len() != args.len() {
         return Err(WasmError::new(format!(
             "function `{name}` expects {} arguments but got {}",
@@ -105,7 +111,7 @@ pub fn run_function_wasm(
         .get_func(&mut store, name)
         .ok_or_else(|| WasmError::new(format!("missing exported wasm `{name}`")))?;
     let params = wasm_args.into_iter().map(Val::I64).collect::<Vec<_>>();
-    let mut results = if signature.result.is_some() {
+    let mut results = if function.return_type.is_some() {
         vec![Val::I64(0)]
     } else {
         Vec::new()

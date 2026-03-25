@@ -195,12 +195,13 @@ fn emit_metadata_getters(
 fn child_record_expr(kind: &NativeValueKind) -> String {
     match kind {
         NativeValueKind::Record(name) => format!("&{}", record_ident(name)),
-        NativeValueKind::I32
+        NativeValueKind::Unit
+        | NativeValueKind::I32
         | NativeValueKind::F64
         | NativeValueKind::Bool
         | NativeValueKind::Text
         | NativeValueKind::TextBuilder
-        | NativeValueKind::F64Vec
+        | NativeValueKind::List
         | NativeValueKind::Enum(_) => "0".to_owned(),
     }
 }
@@ -208,12 +209,13 @@ fn child_record_expr(kind: &NativeValueKind) -> String {
 fn child_enum_expr(kind: &NativeValueKind) -> String {
     match kind {
         NativeValueKind::Enum(name) => format!("&{}", enum_ident(name)),
-        NativeValueKind::I32
+        NativeValueKind::Unit
+        | NativeValueKind::I32
         | NativeValueKind::F64
         | NativeValueKind::Bool
         | NativeValueKind::Text
         | NativeValueKind::TextBuilder
-        | NativeValueKind::F64Vec
+        | NativeValueKind::List
         | NativeValueKind::Record(_) => "0".to_owned(),
     }
 }
@@ -281,6 +283,7 @@ fn c_string(value: &str) -> String {
 
 const fn c_kind(kind: &NativeValueKind) -> u32 {
     match kind {
+        NativeValueKind::Unit => 0,
         NativeValueKind::I32 => 1,
         NativeValueKind::Bool => 2,
         NativeValueKind::Text => 3,
@@ -288,7 +291,7 @@ const fn c_kind(kind: &NativeValueKind) -> u32 {
         NativeValueKind::Enum(_) => 5,
         NativeValueKind::F64 => 6,
         NativeValueKind::TextBuilder => 7,
-        NativeValueKind::F64Vec => 8,
+        NativeValueKind::List => 8,
     }
 }
 

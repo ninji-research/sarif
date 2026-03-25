@@ -8,19 +8,25 @@ No feature lands until it is fully supported by the specification, formatter, di
 
 The focus is on a stable, minimal substrate for self-hosting.
 
-### Stage 0: Rust-Hosted Substrate
+### Stage 0: Rust-Hosted Substrate (Completed)
 - CST -> HIR -> MIR pipeline.
 - MIR Interpreter as the normative oracle.
 - Native and Binary Wasm as stable targets.
 - Strict declaration order and tail-expression returns.
-- Flat package manifests with ordered `package.sources`.
-- Query-style incremental caching in the frontend.
 
-### Stage 1: Self-Hosted Tooling
-- Build a minimal self-hosting substrate in Sarif (bootstrap syntax events plus deterministic collections and text handling).
-- Port the `format` tool to Sarif.
-- Port the `doc` generator to Sarif.
-- Port the non-backend `check` subset to Sarif.
+### Stage 1: Self-Hosted Tooling (In Progress)
+- Build and keep a minimal self-hosting substrate in Sarif (bootstrap syntax events plus deterministic collections and text handling).
+- Keep `bootstrap-format` at retained parity with the maintained formatter.
+- Keep `bootstrap-check` and `bootstrap-doc` aligned with maintained semantic outputs while their current CLI surface is still a bridge.
+- Promote Sarif-hosted `format`, `check`, and `doc` to release authority only after the Rust paths can be removed without reducing correctness, coverage, or maintainability.
+
+### Stage 2: Self-Hosted Compiler (Blocked on Stage 1)
+- Port HIR lowering to Sarif.
+- Port MIR generation to Sarif.
+- Achieve full self-hosting (the Sarif compiler compiles itself).
+
+### Rust Archival Gate (Not Ready)
+- Do not archive the Rust implementation until Sarif-hosted tooling is the maintained release authority and the compiler pipeline has crossed the same boundary with the full verification baseline still green.
 
 ## 3. Post-Bootstrap Milestones
 

@@ -9,8 +9,8 @@ use cranelift_module::{DataId, FuncId, Linkage, Module};
 pub use crate::CodegenValueKind as NativeValueKind;
 use crate::{Function, Inst, Program, ValueId, insts_fall_through};
 
-const F64_VEC_LEN_OFFSET: i32 = 0;
-const F64_VEC_VALUES_OFFSET: i32 = 8;
+const LIST_LEN_OFFSET: i32 = 0;
+const LIST_VALUES_OFFSET: i32 = 8;
 const F64_SIZE_BYTES: i64 = 8;
 
 #[derive(Clone, Debug)]
@@ -45,19 +45,19 @@ pub enum NativeValueRepr {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct F64VecHeader {
+pub(crate) struct ListHeader {
     len: Value,
     values_ptr: Value,
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct TrustedF64VecAccesses {
-    pairs: BTreeSet<(ValueId, ValueId)>,
+pub(crate) struct TrustedListAccesses {
+    pub pairs: BTreeSet<(ValueId, ValueId)>,
 }
 
-impl TrustedF64VecAccesses {
-    fn contains(&self, vec: ValueId, index: ValueId) -> bool {
-        self.pairs.contains(&(vec, index))
+impl TrustedListAccesses {
+    fn contains(&self, list: ValueId, index: ValueId) -> bool {
+        self.pairs.contains(&(list, index))
     }
 
     fn unique_vecs(&self) -> BTreeSet<ValueId> {
@@ -69,6 +69,7 @@ const PAYLOAD_ENUM_SIZE: u32 = 16;
 
 fn native_kind_type(kind: &NativeValueKind) -> cranelift_codegen::ir::types::Type {
     match kind {
+        NativeValueKind::Unit => types::I64, // Represented as 0 handle
         NativeValueKind::F64 => types::F64,
         _ => types::I64,
     }
@@ -171,14 +172,6 @@ pub fn native_enum_variant_index(enum_ty: &NativeEnum, name: &str) -> Option<usi
         .position(|variant| variant.name == name)
 }
 
-#[must_use]
-pub fn native_enum_variant<'a>(
-    enum_ty: &'a NativeEnum,
-    name: &str,
-) -> Option<&'a NativeEnumVariant> {
-    enum_ty.variants.iter().find(|variant| variant.name == name)
-}
-
 pub fn infer_value_kinds(
     function: &Function,
     records: &BTreeMap<String, NativeRecord>,
@@ -235,24 +228,23 @@ fn infer_inst_kinds(
             | Inst::TextLen { dest, .. }
             | Inst::TextByte { dest, .. }
             | Inst::ArgCount { dest, .. }
+            | Inst::ListLen { dest, .. }
             | Inst::ParseI32 { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
             }
+            Inst::ParseF64 { dest, .. }
+            | Inst::ListGet { dest, .. }
+            | Inst::F64FromI32 { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::F64);
+            }
+
             Inst::TextBuilderNew { dest } | Inst::TextBuilderAppend { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::TextBuilder);
             }
-            Inst::F64VecNew { dest, .. } | Inst::F64VecSet { dest, .. } => {
-                kinds.insert(*dest, NativeValueKind::F64Vec);
+            Inst::ListNew { dest, .. } | Inst::ListSet { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::List);
             }
-            Inst::F64VecLen { dest, .. } => {
-                kinds.insert(*dest, NativeValueKind::I32);
-            }
-            Inst::F64VecGet { dest, .. } => {
-                kinds.insert(*dest, NativeValueKind::F64);
-            }
-            Inst::F64FromI32 { dest, .. } => {
-                kinds.insert(*dest, NativeValueKind::F64);
-            }
+
             Inst::TextConcat { dest, .. }
             | Inst::TextSlice { dest, .. }
             | Inst::TextBuilderFinish { dest, .. }
@@ -402,6 +394,7 @@ fn infer_inst_kinds(
                 infer_inst_kinds(function, body_insts, records, enums, functions, kinds)?;
             }
             Inst::StoreLocal { .. } | Inst::Assert { .. } => {}
+            Inst::Perform { .. } | Inst::Handle { .. } => {}
         }
     }
     Ok(())
@@ -418,7 +411,7 @@ pub fn native_value_kind(
         "Bool" => Ok(NativeValueKind::Bool),
         "Text" => Ok(NativeValueKind::Text),
         "TextBuilder" => Ok(NativeValueKind::TextBuilder),
-        "F64Vec" => Ok(NativeValueKind::F64Vec),
+        "List" => Ok(NativeValueKind::List),
         "Unit" => Err("unit should be represented as an omitted native value type".to_owned()),
         other if enums.contains_key(other) => Ok(NativeValueKind::Enum(other.to_owned())),
         other if records.contains_key(other) => Ok(NativeValueKind::Record(other.to_owned())),
@@ -466,15 +459,9 @@ pub fn lower_comparison<M: Module>(
         return Ok(NativeValueRepr::Native(value));
     }
     if matches!(value_kinds.get(&left), Some(NativeValueKind::F64)) {
-        let left_bits = native_value(values, left, function, "comparison left operand", backend)?;
-        let right_bits =
+        let left_float = native_value(values, left, function, "comparison left operand", backend)?;
+        let right_float =
             native_value(values, right, function, "comparison right operand", backend)?;
-        let left_float = builder
-            .ins()
-            .bitcast(types::F64, MemFlags::new(), left_bits);
-        let right_float = builder
-            .ins()
-            .bitcast(types::F64, MemFlags::new(), right_bits);
         if matches!(condition, IntCC::NotEqual) {
             let eq = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
             let ne = builder.ins().bnot(eq);
@@ -573,10 +560,11 @@ fn lower_native_kind_equality<M: Module>(
     function: &Function,
 ) -> Result<cranelift_codegen::ir::Value, String> {
     match kind {
-        NativeValueKind::I32
+        NativeValueKind::Unit
+        | NativeValueKind::I32
         | NativeValueKind::Bool
         | NativeValueKind::TextBuilder
-        | NativeValueKind::F64Vec => {
+        | NativeValueKind::List => {
             let compare = builder.ins().icmp(IntCC::Equal, left, right);
             Ok(builder.ins().uextend(types::I64, compare))
         }
@@ -776,26 +764,14 @@ pub fn lower_make_enum<M: Module>(
         i64::try_from(tag).expect("enum tag should fit i64"),
     );
     builder.ins().store(MemFlags::new(), tag_value, ptr, 0);
-    let payload_raw = match (
-        native_enum_variant(enum_ty, variant).and_then(|candidate| candidate.payload_type.as_ref()),
-        payload,
-    ) {
-        (Some(_), Some(payload)) => {
-            native_value(values, payload, function, "enum payload", backend)?
-        }
-        (None, None) => builder.ins().iconst(types::I64, 0),
-        (Some(_), None) => {
-            return Err(format!(
-                "enum `{name}.{variant}` is missing its payload in `{}`",
-                function.name
-            ));
-        }
-        (None, Some(_)) => {
-            return Err(format!(
-                "enum `{name}.{variant}` unexpectedly carries a payload in `{}`",
-                function.name
-            ));
-        }
+    let payload_repr = if let Some(payload_id) = payload {
+        value_repr(values, payload_id, function, "enum payload", backend)?
+    } else {
+        NativeValueRepr::Unit
+    };
+    let payload_raw = match payload_repr {
+        NativeValueRepr::Native(v) => v,
+        NativeValueRepr::Unit => builder.ins().iconst(types::I64, 0),
     };
     builder.ins().store(MemFlags::new(), payload_raw, ptr, 8);
     values.insert(dest, NativeValueRepr::Native(ptr));
@@ -833,6 +809,10 @@ pub fn lower_enum_payload(
     }
     let base = native_value(values, value, function, "enum payload base", backend)?;
     let payload_kind = native_value_kind(payload_type, records, enums)?;
+    if matches!(payload_kind, NativeValueKind::Unit) {
+        values.insert(dest, NativeValueRepr::Unit);
+        return Ok(());
+    }
     let native = builder
         .ins()
         .load(native_kind_type(&payload_kind), MemFlags::new(), base, 8);
@@ -881,11 +861,12 @@ pub fn lower_insts<M: Module>(
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_finish_id: FuncId,
-    f64_vec_new_id: FuncId,
+    list_new_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     text_from_f64_fixed_id: FuncId,
     parse_i32_id: FuncId,
+    parse_f64_id: FuncId,
     arg_count_id: FuncId,
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
@@ -900,8 +881,8 @@ pub fn lower_insts<M: Module>(
     block_params: &[cranelift_codegen::ir::Value],
     slot_vars: &BTreeMap<crate::LocalSlotId, Variable>,
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
-    f64_vec_headers: &mut BTreeMap<Value, F64VecHeader>,
-    trusted_f64_vec_accesses: &TrustedF64VecAccesses,
+    list_headers: &mut BTreeMap<Value, ListHeader>,
+    trusted_list_accesses: &TrustedListAccesses,
     instructions: &[Inst],
     backend: &str,
 ) -> Result<bool, String> {
@@ -913,11 +894,12 @@ pub fn lower_insts<M: Module>(
             text_builder_new_id,
             text_builder_append_id,
             text_builder_finish_id,
-            f64_vec_new_id,
+            list_new_id,
             text_concat_id,
             text_slice_id,
             text_from_f64_fixed_id,
             parse_i32_id,
+            parse_f64_id,
             arg_count_id,
             arg_text_id,
             stdin_text_id,
@@ -932,8 +914,8 @@ pub fn lower_insts<M: Module>(
             block_params,
             slot_vars,
             values,
-            f64_vec_headers,
-            trusted_f64_vec_accesses,
+            list_headers,
+            trusted_list_accesses,
             inst,
             backend,
         )? {
@@ -951,11 +933,12 @@ pub fn lower_inst<M: Module>(
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_finish_id: FuncId,
-    f64_vec_new_id: FuncId,
+    list_new_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     text_from_f64_fixed_id: FuncId,
     parse_i32_id: FuncId,
+    parse_f64_id: FuncId,
     arg_count_id: FuncId,
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
@@ -970,8 +953,8 @@ pub fn lower_inst<M: Module>(
     block_params: &[cranelift_codegen::ir::Value],
     slot_vars: &BTreeMap<crate::LocalSlotId, Variable>,
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
-    f64_vec_headers: &mut BTreeMap<Value, F64VecHeader>,
-    trusted_f64_vec_accesses: &TrustedF64VecAccesses,
+    list_headers: &mut BTreeMap<Value, ListHeader>,
+    trusted_list_accesses: &TrustedListAccesses,
     inst: &Inst,
     backend: &str,
 ) -> Result<bool, String> {
@@ -1114,19 +1097,16 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
-        Inst::F64VecNew { dest, len, value } => {
-            let len_val = native_value(values, *len, function, "f64_vec_new len", backend)?;
-            let value_val = native_value(values, *value, function, "f64_vec_new value", backend)?;
-            let value_bits = builder
-                .ins()
-                .bitcast(types::I64, MemFlags::new(), value_val);
-            let helper = module.declare_func_in_func(f64_vec_new_id, builder.func);
-            let call = builder.ins().call(helper, &[len_val, value_bits]);
+        Inst::ListNew { dest, len, value } => {
+            let len_val = native_value(values, *len, function, "list_new len", backend)?;
+            let value_val = native_value(values, *value, function, "list_new value", backend)?;
+            let helper = module.declare_func_in_func(list_new_id, builder.func);
+            let call = builder.ins().call(helper, &[len_val, value_val]);
             let ptr = match builder.inst_results(call) {
                 [ptr] => *ptr,
                 _ => {
                     return Err(format!(
-                        "{backend} f64 vec new helper returned an unexpected result shape in `{}`",
+                        "{backend} list new helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
                 }
@@ -1137,32 +1117,32 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
-        Inst::F64VecLen { dest, vec } => {
-            let vec_val = native_value(values, *vec, function, "f64_vec_len vec", backend)?;
-            let header = cached_f64_vec_header(
+        Inst::ListLen { dest, list } => {
+            let vec_val = native_value(values, *list, function, "list_len list", backend)?;
+            let header = cached_list_header(
                 builder,
-                f64_vec_headers,
+                list_headers,
                 vec_val,
                 function,
-                "f64_vec_len vec",
+                "list_len list",
                 backend,
             )?;
             let value = header.len;
             values.insert(*dest, NativeValueRepr::Native(value));
             Ok(true)
         }
-        Inst::F64VecGet { dest, vec, index } => {
-            let vec_val = native_value(values, *vec, function, "f64_vec_get vec", backend)?;
-            let index_val = native_value(values, *index, function, "f64_vec_get index", backend)?;
-            let header = cached_f64_vec_header(
+        Inst::ListGet { dest, list, index } => {
+            let vec_val = native_value(values, *list, function, "list_get list", backend)?;
+            let index_val = native_value(values, *index, function, "list_get index", backend)?;
+            let header = cached_list_header(
                 builder,
-                f64_vec_headers,
+                list_headers,
                 vec_val,
                 function,
-                "f64_vec_get vec",
+                "list_get list",
                 backend,
             )?;
-            if !trusted_f64_vec_accesses.contains(*vec, *index) {
+            if !trusted_list_accesses.contains(*list, *index) {
                 let too_large =
                     builder
                         .ins()
@@ -1177,24 +1157,24 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(value));
             Ok(true)
         }
-        Inst::F64VecSet {
+        Inst::ListSet {
             dest,
-            vec,
+            list,
             index,
             value,
         } => {
-            let vec_val = native_value(values, *vec, function, "f64_vec_set vec", backend)?;
-            let index_val = native_value(values, *index, function, "f64_vec_set index", backend)?;
-            let value_val = native_value(values, *value, function, "f64_vec_set value", backend)?;
-            let header = cached_f64_vec_header(
+            let vec_val = native_value(values, *list, function, "list_set list", backend)?;
+            let index_val = native_value(values, *index, function, "list_set index", backend)?;
+            let value_val = native_value(values, *value, function, "list_set value", backend)?;
+            let header = cached_list_header(
                 builder,
-                f64_vec_headers,
+                list_headers,
                 vec_val,
                 function,
-                "f64_vec_set vec",
+                "list_set list",
                 backend,
             )?;
-            if !trusted_f64_vec_accesses.contains(*vec, *index) {
+            if !trusted_list_accesses.contains(*list, *index) {
                 let too_large =
                     builder
                         .ins()
@@ -1299,9 +1279,6 @@ pub fn lower_inst<M: Module>(
                 "text_from_f64_fixed value",
                 backend,
             )?;
-            let value_bits = builder
-                .ins()
-                .bitcast(types::I64, MemFlags::new(), value_val);
             let digits_val = native_value(
                 values,
                 *digits,
@@ -1310,7 +1287,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_from_f64_fixed_id, builder.func);
-            let call = builder.ins().call(helper, &[value_bits, digits_val]);
+            let call = builder.ins().call(helper, &[value_val, digits_val]);
             let ptr = match builder.inst_results(call) {
                 [ptr] => *ptr,
                 _ => {
@@ -1335,6 +1312,22 @@ pub fn lower_inst<M: Module>(
                 _ => {
                     return Err(format!(
                         "{backend} parse_i32 helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::ParseF64 { dest, text } => {
+            let text_val = native_value(values, *text, function, "parse_f64 text", backend)?;
+            let helper = module.declare_func_in_func(parse_f64_id, builder.func);
+            let call = builder.ins().call(helper, &[text_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} parse_f64 helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
                 }
@@ -1788,7 +1781,7 @@ pub fn lower_inst<M: Module>(
             builder.seal_block(else_block);
 
             let mut then_values = values.clone();
-            let mut then_headers = f64_vec_headers.clone();
+            let mut then_headers = list_headers.clone();
             builder.switch_to_block(then_block);
             let then_falls = lower_insts(
                 function_ids,
@@ -1797,11 +1790,12 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_finish_id,
-                f64_vec_new_id,
+                list_new_id,
                 text_concat_id,
                 text_slice_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
+                parse_f64_id,
                 arg_count_id,
                 arg_text_id,
                 stdin_text_id,
@@ -1817,7 +1811,7 @@ pub fn lower_inst<M: Module>(
                 slot_vars,
                 &mut then_values,
                 &mut then_headers,
-                trusted_f64_vec_accesses,
+                trusted_list_accesses,
                 then_insts,
                 backend,
             )?;
@@ -1834,7 +1828,7 @@ pub fn lower_inst<M: Module>(
             }
 
             let mut else_values = values.clone();
-            let mut else_headers = f64_vec_headers.clone();
+            let mut else_headers = list_headers.clone();
             builder.switch_to_block(else_block);
             let else_falls = lower_insts(
                 function_ids,
@@ -1843,11 +1837,12 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_finish_id,
-                f64_vec_new_id,
+                list_new_id,
                 text_concat_id,
                 text_slice_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
+                parse_f64_id,
                 arg_count_id,
                 arg_text_id,
                 stdin_text_id,
@@ -1863,7 +1858,7 @@ pub fn lower_inst<M: Module>(
                 slot_vars,
                 &mut else_values,
                 &mut else_headers,
-                trusted_f64_vec_accesses,
+                trusted_list_accesses,
                 else_insts,
                 backend,
             )?;
@@ -1906,8 +1901,8 @@ pub fn lower_inst<M: Module>(
         } => {
             let initial_count = native_value(values, *count, function, "repeat count", backend)?;
             let loop_trusted_accesses = index_slot
-                .map_or_else(TrustedF64VecAccesses::default, |slot| {
-                    collect_trusted_repeat_f64_vec_accesses(body_insts, slot)
+                .map_or_else(TrustedListAccesses::default, |slot| {
+                    collect_trusted_repeat_list_accesses(body_insts, slot)
                 });
             if !loop_trusted_accesses.pairs.is_empty() {
                 let zero = builder.ins().iconst(types::I64, 0);
@@ -1921,9 +1916,9 @@ pub fn lower_inst<M: Module>(
                 for vec in loop_trusted_accesses.unique_vecs() {
                     let vec_val =
                         native_value(values, vec, function, "repeat trusted f64 vec", backend)?;
-                    let header = cached_f64_vec_header(
+                    let header = cached_list_header(
                         builder,
-                        f64_vec_headers,
+                        list_headers,
                         vec_val,
                         function,
                         "repeat trusted f64 vec",
@@ -1963,7 +1958,7 @@ pub fn lower_inst<M: Module>(
             builder.seal_block(exit_block);
 
             let mut body_values = values.clone();
-            let mut body_headers = f64_vec_headers.clone();
+            let mut body_headers = list_headers.clone();
             builder.switch_to_block(body_block);
             if let Some(slot) = index_slot {
                 let var = slot_vars.get(slot).copied().ok_or_else(|| {
@@ -1982,11 +1977,12 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_finish_id,
-                f64_vec_new_id,
+                list_new_id,
                 text_concat_id,
                 text_slice_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
+                parse_f64_id,
                 arg_count_id,
                 arg_text_id,
                 stdin_text_id,
@@ -2035,7 +2031,7 @@ pub fn lower_inst<M: Module>(
 
             builder.switch_to_block(condition_block);
             let mut condition_values = values.clone();
-            let mut condition_headers = f64_vec_headers.clone();
+            let mut condition_headers = list_headers.clone();
             let condition_falls = lower_insts(
                 function_ids,
                 data_ids,
@@ -2043,11 +2039,12 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_finish_id,
-                f64_vec_new_id,
+                list_new_id,
                 text_concat_id,
                 text_slice_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
+                parse_f64_id,
                 arg_count_id,
                 arg_text_id,
                 stdin_text_id,
@@ -2063,7 +2060,7 @@ pub fn lower_inst<M: Module>(
                 slot_vars,
                 &mut condition_values,
                 &mut condition_headers,
-                trusted_f64_vec_accesses,
+                trusted_list_accesses,
                 condition_insts,
                 backend,
             )?;
@@ -2086,7 +2083,7 @@ pub fn lower_inst<M: Module>(
             builder.seal_block(exit_block);
 
             let mut body_values = values.clone();
-            let mut body_headers = f64_vec_headers.clone();
+            let mut body_headers = list_headers.clone();
             builder.switch_to_block(body_block);
             let body_falls = lower_insts(
                 function_ids,
@@ -2095,11 +2092,12 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_finish_id,
-                f64_vec_new_id,
+                list_new_id,
                 text_concat_id,
                 text_slice_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
+                parse_f64_id,
                 arg_count_id,
                 arg_text_id,
                 stdin_text_id,
@@ -2115,7 +2113,7 @@ pub fn lower_inst<M: Module>(
                 slot_vars,
                 &mut body_values,
                 &mut body_headers,
-                trusted_f64_vec_accesses,
+                trusted_list_accesses,
                 body_insts,
                 backend,
             )?;
@@ -2136,6 +2134,10 @@ pub fn lower_inst<M: Module>(
                 .trapz(condition, TrapCode::unwrap_user(contract_trap_code(*kind)));
             Ok(true)
         }
+        Inst::Perform { .. } | Inst::Handle { .. } => Err(format!(
+            "{backend} does not yet support effect handlers in `{}`",
+            function.name
+        )),
     }
 }
 
@@ -2163,22 +2165,22 @@ pub fn branch_jump_args(
     }
 }
 
-fn collect_trusted_repeat_f64_vec_accesses(
+fn collect_trusted_repeat_list_accesses(
     instructions: &[Inst],
     index_slot: crate::LocalSlotId,
-) -> TrustedF64VecAccesses {
+) -> TrustedListAccesses {
     let mut body_defined_values = BTreeSet::new();
     collect_defined_values(instructions, &mut body_defined_values);
     let mut loop_index_values = BTreeSet::new();
     collect_loop_index_values(instructions, index_slot, &mut loop_index_values);
     let mut pairs = BTreeSet::new();
-    collect_trusted_f64_vec_pairs(
+    collect_trusted_list_pairs(
         instructions,
         &body_defined_values,
         &loop_index_values,
         &mut pairs,
     );
-    TrustedF64VecAccesses { pairs }
+    TrustedListAccesses { pairs }
 }
 
 fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>) {
@@ -2186,9 +2188,9 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
         match inst {
             Inst::TextBuilderNew { dest }
             | Inst::TextBuilderFinish { dest, .. }
-            | Inst::F64VecNew { dest, .. }
-            | Inst::F64VecLen { dest, .. }
-            | Inst::F64VecGet { dest, .. }
+            | Inst::ListNew { dest, .. }
+            | Inst::ListLen { dest, .. }
+            | Inst::ListGet { dest, .. }
             | Inst::F64FromI32 { dest, .. }
             | Inst::TextLen { dest, .. }
             | Inst::TextConcat { dest, .. }
@@ -2199,6 +2201,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::ArgText { dest, .. }
             | Inst::StdinText { dest }
             | Inst::ParseI32 { dest, .. }
+            | Inst::ParseF64 { dest, .. }
             | Inst::LoadParam { dest, .. }
             | Inst::LoadLocal { dest, .. }
             | Inst::ConstInt { dest, .. }
@@ -2229,7 +2232,10 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::Call { dest, .. } => {
                 defined.insert(*dest);
             }
-            Inst::TextBuilderAppend { dest, .. } | Inst::F64VecSet { dest, .. } => {
+            Inst::TextBuilderAppend { dest, .. } | Inst::ListSet { dest, .. } => {
+                defined.insert(*dest);
+            }
+            Inst::Perform { dest, .. } | Inst::Handle { dest, .. } => {
                 defined.insert(*dest);
             }
             Inst::StoreLocal { .. } | Inst::StdoutWrite { .. } | Inst::Assert { .. } => {}
@@ -2283,12 +2289,13 @@ fn collect_loop_index_values(
                 collect_loop_index_values(condition_insts, index_slot, loop_index_values);
                 collect_loop_index_values(body_insts, index_slot, loop_index_values);
             }
+            Inst::Perform { .. } | Inst::Handle { .. } => {}
             _ => {}
         }
     }
 }
 
-fn collect_trusted_f64_vec_pairs(
+fn collect_trusted_list_pairs(
     instructions: &[Inst],
     body_defined_values: &BTreeSet<ValueId>,
     loop_index_values: &BTreeSet<ValueId>,
@@ -2296,23 +2303,23 @@ fn collect_trusted_f64_vec_pairs(
 ) {
     for inst in instructions {
         match inst {
-            Inst::F64VecGet { vec, index, .. } | Inst::F64VecSet { vec, index, .. }
-                if loop_index_values.contains(index) && !body_defined_values.contains(vec) =>
+            Inst::ListGet { list, index, .. } | Inst::ListSet { list, index, .. }
+                if loop_index_values.contains(index) && !body_defined_values.contains(list) =>
             {
-                pairs.insert((*vec, *index));
+                pairs.insert((*list, *index));
             }
             Inst::If {
                 then_insts,
                 else_insts,
                 ..
             } => {
-                collect_trusted_f64_vec_pairs(
+                collect_trusted_list_pairs(
                     then_insts,
                     body_defined_values,
                     loop_index_values,
                     pairs,
                 );
-                collect_trusted_f64_vec_pairs(
+                collect_trusted_list_pairs(
                     else_insts,
                     body_defined_values,
                     loop_index_values,
@@ -2324,45 +2331,45 @@ fn collect_trusted_f64_vec_pairs(
                 body_insts,
                 ..
             } => {
-                collect_trusted_f64_vec_pairs(
+                collect_trusted_list_pairs(
                     condition_insts,
                     body_defined_values,
                     loop_index_values,
                     pairs,
                 );
-                collect_trusted_f64_vec_pairs(
+                collect_trusted_list_pairs(
                     body_insts,
                     body_defined_values,
                     loop_index_values,
                     pairs,
                 );
             }
+            Inst::Perform { .. } | Inst::Handle { .. } => {}
             _ => {}
         }
     }
 }
 
-fn cached_f64_vec_header(
+fn cached_list_header(
     builder: &mut FunctionBuilder<'_>,
-    headers: &mut BTreeMap<Value, F64VecHeader>,
-    vec: Value,
+    headers: &mut BTreeMap<Value, ListHeader>,
+    list: Value,
     function: &Function,
     context: &str,
     backend: &str,
-) -> Result<F64VecHeader, String> {
-    if let Some(header) = headers.get(&vec).copied() {
+) -> Result<ListHeader, String> {
+    if let Some(header) = headers.get(&list).copied() {
         return Ok(header);
     }
     let _ = (function, context, backend);
     let len = builder
         .ins()
-        .load(types::I64, MemFlags::trusted(), vec, F64_VEC_LEN_OFFSET);
-    let values_ptr =
-        builder
-            .ins()
-            .load(types::I64, MemFlags::trusted(), vec, F64_VEC_VALUES_OFFSET);
-    let header = F64VecHeader { len, values_ptr };
-    headers.insert(vec, header);
+        .load(types::I64, MemFlags::trusted(), list, LIST_LEN_OFFSET);
+    let values_ptr = builder
+        .ins()
+        .load(types::I64, MemFlags::trusted(), list, LIST_VALUES_OFFSET);
+    let header = ListHeader { len, values_ptr };
+    headers.insert(list, header);
     Ok(header)
 }
 
@@ -2454,14 +2461,14 @@ pub fn declare_text_concat<M: Module>(module: &mut M, backend: &str) -> Result<F
         .map_err(|error| format!("failed to declare {backend} text concat helper: {error}"))
 }
 
-pub fn declare_f64_vec_new<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+pub fn declare_list_new<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
     let mut signature = module.make_signature();
     signature.call_conv = CallConv::triple_default(module.isa().triple());
     signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::F64));
     signature.returns.push(AbiParam::new(types::I64));
     module
-        .declare_function("sarif_f64_vec_new", Linkage::Import, &signature)
+        .declare_function("sarif_list_new", Linkage::Import, &signature)
         .map_err(|error| format!("failed to declare {backend} f64 vec new helper: {error}"))
 }
 
@@ -2522,7 +2529,7 @@ pub fn declare_text_from_f64_fixed<M: Module>(
 ) -> Result<FuncId, String> {
     let mut signature = module.make_signature();
     signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::F64));
     signature.params.push(AbiParam::new(types::I64));
     signature.returns.push(AbiParam::new(types::I64));
     module
@@ -2540,6 +2547,16 @@ pub fn declare_parse_i32<M: Module>(module: &mut M, backend: &str) -> Result<Fun
     module
         .declare_function("sarif_parse_i32", Linkage::Import, &signature)
         .map_err(|error| format!("failed to declare {backend} parse_i32 helper: {error}"))
+}
+
+pub fn declare_parse_f64<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::F64));
+    module
+        .declare_function("sarif_parse_f64", Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} parse_f64 helper: {error}"))
 }
 
 pub fn declare_text_eq<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {

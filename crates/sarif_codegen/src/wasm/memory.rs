@@ -166,16 +166,16 @@ pub(super) fn decode_record_from_memory(
         let raw = read_i64_from_memory(memory, store, field_ptr)?;
         let value = match &field.kind {
             WasmValueKind::I32 => RuntimeValue::Int(raw),
-            WasmValueKind::F64 => RuntimeValue::F64(crate::RuntimeF64::from_bits(raw as u64)),
+            WasmValueKind::F64 => RuntimeValue::F64(f64::from_bits(raw as u64)),
             WasmValueKind::Bool => RuntimeValue::Bool(raw != 0),
             WasmValueKind::TextBuilder => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support text builder values in stage-0",
                 ));
             }
-            WasmValueKind::F64Vec => {
+            WasmValueKind::List => {
                 return Err(WasmError::new(
-                    "wasm backend does not yet support F64Vec values in stage-0",
+                    "wasm backend does not yet support List values in stage-0",
                 ));
             }
             WasmValueKind::Text => {
@@ -204,6 +204,7 @@ pub(super) fn decode_record_from_memory(
                 })?;
                 decode_record_from_memory(memory, store, child_ptr, child, records, enums)?
             }
+            WasmValueKind::Unit => RuntimeValue::Unit,
         };
         fields.push((field.name.clone(), value));
     }
@@ -237,16 +238,16 @@ pub(super) fn decode_enum_from_memory(
             let raw = read_i64_from_memory(memory, store, ptr + 8)?;
             let value = match kind {
                 WasmValueKind::I32 => RuntimeValue::Int(raw),
-                WasmValueKind::F64 => RuntimeValue::F64(crate::RuntimeF64::from_bits(raw as u64)),
+                WasmValueKind::F64 => RuntimeValue::F64(f64::from_bits(raw as u64)),
                 WasmValueKind::Bool => RuntimeValue::Bool(raw != 0),
                 WasmValueKind::TextBuilder => {
                     return Err(WasmError::new(
                         "wasm backend does not yet support text builder values in stage-0",
                     ));
                 }
-                WasmValueKind::F64Vec => {
+                WasmValueKind::List => {
                     return Err(WasmError::new(
-                        "wasm backend does not yet support F64Vec values in stage-0",
+                        "wasm backend does not yet support List values in stage-0",
                     ));
                 }
                 WasmValueKind::Text => {
@@ -276,6 +277,7 @@ pub(super) fn decode_enum_from_memory(
                     })?;
                     decode_record_from_memory(memory, store, child_ptr, child, records, enums)?
                 }
+                WasmValueKind::Unit => RuntimeValue::Unit,
             };
             Some(Box::new(value))
         }
@@ -358,6 +360,7 @@ fn write_record_to_memory(
             (WasmValueKind::Record(name), RuntimeValue::Record(value)) => i64::from(
                 write_record_to_memory(value, name, records, enums, memory, store, host_heap)?,
             ),
+            (WasmValueKind::Unit, RuntimeValue::Unit) => 0,
             (kind, value) => {
                 return Err(WasmError::new(format!(
                     "runtime record field `{}` value `{}` does not match wasm kind {:?}",
@@ -453,6 +456,7 @@ fn write_enum_to_memory(
                     host_heap,
                 )?)
             }
+            (WasmValueKind::Unit, RuntimeValue::Unit) => 0,
             (kind, payload) => {
                 return Err(WasmError::new(format!(
                     "runtime enum payload `{}` does not match wasm kind {:?}",

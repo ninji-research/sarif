@@ -45,6 +45,8 @@ enum RawTokenKind {
     KwNot,
     #[token("or")]
     KwOr,
+    #[token("perform")]
+    KwPerform,
     #[token("repeat")]
     KwRepeat,
     #[token("requires")]
@@ -182,6 +184,7 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::KwMut => TokenKind::KwMut,
         RawTokenKind::KwNot => TokenKind::KwNot,
         RawTokenKind::KwOr => TokenKind::KwOr,
+        RawTokenKind::KwPerform => TokenKind::KwPerform,
         RawTokenKind::KwRepeat => TokenKind::KwRepeat,
         RawTokenKind::KwRequires => TokenKind::KwRequires,
         RawTokenKind::KwStruct => TokenKind::KwStruct,

@@ -170,6 +170,24 @@ pub struct TypeRef {
     pub span: Span,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ConstExpr {
+    Literal(u32),
+    Param(String),
+    Add(Box<Self>, Box<Self>),
+}
+
+impl ConstExpr {
+    #[must_use]
+    pub fn render(&self) -> String {
+        match self {
+            Self::Literal(value) => value.to_string(),
+            Self::Param(name) => name.clone(),
+            Self::Add(left, right) => format!("({} + {})", left.render(), right.render()),
+        }
+    }
+}
+
 impl MatchPattern {
     #[must_use]
     pub fn pretty(&self) -> String {
@@ -204,6 +222,14 @@ impl MatchPattern {
 }
 
 #[derive(Clone, Debug)]
+pub struct PerformExpr {
+    pub effect: String,
+    pub operation: String,
+    pub args: Vec<Expr>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
 pub enum Expr {
     Integer(IntegerExpr),
     Float(FloatExpr),
@@ -224,6 +250,7 @@ pub enum Expr {
     Binary(BinaryExpr),
     Group(GroupExpr),
     Comptime(Box<Body>),
+    Perform(PerformExpr),
     Handle(Box<HandleExpr>),
 }
 
@@ -264,6 +291,7 @@ impl Expr {
             Self::Binary(expr) => expr.span,
             Self::Group(expr) => expr.span,
             Self::Comptime(body) => body.span,
+            Self::Perform(expr) => expr.span,
             Self::Handle(expr) => expr.body.span,
         }
     }
@@ -344,6 +372,7 @@ impl Expr {
             ),
             Self::Group(expr) => format!("({})", expr.inner.pretty()),
             Self::Comptime(body) => format!("comptime {}", body.pretty()),
+            Self::Perform(expr) => format!("perform {}.{}", expr.effect, expr.operation),
             Self::Handle(expr) => format!(
                 "handle {} {{ {} }}",
                 expr.body.pretty(),
@@ -950,6 +979,12 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
             span: expr.span,
         }),
         ast::Expr::Comptime(expr) => Expr::Comptime(Box::new(lower_body(&expr.body))),
+        ast::Expr::Perform(expr) => Expr::Perform(PerformExpr {
+            effect: expr.callee.name().to_owned(),
+            operation: expr.callee.operation().to_owned(),
+            args: expr.args.iter().map(lower_expr).collect(),
+            span: expr.span,
+        }),
         ast::Expr::Handle(expr) => Expr::Handle(Box::new(lower_handle_expr(expr))),
     }
 }

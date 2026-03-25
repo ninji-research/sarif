@@ -8,13 +8,14 @@ use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module, default
 use cranelift_object::{ObjectBuilder, ObjectModule};
 
 use crate::native::{
-    F64VecHeader, NativeEnum, NativeRecord, NativeValueRepr, TrustedF64VecAccesses,
+    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_arg_count, declare_arg_text,
-    declare_f64_vec_new, declare_parse_i32, declare_record_allocator, declare_stdin_text,
-    declare_stdout_write, declare_text_builder_append, declare_text_builder_finish,
-    declare_text_builder_new, declare_text_concat, declare_text_data_for_insts, declare_text_eq,
-    declare_text_from_f64_fixed, declare_text_slice, encode_text_blob, infer_value_kinds,
-    lower_insts, native_type as shared_native_type, value_repr as shared_value_repr,
+    declare_list_new, declare_parse_f64, declare_parse_i32, declare_record_allocator,
+    declare_stdin_text, declare_stdout_write, declare_text_builder_append,
+    declare_text_builder_finish, declare_text_builder_new, declare_text_concat,
+    declare_text_data_for_insts, declare_text_eq, declare_text_from_f64_fixed, declare_text_slice,
+    encode_text_blob, infer_value_kinds, lower_insts, native_type as shared_native_type,
+    value_repr as shared_value_repr,
 };
 use crate::{Function, Program, ValueId};
 
@@ -54,11 +55,12 @@ struct ObjectBackend<'a> {
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_finish_id: FuncId,
-    f64_vec_new_id: FuncId,
+    list_new_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     text_from_f64_fixed_id: FuncId,
     parse_i32_id: FuncId,
+    parse_f64_id: FuncId,
     arg_count_id: FuncId,
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
@@ -101,14 +103,14 @@ impl<'a> ObjectBackend<'a> {
             declare_text_builder_append(&mut module, "object").map_err(ObjectError::new)?;
         let text_builder_finish_id =
             declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new)?;
-        let f64_vec_new_id =
-            declare_f64_vec_new(&mut module, "object").map_err(ObjectError::new)?;
+        let list_new_id = declare_list_new(&mut module, "object").map_err(ObjectError::new)?;
         let text_concat_id =
             declare_text_concat(&mut module, "object").map_err(ObjectError::new)?;
         let text_slice_id = declare_text_slice(&mut module, "object").map_err(ObjectError::new)?;
         let text_from_f64_fixed_id =
             declare_text_from_f64_fixed(&mut module, "object").map_err(ObjectError::new)?;
         let parse_i32_id = declare_parse_i32(&mut module, "object").map_err(ObjectError::new)?;
+        let parse_f64_id = declare_parse_f64(&mut module, "object").map_err(ObjectError::new)?;
         let arg_count_id = declare_arg_count(&mut module, "object").map_err(ObjectError::new)?;
         let arg_text_id = declare_arg_text(&mut module, "object").map_err(ObjectError::new)?;
         let stdin_text_id = declare_stdin_text(&mut module, "object").map_err(ObjectError::new)?;
@@ -125,11 +127,12 @@ impl<'a> ObjectBackend<'a> {
             text_builder_new_id,
             text_builder_append_id,
             text_builder_finish_id,
-            f64_vec_new_id,
+            list_new_id,
             text_concat_id,
             text_slice_id,
             text_from_f64_fixed_id,
             parse_i32_id,
+            parse_f64_id,
             arg_count_id,
             arg_text_id,
             stdin_text_id,
@@ -285,7 +288,7 @@ impl<'a> ObjectBackend<'a> {
         }
 
         let module = self.module.as_mut().expect("module available");
-        let mut f64_vec_headers = BTreeMap::<cranelift_codegen::ir::Value, F64VecHeader>::new();
+        let mut list_headers = BTreeMap::<cranelift_codegen::ir::Value, ListHeader>::new();
         let falls_through = lower_insts(
             &self.function_ids,
             &self.data_ids,
@@ -293,11 +296,12 @@ impl<'a> ObjectBackend<'a> {
             self.text_builder_new_id,
             self.text_builder_append_id,
             self.text_builder_finish_id,
-            self.f64_vec_new_id,
+            self.list_new_id,
             self.text_concat_id,
             self.text_slice_id,
             self.text_from_f64_fixed_id,
             self.parse_i32_id,
+            self.parse_f64_id,
             self.arg_count_id,
             self.arg_text_id,
             self.stdin_text_id,
@@ -312,8 +316,8 @@ impl<'a> ObjectBackend<'a> {
             &block_params,
             &slot_vars,
             &mut values,
-            &mut f64_vec_headers,
-            &TrustedF64VecAccesses::default(),
+            &mut list_headers,
+            &TrustedListAccesses::default(),
             &function.instructions,
             "object",
         )

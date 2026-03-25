@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use crate::hir::{Effect, Expr};
+use crate::hir::{ConstExpr, Effect, Expr};
 use sarif_syntax::{Diagnostic, Span};
 
 use super::{
-    ConstSignature, EnumVariantInfo, FunctionSignature, Type, TypeArrayLen, best_match,
-    enum_variant_info, expect_type, matching_numeric_type, split_enum_variant_path,
-    suggestion_help,
+    ConstSignature, EnumVariantInfo, FunctionSignature, Type, best_match, enum_variant_info,
+    expect_type, matching_numeric_type, split_enum_variant_path, suggestion_help,
     support::{enum_literal_type_name, field_names_for_type, field_type},
     types_compatible,
 };
@@ -22,8 +21,9 @@ pub struct CallSite {
     pub callee: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum ExprContext {
+    #[default]
     Body,
     BodyTail,
     Statement,
@@ -460,23 +460,23 @@ pub(super) fn infer_call_expr(
         };
     }
 
-    if expr.callee == "f64_vec_new" && !functions.contains_key("f64_vec_new") {
+    if expr.callee == "list_new" && !functions.contains_key("list_new") {
         require_runtime_builtin_context(
-            "semantic.f64_vec-runtime-context",
-            "f64_vec_new",
+            "semantic.list-runtime-context",
+            "list_new",
             expr.span,
             diagnostics,
             context,
         );
         if args.len() != 2 {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_new-arity",
+                "semantic.list_new-arity",
                 format!(
-                    "builtin `f64_vec_new` expects 2 arguments but got {}",
+                    "builtin `list_new` expects 2 arguments but got {}",
                     args.len()
                 ),
                 expr.span,
-                Some("Call `f64_vec_new(len, fill)`.".to_owned()),
+                Some("Call `list_new(len, fill)`.".to_owned()),
             ));
             return ExprInfo {
                 ty: Type::Error,
@@ -485,9 +485,9 @@ pub(super) fn infer_call_expr(
         }
         if args[0].ty != Type::I32 && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_new-type",
+                "semantic.list_new-type",
                 format!(
-                    "builtin `f64_vec_new` first argument must be I32, found `{}`",
+                    "builtin `list_new` first argument must be I32, found `{}`",
                     args[0].ty.render(),
                 ),
                 expr.span,
@@ -496,9 +496,9 @@ pub(super) fn infer_call_expr(
         }
         if args[1].ty != Type::F64 && args[1].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_new-type",
+                "semantic.list_new-type",
                 format!(
-                    "builtin `f64_vec_new` second argument must be F64, found `{}`",
+                    "builtin `list_new` second argument must be F64, found `{}`",
                     args[1].ty.render(),
                 ),
                 expr.span,
@@ -506,43 +506,43 @@ pub(super) fn infer_call_expr(
             ));
         }
         return ExprInfo {
-            ty: Type::F64Vec,
+            ty: Type::List(Box::new(Type::F64)),
             calls,
         };
     }
 
-    if expr.callee == "f64_vec_len" && !functions.contains_key("f64_vec_len") {
+    if expr.callee == "list_len" && !functions.contains_key("list_len") {
         require_runtime_builtin_context(
-            "semantic.f64_vec-runtime-context",
-            "f64_vec_len",
+            "semantic.list-runtime-context",
+            "list_len",
             expr.span,
             diagnostics,
             context,
         );
         if args.len() != 1 {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_len-arity",
+                "semantic.list_len-arity",
                 format!(
-                    "builtin `f64_vec_len` expects 1 argument but got {}",
+                    "builtin `list_len` expects 1 argument but got {}",
                     args.len()
                 ),
                 expr.span,
-                Some("Call `f64_vec_len(vec)`.".to_owned()),
+                Some("Call `list_len(vec)`.".to_owned()),
             ));
             return ExprInfo {
                 ty: Type::Error,
                 calls,
             };
         }
-        if args[0].ty != Type::F64Vec && args[0].ty != Type::Error {
+        if args[0].ty != Type::List(Box::new(Type::F64)) && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_len-type",
+                "semantic.list_len-type",
                 format!(
-                    "builtin `f64_vec_len` expects F64Vec, found `{}`",
+                    "builtin `list_len` expects List, found `{}`",
                     args[0].ty.render(),
                 ),
                 expr.span,
-                Some("Pass an F64Vec value.".to_owned()),
+                Some("Pass a List value.".to_owned()),
             ));
         }
         return ExprInfo {
@@ -551,45 +551,45 @@ pub(super) fn infer_call_expr(
         };
     }
 
-    if expr.callee == "f64_vec_get" && !functions.contains_key("f64_vec_get") {
+    if expr.callee == "list_get" && !functions.contains_key("list_get") {
         require_runtime_builtin_context(
-            "semantic.f64_vec-runtime-context",
-            "f64_vec_get",
+            "semantic.list-runtime-context",
+            "list_get",
             expr.span,
             diagnostics,
             context,
         );
         if args.len() != 2 {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_get-arity",
+                "semantic.list_get-arity",
                 format!(
-                    "builtin `f64_vec_get` expects 2 arguments but got {}",
+                    "builtin `list_get` expects 2 arguments but got {}",
                     args.len()
                 ),
                 expr.span,
-                Some("Call `f64_vec_get(vec, index)`.".to_owned()),
+                Some("Call `list_get(vec, index)`.".to_owned()),
             ));
             return ExprInfo {
                 ty: Type::Error,
                 calls,
             };
         }
-        if args[0].ty != Type::F64Vec && args[0].ty != Type::Error {
+        if args[0].ty != Type::List(Box::new(Type::F64)) && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_get-type",
+                "semantic.list_get-type",
                 format!(
-                    "builtin `f64_vec_get` first argument must be F64Vec, found `{}`",
+                    "builtin `list_get` first argument must be List, found `{}`",
                     args[0].ty.render(),
                 ),
                 expr.span,
-                Some("Pass an F64Vec value.".to_owned()),
+                Some("Pass a List value.".to_owned()),
             ));
         }
         if args[1].ty != Type::I32 && args[1].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_get-type",
+                "semantic.list_get-type",
                 format!(
-                    "builtin `f64_vec_get` second argument must be I32, found `{}`",
+                    "builtin `list_get` second argument must be I32, found `{}`",
                     args[1].ty.render(),
                 ),
                 expr.span,
@@ -602,45 +602,45 @@ pub(super) fn infer_call_expr(
         };
     }
 
-    if expr.callee == "f64_vec_set" && !functions.contains_key("f64_vec_set") {
+    if expr.callee == "list_set" && !functions.contains_key("list_set") {
         require_runtime_builtin_context(
-            "semantic.f64_vec-runtime-context",
-            "f64_vec_set",
+            "semantic.list-runtime-context",
+            "list_set",
             expr.span,
             diagnostics,
             context,
         );
         if args.len() != 3 {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_set-arity",
+                "semantic.list_set-arity",
                 format!(
-                    "builtin `f64_vec_set` expects 3 arguments but got {}",
+                    "builtin `list_set` expects 3 arguments but got {}",
                     args.len()
                 ),
                 expr.span,
-                Some("Call `f64_vec_set(vec, index, value)`.".to_owned()),
+                Some("Call `list_set(vec, index, value)`.".to_owned()),
             ));
             return ExprInfo {
                 ty: Type::Error,
                 calls,
             };
         }
-        if args[0].ty != Type::F64Vec && args[0].ty != Type::Error {
+        if args[0].ty != Type::List(Box::new(Type::F64)) && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_set-type",
+                "semantic.list_set-type",
                 format!(
-                    "builtin `f64_vec_set` first argument must be F64Vec, found `{}`",
+                    "builtin `list_set` first argument must be List, found `{}`",
                     args[0].ty.render(),
                 ),
                 expr.span,
-                Some("Pass an F64Vec value.".to_owned()),
+                Some("Pass a List value.".to_owned()),
             ));
         }
         if args[1].ty != Type::I32 && args[1].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_set-type",
+                "semantic.list_set-type",
                 format!(
-                    "builtin `f64_vec_set` second argument must be I32, found `{}`",
+                    "builtin `list_set` second argument must be I32, found `{}`",
                     args[1].ty.render(),
                 ),
                 expr.span,
@@ -649,9 +649,9 @@ pub(super) fn infer_call_expr(
         }
         if args[2].ty != Type::F64 && args[2].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.f64_vec_set-type",
+                "semantic.list_set-type",
                 format!(
-                    "builtin `f64_vec_set` third argument must be F64, found `{}`",
+                    "builtin `list_set` third argument must be F64, found `{}`",
                     args[2].ty.render(),
                 ),
                 expr.span,
@@ -659,7 +659,7 @@ pub(super) fn infer_call_expr(
             ));
         }
         return ExprInfo {
-            ty: Type::F64Vec,
+            ty: Type::List(Box::new(Type::F64)),
             calls,
         };
     }
@@ -1465,9 +1465,131 @@ pub(super) fn infer_comptime_expr(
         fn_name,
         caller_effects,
     );
+    if body_contains_forbidden_comptime_effect(body) {
+        diagnostics.push(Diagnostic::new(
+            "semantic.comptime-effect",
+            "comptime blocks may not perform effects or allocate dynamically",
+            body.span,
+            Some("Use deterministic constant operations only.".to_owned()),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls: info.calls,
+        };
+    }
     ExprInfo {
         ty: info.ty,
         calls: info.calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn infer_perform_expr(
+    expr: &crate::hir::PerformExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+) -> ExprInfo {
+    let mut calls = Vec::new();
+    for arg in &expr.args {
+        let info = super::infer_expr(
+            arg,
+            locals,
+            mutable_locals,
+            functions,
+            consts,
+            enum_variants,
+            struct_layouts,
+            diagnostics,
+            fn_name,
+            caller_effects,
+            &ExprContext::default(),
+        );
+        calls.extend(info.calls);
+    }
+
+    // For now, we'll return Unit for performs until we implement effect declarations.
+    ExprInfo {
+        ty: Type::Unit,
+        calls,
+    }
+}
+
+fn body_contains_forbidden_comptime_effect(body: &crate::hir::Body) -> bool {
+    body.statements.iter().any(|stmt| match stmt {
+        crate::hir::Stmt::Let(binding) => contains_forbidden_comptime_effect(&binding.value),
+        crate::hir::Stmt::Assign(assign) => contains_forbidden_comptime_effect(&assign.value),
+        crate::hir::Stmt::Expr(expr) => contains_forbidden_comptime_effect(&expr.expr),
+    }) || body
+        .tail
+        .as_ref()
+        .is_some_and(contains_forbidden_comptime_effect)
+}
+
+fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
+    use crate::hir::Expr;
+    match expr {
+        Expr::Call(call) => {
+            matches!(call.callee.as_str(), "list_new" | "text_builder_new")
+                || call.args.iter().any(contains_forbidden_comptime_effect)
+        }
+        Expr::Array(array) => array
+            .elements
+            .iter()
+            .any(contains_forbidden_comptime_effect),
+        Expr::Record(record) => record
+            .fields
+            .iter()
+            .any(|f| contains_forbidden_comptime_effect(&f.value)),
+        Expr::Group(group) => contains_forbidden_comptime_effect(&group.inner),
+        Expr::Unary(unary) => contains_forbidden_comptime_effect(&unary.inner),
+        Expr::Binary(binary) => {
+            contains_forbidden_comptime_effect(&binary.left)
+                || contains_forbidden_comptime_effect(&binary.right)
+        }
+        Expr::If(if_expr) => {
+            contains_forbidden_comptime_effect(&if_expr.condition)
+                || body_contains_forbidden_comptime_effect(&if_expr.then_body)
+                || body_contains_forbidden_comptime_effect(&if_expr.else_body)
+        }
+        Expr::Match(match_expr) => {
+            contains_forbidden_comptime_effect(&match_expr.scrutinee)
+                || match_expr
+                    .arms
+                    .iter()
+                    .any(|arm| body_contains_forbidden_comptime_effect(&arm.body))
+        }
+        Expr::While(while_expr) => {
+            contains_forbidden_comptime_effect(&while_expr.condition)
+                || body_contains_forbidden_comptime_effect(&while_expr.body)
+        }
+        Expr::Repeat(repeat_expr) => {
+            contains_forbidden_comptime_effect(&repeat_expr.count)
+                || body_contains_forbidden_comptime_effect(&repeat_expr.body)
+        }
+        Expr::Comptime(body) => body_contains_forbidden_comptime_effect(body),
+        Expr::Perform(_) => true,
+        Expr::Handle(handle) => {
+            body_contains_forbidden_comptime_effect(&handle.body)
+                || handle
+                    .arms
+                    .iter()
+                    .any(|arm| body_contains_forbidden_comptime_effect(&arm.body))
+        }
+        Expr::Integer(_)
+        | Expr::Float(_)
+        | Expr::String(_)
+        | Expr::Bool(_)
+        | Expr::Name(_)
+        | Expr::Field(_)
+        | Expr::Index(_)
+        | Expr::ContractResult(_) => false,
     }
 }
 
@@ -1572,7 +1694,7 @@ pub(super) fn infer_array_expr(
         ty: if ok {
             Type::Array(
                 Box::new(element_type.unwrap_or(Type::Error)),
-                TypeArrayLen::Literal(expr.elements.len()),
+                ConstExpr::Literal(u32::try_from(expr.elements.len()).unwrap_or(0)),
             )
         } else {
             Type::Error

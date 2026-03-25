@@ -205,12 +205,13 @@ where
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CodegenValueKind {
+    Unit,
     I32,
     F64,
     Bool,
     Text,
     TextBuilder,
-    F64Vec,
+    List,
     Enum(String),
     Record(String),
 }
@@ -268,6 +269,15 @@ impl LocalSlotId {
 }
 
 #[derive(Clone, Debug)]
+pub struct HandleArm {
+    pub effect: String,
+    pub operation: String,
+    pub params: Vec<String>,
+    pub body_insts: Vec<Inst>,
+    pub body_result: Option<ValueId>,
+}
+
+#[derive(Clone, Debug)]
 pub enum Inst {
     TextBuilderNew {
         dest: ValueId,
@@ -281,23 +291,23 @@ pub enum Inst {
         dest: ValueId,
         builder: ValueId,
     },
-    F64VecNew {
+    ListNew {
         dest: ValueId,
         len: ValueId,
         value: ValueId,
     },
-    F64VecLen {
+    ListLen {
         dest: ValueId,
-        vec: ValueId,
+        list: ValueId,
     },
-    F64VecGet {
+    ListGet {
         dest: ValueId,
-        vec: ValueId,
+        list: ValueId,
         index: ValueId,
     },
-    F64VecSet {
+    ListSet {
         dest: ValueId,
-        vec: ValueId,
+        list: ValueId,
         index: ValueId,
         value: ValueId,
     },
@@ -344,6 +354,10 @@ pub enum Inst {
         text: ValueId,
     },
     ParseI32 {
+        dest: ValueId,
+        text: ValueId,
+    },
+    ParseF64 {
         dest: ValueId,
         text: ValueId,
     },
@@ -494,6 +508,18 @@ pub enum Inst {
         condition: ValueId,
         kind: ContractKind,
     },
+    Perform {
+        dest: ValueId,
+        effect: String,
+        operation: String,
+        args: Vec<ValueId>,
+    },
+    Handle {
+        dest: ValueId,
+        body_insts: Vec<Self>,
+        body_result: Option<ValueId>,
+        arms: Vec<HandleArm>,
+    },
 }
 
 impl Inst {
@@ -509,11 +535,9 @@ impl Inst {
                 format!("store {}, {}", slot.render(), src.render())
             }
             Self::ConstInt { dest, value } => format!("{} = int {value}", dest.render()),
-            Self::ConstF64 { dest, bits } => format!(
-                "{} = f64 {}",
-                dest.render(),
-                RuntimeF64::from_bits(*bits).render()
-            ),
+            Self::ConstF64 { dest, bits } => {
+                format!("{} = f64 {}", dest.render(), f64::from_bits(*bits))
+            }
             Self::ConstBool { dest, value } => format!("{} = bool {value}", dest.render()),
             Self::ConstText { dest, value } => format!("{} = text {:?}", dest.render(), value),
             Self::TextBuilderNew { dest } => {
@@ -534,32 +558,32 @@ impl Inst {
                 dest.render(),
                 builder.render()
             ),
-            Self::F64VecNew { dest, len, value } => format!(
-                "{} = f64-vec-new {}, {}",
+            Self::ListNew { dest, len, value } => format!(
+                "{} = list-new {}, {}",
                 dest.render(),
                 len.render(),
                 value.render()
             ),
-            Self::F64VecLen { dest, vec } => {
-                format!("{} = f64-vec-len {}", dest.render(), vec.render())
+            Self::ListLen { dest, list } => {
+                format!("{} = list-len {}", dest.render(), list.render())
             }
-            Self::F64VecGet { dest, vec, index } => {
+            Self::ListGet { dest, list, index } => {
                 format!(
-                    "{} = f64-vec-get {}, {}",
+                    "{} = list-get {}, {}",
                     dest.render(),
-                    vec.render(),
+                    list.render(),
                     index.render()
                 )
             }
-            Self::F64VecSet {
+            Self::ListSet {
                 dest,
-                vec,
+                list,
                 index,
                 value,
             } => format!(
-                "{} = f64-vec-set {}, {}, {}",
+                "{} = list-set {}, {}, {}",
                 dest.render(),
-                vec.render(),
+                list.render(),
                 index.render(),
                 value.render()
             ),
@@ -611,6 +635,9 @@ impl Inst {
             Self::StdoutWrite { text } => format!("stdout-write {}", text.render()),
             Self::ParseI32 { dest, text } => {
                 format!("{} = parse-i32 {}", dest.render(), text.render())
+            }
+            Self::ParseF64 { dest, text } => {
+                format!("{} = parse-f64 {}", dest.render(), text.render())
             }
             Self::MakeEnum {
                 dest,
@@ -828,61 +855,82 @@ impl Inst {
             Self::Assert { condition, kind } => {
                 format!("assert {} {}", kind.keyword(), condition.render())
             }
+            Self::Perform {
+                dest,
+                effect,
+                operation,
+                args,
+            } => {
+                let args_str = args
+                    .iter()
+                    .map(|id| id.render())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{} = perform {}.{}({})",
+                    dest.render(),
+                    effect,
+                    operation,
+                    args_str
+                )
+            }
+            Self::Handle {
+                dest,
+                body_insts,
+                body_result,
+                arms,
+            } => {
+                let mut out = format!("{} = handle {{\n", dest.render());
+                for inst in body_insts {
+                    out.push_str(&format!("  {}\n", inst.pretty().replace('\n', "\n  ")));
+                }
+                if let Some(result) = body_result {
+                    out.push_str(&format!("  yield {}\n", result.render()));
+                }
+                out.push_str("} with {\n");
+                for arm in arms {
+                    out.push_str(&format!(
+                        "  {}.{}({}) => {{\n",
+                        arm.effect,
+                        arm.operation,
+                        arm.params.join(", ")
+                    ));
+                    for inst in &arm.body_insts {
+                        out.push_str(&format!("    {}\n", inst.pretty().replace('\n', "\n    ")));
+                    }
+                    if let Some(result) = arm.body_result {
+                        out.push_str(&format!("    yield {}\n", result.render()));
+                    }
+                    out.push_str("  }\n");
+                }
+                out.push('}');
+                out
+            }
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RuntimeF64(u64);
-
-impl RuntimeF64 {
-    #[must_use]
-    pub const fn from_bits(bits: u64) -> Self {
-        Self(bits)
-    }
-
-    #[must_use]
-    pub fn from_f64(value: f64) -> Self {
-        Self(value.to_bits())
-    }
-
-    #[must_use]
-    pub const fn bits(self) -> u64 {
-        self.0
-    }
-
-    #[must_use]
-    pub fn value(self) -> f64 {
-        f64::from_bits(self.0)
-    }
-
-    #[must_use]
-    pub fn render(self) -> String {
-        self.value().to_string()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeValue {
     Int(i64),
-    F64(RuntimeF64),
+    F64(f64),
     Bool(bool),
     Text(String),
     TextBuilder(u64),
-    F64Vec(u64),
+    List(u64),
     Enum(RuntimeEnum),
     Record(RuntimeRecord),
     Unit,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeEnum {
     pub name: String,
     pub variant: String,
     pub payload: Option<Box<RuntimeValue>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeRecord {
     pub name: String,
     pub fields: Vec<(String, RuntimeValue)>,
@@ -893,11 +941,11 @@ impl RuntimeValue {
     pub fn render(&self) -> String {
         match self {
             Self::Int(value) => value.to_string(),
-            Self::F64(value) => value.render(),
+            Self::F64(value) => value.to_string(),
             Self::Bool(value) => value.to_string(),
             Self::Text(value) => value.clone(),
             Self::TextBuilder(_) => "<text-builder>".to_owned(),
-            Self::F64Vec(_) => "<f64-vec>".to_owned(),
+            Self::List(_) => "<list>".to_owned(),
             Self::Enum(value) => value.payload.as_ref().map_or_else(
                 || format!("{}.{}", value.name, value.variant),
                 |payload| format!("{}.{}({})", value.name, value.variant, payload.render()),
@@ -1496,9 +1544,7 @@ impl ConstEvaluator<'_, '_> {
     ) -> Result<ConstFlow, ConstEvalError> {
         match expr {
             Expr::Integer(expr) => Ok(ConstFlow::Value(RuntimeValue::Int(expr.value))),
-            Expr::Float(expr) => Ok(ConstFlow::Value(RuntimeValue::F64(RuntimeF64::from_f64(
-                expr.value,
-            )))),
+            Expr::Float(expr) => Ok(ConstFlow::Value(RuntimeValue::F64(expr.value))),
             Expr::String(expr) => Ok(ConstFlow::Value(RuntimeValue::Text(expr.value.clone()))),
             Expr::Bool(expr) => Ok(ConstFlow::Value(RuntimeValue::Bool(expr.value))),
             Expr::Name(expr) => env.read(&expr.name).map_or_else(
@@ -1553,6 +1599,10 @@ impl ConstEvaluator<'_, '_> {
             Expr::Handle(expr) => Err(ConstEvalError::new(
                 expr.body.span,
                 "effect handlers are not yet supported in stage-0 compile-time evaluation",
+            )),
+            Expr::Perform(expr) => Err(ConstEvalError::new(
+                expr.span,
+                "effect operations are not yet supported in stage-0 compile-time evaluation",
             )),
         }
     }
@@ -1662,8 +1712,7 @@ impl ConstEvaluator<'_, '_> {
                 ));
             };
             return Ok(ConstFlow::Value(RuntimeValue::Text(format_f64_fixed(
-                value.value(),
-                digits,
+                value, digits,
             ))));
         }
         if expr.callee == "sqrt" && !self.functions.contains_key("sqrt") {
@@ -1674,9 +1723,7 @@ impl ConstEvaluator<'_, '_> {
             let RuntimeValue::F64(value) = value else {
                 return Err(ConstEvalError::new(expr.span, "sqrt expects F64"));
             };
-            return Ok(ConstFlow::Value(RuntimeValue::F64(RuntimeF64::from_f64(
-                value.value().sqrt(),
-            ))));
+            return Ok(ConstFlow::Value(RuntimeValue::F64(value.sqrt())));
         }
         if expr.callee == "f64_from_i32" && !self.functions.contains_key("f64_from_i32") {
             let [arg] = expr.args.as_slice() else {
@@ -1689,9 +1736,7 @@ impl ConstEvaluator<'_, '_> {
             let RuntimeValue::Int(value) = value else {
                 return Err(ConstEvalError::new(expr.span, "f64_from_i32 expects Int"));
             };
-            return Ok(ConstFlow::Value(RuntimeValue::F64(RuntimeF64::from_f64(
-                value as f64,
-            ))));
+            return Ok(ConstFlow::Value(RuntimeValue::F64(value as f64)));
         }
         if expr.callee == "parse_i32" && !self.functions.contains_key("parse_i32") {
             let [arg] = expr.args.as_slice() else {
@@ -2009,7 +2054,7 @@ impl ConstEvaluator<'_, '_> {
                     RuntimeValue::Int(left + right)
                 }
                 (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                    RuntimeValue::F64(RuntimeF64::from_f64(left.value() + right.value()))
+                    RuntimeValue::F64(left + right)
                 }
                 _ => {
                     return Err(ConstEvalError::new(
@@ -2023,7 +2068,7 @@ impl ConstEvaluator<'_, '_> {
                     RuntimeValue::Int(left - right)
                 }
                 (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                    RuntimeValue::F64(RuntimeF64::from_f64(left.value() - right.value()))
+                    RuntimeValue::F64(left - right)
                 }
                 _ => {
                     return Err(ConstEvalError::new(
@@ -2037,7 +2082,7 @@ impl ConstEvaluator<'_, '_> {
                     RuntimeValue::Int(left * right)
                 }
                 (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                    RuntimeValue::F64(RuntimeF64::from_f64(left.value() * right.value()))
+                    RuntimeValue::F64(left * right)
                 }
                 _ => {
                     return Err(ConstEvalError::new(
@@ -2054,10 +2099,10 @@ impl ConstEvaluator<'_, '_> {
                     RuntimeValue::Int(left / right)
                 }
                 (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                    if right.value() == 0.0 {
+                    if *right == 0.0 {
                         return Err(ConstEvalError::new(expr.span, "division by zero"));
                     }
-                    RuntimeValue::F64(RuntimeF64::from_f64(left.value() / right.value()))
+                    RuntimeValue::F64(left / right)
                 }
                 _ => {
                     return Err(ConstEvalError::new(
@@ -2078,7 +2123,7 @@ impl ConstEvaluator<'_, '_> {
             BinaryOp::Ne => RuntimeValue::Bool(left != right),
             BinaryOp::Lt => RuntimeValue::Bool(match (&left, &right) {
                 (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left < right,
-                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left.value() < right.value(),
+                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left < right,
                 _ => {
                     return Err(ConstEvalError::new(
                         expr.span,
@@ -2088,9 +2133,7 @@ impl ConstEvaluator<'_, '_> {
             }),
             BinaryOp::Le => RuntimeValue::Bool(match (&left, &right) {
                 (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left <= right,
-                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                    left.value() <= right.value()
-                }
+                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left <= right,
                 _ => {
                     return Err(ConstEvalError::new(
                         expr.span,
@@ -2100,7 +2143,7 @@ impl ConstEvaluator<'_, '_> {
             }),
             BinaryOp::Gt => RuntimeValue::Bool(match (&left, &right) {
                 (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left > right,
-                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left.value() > right.value(),
+                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left > right,
                 _ => {
                     return Err(ConstEvalError::new(
                         expr.span,
@@ -2110,9 +2153,7 @@ impl ConstEvaluator<'_, '_> {
             }),
             BinaryOp::Ge => RuntimeValue::Bool(match (&left, &right) {
                 (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left >= right,
-                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                    left.value() >= right.value()
-                }
+                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left >= right,
                 _ => {
                     return Err(ConstEvalError::new(
                         expr.span,
@@ -2300,10 +2341,14 @@ pub fn run_main(program: &Program) -> Result<RuntimeValue, RuntimeError> {
 /// observes an invalid runtime state such as division by zero.
 pub fn run_main_with_args(
     program: &Program,
-    program_args: &[String],
+    args: &[String],
 ) -> Result<RuntimeValue, RuntimeError> {
-    let mut interpreter = Interpreter::new(program, program_args, String::new());
-    interpreter.run_main()
+    let mut interpreter = Interpreter::new(program, args, String::new());
+    let result = interpreter.run_main();
+    print!("{}", interpreter.take_stdout());
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    result
 }
 
 /// # Errors
@@ -2374,10 +2419,10 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextBuilderNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderFinish { .. }
-            | Inst::F64VecNew { .. }
-            | Inst::F64VecLen { .. }
-            | Inst::F64VecGet { .. }
-            | Inst::F64VecSet { .. }
+            | Inst::ListNew { .. }
+            | Inst::ListLen { .. }
+            | Inst::ListGet { .. }
+            | Inst::ListSet { .. }
             | Inst::F64FromI32 { .. }
             | Inst::TextLen { .. }
             | Inst::TextConcat { .. }
@@ -2389,6 +2434,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::StdinText { .. }
             | Inst::StdoutWrite { .. }
             | Inst::ParseI32 { .. }
+            | Inst::ParseF64 { .. }
             | Inst::MakeEnum { .. }
             | Inst::MakeRecord { .. }
             | Inst::Field { .. }
@@ -2408,7 +2454,9 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Gt { .. }
             | Inst::Ge { .. }
             | Inst::Call { .. }
-            | Inst::Assert { .. } => {}
+            | Inst::Assert { .. }
+            | Inst::Perform { .. }
+            | Inst::Handle { .. } => {}
         }
     }
     true
@@ -2520,7 +2568,7 @@ enum LowerType {
     Bool,
     Text,
     TextBuilder,
-    F64Vec,
+    List(Box<Self>),
     Unit,
     Named(String),
     Array(Box<Self>, usize),
@@ -2535,8 +2583,12 @@ impl LowerType {
             "Bool" => Self::Bool,
             "Text" => Self::Text,
             "TextBuilder" => Self::TextBuilder,
-            "F64Vec" => Self::F64Vec,
             "Unit" => Self::Unit,
+            other if other.starts_with("List[") && other.ends_with(']') => {
+                let inner = &other[5..other.len() - 1];
+                let element = Self::from_type_name(inner, substitutions);
+                Self::List(Box::new(element))
+            }
             other => parse_array_lower_type(other, substitutions)
                 .unwrap_or_else(|| Self::Named(other.to_owned())),
         }
@@ -2549,7 +2601,7 @@ impl LowerType {
             Self::Bool => Some("Bool".to_owned()),
             Self::Text => Some("Text".to_owned()),
             Self::TextBuilder => Some("TextBuilder".to_owned()),
-            Self::F64Vec => Some("F64Vec".to_owned()),
+            Self::List(_) => Some("List".to_owned()),
             Self::Unit => Some("Unit".to_owned()),
             Self::Named(name) => Some(name.clone()),
             Self::Array(_, _) | Self::Error => None,
@@ -2869,16 +2921,61 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.emit_runtime_value(&result)
             }
             Expr::Handle(expr) => {
-                self.diagnostics.push(Diagnostic::new(
-                    "mir.handle-unsupported",
-                    format!(
-                        "failed to lower `handle` in `{}` because effect handlers are not supported in stage-0 MIR",
-                        self.function.name,
-                    ),
-                    expr.body.span,
-                    Some("Use explicit stage-0 control flow until effect-handler lowering is implemented.".to_owned()),
-                ));
-                self.emit_unit_value()
+                let mut arms = Vec::new();
+                for arm in &expr.arms {
+                    let saved_locals = self.locals.clone();
+                    let saved_local_types = self.local_types.clone();
+                    let saved_instructions = std::mem::take(&mut self.instructions);
+
+                    // Bind arm params
+                    for param in &arm.params {
+                        let id = self.fresh_value();
+                        self.instructions.push(Inst::LoadParam {
+                            dest: id,
+                            index: 0, // This is a hack, we don't have a good way to represent arm params yet
+                        });
+                        self.locals.insert(param.clone(), LocalBinding::Value(id));
+                    }
+
+                    let arm_lower = self.lower_body(&arm.body, false);
+                    let nested_instructions = std::mem::take(&mut self.instructions);
+
+                    self.instructions = saved_instructions;
+                    self.locals = saved_locals;
+                    self.local_types = saved_local_types;
+
+                    arms.push(HandleArm {
+                        effect: String::new(), // HIR HandleArm has 'name' which we'll use as 'operation'
+                        operation: arm.name.clone(),
+                        params: arm.params.clone(),
+                        body_insts: nested_instructions,
+                        body_result: arm_lower.result,
+                    });
+                }
+                let body_lower = self.lower_nested_body(&expr.body);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::Handle {
+                    dest,
+                    body_insts: body_lower.instructions,
+                    body_result: body_lower.result,
+                    arms,
+                });
+                dest
+            }
+            Expr::Perform(expr) => {
+                let args = expr
+                    .args
+                    .iter()
+                    .map(|arg| self.lower_expr(arg))
+                    .collect::<Vec<_>>();
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::Perform {
+                    dest,
+                    effect: expr.effect.clone(),
+                    operation: expr.operation.clone(),
+                    args,
+                });
+                dest
             }
             Expr::Call(expr) => {
                 if expr.callee == "len" && !self.function_returns.contains_key("len") {
@@ -2902,25 +2999,25 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_text_builder_finish_expr(expr);
                 }
-                if expr.callee == "f64_vec_new"
-                    && !self.function_returns.contains_key("f64_vec_new")
+                if expr.callee == "list_new"
+                    && !self.function_returns.contains_key("list_new")
                 {
-                    return self.lower_f64_vec_new_expr(expr);
+                    return self.lower_list_new_expr(expr);
                 }
-                if expr.callee == "f64_vec_len"
-                    && !self.function_returns.contains_key("f64_vec_len")
+                if expr.callee == "list_len"
+                    && !self.function_returns.contains_key("list_len")
                 {
-                    return self.lower_f64_vec_len_expr(expr);
+                    return self.lower_list_len_expr(expr);
                 }
-                if expr.callee == "f64_vec_get"
-                    && !self.function_returns.contains_key("f64_vec_get")
+                if expr.callee == "list_get"
+                    && !self.function_returns.contains_key("list_get")
                 {
-                    return self.lower_f64_vec_get_expr(expr);
+                    return self.lower_list_get_expr(expr);
                 }
-                if expr.callee == "f64_vec_set"
-                    && !self.function_returns.contains_key("f64_vec_set")
+                if expr.callee == "list_set"
+                    && !self.function_returns.contains_key("list_set")
                 {
-                    return self.lower_f64_vec_set_expr(expr);
+                    return self.lower_list_set_expr(expr);
                 }
                 if expr.callee == "f64_from_i32"
                     && !self.function_returns.contains_key("f64_from_i32")
@@ -2949,6 +3046,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
                 if expr.callee == "parse_i32" && !self.function_returns.contains_key("parse_i32") {
                     return self.lower_parse_i32_expr(expr);
+                }
+                if expr.callee == "parse_f64" && !self.function_returns.contains_key("parse_f64") {
+                    return self.lower_parse_f64_expr(expr);
                 }
                 if expr.callee == "arg_count" && !self.function_returns.contains_key("arg_count")
                 {
@@ -3120,17 +3220,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 falls_through: true,
             },
             Expr::Handle(expr) => {
-                self.diagnostics.push(Diagnostic::new(
-                    "mir.handle-unsupported",
-                    format!(
-                        "failed to lower `handle` in `{}` because effect handlers are not supported in stage-0 MIR",
-                        self.function.name,
-                    ),
-                    expr.body.span,
-                    Some("Use explicit stage-0 control flow until effect-handler lowering is implemented.".to_owned()),
-                ));
+                let dest = self.lower_expr(&Expr::Handle(expr.clone()));
                 BodyLowering {
-                    result: None,
+                    result: Some(dest),
+                    falls_through: true,
+                }
+            }
+            Expr::Perform(expr) => {
+                let dest = self.lower_expr(&Expr::Perform(expr.clone()));
+                BodyLowering {
+                    result: Some(dest),
                     falls_through: true,
                 }
             }
@@ -3507,17 +3606,15 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     LowerType::Text
                 }
-                "f64_vec_new" if !self.function_returns.contains_key("f64_vec_new") => {
-                    LowerType::F64Vec
+                "list_new" if !self.function_returns.contains_key("list_new") => {
+                    LowerType::List(Box::new(LowerType::Error))
                 }
-                "f64_vec_len" if !self.function_returns.contains_key("f64_vec_len") => {
-                    LowerType::I32
+                "list_len" if !self.function_returns.contains_key("list_len") => LowerType::I32,
+                "list_get" if !self.function_returns.contains_key("list_get") => {
+                    LowerType::Error // Needs tracking of inner
                 }
-                "f64_vec_get" if !self.function_returns.contains_key("f64_vec_get") => {
-                    LowerType::F64
-                }
-                "f64_vec_set" if !self.function_returns.contains_key("f64_vec_set") => {
-                    LowerType::F64Vec
+                "list_set" if !self.function_returns.contains_key("list_set") => {
+                    LowerType::List(Box::new(LowerType::Error))
                 }
                 "f64_from_i32" if !self.function_returns.contains_key("f64_from_i32") => {
                     LowerType::F64
@@ -3538,6 +3635,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
                 "sqrt" if !self.function_returns.contains_key("sqrt") => LowerType::F64,
                 "parse_i32" if !self.function_returns.contains_key("parse_i32") => LowerType::I32,
+                "parse_f64" if !self.function_returns.contains_key("parse_f64") => LowerType::F64,
                 _ => {
                     if let Some((enum_name, _, _)) = self.enum_constructor_for_call(&expr.callee) {
                         LowerType::Named(enum_name)
@@ -3610,7 +3708,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             },
             Expr::Group(expr) => self.infer_expr_type(&expr.inner),
             Expr::Comptime(body) => self.infer_body_type(body),
-            Expr::Handle(_) => LowerType::Error,
+            Expr::Handle(_) | Expr::Perform(_) => LowerType::Error,
         }
     }
 
@@ -4147,7 +4245,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let dest = self.fresh_value();
                 self.instructions.push(Inst::ConstF64 {
                     dest,
-                    bits: value.bits(),
+                    bits: value.to_bits(),
                 });
                 dest
             }
@@ -4179,16 +4277,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 ));
                 self.emit_unit_value()
             }
-            RuntimeValue::F64Vec(_) => {
+            RuntimeValue::List(_) => {
                 self.diagnostics.push(Diagnostic::new(
-                    "mir.f64-vec-const",
+                    "mir.list-const",
                     format!(
-                        "failed to lower compile-time F64Vec value in `{}` because F64Vec handles are runtime-only",
+                        "failed to lower compile-time List value in `{}` because List handles are runtime-only",
                         self.function.name
                     ),
                     self.function.span,
                     Some(
-                        "Construct F64Vec values at runtime with `f64_vec_new(...)` and keep const values on fixed arrays."
+                        "Construct List values at runtime with `list_new(...)` and keep const values on fixed arrays."
                             .to_owned(),
                     ),
                 ));
@@ -4298,7 +4396,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
-    fn lower_f64_vec_new_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_list_new_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
         };
@@ -4308,35 +4406,35 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let len = self.lower_expr(arg0);
         let value = self.lower_expr(arg1);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::F64VecNew { dest, len, value });
+        self.instructions.push(Inst::ListNew { dest, len, value });
         dest
     }
 
-    fn lower_f64_vec_len_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_list_len_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
         };
-        let vec = self.lower_expr(arg);
+        let list = self.lower_expr(arg);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::F64VecLen { dest, vec });
+        self.instructions.push(Inst::ListLen { dest, list });
         dest
     }
 
-    fn lower_f64_vec_get_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_list_get_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
         };
         let Some(arg1) = expr.args.get(1) else {
             return self.emit_unit_value();
         };
-        let vec = self.lower_expr(arg0);
+        let list = self.lower_expr(arg0);
         let index = self.lower_expr(arg1);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::F64VecGet { dest, vec, index });
+        self.instructions.push(Inst::ListGet { dest, list, index });
         dest
     }
 
-    fn lower_f64_vec_set_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_list_set_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
         };
@@ -4346,13 +4444,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let Some(arg2) = expr.args.get(2) else {
             return self.emit_unit_value();
         };
-        let vec = self.lower_expr(arg0);
+        let list = self.lower_expr(arg0);
         let index = self.lower_expr(arg1);
         let value = self.lower_expr(arg2);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::F64VecSet {
+        self.instructions.push(Inst::ListSet {
             dest,
-            vec,
+            list,
             index,
             value,
         });
@@ -4490,6 +4588,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_parse_f64_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let text = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::ParseF64 { dest, text });
+        dest
+    }
+
     fn emit_unit_value(&mut self) -> ValueId {
         let condition = self.const_true();
         let dest = self.fresh_value();
@@ -4538,7 +4646,7 @@ fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
         RuntimeValue::Bool(_) => LowerType::Bool,
         RuntimeValue::Text(_) => LowerType::Text,
         RuntimeValue::TextBuilder(_) => LowerType::TextBuilder,
-        RuntimeValue::F64Vec(_) => LowerType::F64Vec,
+        RuntimeValue::List(_) => LowerType::List(Box::new(LowerType::Error)), // opaque handle
         RuntimeValue::Enum(value) => LowerType::Named(value.name.clone()),
         RuntimeValue::Record(value) => synthetic_array_record_info(value).map_or_else(
             || LowerType::Named(value.name.clone()),
@@ -4641,15 +4749,18 @@ fn split_enum_variant_path(path: &str) -> Option<(&str, &str)> {
 }
 
 #[derive(Debug)]
-pub struct RuntimeError {
-    pub message: String,
+pub enum RuntimeError {
+    Message(String),
+    EffectUnwind {
+        effect: String,
+        operation: String,
+        args: Vec<RuntimeValue>,
+    },
 }
 
 impl RuntimeError {
     fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
+        Self::Message(message.into())
     }
 }
 
@@ -4662,8 +4773,9 @@ struct Interpreter<'a> {
     stdout_text: String,
     next_text_builder_id: u64,
     text_builders: BTreeMap<u64, Vec<u8>>,
-    next_f64_vec_id: u64,
-    f64_vecs: BTreeMap<u64, Vec<RuntimeF64>>,
+    next_list_id: u64,
+    lists: BTreeMap<u64, Vec<RuntimeValue>>,
+    handlers: Vec<Vec<HandleArm>>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -4689,8 +4801,9 @@ impl<'a> Interpreter<'a> {
             stdout_text: String::new(),
             next_text_builder_id: 0,
             text_builders: BTreeMap::new(),
-            next_f64_vec_id: 0,
-            f64_vecs: BTreeMap::new(),
+            next_list_id: 0,
+            lists: BTreeMap::new(),
+            handlers: Vec::new(),
         }
     }
 
@@ -4788,7 +4901,7 @@ impl<'a> Interpreter<'a> {
                     values.insert(*dest, RuntimeValue::Int(*value));
                 }
                 Inst::ConstF64 { dest, bits } => {
-                    values.insert(*dest, RuntimeValue::F64(RuntimeF64::from_bits(*bits)));
+                    values.insert(*dest, RuntimeValue::F64(f64::from_bits(*bits)));
                 }
                 Inst::ConstBool { dest, value } => {
                     values.insert(*dest, RuntimeValue::Bool(*value));
@@ -4835,106 +4948,94 @@ impl<'a> Interpreter<'a> {
                         .map_err(|_| RuntimeError::new("text builder produced invalid UTF-8"))?;
                     values.insert(*dest, RuntimeValue::Text(text));
                 }
-                Inst::F64VecNew { dest, len, value } => {
+                Inst::ListNew { dest, len, value } => {
                     let len_val = extract_value(values, *len)?;
                     let value_val = extract_value(values, *value)?;
                     let RuntimeValue::Int(len) = len_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    let RuntimeValue::F64(value) = value_val else {
-                        return Err(RuntimeError::new("expected F64"));
-                    };
                     if len < 0 {
-                        return Err(RuntimeError::new("f64_vec_new length must be non-negative"));
+                        return Err(RuntimeError::new("list_new length must be non-negative"));
                     }
                     let len = usize::try_from(len)
-                        .map_err(|_| RuntimeError::new("f64_vec_new length exceeds limits"))?;
-                    let id = self.next_f64_vec_id;
-                    self.next_f64_vec_id += 1;
-                    self.f64_vecs.insert(id, vec![value; len]);
-                    values.insert(*dest, RuntimeValue::F64Vec(id));
+                        .map_err(|_| RuntimeError::new("list_new length exceeds limits"))?;
+                    let id = self.next_list_id;
+                    self.next_list_id += 1;
+                    self.lists.insert(id, vec![value_val; len]);
+                    values.insert(*dest, RuntimeValue::List(id));
                 }
-                Inst::F64VecLen { dest, vec } => {
-                    let vec_val = extract_value(values, *vec)?;
-                    let RuntimeValue::F64Vec(id) = vec_val else {
-                        return Err(RuntimeError::new("expected F64Vec"));
+                Inst::ListLen { dest, list } => {
+                    let list_val = extract_value(values, *list)?;
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
                     };
-                    let vec = self
-                        .f64_vecs
+                    let list_ref = self
+                        .lists
                         .get(&id)
-                        .ok_or_else(|| RuntimeError::new("f64 vec handle is unavailable"))?;
-                    let len = i64::try_from(vec.len())
-                        .map_err(|_| RuntimeError::new("f64 vec length exceeds I32 limits"))?;
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    let len = i64::try_from(list_ref.len())
+                        .map_err(|_| RuntimeError::new("list length exceeds I32 limits"))?;
                     values.insert(*dest, RuntimeValue::Int(len));
                 }
-                Inst::F64VecGet { dest, vec, index } => {
-                    let vec_val = extract_value(values, *vec)?;
+                Inst::ListGet { dest, list, index } => {
+                    let list_val = extract_value(values, *list)?;
                     let index_val = extract_value(values, *index)?;
-                    let RuntimeValue::F64Vec(id) = vec_val else {
-                        return Err(RuntimeError::new("expected F64Vec"));
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
                     };
                     let RuntimeValue::Int(index) = index_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     if index < 0 {
-                        return Err(RuntimeError::new(
-                            "bounds assertion failed in `f64_vec_get`",
-                        ));
+                        return Err(RuntimeError::new("bounds assertion failed in `list_get`"));
                     }
-                    let vec = self
-                        .f64_vecs
+                    let list_ref = self
+                        .lists
                         .get(&id)
-                        .ok_or_else(|| RuntimeError::new("f64 vec handle is unavailable"))?;
-                    let index = usize::try_from(index).map_err(|_| {
-                        RuntimeError::new("bounds assertion failed in `f64_vec_get`")
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    let index = usize::try_from(index)
+                        .map_err(|_| RuntimeError::new("bounds assertion failed in `list_get`"))?;
+                    let value = list_ref.get(index).cloned().ok_or_else(|| {
+                        RuntimeError::new("bounds assertion failed in `list_get`")
                     })?;
-                    let value = vec.get(index).copied().ok_or_else(|| {
-                        RuntimeError::new("bounds assertion failed in `f64_vec_get`")
-                    })?;
-                    values.insert(*dest, RuntimeValue::F64(value));
+                    values.insert(*dest, value);
                 }
-                Inst::F64VecSet {
+                Inst::ListSet {
                     dest,
-                    vec,
+                    list,
                     index,
                     value,
                 } => {
-                    let vec_val = extract_value(values, *vec)?;
+                    let list_val = extract_value(values, *list)?;
                     let index_val = extract_value(values, *index)?;
                     let value_val = extract_value(values, *value)?;
-                    let RuntimeValue::F64Vec(id) = vec_val else {
-                        return Err(RuntimeError::new("expected F64Vec"));
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
                     };
                     let RuntimeValue::Int(index) = index_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    let RuntimeValue::F64(value) = value_val else {
-                        return Err(RuntimeError::new("expected F64"));
-                    };
                     if index < 0 {
-                        return Err(RuntimeError::new(
-                            "bounds assertion failed in `f64_vec_set`",
-                        ));
+                        return Err(RuntimeError::new("bounds assertion failed in `list_set`"));
                     }
-                    let vec = self
-                        .f64_vecs
+                    let list_ref = self
+                        .lists
                         .get_mut(&id)
-                        .ok_or_else(|| RuntimeError::new("f64 vec handle is unavailable"))?;
-                    let index = usize::try_from(index).map_err(|_| {
-                        RuntimeError::new("bounds assertion failed in `f64_vec_set`")
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    let index = usize::try_from(index)
+                        .map_err(|_| RuntimeError::new("bounds assertion failed in `list_set`"))?;
+                    let slot = list_ref.get_mut(index).ok_or_else(|| {
+                        RuntimeError::new("bounds assertion failed in `list_set`")
                     })?;
-                    let slot = vec.get_mut(index).ok_or_else(|| {
-                        RuntimeError::new("bounds assertion failed in `f64_vec_set`")
-                    })?;
-                    *slot = value;
-                    values.insert(*dest, RuntimeValue::F64Vec(id));
+                    *slot = value_val;
+                    values.insert(*dest, RuntimeValue::List(id));
                 }
                 Inst::F64FromI32 { dest, value } => {
                     let value_val = extract_value(values, *value)?;
                     let RuntimeValue::Int(value) = value_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    values.insert(*dest, RuntimeValue::F64(RuntimeF64::from_f64(value as f64)));
+                    values.insert(*dest, RuntimeValue::F64(value as f64));
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
@@ -5019,6 +5120,17 @@ impl<'a> Interpreter<'a> {
                         .map_err(|_| RuntimeError::new("expected base-10 integer text"))?;
                     values.insert(*dest, RuntimeValue::Int(parsed));
                 }
+                Inst::ParseF64 { dest, text } => {
+                    let text_val = extract_value(values, *text)?;
+                    let RuntimeValue::Text(text) = text_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let parsed = text
+                        .trim()
+                        .parse::<f64>()
+                        .map_err(|_| RuntimeError::new("expected float text"))?;
+                    values.insert(*dest, RuntimeValue::F64(parsed));
+                }
                 Inst::TextFromF64Fixed {
                     dest,
                     value,
@@ -5032,20 +5144,14 @@ impl<'a> Interpreter<'a> {
                     let RuntimeValue::Int(digits) = digits else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    values.insert(
-                        *dest,
-                        RuntimeValue::Text(format_f64_fixed(value.value(), digits)),
-                    );
+                    values.insert(*dest, RuntimeValue::Text(format_f64_fixed(value, digits)));
                 }
                 Inst::Sqrt { dest, value } => {
                     let value = extract_value(values, *value)?;
                     let RuntimeValue::F64(value) = value else {
                         return Err(RuntimeError::new("expected F64"));
                     };
-                    values.insert(
-                        *dest,
-                        RuntimeValue::F64(RuntimeF64::from_f64(value.value().sqrt())),
-                    );
+                    values.insert(*dest, RuntimeValue::F64(value.sqrt()));
                 }
                 Inst::ArgCount { dest } => {
                     values.insert(*dest, RuntimeValue::Int(self.program_args.len() as i64));
@@ -5274,7 +5380,7 @@ impl<'a> Interpreter<'a> {
                             RuntimeValue::Int(left + right)
                         }
                         (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            RuntimeValue::F64(RuntimeF64::from_f64(left.value() + right.value()))
+                            RuntimeValue::F64(left + right)
                         }
                         _ => {
                             return Err(RuntimeError::new(
@@ -5292,7 +5398,7 @@ impl<'a> Interpreter<'a> {
                             RuntimeValue::Int(left - right)
                         }
                         (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            RuntimeValue::F64(RuntimeF64::from_f64(left.value() - right.value()))
+                            RuntimeValue::F64(left - right)
                         }
                         _ => {
                             return Err(RuntimeError::new(
@@ -5310,7 +5416,7 @@ impl<'a> Interpreter<'a> {
                             RuntimeValue::Int(left * right)
                         }
                         (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            RuntimeValue::F64(RuntimeF64::from_f64(left.value() * right.value()))
+                            RuntimeValue::F64(left * right)
                         }
                         _ => {
                             return Err(RuntimeError::new(
@@ -5331,10 +5437,10 @@ impl<'a> Interpreter<'a> {
                             RuntimeValue::Int(left / right)
                         }
                         (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            if right.value() == 0.0 {
+                            if right == 0.0 {
                                 return Err(RuntimeError::new("division by zero"));
                             }
-                            RuntimeValue::F64(RuntimeF64::from_f64(left.value() / right.value()))
+                            RuntimeValue::F64(left / right)
                         }
                         _ => {
                             return Err(RuntimeError::new(
@@ -5369,9 +5475,7 @@ impl<'a> Interpreter<'a> {
                     let right = extract_value(values, *right)?;
                     let result = match (left, right) {
                         (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left < right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            left.value() < right.value()
-                        }
+                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left < right,
                         _ => {
                             return Err(RuntimeError::new(
                                 "expected matching numeric operands for lt",
@@ -5385,9 +5489,7 @@ impl<'a> Interpreter<'a> {
                     let right = extract_value(values, *right)?;
                     let result = match (left, right) {
                         (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left <= right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            left.value() <= right.value()
-                        }
+                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left <= right,
                         _ => {
                             return Err(RuntimeError::new(
                                 "expected matching numeric operands for le",
@@ -5401,9 +5503,7 @@ impl<'a> Interpreter<'a> {
                     let right = extract_value(values, *right)?;
                     let result = match (left, right) {
                         (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left > right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            left.value() > right.value()
-                        }
+                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left > right,
                         _ => {
                             return Err(RuntimeError::new(
                                 "expected matching numeric operands for gt",
@@ -5417,9 +5517,7 @@ impl<'a> Interpreter<'a> {
                     let right = extract_value(values, *right)?;
                     let result = match (left, right) {
                         (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left >= right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            left.value() >= right.value()
-                        }
+                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left >= right,
                         _ => {
                             return Err(RuntimeError::new(
                                 "expected matching numeric operands for ge",
@@ -5458,6 +5556,87 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new(message));
                     }
                 }
+                Inst::Perform {
+                    dest,
+                    effect,
+                    operation,
+                    args,
+                } => {
+                    let arg_values = args
+                        .iter()
+                        .map(|id| {
+                            values.get(id).cloned().ok_or_else(|| {
+                                RuntimeError::new(format!("unknown value {}", id.render()))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let matched_arm = self.handlers.iter().rev().find_map(|frame| {
+                        frame
+                            .iter()
+                            .find(|arm| arm.effect == *effect && arm.operation == *operation)
+                            .cloned()
+                    });
+                    if let Some(arm) = matched_arm {
+                        // For non-resumable handlers, we just run the instructions and take the result.
+                        let mut local_values = BTreeMap::new();
+                        let mut local_slots = BTreeMap::new();
+                        if let ExecFlow::Return(value) = self.execute_insts(
+                            function,
+                            &arm.body_insts,
+                            &mut local_values,
+                            &mut local_slots,
+                            &arg_values,
+                        )? {
+                            values.insert(*dest, value);
+                        } else if let Some(result_id) = arm.body_result {
+                            let value = local_values
+                                .get(&result_id)
+                                .cloned()
+                                .ok_or_else(|| RuntimeError::new("missing handler arm result"))?;
+                            values.insert(*dest, value);
+                        } else {
+                            values.insert(*dest, RuntimeValue::Unit);
+                        }
+                    } else {
+                        return Err(RuntimeError::EffectUnwind {
+                            effect: effect.clone(),
+                            operation: operation.clone(),
+                            args: arg_values,
+                        });
+                    }
+                }
+                Inst::Handle {
+                    dest,
+                    body_insts,
+                    body_result,
+                    arms,
+                } => {
+                    self.handlers.push(arms.clone());
+                    let mut local_values = BTreeMap::new();
+                    let mut local_slots = BTreeMap::new();
+                    let flow = self.execute_insts(
+                        function,
+                        body_insts,
+                        &mut local_values,
+                        &mut local_slots,
+                        &[],
+                    )?;
+                    self.handlers.pop();
+                    match flow {
+                        ExecFlow::Return(value) => return Ok(ExecFlow::Return(value)),
+                        ExecFlow::Continue => {
+                            if let Some(result_id) = body_result {
+                                let value =
+                                    local_values.get(result_id).cloned().ok_or_else(|| {
+                                        RuntimeError::new("missing handle body result")
+                                    })?;
+                                values.insert(*dest, value);
+                            } else {
+                                values.insert(*dest, RuntimeValue::Unit);
+                            }
+                        }
+                    }
+                }
             }
         }
         Ok(ExecFlow::Continue)
@@ -5470,7 +5649,7 @@ impl<'a> Interpreter<'a> {
             | ("Bool", RuntimeValue::Bool(_))
             | ("Text", RuntimeValue::Text(_))
             | ("TextBuilder", RuntimeValue::TextBuilder(_))
-            | ("F64Vec", RuntimeValue::F64Vec(_))
+            | ("List", RuntimeValue::List(_))
             | ("Unit", RuntimeValue::Unit) => Ok(()),
             (name, RuntimeValue::Enum(enum_value)) => {
                 let enum_ty = self
@@ -5896,5 +6075,4 @@ fn main() -> I32 {
             .expect("program should run");
         assert_eq!(result, RuntimeValue::Text("stage0".to_owned()));
     }
-    // ... rest of tests ...
 }

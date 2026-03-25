@@ -281,6 +281,31 @@ pub enum TypePath {
     Generic { name: String, args: Vec<Self> },
 }
 
+impl TypePath {
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Named { segments } => {
+                if segments.len() > 1 {
+                    &segments[0]
+                } else {
+                    ""
+                }
+            }
+            Self::Generic { name, .. } => name,
+            Self::Array { .. } => "",
+        }
+    }
+
+    #[must_use]
+    pub fn operation(&self) -> &str {
+        match self {
+            Self::Named { segments } => segments.last().map_or("", String::as_str),
+            Self::Generic { .. } | Self::Array { .. } => "",
+        }
+    }
+}
+
 impl std::fmt::Display for TypePath {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -342,6 +367,13 @@ impl FieldExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct PerformExpr {
+    pub callee: TypePath,
+    pub args: Vec<Expr>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Integer(IntegerExpr),
     Float(FloatExpr),
@@ -362,6 +394,7 @@ pub enum Expr {
     Binary(BinaryExpr),
     Group(GroupExpr),
     Comptime(Box<ComptimeExpr>),
+    Perform(PerformExpr),
     Handle(Box<HandleExpr>),
 }
 
@@ -409,6 +442,7 @@ impl Expr {
             Self::Binary(expr) => expr.span,
             Self::Group(expr) => expr.span,
             Self::Comptime(expr) => expr.span,
+            Self::Perform(expr) => expr.span,
             Self::Handle(expr) => expr.span,
         }
     }
@@ -494,7 +528,16 @@ impl Expr {
                 expr.right.pretty(),
             ),
             Self::Group(expr) => format!("({})", expr.inner.pretty()),
-            Self::Comptime(expr) => format!("comptime {}", expr.body.pretty()),
+            Self::Comptime(expr) => format!("comptime {{ {} }}", expr.body.pretty()),
+            Self::Perform(expr) => {
+                let args = expr
+                    .args
+                    .iter()
+                    .map(Self::pretty)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("perform {}({})", expr.callee, args)
+            }
             Self::Handle(expr) => format!("handle {} with {{ ... }}", expr.body.pretty()),
         }
     }
@@ -1118,9 +1161,26 @@ impl Lowerer {
                         node.span,
                         Some("Use a non-empty type path.".to_owned()),
                     ));
-                    None
-                } else {
+                    return None;
+                }
+
+                let mut args = Vec::new();
+                for child in &node.children {
+                    if let Element::Node(child_node) = child
+                        && matches!(child_node.kind, NodeKind::TypePath | NodeKind::TypeArray)
+                        && let Some(arg) = self.lower_type_path(child_node)
+                    {
+                        args.push(arg);
+                    }
+                }
+
+                if args.is_empty() {
                     Some(TypePath::Named { segments })
+                } else {
+                    Some(TypePath::Generic {
+                        name: segments.join("."),
+                        args,
+                    })
                 }
             }
             NodeKind::TypeArray => {
@@ -1265,9 +1325,8 @@ impl Lowerer {
             NodeKind::ExprUnary => self.lower_unary_expr(node).map(Expr::Unary),
             NodeKind::ExprBinary => self.lower_binary_expr(node).map(Expr::Binary),
             NodeKind::ExprGroup => self.lower_group_expr(node).map(Expr::Group),
-            NodeKind::ExprComptime => self
-                .lower_comptime_expr(node)
-                .map(|e| Expr::Comptime(Box::new(e))),
+            NodeKind::ExprComptime => self.lower_comptime_expr(node).map(Expr::Comptime),
+            NodeKind::ExprPerform => self.lower_perform_expr(node).map(Expr::Perform),
             NodeKind::ExprHandle => self
                 .lower_handle_expr(node)
                 .map(|e| Expr::Handle(Box::new(e))),
@@ -1331,13 +1390,48 @@ impl Lowerer {
         })
     }
 
-    fn lower_comptime_expr(&mut self, node: &Node) -> Option<ComptimeExpr> {
+    fn lower_comptime_expr(&mut self, node: &Node) -> Option<Box<ComptimeExpr>> {
         let body = node.children.iter().find_map(|child| match child {
-            Element::Node(child) if child.kind == NodeKind::Body => Some(self.lower_body(child)),
+            Element::Node(body) if body.kind == NodeKind::Body => Some(self.lower_body(body)),
             _ => None,
         })?;
-        Some(ComptimeExpr {
+        Some(Box::new(ComptimeExpr {
             body,
+            span: node.span,
+        }))
+    }
+
+    fn lower_perform_expr(&mut self, node: &Node) -> Option<PerformExpr> {
+        let callee_node = node.children.iter().find_map(|child| {
+            if let Element::Node(node) = child
+                && node.kind == NodeKind::TypePath
+            {
+                Some(node)
+            } else {
+                None
+            }
+        })?;
+        let callee = self.lower_type_path(callee_node)?;
+        let args_node = node.children.iter().find_map(|child| {
+            if let Element::Node(node) = child
+                && node.kind == NodeKind::ArgList
+            {
+                Some(node)
+            } else {
+                None
+            }
+        })?;
+        let args = args_node
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                Element::Node(expr) => self.lower_expr(expr),
+                Element::Token(_) => None,
+            })
+            .collect();
+        Some(PerformExpr {
+            callee,
+            args,
             span: node.span,
         })
     }
@@ -1427,6 +1521,7 @@ impl Lowerer {
                 Some(Element::Node(child)) => match self.lower_expr(child) {
                     Some(Expr::Name(name)) => break name.name,
                     Some(Expr::Field(field)) => break field.pretty(),
+                    Some(Expr::Perform(perform)) => break perform.callee.to_string(),
                     Some(
                         Expr::Integer(_)
                         | Expr::Float(_)

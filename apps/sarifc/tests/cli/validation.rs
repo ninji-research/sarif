@@ -185,19 +185,20 @@ fn mutation_diagnostics_are_specific() {
     let const_generic_arrays_output = run_path_profiled("check", &const_generic_arrays, "core");
     assert!(const_generic_arrays_output.status.success());
 
-    let f64_vec_mutation = temp_source(
-        "fn main() -> Text { let mut xs = f64_vec_new(2, 0.0); xs = f64_vec_set(xs, 0, 1.5); xs = f64_vec_set(xs, 1, 2.25); text_from_f64_fixed(f64_vec_get(xs, 0) + f64_vec_get(xs, 1), 2) }",
+    let list_f64_mutation = temp_source(
+        "fn main() -> Text { let mut xs = list_new(2, 0.0); xs = list_set(xs, 0, 1.5); xs = list_set(xs, 1, 2.25); text_from_f64_fixed(list_get(xs, 0) + list_get(xs, 1), 2) }",
     );
-    let f64_vec_mutation_output = run_path_profiled("check", &f64_vec_mutation, "core");
-    assert!(f64_vec_mutation_output.status.success());
+    let list_f64_mutation_output = run_path_profiled("check", &list_f64_mutation, "core");
+    assert!(list_f64_mutation_output.status.success());
 
-    let f64_vec_const =
-        temp_source("const XS: F64Vec = f64_vec_new(2, 0.0);\nfn main() -> I32 { 0 }");
-    let f64_vec_const_output = run_path_profiled("check", &f64_vec_const, "core");
-    assert!(!f64_vec_const_output.status.success());
+    let list_f64_const =
+        temp_source("const XS: List[F64] = list_new(2, 0.0);\nfn main() -> I32 { 0 }");
+    let list_f64_const_output = run_path_profiled("check", &list_f64_const, "core");
+    assert!(!list_f64_const_output.status.success());
+    let stderr = String::from_utf8_lossy(&list_f64_const_output.stderr);
     assert!(
-        String::from_utf8_lossy(&f64_vec_const_output.stderr)
-            .contains("semantic.f64_vec-runtime-context")
+        stderr.contains("semantic.list-runtime-context"),
+        "unexpected stderr: {stderr}"
     );
 
     let immutable_array = temp_source("fn main() -> I32 { let xs = [0, 0]; xs[0] = 1; xs[0] }");

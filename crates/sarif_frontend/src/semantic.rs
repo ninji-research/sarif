@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::hir::{Body, Effect, Expr, Module};
+use crate::hir::{Body, ConstExpr, Effect, Expr, Module};
 use crate::ownership::{
     ParamUsage, check_affine_body_ownership, check_contract_affine_ownership, infer_param_modes,
     is_affine_type, struct_is_affine,
@@ -18,8 +18,8 @@ use bodycheck::infer_body;
 use exprcore::{
     CallSite, ExprContext, ExprInfo, infer_array_expr, infer_binary_expr, infer_call_expr,
     infer_comptime_expr, infer_contract_result_expr, infer_field_expr, infer_group_expr,
-    infer_handle_expr, infer_if_expr, infer_index_expr, infer_match_expr, infer_record_expr,
-    infer_repeat_expr, infer_unary_expr, infer_while_expr,
+    infer_handle_expr, infer_if_expr, infer_index_expr, infer_match_expr, infer_perform_expr,
+    infer_record_expr, infer_repeat_expr, infer_unary_expr, infer_while_expr,
 };
 use profile::{body_contains_loop, type_is_rt_safe};
 use resolve::{ResolvedModule, resolve_module};
@@ -49,23 +49,18 @@ impl Profile {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TypeArrayLen {
-    Literal(usize),
-    Param(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     I32,
     F64,
     Bool,
     Text,
     TextBuilder,
-    F64Vec,
     Unit,
     Named(String),
     Param(String),
-    Array(Box<Self>, TypeArrayLen),
+    Array(Box<Self>, ConstExpr),
+    List(Box<Self>),
+    Pair(Box<Self>, Box<Self>),
     Error,
 }
 
@@ -78,16 +73,17 @@ impl Type {
             Self::Bool => "Bool".to_owned(),
             Self::Text => "Text".to_owned(),
             Self::TextBuilder => "TextBuilder".to_owned(),
-            Self::F64Vec => "F64Vec".to_owned(),
             Self::Unit => "Unit".to_owned(),
             Self::Named(name) => name.clone(),
             Self::Param(name) => name.clone(),
             Self::Array(element, size) => {
-                let size_str = match size {
-                    TypeArrayLen::Literal(l) => l.to_string(),
-                    TypeArrayLen::Param(p) => p.clone(),
-                };
-                format!("[{}; {size_str}]", element.render())
+                format!("[{}; {}]", element.render(), size.render())
+            }
+            Self::List(element) => {
+                format!("List[{}]", element.render())
+            }
+            Self::Pair(left, right) => {
+                format!("Pair[{}, {}]", left.render(), right.render())
             }
             Self::Error => "?".to_owned(),
         }
@@ -916,6 +912,18 @@ pub(super) fn infer_expr(
         ),
         Expr::Comptime(body) => infer_comptime_expr(
             body,
+            locals,
+            mutable_locals,
+            functions,
+            consts,
+            enum_variants,
+            struct_layouts,
+            diagnostics,
+            fn_name,
+            caller_effects,
+        ),
+        Expr::Perform(expr) => infer_perform_expr(
+            expr,
             locals,
             mutable_locals,
             functions,

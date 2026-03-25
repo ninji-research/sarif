@@ -30,9 +30,13 @@ fn type_is_rt_safe_inner(
             result
         }
         Type::Array(element, _) => type_is_rt_safe_inner(element, struct_fields, visiting),
+        Type::Pair(left, right) => {
+            type_is_rt_safe_inner(left, struct_fields, visiting)
+                && type_is_rt_safe_inner(right, struct_fields, visiting)
+        }
         Type::Param(_) => false,
         Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => true,
-        Type::TextBuilder | Type::F64Vec => false,
+        Type::TextBuilder | Type::List(_) => false,
     }
 }
 
@@ -47,6 +51,7 @@ pub(super) fn body_contains_loop(body: &Body) -> bool {
 fn expr_contains_loop(expr: &Expr) -> bool {
     match expr {
         Expr::Repeat(_) | Expr::While(_) => true,
+        Expr::Perform(expr) => expr.args.iter().any(expr_contains_loop),
         Expr::If(expr) => {
             expr_contains_loop(&expr.condition)
                 || body_contains_loop(&expr.then_body)

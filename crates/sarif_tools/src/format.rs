@@ -255,6 +255,15 @@ fn format_expr_with_indent(expr: &Expr, indent: usize) -> String {
         ),
         Expr::Group(expr) => format!("({})", format_expr_with_indent(&expr.inner, indent)),
         Expr::Comptime(expr) => format!("comptime {}", format_body_block(&expr.body, indent)),
+        Expr::Perform(expr) => {
+            let args = expr
+                .args
+                .iter()
+                .map(|arg| format_expr_with_indent(arg, indent))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("perform {}({})", expr.callee, args)
+        }
         Expr::Handle(expr) => format!(
             "handle {} with {{\n{}{}}}",
             format_body_block(&expr.body, indent),

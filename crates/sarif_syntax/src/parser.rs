@@ -382,6 +382,15 @@ impl<'a> Parser<'a> {
             children.push(Element::Token(self.expect(TokenKind::Ident)));
         }
 
+        if self.peek_trivia_then(TokenKind::LBracket) {
+            self.collect_trivia(&mut children);
+            children.push(Element::Token(self.expect(TokenKind::LBracket)));
+            self.collect_trivia(&mut children);
+            children.push(Element::Node(self.parse_type()));
+            self.collect_trivia(&mut children);
+            children.push(Element::Token(self.expect(TokenKind::RBracket)));
+        }
+
         Node::new(NodeKind::TypePath, children)
     }
 
@@ -411,6 +420,18 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
         children.push(Element::Node(self.parse_expr_body()));
         Node::new(NodeKind::ExprComptime, children)
+    }
+
+    fn parse_perform_expr(&mut self) -> Node {
+        let mut children = Vec::new();
+        children.push(Element::Token(self.expect(TokenKind::KwPerform)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_type_path()));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::LParen)));
+        children.push(Element::Node(self.parse_arg_list()));
+        children.push(Element::Token(self.expect(TokenKind::RParen)));
+        Node::new(NodeKind::ExprPerform, children)
     }
 
     fn parse_effect_item(&mut self) -> Node {
@@ -777,6 +798,7 @@ impl<'a> Parser<'a> {
             Some(TokenKind::KwMatch) => self.parse_match_expr(),
             Some(TokenKind::KwRepeat) => self.parse_repeat_expr(),
             Some(TokenKind::KwWhile) => self.parse_while_expr(),
+            Some(TokenKind::KwPerform) => self.parse_perform_expr(),
             Some(TokenKind::KwComptime) => self.parse_comptime_expr(),
             Some(TokenKind::KwHandle) => self.parse_handle_expr(),
             Some(TokenKind::LBracket) => self.parse_array_expr(),

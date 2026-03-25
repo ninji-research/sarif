@@ -3,7 +3,9 @@ use std::collections::BTreeSet;
 use crate::hir::{EffectRef, Function, TypeRef};
 use sarif_syntax::{Diagnostic, Span};
 
-use super::{Type, TypeArrayLen, best_match, suggestion_help};
+use crate::hir::ConstExpr;
+
+use super::{Type, best_match, suggestion_help};
 
 pub(super) fn check_type_exists(
     diagnostics: &mut Vec<Diagnostic>,
@@ -24,7 +26,7 @@ pub(super) fn check_type_exists(
             format!("unknown generic parameter `{name}`"),
             Some("Declare the generic parameter on the enclosing function.".to_owned()),
         ),
-        Type::Array(_, TypeArrayLen::Param(name)) if !generic_params.contains(name) => (
+        Type::Array(_, ConstExpr::Param(name)) if !generic_params.contains(name) => (
             format!("unknown array length parameter `{name}`"),
             Some("Declare the length parameter on the enclosing function.".to_owned()),
         ),
@@ -52,17 +54,31 @@ pub(super) fn type_exists(
         Type::Array(element, len) => {
             type_exists(element, known_types, generic_params)
                 && match len {
-                    TypeArrayLen::Literal(_) => true,
-                    TypeArrayLen::Param(name) => generic_params.contains(name),
+                    ConstExpr::Literal(_) => true,
+                    ConstExpr::Param(name) => generic_params.contains(name),
+                    ConstExpr::Add(left, right) => {
+                        let mut ok = true;
+                        if let ConstExpr::Param(name) = &**left {
+                            ok &= generic_params.contains(name);
+                        }
+                        if let ConstExpr::Param(name) = &**right {
+                            ok &= generic_params.contains(name);
+                        }
+                        ok
+                    }
                 }
         }
         Type::Named(name) => known_types.contains(name),
+        Type::Pair(left, right) => {
+            type_exists(left, known_types, generic_params)
+                && type_exists(right, known_types, generic_params)
+        }
         Type::Param(name) => generic_params.contains(name),
         Type::I32
         | Type::F64
         | Type::Bool
         | Type::Text
-        | Type::F64Vec
+        | Type::List(_)
         | Type::TextBuilder
         | Type::Unit
         | Type::Error => true,
@@ -77,10 +93,16 @@ pub(super) fn types_compatible(expected: &Type, actual: &Type) -> bool {
         | (Type::Bool, Type::Bool)
         | (Type::Text, Type::Text)
         | (Type::TextBuilder, Type::TextBuilder)
-        | (Type::F64Vec, Type::F64Vec)
         | (Type::Unit, Type::Unit)
         | (Type::Named(_), Type::Named(_))
         | (Type::Param(_), Type::Param(_)) => expected == actual,
+        (Type::List(expected_inner), Type::List(actual_inner)) => {
+            types_compatible(expected_inner, actual_inner)
+        }
+        (Type::Pair(expected_left, expected_right), Type::Pair(actual_left, actual_right)) => {
+            types_compatible(expected_left, actual_left)
+                && types_compatible(expected_right, actual_right)
+        }
         (Type::Array(expected_element, expected_len), Type::Array(actual_element, actual_len)) => {
             types_compatible(expected_element, actual_element)
                 && array_len_compatible(expected_len, actual_len)
@@ -89,10 +111,11 @@ pub(super) fn types_compatible(expected: &Type, actual: &Type) -> bool {
     }
 }
 
-pub(super) fn array_len_compatible(expected: &TypeArrayLen, actual: &TypeArrayLen) -> bool {
+pub(super) fn array_len_compatible(expected: &ConstExpr, actual: &ConstExpr) -> bool {
     match (expected, actual) {
-        (TypeArrayLen::Literal(expected), TypeArrayLen::Literal(actual)) => expected == actual,
-        (TypeArrayLen::Param(_), _) | (_, TypeArrayLen::Param(_)) => true,
+        (ConstExpr::Literal(expected), ConstExpr::Literal(actual)) => expected == actual,
+        (ConstExpr::Param(_), _) | (_, ConstExpr::Param(_)) => true,
+        (ConstExpr::Add(_, _), _) | (_, ConstExpr::Add(_, _)) => true,
     }
 }
 
@@ -110,8 +133,12 @@ pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> 
         "Bool" => Some(Type::Bool),
         "Text" => Some(Type::Text),
         "TextBuilder" => Some(Type::TextBuilder),
-        "F64Vec" => Some(Type::F64Vec),
         "Unit" => Some(Type::Unit),
+        other if other.starts_with("List[") && other.ends_with(']') => {
+            let inner = &other[5..other.len() - 1];
+            let element = parse_type_name(inner, generic_params)?;
+            Some(Type::List(Box::new(element)))
+        }
         _ => parse_array_type_name(name, generic_params)
             .or_else(|| Some(Type::Named(name.to_owned()))),
     }
@@ -135,10 +162,10 @@ pub(super) fn parse_array_type_name(name: &str, generic_params: &BTreeSet<String
     let split = split?;
     let element = inner[..split].trim();
     let len = inner[split + 1..].trim();
-    let len = if let Ok(len) = len.parse::<usize>() {
-        TypeArrayLen::Literal(len)
+    let len = if let Ok(len) = len.parse::<u32>() {
+        ConstExpr::Literal(len)
     } else {
-        TypeArrayLen::Param(len.to_owned())
+        ConstExpr::Param(len.to_owned())
     };
     let element = parse_type_name(element, generic_params)?;
     Some(Type::Array(Box::new(element), len))
