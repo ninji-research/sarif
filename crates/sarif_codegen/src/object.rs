@@ -12,10 +12,10 @@ use crate::native::{
     collect_native_enums, collect_native_records, declare_arg_count, declare_arg_text,
     declare_list_new, declare_parse_f64, declare_parse_i32, declare_record_allocator,
     declare_stdin_text, declare_stdout_write, declare_text_builder_append,
-    declare_text_builder_finish, declare_text_builder_new, declare_text_concat,
-    declare_text_data_for_insts, declare_text_eq, declare_text_from_f64_fixed, declare_text_slice,
-    encode_text_blob, infer_value_kinds, lower_insts, native_type as shared_native_type,
-    value_repr as shared_value_repr,
+    declare_text_builder_append_codepoint, declare_text_builder_finish, declare_text_builder_new,
+    declare_text_concat, declare_text_data_for_insts, declare_text_eq, declare_text_from_f64_fixed,
+    declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts, native_value_kind,
+    native_type as shared_native_type, value_repr as shared_value_repr,
 };
 use crate::{Function, Program, ValueId};
 
@@ -54,6 +54,7 @@ struct ObjectBackend<'a> {
     allocator_id: FuncId,
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
+    text_builder_append_codepoint_id: FuncId,
     text_builder_finish_id: FuncId,
     list_new_id: FuncId,
     text_concat_id: FuncId,
@@ -101,6 +102,9 @@ impl<'a> ObjectBackend<'a> {
             declare_text_builder_new(&mut module, "object").map_err(ObjectError::new)?;
         let text_builder_append_id =
             declare_text_builder_append(&mut module, "object").map_err(ObjectError::new)?;
+        let text_builder_append_codepoint_id =
+            declare_text_builder_append_codepoint(&mut module, "object")
+                .map_err(ObjectError::new)?;
         let text_builder_finish_id =
             declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new)?;
         let list_new_id = declare_list_new(&mut module, "object").map_err(ObjectError::new)?;
@@ -126,6 +130,7 @@ impl<'a> ObjectBackend<'a> {
             allocator_id,
             text_builder_new_id,
             text_builder_append_id,
+            text_builder_append_codepoint_id,
             text_builder_finish_id,
             list_new_id,
             text_concat_id,
@@ -274,6 +279,7 @@ impl<'a> ObjectBackend<'a> {
         let block_params = builder.block_params(entry).to_vec();
         let mut values = BTreeMap::<ValueId, ValueRepr>::new();
         let mut slot_vars = BTreeMap::<crate::LocalSlotId, Variable>::new();
+        let mut slot_types = BTreeMap::<crate::LocalSlotId, types::Type>::new();
         let value_kinds = infer_value_kinds(
             function,
             &self.records,
@@ -282,9 +288,17 @@ impl<'a> ObjectBackend<'a> {
         )
         .map_err(ObjectError::new)?;
         for local in &function.mutable_locals {
-            let var =
-                builder.declare_var(native_type(&local.ty, &self.records, &self.native_enums)?);
+            let kind = native_value_kind(&local.ty, &self.records, &self.native_enums)
+                .map_err(ObjectError::new)?;
+            let var = builder.declare_var(match kind {
+                crate::CodegenValueKind::F64 => types::F64,
+                _ => types::I64,
+            });
             slot_vars.insert(local.slot, var);
+            slot_types.insert(local.slot, match kind {
+                crate::CodegenValueKind::F64 => types::F64,
+                _ => types::I64,
+            });
         }
 
         let module = self.module.as_mut().expect("module available");
@@ -295,6 +309,7 @@ impl<'a> ObjectBackend<'a> {
             self.allocator_id,
             self.text_builder_new_id,
             self.text_builder_append_id,
+            self.text_builder_append_codepoint_id,
             self.text_builder_finish_id,
             self.list_new_id,
             self.text_concat_id,
@@ -315,6 +330,7 @@ impl<'a> ObjectBackend<'a> {
             &mut builder,
             &block_params,
             &slot_vars,
+            &slot_types,
             &mut values,
             &mut list_headers,
             &TrustedListAccesses::default(),
@@ -406,6 +422,19 @@ mod tests {
 
         let bytes =
             emit_object(&mir.program, "sarif_if_test").expect("object emission should work");
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn emits_object_for_repeat_with_index_binding() {
+        let lexed = lex("fn main() -> I32 { let mut total = 0; repeat i in 4 { total = total + i; }; total }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower_ast(&parsed.root);
+        let hir = lower_hir(&ast.file);
+        let mir = crate::lower(&hir.module);
+
+        let bytes = emit_object(&mir.program, "sarif_repeat_index_test")
+            .expect("object emission should work");
         assert!(!bytes.is_empty());
     }
 

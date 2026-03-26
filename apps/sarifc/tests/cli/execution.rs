@@ -365,7 +365,7 @@ fn stable_build_passes_process_arguments_to_argument_builtins() {
         .output()
         .expect("built binary should run");
     assert!(native.status.success());
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarif\n");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarif");
 }
 
 #[cfg(feature = "native-build")]
@@ -392,7 +392,7 @@ fn stable_build_reads_stdin_text() {
         .expect("stdin should be writable");
     let output = native.wait_with_output().expect("built binary should run");
     assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), ">id\nACGT\n\n");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), ">id\nACGT\n");
 }
 
 #[cfg(feature = "native-build")]
@@ -430,7 +430,7 @@ fn stable_build_executes_text_builder_programs() {
         .output()
         .expect("built binary should run");
     assert!(native.status.success());
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarif\n");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarif");
 }
 
 #[cfg(feature = "native-build")]
@@ -450,7 +450,7 @@ fn stable_build_executes_list_f64_programs() {
         .output()
         .expect("built binary should run");
     assert!(native.status.success());
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.75\n");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.75");
 }
 
 #[test]
@@ -472,7 +472,7 @@ fn stable_build_executes_f64_from_i32_programs() {
         .output()
         .expect("run built native binary");
     assert!(native.status.success(), "built binary should succeed");
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.5\n");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.5");
 }
 
 #[cfg(feature = "native-build")]
@@ -528,7 +528,7 @@ fn stable_build_executes_text_from_f64_fixed_programs() {
         .output()
         .expect("built binary should run");
     assert!(native.status.success());
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.50\n");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.50");
 }
 
 #[cfg(feature = "native-build")]
@@ -546,7 +546,7 @@ fn stable_build_executes_float_sqrt_pipeline_programs() {
         .output()
         .expect("built binary should run");
     assert!(native.status.success());
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.125\n");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "3.125");
 }
 
 #[cfg(feature = "native-build")]

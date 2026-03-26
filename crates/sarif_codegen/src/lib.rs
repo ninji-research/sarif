@@ -211,7 +211,7 @@ pub enum CodegenValueKind {
     Bool,
     Text,
     TextBuilder,
-    List,
+    List(Box<Self>),
     Enum(String),
     Record(String),
 }
@@ -286,6 +286,11 @@ pub enum Inst {
         dest: ValueId,
         builder: ValueId,
         text: ValueId,
+    },
+    TextBuilderAppendCodepoint {
+        dest: ValueId,
+        builder: ValueId,
+        codepoint: ValueId,
     },
     TextBuilderFinish {
         dest: ValueId,
@@ -552,6 +557,16 @@ impl Inst {
                 dest.render(),
                 builder.render(),
                 text.render()
+            ),
+            Self::TextBuilderAppendCodepoint {
+                dest,
+                builder,
+                codepoint,
+            } => format!(
+                "{} = text-builder-append-codepoint {}, {}",
+                dest.render(),
+                builder.render(),
+                codepoint.render()
             ),
             Self::TextBuilderFinish { dest, builder } => format!(
                 "{} = text-builder-finish {}",
@@ -2418,6 +2433,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::ConstText { .. }
             | Inst::TextBuilderNew { .. }
             | Inst::TextBuilderAppend { .. }
+            | Inst::TextBuilderAppendCodepoint { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::ListNew { .. }
             | Inst::ListLen { .. }
@@ -2601,7 +2617,7 @@ impl LowerType {
             Self::Bool => Some("Bool".to_owned()),
             Self::Text => Some("Text".to_owned()),
             Self::TextBuilder => Some("TextBuilder".to_owned()),
-            Self::List(_) => Some("List".to_owned()),
+            Self::List(element) => Some(format!("List[{}]", lower_type_name(element)?)),
             Self::Unit => Some("Unit".to_owned()),
             Self::Named(name) => Some(name.clone()),
             Self::Array(_, _) | Self::Error => None,
@@ -2993,6 +3009,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     && !self.function_returns.contains_key("text_builder_append")
                 {
                     return self.lower_text_builder_append_expr(expr);
+                }
+                if expr.callee == "text_builder_append_codepoint"
+                    && !self
+                        .function_returns
+                        .contains_key("text_builder_append_codepoint")
+                {
+                    return self.lower_text_builder_append_codepoint_expr(expr);
                 }
                 if expr.callee == "text_builder_finish"
                     && !self.function_returns.contains_key("text_builder_finish")
@@ -3601,20 +3624,36 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     LowerType::TextBuilder
                 }
+                "text_builder_append_codepoint"
+                    if !self
+                        .function_returns
+                        .contains_key("text_builder_append_codepoint") =>
+                {
+                    LowerType::TextBuilder
+                }
                 "text_builder_finish"
                     if !self.function_returns.contains_key("text_builder_finish") =>
                 {
                     LowerType::Text
                 }
                 "list_new" if !self.function_returns.contains_key("list_new") => {
-                    LowerType::List(Box::new(LowerType::Error))
+                    match expr.args.get(1).map(|arg| self.infer_expr_type(arg)) {
+                        Some(element) => LowerType::List(Box::new(element)),
+                        None => LowerType::Error,
+                    }
                 }
                 "list_len" if !self.function_returns.contains_key("list_len") => LowerType::I32,
                 "list_get" if !self.function_returns.contains_key("list_get") => {
-                    LowerType::Error // Needs tracking of inner
+                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                        Some(LowerType::List(element)) => *element,
+                        _ => LowerType::Error,
+                    }
                 }
                 "list_set" if !self.function_returns.contains_key("list_set") => {
-                    LowerType::List(Box::new(LowerType::Error))
+                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                        Some(LowerType::List(element)) => LowerType::List(element),
+                        _ => LowerType::Error,
+                    }
                 }
                 "f64_from_i32" if !self.function_returns.contains_key("f64_from_i32") => {
                     LowerType::F64
@@ -4385,6 +4424,27 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_builder_append_codepoint_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let builder = self.lower_expr(arg0);
+        let codepoint = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextBuilderAppendCodepoint {
+            dest,
+            builder,
+            codepoint,
+        });
+        dest
+    }
+
     fn lower_text_builder_finish_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
@@ -4933,6 +4993,34 @@ impl<'a> Interpreter<'a> {
                         .get_mut(&id)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     bytes.extend_from_slice(text.as_bytes());
+                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                }
+                Inst::TextBuilderAppendCodepoint {
+                    dest,
+                    builder,
+                    codepoint,
+                } => {
+                    let builder_val = extract_value(values, *builder)?;
+                    let codepoint_val = extract_value(values, *codepoint)?;
+                    let RuntimeValue::TextBuilder(id) = builder_val else {
+                        return Err(RuntimeError::new("expected TextBuilder"));
+                    };
+                    let RuntimeValue::Int(codepoint) = codepoint_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let codepoint = u32::try_from(codepoint).map_err(|_| {
+                        RuntimeError::new("text builder codepoint must be non-negative")
+                    })?;
+                    let scalar = char::from_u32(codepoint).ok_or_else(|| {
+                        RuntimeError::new("text builder codepoint must be a valid Unicode scalar")
+                    })?;
+                    let bytes = self
+                        .text_builders
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    let mut encoded = [0u8; 4];
+                    let encoded = scalar.encode_utf8(&mut encoded);
+                    bytes.extend_from_slice(encoded.as_bytes());
                     values.insert(*dest, RuntimeValue::TextBuilder(id));
                 }
                 Inst::TextBuilderFinish { dest, builder } => {
@@ -6074,5 +6162,32 @@ fn main() -> I32 {
         let result = run_main_with_args(&mir.program, &["sarif".to_owned(), "stage0".to_owned()])
             .expect("program should run");
         assert_eq!(result, RuntimeValue::Text("stage0".to_owned()));
+    }
+
+    #[test]
+    fn runs_text_builder_append_codepoint_builtin() {
+        let mir = lower_source(
+            "fn main() -> Text { let mut builder = text_builder_new(); builder = text_builder_append_codepoint(builder, 65); builder = text_builder_append_codepoint(builder, 10); text_builder_finish(builder) }",
+        );
+
+        assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+        let result = run_main(&mir.program).expect("program should run");
+        assert_eq!(result, RuntimeValue::Text("A\n".to_owned()));
+    }
+
+    #[test]
+    fn preserves_typed_list_builtin_lowering() {
+        let mir = lower_source(
+            "fn head(xs: List[I32]) -> I32 { let mut ys = xs; ys = list_set(ys, 0, 42); list_get(ys, 0) }\nfn main() -> I32 { head(list_new(1, 7)) }",
+        );
+
+        assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+        assert!(
+            mir.program.pretty().contains("fn head(xs: List[I32]) -> I32"),
+            "{}",
+            mir.program.pretty()
+        );
+        let result = run_main(&mir.program).expect("program should run");
+        assert_eq!(result, RuntimeValue::Int(42));
     }
 }

@@ -8,14 +8,14 @@ Sarif is still in the **Bootstrap Window** (Stage 0). The project has a working 
 -   **Rust-hosted CLI is stable:** `sarifc format`, `check`, `run`, `build`, and `doc` are the maintained release surfaces.
 -   **Bootstrap package execution works on both backends:** `bootstrap/sarif_syntax` runs to its retained score on the interpreter and now also builds and runs on the Wasm target.
 -   **Wasm stage-0 coverage improved materially:** payload-enum equality, packed text constants, text length/byte/concat/slice, parsing helpers, and allocator-backed memory growth are all implemented well enough for the retained bootstrap package surface.
--   **Bootstrap parity surfaces are retained:** `bootstrap-format` matches the maintained formatter on the retained shipped corpus, while `bootstrap-check` and `bootstrap-doc` are bridged to the maintained semantic surfaces and pinned by retained outputs.
+-   **Bootstrap parity surfaces are retained:** `bootstrap-format` remains a retained formatter parity command on the maintained CLI surface, while `bootstrap-check` and `bootstrap-doc` are bridged to the maintained semantic surfaces and pinned by retained outputs.
 -   **`~/bnch` remains clean:** manifest validation and `tests.test_run` both pass.
 
 ## Authority Boundary
 
 -   **Normative semantic oracle:** the MIR interpreter.
 -   **Maintained release authority:** the Rust implementation.
--   **Experimental self-host surface:** the Sarif-hosted formatter plus the bridged `bootstrap-check` and `bootstrap-doc` commands.
+-   **Experimental self-host surface:** the Sarif-hosted formatter under retained verification, plus the bridged `bootstrap-check` and `bootstrap-doc` commands.
 
 ## Not Yet Complete
 

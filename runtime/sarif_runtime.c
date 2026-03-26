@@ -19,6 +19,9 @@ static unsigned char* sarif_stdin_cache = NULL;
 static unsigned char sarif_empty_text[8] = {0};
 static int sarif_write_text_blob(const unsigned char* text, int newline);
 
+#define SARIF_TEXT_BUILDER_INITIAL_CAP 4096u
+#define SARIF_STDIN_CHUNK_SIZE 16384u
+
 typedef struct SarifRecordDesc SarifRecordDesc;
 typedef struct SarifEnumDesc SarifEnumDesc;
 typedef struct SarifVariantDesc SarifVariantDesc;
@@ -60,7 +63,7 @@ struct SarifTextBuilder {
 
 struct SarifList {
     uint64_t len;
-    double* values;
+    uint64_t* values;
 };
 
 extern const SarifRecordDesc* sarif_get_main_record_desc(void);
@@ -119,12 +122,49 @@ void* sarif_text_builder_new(void) {
     return builder;
 }
 
-void* sarif_text_builder_append(void* raw_builder, const unsigned char* text) {
-    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
-    uint64_t text_len = 0;
+static SarifTextBuilder* sarif_text_builder_reserve(
+    SarifTextBuilder* builder,
+    uint64_t appended_len
+) {
     uint64_t required = 0;
     uint64_t next_cap = 0;
     unsigned char* grown = NULL;
+    if (builder == NULL) {
+        return NULL;
+    }
+    if (appended_len == 0) {
+        return builder;
+    }
+    if (builder->len > UINT64_MAX - appended_len) {
+        return NULL;
+    }
+    required = builder->len + appended_len;
+    if (required <= builder->cap) {
+        return builder;
+    }
+    next_cap = builder->cap == 0 ? SARIF_TEXT_BUILDER_INITIAL_CAP : builder->cap;
+    while (next_cap < required) {
+        if (next_cap > UINT64_MAX / 2u) {
+            next_cap = required;
+            break;
+        }
+        next_cap *= 2u;
+    }
+    if (next_cap < required || next_cap > (uint64_t)SIZE_MAX) {
+        return NULL;
+    }
+    grown = realloc(builder->bytes, (size_t)next_cap);
+    if (grown == NULL) {
+        return NULL;
+    }
+    builder->bytes = grown;
+    builder->cap = next_cap;
+    return builder;
+}
+
+void* sarif_text_builder_append(void* raw_builder, const unsigned char* text) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    uint64_t text_len = 0;
     if (builder == NULL || text == NULL) {
         return NULL;
     }
@@ -132,31 +172,49 @@ void* sarif_text_builder_append(void* raw_builder, const unsigned char* text) {
     if (text_len == 0) {
         return builder;
     }
-    if (builder->len > UINT64_MAX - text_len) {
+    builder = sarif_text_builder_reserve(builder, text_len);
+    if (builder == NULL) {
         return NULL;
     }
-    required = builder->len + text_len;
-    if (required > builder->cap) {
-        next_cap = builder->cap == 0 ? 64u : builder->cap;
-        while (next_cap < required) {
-            if (next_cap > UINT64_MAX / 2u) {
-                next_cap = required;
-                break;
-            }
-            next_cap *= 2u;
-        }
-        if (next_cap < required || next_cap > (uint64_t)SIZE_MAX) {
-            return NULL;
-        }
-        grown = realloc(builder->bytes, (size_t)next_cap);
-        if (grown == NULL) {
-            return NULL;
-        }
-        builder->bytes = grown;
-        builder->cap = next_cap;
-    }
     memcpy(builder->bytes + builder->len, text + 8, (size_t)text_len);
-    builder->len = required;
+    builder->len += text_len;
+    return builder;
+}
+
+void* sarif_text_builder_append_codepoint(void* raw_builder, int64_t codepoint) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    unsigned char encoded[4];
+    uint64_t encoded_len = 0;
+    if (builder == NULL || codepoint < 0 || codepoint > 0x10ffff) {
+        return NULL;
+    }
+    if (codepoint <= 0x7f) {
+        encoded[0] = (unsigned char)codepoint;
+        encoded_len = 1;
+    } else if (codepoint <= 0x7ff) {
+        encoded[0] = (unsigned char)(0xc0u | ((uint64_t)codepoint >> 6));
+        encoded[1] = (unsigned char)(0x80u | ((uint64_t)codepoint & 0x3fu));
+        encoded_len = 2;
+    } else if (codepoint >= 0xd800 && codepoint <= 0xdfff) {
+        return NULL;
+    } else if (codepoint <= 0xffff) {
+        encoded[0] = (unsigned char)(0xe0u | ((uint64_t)codepoint >> 12));
+        encoded[1] = (unsigned char)(0x80u | (((uint64_t)codepoint >> 6) & 0x3fu));
+        encoded[2] = (unsigned char)(0x80u | ((uint64_t)codepoint & 0x3fu));
+        encoded_len = 3;
+    } else {
+        encoded[0] = (unsigned char)(0xf0u | ((uint64_t)codepoint >> 18));
+        encoded[1] = (unsigned char)(0x80u | (((uint64_t)codepoint >> 12) & 0x3fu));
+        encoded[2] = (unsigned char)(0x80u | (((uint64_t)codepoint >> 6) & 0x3fu));
+        encoded[3] = (unsigned char)(0x80u | ((uint64_t)codepoint & 0x3fu));
+        encoded_len = 4;
+    }
+    builder = sarif_text_builder_reserve(builder, encoded_len);
+    if (builder == NULL) {
+        return NULL;
+    }
+    memcpy(builder->bytes + builder->len, encoded, (size_t)encoded_len);
+    builder->len += encoded_len;
     return builder;
 }
 
@@ -186,13 +244,13 @@ void* sarif_text_builder_finish(void* raw_builder) {
     return text;
 }
 
-void* sarif_list_new(int64_t len, double fill) {
+void* sarif_list_new(int64_t len, uint64_t fill) {
     SarifList* vec = NULL;
     uint64_t index = 0;
     if (len < 0) {
         return NULL;
     }
-    if ((uint64_t)len > (uint64_t)SIZE_MAX / sizeof(double)) {
+    if ((uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
         return NULL;
     }
     vec = calloc(1u, sizeof(SarifList));
@@ -200,14 +258,14 @@ void* sarif_list_new(int64_t len, double fill) {
         return NULL;
     }
     vec->len = (uint64_t)len;
-    if (fill == 0.0) {
-        vec->values = calloc((size_t)len, sizeof(double));
+    if (fill == 0) {
+        vec->values = calloc((size_t)len, sizeof(uint64_t));
         if (vec->values == NULL) {
             free(vec);
             return NULL;
         }
     } else {
-        vec->values = malloc((size_t)len * sizeof(double));
+        vec->values = malloc((size_t)len * sizeof(uint64_t));
         if (vec->values == NULL) {
             free(vec);
             return NULL;
@@ -421,15 +479,27 @@ void* sarif_stdin_text(void) {
     unsigned char* buffer = NULL;
     size_t len = 0;
     size_t cap = 0;
-    int byte = 0;
+    unsigned char chunk[SARIF_STDIN_CHUNK_SIZE];
+    size_t read = 0;
 
     if (sarif_stdin_cache != NULL) {
         return sarif_stdin_cache;
     }
 
-    while ((byte = fgetc(stdin)) != EOF) {
-        if (len == cap) {
-            size_t next_cap = cap == 0 ? 4096u : cap * 2u;
+    while ((read = fread(chunk, 1u, sizeof(chunk), stdin)) != 0u) {
+        if (read > SIZE_MAX - len) {
+            free(buffer);
+            return NULL;
+        }
+        if (len + read > cap) {
+            size_t next_cap = cap == 0 ? SARIF_STDIN_CHUNK_SIZE : cap;
+            while (next_cap < len + read) {
+                if (next_cap > SIZE_MAX / 2u) {
+                    next_cap = len + read;
+                    break;
+                }
+                next_cap *= 2u;
+            }
             unsigned char* next = realloc(buffer, next_cap);
             if (next == NULL) {
                 free(buffer);
@@ -438,7 +508,12 @@ void* sarif_stdin_text(void) {
             buffer = next;
             cap = next_cap;
         }
-        buffer[len++] = (unsigned char)byte;
+        memcpy(buffer + len, chunk, read);
+        len += read;
+    }
+    if (ferror(stdin)) {
+        free(buffer);
+        return NULL;
     }
 
     sarif_stdin_cache = malloc(8u + len);
@@ -617,7 +692,7 @@ int main(int argc, char** argv) {
 #endif
 #elif SARIF_MAIN_KIND == 3
     const unsigned char* text = (const unsigned char*)(uintptr_t)sarif_user_main();
-    return sarif_write_text_blob(text, 1);
+    return sarif_write_text_blob(text, 0);
 #elif SARIF_MAIN_KIND == 4
     const unsigned char* record = (const unsigned char*)(uintptr_t)sarif_user_main();
     if (sarif_write_record(record, sarif_get_main_record_desc()) != 0) {

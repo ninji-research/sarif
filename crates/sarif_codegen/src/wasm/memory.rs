@@ -173,7 +173,7 @@ pub(super) fn decode_record_from_memory(
                     "wasm backend does not yet support text builder values in stage-0",
                 ));
             }
-            WasmValueKind::List => {
+            WasmValueKind::List(_) => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support List values in stage-0",
                 ));
@@ -245,7 +245,7 @@ pub(super) fn decode_enum_from_memory(
                         "wasm backend does not yet support text builder values in stage-0",
                     ));
                 }
-                WasmValueKind::List => {
+                WasmValueKind::List(_) => {
                     return Err(WasmError::new(
                         "wasm backend does not yet support List values in stage-0",
                     ));

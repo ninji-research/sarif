@@ -11,7 +11,6 @@ use crate::{Function, Inst, Program, ValueId, insts_fall_through};
 
 const LIST_LEN_OFFSET: i32 = 0;
 const LIST_VALUES_OFFSET: i32 = 8;
-const F64_SIZE_BYTES: i64 = 8;
 
 #[derive(Clone, Debug)]
 pub struct NativeRecord {
@@ -73,6 +72,33 @@ fn native_kind_type(kind: &NativeValueKind) -> cranelift_codegen::ir::types::Typ
         NativeValueKind::F64 => types::F64,
         _ => types::I64,
     }
+}
+
+fn coerce_var_value(
+    builder: &mut FunctionBuilder<'_>,
+    value: Value,
+    expected: types::Type,
+    function: &Function,
+    backend: &str,
+) -> Result<Value, String> {
+    let actual = builder.func.dfg.value_type(value);
+    if actual == expected {
+        return Ok(value);
+    }
+    if expected == types::I64 && actual.is_int() {
+        return Ok(builder.ins().uextend(types::I64, value));
+    }
+    if expected == types::I32 && actual.is_int() {
+        return Ok(if actual == types::I64 {
+            builder.ins().ireduce(types::I32, value)
+        } else {
+            builder.ins().uextend(types::I32, value)
+        });
+    }
+    Err(format!(
+        "{backend} cannot store `{actual}` into mutable local declared as `{expected}` in `{}`",
+        function.name
+    ))
 }
 
 fn float_cc(condition: IntCC) -> Option<FloatCC> {
@@ -232,17 +258,44 @@ fn infer_inst_kinds(
             | Inst::ParseI32 { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
             }
-            Inst::ParseF64 { dest, .. }
-            | Inst::ListGet { dest, .. }
-            | Inst::F64FromI32 { dest, .. } => {
+            Inst::ParseF64 { dest, .. } | Inst::F64FromI32 { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::F64);
             }
+            Inst::ListGet { dest, list, .. } => {
+                let Some(NativeValueKind::List(element)) = kinds.get(list) else {
+                    return Err(format!(
+                        "native list_get input {} is not a list in `{}`",
+                        list.render(),
+                        function.name
+                    ));
+                };
+                kinds.insert(*dest, (**element).clone());
+            }
 
-            Inst::TextBuilderNew { dest } | Inst::TextBuilderAppend { dest, .. } => {
+            Inst::TextBuilderNew { dest }
+            | Inst::TextBuilderAppend { dest, .. }
+            | Inst::TextBuilderAppendCodepoint { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::TextBuilder);
             }
-            Inst::ListNew { dest, .. } | Inst::ListSet { dest, .. } => {
-                kinds.insert(*dest, NativeValueKind::List);
+            Inst::ListNew { dest, value, .. } => {
+                let Some(kind) = kinds.get(value).cloned() else {
+                    return Err(format!(
+                        "native list_new input {} has unknown kind in `{}`",
+                        value.render(),
+                        function.name
+                    ));
+                };
+                kinds.insert(*dest, NativeValueKind::List(Box::new(kind)));
+            }
+            Inst::ListSet { dest, list, .. } => {
+                let Some(kind) = kinds.get(list).cloned() else {
+                    return Err(format!(
+                        "native list_set input {} has unknown kind in `{}`",
+                        list.render(),
+                        function.name
+                    ));
+                };
+                kinds.insert(*dest, kind);
             }
 
             Inst::TextConcat { dest, .. }
@@ -405,13 +458,17 @@ pub fn native_value_kind(
     records: &BTreeMap<String, NativeRecord>,
     enums: &BTreeMap<String, NativeEnum>,
 ) -> Result<NativeValueKind, String> {
+    if let Some(element) = name.strip_prefix("List[").and_then(|s| s.strip_suffix(']')) {
+        let element_kind = native_value_kind(element, records, enums)?;
+        return Ok(NativeValueKind::List(Box::new(element_kind)));
+    }
     match name {
         "I32" => Ok(NativeValueKind::I32),
         "F64" => Ok(NativeValueKind::F64),
         "Bool" => Ok(NativeValueKind::Bool),
         "Text" => Ok(NativeValueKind::Text),
         "TextBuilder" => Ok(NativeValueKind::TextBuilder),
-        "List" => Ok(NativeValueKind::List),
+        "List" => Ok(NativeValueKind::List(Box::new(NativeValueKind::F64))),
         "Unit" => Err("unit should be represented as an omitted native value type".to_owned()),
         other if enums.contains_key(other) => Ok(NativeValueKind::Enum(other.to_owned())),
         other if records.contains_key(other) => Ok(NativeValueKind::Record(other.to_owned())),
@@ -564,7 +621,7 @@ fn lower_native_kind_equality<M: Module>(
         | NativeValueKind::I32
         | NativeValueKind::Bool
         | NativeValueKind::TextBuilder
-        | NativeValueKind::List => {
+        | NativeValueKind::List(_) => {
             let compare = builder.ins().icmp(IntCC::Equal, left, right);
             Ok(builder.ins().uextend(types::I64, compare))
         }
@@ -860,6 +917,7 @@ pub fn lower_insts<M: Module>(
     allocator_id: FuncId,
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
+    text_builder_append_codepoint_id: FuncId,
     text_builder_finish_id: FuncId,
     list_new_id: FuncId,
     text_concat_id: FuncId,
@@ -880,6 +938,7 @@ pub fn lower_insts<M: Module>(
     builder: &mut FunctionBuilder<'_>,
     block_params: &[cranelift_codegen::ir::Value],
     slot_vars: &BTreeMap<crate::LocalSlotId, Variable>,
+    slot_types: &BTreeMap<crate::LocalSlotId, types::Type>,
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
     list_headers: &mut BTreeMap<Value, ListHeader>,
     trusted_list_accesses: &TrustedListAccesses,
@@ -893,6 +952,7 @@ pub fn lower_insts<M: Module>(
             allocator_id,
             text_builder_new_id,
             text_builder_append_id,
+            text_builder_append_codepoint_id,
             text_builder_finish_id,
             list_new_id,
             text_concat_id,
@@ -913,6 +973,7 @@ pub fn lower_insts<M: Module>(
             builder,
             block_params,
             slot_vars,
+            slot_types,
             values,
             list_headers,
             trusted_list_accesses,
@@ -932,6 +993,7 @@ pub fn lower_inst<M: Module>(
     allocator_id: FuncId,
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
+    text_builder_append_codepoint_id: FuncId,
     text_builder_finish_id: FuncId,
     list_new_id: FuncId,
     text_concat_id: FuncId,
@@ -952,6 +1014,7 @@ pub fn lower_inst<M: Module>(
     builder: &mut FunctionBuilder<'_>,
     block_params: &[cranelift_codegen::ir::Value],
     slot_vars: &BTreeMap<crate::LocalSlotId, Variable>,
+    slot_types: &BTreeMap<crate::LocalSlotId, types::Type>,
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
     list_headers: &mut BTreeMap<Value, ListHeader>,
     trusted_list_accesses: &TrustedListAccesses,
@@ -989,7 +1052,15 @@ pub fn lower_inst<M: Module>(
                     function.name
                 )
             })?;
+            let expected = *slot_types.get(slot).ok_or_else(|| {
+                format!(
+                    "{backend} mutable local {} is missing a declared native type in `{}`",
+                    slot.render(),
+                    function.name
+                )
+            })?;
             let value = native_value(values, *src, function, "mutable store", backend)?;
+            let value = coerce_var_value(builder, value, expected, function, backend)?;
             builder.def_var(var, value);
             Ok(true)
         }
@@ -1069,6 +1140,43 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::TextBuilderAppendCodepoint {
+            dest,
+            builder: builder_value,
+            codepoint,
+        } => {
+            let builder_val = native_value(
+                values,
+                *builder_value,
+                function,
+                "text_builder_append_codepoint builder",
+                backend,
+            )?;
+            let codepoint_val = native_value(
+                values,
+                *codepoint,
+                function,
+                "text_builder_append_codepoint codepoint",
+                backend,
+            )?;
+            let helper =
+                module.declare_func_in_func(text_builder_append_codepoint_id, builder.func);
+            let call = builder.ins().call(helper, &[builder_val, codepoint_val]);
+            let ptr = match builder.inst_results(call) {
+                [ptr] => *ptr,
+                _ => {
+                    return Err(format!(
+                        "{backend} text builder append codepoint helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            let null = builder.ins().iconst(types::I64, 0);
+            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
+            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::TextBuilderFinish {
             dest,
             builder: builder_value,
@@ -1099,7 +1207,15 @@ pub fn lower_inst<M: Module>(
         }
         Inst::ListNew { dest, len, value } => {
             let len_val = native_value(values, *len, function, "list_new len", backend)?;
-            let value_val = native_value(values, *value, function, "list_new value", backend)?;
+            let mut value_val = native_value(values, *value, function, "list_new value", backend)?;
+            let value_kind = value_kinds
+                .get(value)
+                .expect("kind inference ensures value kind");
+            if *value_kind == NativeValueKind::F64 {
+                value_val = builder
+                    .ins()
+                    .bitcast(types::I64, MemFlags::new(), value_val);
+            }
             let helper = module.declare_func_in_func(list_new_id, builder.func);
             let call = builder.ins().call(helper, &[len_val, value_val]);
             let ptr = match builder.inst_results(call) {
@@ -1142,6 +1258,14 @@ pub fn lower_inst<M: Module>(
                 "list_get list",
                 backend,
             )?;
+            let NativeValueKind::List(element) =
+                value_kinds.get(list).expect("kind inference ensures list")
+            else {
+                return Err(format!(
+                    "native list_get input is not a list in `{}`",
+                    function.name
+                ));
+            };
             if !trusted_list_accesses.contains(*list, *index) {
                 let too_large =
                     builder
@@ -1151,9 +1275,11 @@ pub fn lower_inst<M: Module>(
                     .ins()
                     .trapnz(too_large, TrapCode::HEAP_OUT_OF_BOUNDS);
             }
-            let byte_offset = builder.ins().imul_imm(index_val, F64_SIZE_BYTES);
+            let byte_offset = builder.ins().imul_imm(index_val, 8);
             let addr = builder.ins().iadd(header.values_ptr, byte_offset);
-            let value = builder.ins().load(types::F64, MemFlags::trusted(), addr, 0);
+            let value = builder
+                .ins()
+                .load(native_kind_type(element), MemFlags::trusted(), addr, 0);
             values.insert(*dest, NativeValueRepr::Native(value));
             Ok(true)
         }
@@ -1183,7 +1309,7 @@ pub fn lower_inst<M: Module>(
                     .ins()
                     .trapnz(too_large, TrapCode::HEAP_OUT_OF_BOUNDS);
             }
-            let byte_offset = builder.ins().imul_imm(index_val, F64_SIZE_BYTES);
+            let byte_offset = builder.ins().imul_imm(index_val, 8);
             let addr = builder.ins().iadd(header.values_ptr, byte_offset);
             builder.ins().store(MemFlags::trusted(), value_val, addr, 0);
             values.insert(*dest, NativeValueRepr::Native(vec_val));
@@ -1789,6 +1915,7 @@ pub fn lower_inst<M: Module>(
                 allocator_id,
                 text_builder_new_id,
                 text_builder_append_id,
+                text_builder_append_codepoint_id,
                 text_builder_finish_id,
                 list_new_id,
                 text_concat_id,
@@ -1809,6 +1936,7 @@ pub fn lower_inst<M: Module>(
                 builder,
                 block_params,
                 slot_vars,
+                slot_types,
                 &mut then_values,
                 &mut then_headers,
                 trusted_list_accesses,
@@ -1836,6 +1964,7 @@ pub fn lower_inst<M: Module>(
                 allocator_id,
                 text_builder_new_id,
                 text_builder_append_id,
+                text_builder_append_codepoint_id,
                 text_builder_finish_id,
                 list_new_id,
                 text_concat_id,
@@ -1856,6 +1985,7 @@ pub fn lower_inst<M: Module>(
                 builder,
                 block_params,
                 slot_vars,
+                slot_types,
                 &mut else_values,
                 &mut else_headers,
                 trusted_list_accesses,
@@ -1968,6 +2098,14 @@ pub fn lower_inst<M: Module>(
                         function.name
                     )
                 })?;
+                let expected = *slot_types.get(slot).ok_or_else(|| {
+                    format!(
+                        "{backend} loop index slot {} is missing a declared native type in `{}`",
+                        slot.render(),
+                        function.name
+                    )
+                })?;
+                let current_index = coerce_var_value(builder, current_index, expected, function, backend)?;
                 builder.def_var(var, current_index);
             }
             let body_falls = lower_insts(
@@ -1976,6 +2114,7 @@ pub fn lower_inst<M: Module>(
                 allocator_id,
                 text_builder_new_id,
                 text_builder_append_id,
+                text_builder_append_codepoint_id,
                 text_builder_finish_id,
                 list_new_id,
                 text_concat_id,
@@ -1996,6 +2135,7 @@ pub fn lower_inst<M: Module>(
                 builder,
                 block_params,
                 slot_vars,
+                slot_types,
                 &mut body_values,
                 &mut body_headers,
                 &loop_trusted_accesses,
@@ -2038,6 +2178,7 @@ pub fn lower_inst<M: Module>(
                 allocator_id,
                 text_builder_new_id,
                 text_builder_append_id,
+                text_builder_append_codepoint_id,
                 text_builder_finish_id,
                 list_new_id,
                 text_concat_id,
@@ -2058,6 +2199,7 @@ pub fn lower_inst<M: Module>(
                 builder,
                 block_params,
                 slot_vars,
+                slot_types,
                 &mut condition_values,
                 &mut condition_headers,
                 trusted_list_accesses,
@@ -2091,6 +2233,7 @@ pub fn lower_inst<M: Module>(
                 allocator_id,
                 text_builder_new_id,
                 text_builder_append_id,
+                text_builder_append_codepoint_id,
                 text_builder_finish_id,
                 list_new_id,
                 text_concat_id,
@@ -2111,6 +2254,7 @@ pub fn lower_inst<M: Module>(
                 builder,
                 block_params,
                 slot_vars,
+                slot_types,
                 &mut body_values,
                 &mut body_headers,
                 trusted_list_accesses,
@@ -2232,7 +2376,9 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::Call { dest, .. } => {
                 defined.insert(*dest);
             }
-            Inst::TextBuilderAppend { dest, .. } | Inst::ListSet { dest, .. } => {
+            Inst::TextBuilderAppend { dest, .. }
+            | Inst::TextBuilderAppendCodepoint { dest, .. }
+            | Inst::ListSet { dest, .. } => {
                 defined.insert(*dest);
             }
             Inst::Perform { dest, .. } | Inst::Handle { dest, .. } => {
@@ -2465,11 +2611,11 @@ pub fn declare_list_new<M: Module>(module: &mut M, backend: &str) -> Result<Func
     let mut signature = module.make_signature();
     signature.call_conv = CallConv::triple_default(module.isa().triple());
     signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::F64));
+    signature.params.push(AbiParam::new(types::I64));
     signature.returns.push(AbiParam::new(types::I64));
     module
         .declare_function("sarif_list_new", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} f64 vec new helper: {error}"))
+        .map_err(|error| format!("failed to declare {backend} list new helper: {error}"))
 }
 
 pub fn declare_text_builder_new<M: Module>(
@@ -2496,6 +2642,26 @@ pub fn declare_text_builder_append<M: Module>(
     module
         .declare_function("sarif_text_builder_append", Linkage::Import, &signature)
         .map_err(|error| format!("failed to declare {backend} text builder append helper: {error}"))
+}
+
+pub fn declare_text_builder_append_codepoint<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function(
+            "sarif_text_builder_append_codepoint",
+            Linkage::Import,
+            &signature,
+        )
+        .map_err(|error| {
+            format!("failed to declare {backend} text builder append codepoint helper: {error}")
+        })
 }
 
 pub fn declare_text_builder_finish<M: Module>(

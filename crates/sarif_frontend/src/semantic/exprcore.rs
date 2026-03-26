@@ -420,6 +420,59 @@ pub(super) fn infer_call_expr(
         };
     }
 
+    if expr.callee == "text_builder_append_codepoint"
+        && !functions.contains_key("text_builder_append_codepoint")
+    {
+        require_runtime_builtin_context(
+            "semantic.text_builder_append_codepoint-runtime-context",
+            "text_builder_append_codepoint",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_codepoint-arity",
+                format!(
+                    "builtin `text_builder_append_codepoint` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_append_codepoint(builder, codepoint)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_codepoint-type",
+                format!(
+                    "builtin `text_builder_append_codepoint` first argument must be TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder accumulator.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_codepoint-type",
+                format!(
+                    "builtin `text_builder_append_codepoint` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Unicode scalar value as an I32.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
+            calls,
+        };
+    }
+
     if expr.callee == "text_builder_finish" && !functions.contains_key("text_builder_finish") {
         require_runtime_builtin_context(
             "semantic.text_builder_finish-runtime-context",
@@ -494,19 +547,8 @@ pub(super) fn infer_call_expr(
                 Some("Pass an integer length.".to_owned()),
             ));
         }
-        if args[1].ty != Type::F64 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.list_new-type",
-                format!(
-                    "builtin `list_new` second argument must be F64, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a float fill value.".to_owned()),
-            ));
-        }
         return ExprInfo {
-            ty: Type::List(Box::new(Type::F64)),
+            ty: Type::List(Box::new(args[1].ty.clone())),
             calls,
         };
     }
@@ -534,7 +576,7 @@ pub(super) fn infer_call_expr(
                 calls,
             };
         }
-        if args[0].ty != Type::List(Box::new(Type::F64)) && args[0].ty != Type::Error {
+        if !matches!(args[0].ty, Type::List(_)) && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
                 "semantic.list_len-type",
                 format!(
@@ -574,17 +616,22 @@ pub(super) fn infer_call_expr(
                 calls,
             };
         }
-        if args[0].ty != Type::List(Box::new(Type::F64)) && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.list_get-type",
-                format!(
-                    "builtin `list_get` first argument must be List, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a List value.".to_owned()),
-            ));
-        }
+        let element_ty = if let Type::List(element) = &args[0].ty {
+            (**element).clone()
+        } else {
+            if args[0].ty != Type::Error {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.list_get-type",
+                    format!(
+                        "builtin `list_get` first argument must be List, found `{}`",
+                        args[0].ty.render(),
+                    ),
+                    expr.span,
+                    Some("Pass a List value.".to_owned()),
+                ));
+            }
+            Type::Error
+        };
         if args[1].ty != Type::I32 && args[1].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
                 "semantic.list_get-type",
@@ -597,7 +644,7 @@ pub(super) fn infer_call_expr(
             ));
         }
         return ExprInfo {
-            ty: Type::F64,
+            ty: element_ty,
             calls,
         };
     }
@@ -625,17 +672,22 @@ pub(super) fn infer_call_expr(
                 calls,
             };
         }
-        if args[0].ty != Type::List(Box::new(Type::F64)) && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.list_set-type",
-                format!(
-                    "builtin `list_set` first argument must be List, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a List value.".to_owned()),
-            ));
-        }
+        let element_ty = if let Type::List(element) = &args[0].ty {
+            Some((**element).clone())
+        } else {
+            if args[0].ty != Type::Error {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.list_set-type",
+                    format!(
+                        "builtin `list_set` first argument must be List, found `{}`",
+                        args[0].ty.render(),
+                    ),
+                    expr.span,
+                    Some("Pass a List value.".to_owned()),
+                ));
+            }
+            None
+        };
         if args[1].ty != Type::I32 && args[1].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
                 "semantic.list_set-type",
@@ -647,19 +699,23 @@ pub(super) fn infer_call_expr(
                 Some("Pass an integer index.".to_owned()),
             ));
         }
-        if args[2].ty != Type::F64 && args[2].ty != Type::Error {
+        if let Some(expected) = element_ty
+            && args[2].ty != expected
+            && args[2].ty != Type::Error
+        {
             diagnostics.push(Diagnostic::new(
                 "semantic.list_set-type",
                 format!(
-                    "builtin `list_set` third argument must be F64, found `{}`",
+                    "builtin `list_set` third argument must be {}, found `{}`",
+                    expected.render(),
                     args[2].ty.render(),
                 ),
                 expr.span,
-                Some("Pass a float element value.".to_owned()),
+                Some(format!("Pass a {} element value.", expected.render())),
             ));
         }
         return ExprInfo {
-            ty: Type::List(Box::new(Type::F64)),
+            ty: args[0].ty.clone(),
             calls,
         };
     }
@@ -1536,8 +1592,14 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
     use crate::hir::Expr;
     match expr {
         Expr::Call(call) => {
-            matches!(call.callee.as_str(), "list_new" | "text_builder_new")
-                || call.args.iter().any(contains_forbidden_comptime_effect)
+            matches!(
+                call.callee.as_str(),
+                "list_new"
+                    | "text_builder_new"
+                    | "text_builder_append"
+                    | "text_builder_append_codepoint"
+                    | "text_builder_finish"
+            ) || call.args.iter().any(contains_forbidden_comptime_effect)
         }
         Expr::Array(array) => array
             .elements

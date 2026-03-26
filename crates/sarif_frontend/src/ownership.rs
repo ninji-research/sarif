@@ -482,6 +482,7 @@ impl AffineUseChecker<'_> {
                     || expr.callee == "text_len"
                     || expr.callee == "text_slice"
                     || expr.callee == "text_byte"
+                    || expr.callee == "text_builder_append_codepoint"
                     || expr.callee == "list_len"
                     || expr.callee == "list_get"
                 {
@@ -1056,6 +1057,7 @@ fn collect_param_modes(
                 || expr.callee == "text_len"
                 || expr.callee == "text_slice"
                 || expr.callee == "text_byte"
+                || expr.callee == "text_builder_append_codepoint"
                 || expr.callee == "list_len"
                 || expr.callee == "list_get"
             {
@@ -1329,11 +1331,28 @@ fn expr_type_for_ownership(
         }
         Expr::Record(expr) => Some(Type::Named(expr.name.clone())),
         Expr::Call(expr) => match expr.callee.as_str() {
-            "text_builder_new" | "text_builder_append" => Some(Type::TextBuilder),
+            "text_builder_new" | "text_builder_append" | "text_builder_append_codepoint" => {
+                Some(Type::TextBuilder)
+            }
             "text_builder_finish" => Some(Type::Text),
-            "list_new" | "list_push" | "list_pop" => Some(Type::List(Box::new(Type::Error))), // Placeholder, we can refine this later if needed.
+            "list_new" => expr
+                .args
+                .get(1)
+                .and_then(|value| {
+                    expr_type_for_ownership(value, locals, struct_layouts, result_type)
+                })
+                .map(|element| Type::List(Box::new(element))),
             "list_len" => Some(Type::I32),
-            "list_get" => Some(Type::F64),
+            "list_get" => expr.args.first().and_then(|list| {
+                let list_ty = expr_type_for_ownership(list, locals, struct_layouts, result_type)?;
+                match list_ty {
+                    Type::List(element) => Some(*element),
+                    _ => None,
+                }
+            }),
+            "list_set" => expr.args.first().and_then(|list| {
+                expr_type_for_ownership(list, locals, struct_layouts, result_type)
+            }),
             _ => None,
         },
         Expr::Binary(_) => None,

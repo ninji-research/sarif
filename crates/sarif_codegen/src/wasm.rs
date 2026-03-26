@@ -103,6 +103,7 @@ fn reject_text_builder_program(program: &Program) -> Result<(), WasmError> {
                 inst,
                 Inst::TextBuilderNew { .. }
                     | Inst::TextBuilderAppend { .. }
+                    | Inst::TextBuilderAppendCodepoint { .. }
                     | Inst::TextBuilderFinish { .. }
             ) {
                 has_text_builder_inst = true;
@@ -1126,7 +1127,7 @@ impl<'a> WasmEmitter<'a> {
             WasmValueKind::I32
             | WasmValueKind::Bool
             | WasmValueKind::TextBuilder
-            | WasmValueKind::List => {
+            | WasmValueKind::List(_) => {
                 self.emit_memory_load(output, left_base, offset, WasmType::I64);
                 self.emit_memory_load(output, right_base, offset, WasmType::I64);
                 writeln!(output, "    i64.eq").expect("writing to a string cannot fail");
@@ -1257,6 +1258,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextSlice { dest, .. }
                 | Inst::TextBuilderNew { dest }
                 | Inst::TextBuilderAppend { dest, .. }
+                | Inst::TextBuilderAppendCodepoint { dest, .. }
                 | Inst::TextBuilderFinish { dest, .. }
                 | Inst::TextFromF64Fixed { dest, .. }
                 | Inst::ArgCount { dest, .. }
@@ -1447,6 +1449,7 @@ impl<'a> WasmEmitter<'a> {
             }
             Inst::TextBuilderNew { .. }
             | Inst::TextBuilderAppend { .. }
+            | Inst::TextBuilderAppendCodepoint { .. }
             | Inst::TextBuilderFinish { .. } => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support text builder builtins in stage-0",
@@ -1986,8 +1989,14 @@ fn wasm_value_kind_from_name(
                 Ok(WasmValueKind::Enum(other.to_owned()))
             } else if structs.iter().any(|s| s.name == other) {
                 Ok(WasmValueKind::Record(other.to_owned()))
-            } else if other == "List" || other.starts_with("List[") {
-                Ok(WasmValueKind::List)
+            } else if let Some(element) = other
+                .strip_prefix("List[")
+                .and_then(|s| s.strip_suffix(']'))
+            {
+                let element_kind = wasm_value_kind_from_name(element, structs, enums)?;
+                Ok(WasmValueKind::List(Box::new(element_kind)))
+            } else if other == "List" {
+                Ok(WasmValueKind::List(Box::new(WasmValueKind::F64)))
             } else {
                 Err(WasmError::new(format!(
                     "unknown type `{other}` in Wasm codegen"
@@ -2045,6 +2054,7 @@ fn collect_inst_kinds(
             | Inst::ListGet { dest, .. }
             | Inst::F64FromI32 { dest, .. }
             | Inst::Sqrt { dest, .. } => {
+                // TODO: ListGet should infer the element kind
                 kinds.insert(*dest, WasmValueKind::F64);
             }
             Inst::ConstBool { dest, .. } | Inst::EnumTagEq { dest, .. } => {
@@ -2060,13 +2070,15 @@ fn collect_inst_kinds(
             }
             Inst::TextBuilderNew { .. }
             | Inst::TextBuilderAppend { .. }
+            | Inst::TextBuilderAppendCodepoint { .. }
             | Inst::TextBuilderFinish { .. } => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support text builder builtins in stage-0",
                 ));
             }
             Inst::ListNew { dest, .. } | Inst::ListSet { dest, .. } => {
-                kinds.insert(*dest, WasmValueKind::List);
+                // TODO: ListNew should infer the element kind
+                kinds.insert(*dest, WasmValueKind::List(Box::new(WasmValueKind::F64)));
             }
             Inst::Perform { dest, .. } | Inst::Handle { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::Unit);
