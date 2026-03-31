@@ -1,7 +1,0 @@
-fn add(pair: Numbers) -> I32 {
-    pair.left + pair.right + bonus
-}
-
-fn main() -> I32 {
-    add(Numbers { left: 20, right: 20 })
-}

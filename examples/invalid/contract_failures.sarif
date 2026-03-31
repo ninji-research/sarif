@@ -1,1 +1,0 @@
-fn main(flag: Bool) -> I32 requires result ensures result + flag { 3 }

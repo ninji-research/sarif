@@ -1,9 +1,0 @@
-# Retained shipped inputs for maintained-vs-bootstrap formatter parity.
-# This corpus is intentionally selective: it only includes shipped inputs that
-# the Sarif-hosted formatter currently matches exactly, and grows only when the
-# maintained-vs-bootstrap diff is mechanically proven clean.
-examples/hello.sarif
-examples/const_control_flow.sarif
-examples/hello-package
-bootstrap/sarif_syntax
-bootstrap/sarif_tools

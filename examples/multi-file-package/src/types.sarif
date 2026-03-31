@@ -1,4 +1,0 @@
-struct Numbers {
-    left: I32,
-    right: I32,
-}

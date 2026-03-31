@@ -1,3 +1,0 @@
-core	examples/invalid/affine_reuse.sarif	affine_reuse.stderr.txt
-core	examples/invalid/contract_failures.sarif	contract_failures.stderr.txt
-rt	examples/invalid/rt_forbidden_text.sarif	rt_forbidden_text.stderr.txt

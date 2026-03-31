@@ -1,8 +1,0 @@
-fn main() -> I32 {
-    let xs = [20, 22];
-    let mut total = 0;
-    repeat i in len(xs) {
-        total = total + xs[i];
-    };
-    total
-}

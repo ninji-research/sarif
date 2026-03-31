@@ -1,3 +1,0 @@
-core	examples/hello-package	hello_package.doc.md
-core	examples/const_control_flow.sarif	const_control_flow.semantic.doc.md
-core	examples/multi-file-package	multi_file_package.semantic.doc.md

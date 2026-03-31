@@ -1,7 +1,0 @@
-fn broken(value: I32) -> I32 ensures result == value + 1 {
-  value
-}
-
-fn main() -> I32 {
-  broken(3)
-}

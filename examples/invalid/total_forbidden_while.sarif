@@ -1,7 +1,0 @@
-fn main() -> I32 {
-    let mut total = 0;
-    while total < 2 {
-        total = total + 1;
-    };
-    total
-}

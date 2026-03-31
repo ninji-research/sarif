@@ -1,4 +1,0 @@
-[package]
-name = "multi-file-package"
-version = "0.1.0"
-sources = ["src/types.sarif", "src/consts.sarif", "src/functions.sarif"]
