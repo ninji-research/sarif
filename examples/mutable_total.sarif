@@ -1,0 +1,5 @@
+fn main() -> I32 {
+    let mut total = 20;
+    total = total + 22;
+    total
+}
