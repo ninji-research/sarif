@@ -1,0 +1,4 @@
+[package]
+name = "sarif_syntax"
+version = "0.1.0"
+sources = ["src/main.sarif", "src/selfcheck.sarif"]

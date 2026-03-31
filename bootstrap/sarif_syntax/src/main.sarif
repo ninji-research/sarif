@@ -1,0 +1,2367 @@
+struct Span {
+    start: I32,
+    end: I32,
+}
+
+struct OptionalSpan {
+    present: Bool,
+    span: Span,
+}
+
+enum TopLevelKind {
+    Struct,
+    Enum,
+    Const,
+    Fn,
+}
+
+struct TopLevelEntry {
+    kind: TopLevelKind,
+    span: Span,
+    name_span: OptionalSpan,
+}
+
+struct OptionalTopLevelEntry {
+    present: Bool,
+    entry: TopLevelEntry,
+}
+
+struct TopLevelOutline {
+    total_count: I32,
+    truncated: Bool,
+    first: OptionalTopLevelEntry,
+    second: OptionalTopLevelEntry,
+    third: OptionalTopLevelEntry,
+    fourth: OptionalTopLevelEntry,
+    fifth: OptionalTopLevelEntry,
+}
+
+struct FnOutlineEntry {
+    shape: FnHeaderShape,
+}
+
+struct OptionalFnOutlineEntry {
+    present: Bool,
+    entry: FnOutlineEntry,
+}
+
+struct FnOutline {
+    total_count: I32,
+    truncated: Bool,
+    first: OptionalFnOutlineEntry,
+    second: OptionalFnOutlineEntry,
+    third: OptionalFnOutlineEntry,
+    fourth: OptionalFnOutlineEntry,
+    fifth: OptionalFnOutlineEntry,
+}
+
+struct FnHeaderShape {
+    params_span: OptionalSpan,
+    return_span: OptionalSpan,
+    effects_span: OptionalSpan,
+    requires_span: OptionalSpan,
+    ensures_span: OptionalSpan,
+    body_span: OptionalSpan,
+    body_outline: BlockOutline,
+}
+
+enum BlockItemKind {
+    Let,
+    Assign,
+    ExprStmt,
+    TailExpr,
+}
+
+enum ExprKind {
+    Name,
+    Integer,
+    Float,
+    String,
+    Bool,
+    Group,
+    Array,
+    Record,
+    If,
+    Match,
+    Repeat,
+    While,
+    Call,
+    Index,
+    Binary,
+}
+
+struct BlockItemEntry {
+    kind: BlockItemKind,
+    binding_span: OptionalSpan,
+    expr_span: OptionalSpan,
+    expr_kind: ExprKind,
+}
+
+struct OptionalBlockItemEntry {
+    present: Bool,
+    entry: BlockItemEntry,
+}
+
+struct BlockOutline {
+    total_count: I32,
+    truncated: Bool,
+    first: OptionalBlockItemEntry,
+    second: OptionalBlockItemEntry,
+    third: OptionalBlockItemEntry,
+    fourth: OptionalBlockItemEntry,
+    fifth: OptionalBlockItemEntry,
+}
+
+enum SyntaxEventKind {
+    StructItem,
+    EnumItem,
+    ConstItem,
+    FnItem,
+    FnParams,
+    FnReturn,
+    FnEffects,
+    FnRequires,
+    FnEnsures,
+    LetStmt,
+    AssignStmt,
+    ExprStmt,
+    TailExpr,
+}
+
+struct SyntaxEvent {
+    kind: SyntaxEventKind,
+    span: OptionalSpan,
+    name_span: OptionalSpan,
+    expr_kind: ExprKind,
+}
+
+struct OptionalSyntaxEvent {
+    present: Bool,
+    event: SyntaxEvent,
+}
+
+struct EventStream {
+    total_count: I32,
+    truncated: Bool,
+    first: OptionalSyntaxEvent,
+    second: OptionalSyntaxEvent,
+    third: OptionalSyntaxEvent,
+    fourth: OptionalSyntaxEvent,
+    fifth: OptionalSyntaxEvent,
+    sixth: OptionalSyntaxEvent,
+    seventh: OptionalSyntaxEvent,
+    eighth: OptionalSyntaxEvent,
+    ninth: OptionalSyntaxEvent,
+    tenth: OptionalSyntaxEvent,
+    eleventh: OptionalSyntaxEvent,
+    twelfth: OptionalSyntaxEvent,
+    thirteenth: OptionalSyntaxEvent,
+    fourteenth: OptionalSyntaxEvent,
+    fifteenth: OptionalSyntaxEvent,
+    sixteenth: OptionalSyntaxEvent,
+}
+
+enum TokenKind {
+    Whitespace,
+    Newline,
+    Comment,
+    Comma,
+    Dot,
+    Ident,
+    Integer,
+    Float,
+    String,
+    KwAnd,
+    KwConst,
+    KwComptime,
+    KwEffects,
+    KwEnum,
+    KwElse,
+    KwEnsures,
+    KwFalse,
+    KwFn,
+    KwHandle,
+    KwIf,
+    KwIn,
+    KwLet,
+    KwMatch,
+    KwMut,
+    KwNot,
+    KwOr,
+    KwPerform,
+    KwRepeat,
+    KwRequires,
+    KwStruct,
+    KwTrue,
+    KwWhile,
+    KwWith,
+    Arrow,
+    Colon,
+    Eq,
+    EqEq,
+    FatArrow,
+    Ge,
+    Gt,
+    LBrace,
+    LBracket,
+    Le,
+    Lt,
+    LParen,
+    Minus,
+    NotEq,
+    Plus,
+    RBrace,
+    RBracket,
+    RParen,
+    Slash,
+    Semicolon,
+    Star,
+    Underscore,
+    Invalid,
+    Eof,
+}
+
+enum ByteClass {
+    Whitespace,
+    Newline,
+    IdentContinue,
+    Digit,
+}
+
+enum LeadClass {
+    Whitespace,
+    Newline,
+    Alpha,
+    Digit,
+    Other,
+}
+
+enum ListKind {
+    FieldInit,
+    Expr,
+    Param,
+    Field,
+    Variant,
+    EffectName,
+}
+
+struct Token {
+    kind: TokenKind,
+    start: I32,
+    end: I32,
+    offset: I32,
+}
+
+enum ParseStatus {
+    Ok,
+    Err,
+}
+
+struct TypeSection {
+    struct_count: I32,
+    enum_count: I32,
+    span: OptionalSpan,
+}
+
+struct ItemSection {
+    const_count: I32,
+    fn_count: I32,
+    const_span: OptionalSpan,
+    fn_span: OptionalSpan,
+}
+
+struct TopLevelReport {
+    types: TypeSection,
+    items: ItemSection,
+}
+
+struct ParseState {
+    cursor: Token,
+    status: ParseStatus,
+    last_end: I32,
+}
+
+struct ModuleReport {
+    ok: Bool,
+    top_level: TopLevelReport,
+    outline: TopLevelOutline,
+    fn_outline: FnOutline,
+    events: EventStream,
+    module_span: Span,
+    diagnostics: Text,
+}
+
+struct BlockEntry {
+    state: ParseState,
+    tail_seen: Bool,
+    item: OptionalBlockItemEntry,
+}
+
+struct TypeSectionParse {
+    state: ParseState,
+    section: TypeSection,
+    outline: TopLevelOutline,
+}
+
+struct ItemSectionParse {
+    state: ParseState,
+    section: ItemSection,
+    outline: TopLevelOutline,
+    fn_outline: FnOutline,
+}
+
+struct FnItemParse {
+    state: ParseState,
+    shape: FnHeaderShape,
+}
+
+struct SpannedParse {
+    state: ParseState,
+    span: OptionalSpan,
+}
+
+fn make_token(kind: TokenKind, start: I32, end: I32) -> Token {
+    Token { kind: kind, start: start, end: end, offset: end }
+}
+
+fn make_span(start: I32, end: I32) -> Span {
+    Span { start: start, end: end }
+}
+
+fn make_optional_span(present: Bool, span: Span) -> OptionalSpan {
+    OptionalSpan { present: present, span: span }
+}
+
+fn make_fn_header_shape(params_span: OptionalSpan, return_span: OptionalSpan, effects_span: OptionalSpan, requires_span: OptionalSpan, ensures_span: OptionalSpan, body_span: OptionalSpan, body_outline: BlockOutline) -> FnHeaderShape {
+    FnHeaderShape { params_span: params_span, return_span: return_span, effects_span: effects_span, requires_span: requires_span, ensures_span: ensures_span, body_span: body_span, body_outline: body_outline }
+}
+
+fn make_block_item_entry(kind: BlockItemKind, binding_span: OptionalSpan, expr_span: OptionalSpan, expr_kind: ExprKind) -> BlockItemEntry {
+    BlockItemEntry { kind: kind, binding_span: binding_span, expr_span: expr_span, expr_kind: expr_kind }
+}
+
+fn make_syntax_event(kind: SyntaxEventKind, span: OptionalSpan, name_span: OptionalSpan, expr_kind: ExprKind) -> SyntaxEvent {
+    SyntaxEvent { kind: kind, span: span, name_span: name_span, expr_kind: expr_kind }
+}
+
+fn make_optional_syntax_event(present: Bool, event: SyntaxEvent) -> OptionalSyntaxEvent {
+    OptionalSyntaxEvent { present: present, event: event }
+}
+
+fn make_optional_block_item_entry(present: Bool, entry: BlockItemEntry) -> OptionalBlockItemEntry {
+    OptionalBlockItemEntry { present: present, entry: entry }
+}
+
+fn make_event_stream(total_count: I32, truncated: Bool, first: OptionalSyntaxEvent, second: OptionalSyntaxEvent, third: OptionalSyntaxEvent, fourth: OptionalSyntaxEvent, fifth: OptionalSyntaxEvent, sixth: OptionalSyntaxEvent, seventh: OptionalSyntaxEvent, eighth: OptionalSyntaxEvent, ninth: OptionalSyntaxEvent, tenth: OptionalSyntaxEvent, eleventh: OptionalSyntaxEvent, twelfth: OptionalSyntaxEvent, thirteenth: OptionalSyntaxEvent, fourteenth: OptionalSyntaxEvent, fifteenth: OptionalSyntaxEvent, sixteenth: OptionalSyntaxEvent) -> EventStream {
+    EventStream { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
+}
+
+fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry) -> BlockOutline {
+    BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth }
+}
+
+fn missing_block_item_entry() -> OptionalBlockItemEntry {
+    make_optional_block_item_entry(false, make_block_item_entry(BlockItemKind.TailExpr, missing_span(), missing_span(), ExprKind.Name))
+}
+
+fn block_outline_new() -> BlockOutline {
+    make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
+}
+
+fn block_outline_push(outline: BlockOutline, entry: OptionalBlockItemEntry) -> BlockOutline {
+    let next_count = outline.total_count + 1;
+    if outline.total_count == 0 {
+        make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth)
+    } else {
+        if outline.total_count == 1 {
+            make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth)
+        } else {
+            if outline.total_count == 2 {
+                make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth)
+            } else {
+                if outline.total_count == 3 {
+                    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth)
+                } else {
+                    if outline.total_count == 4 {
+                        make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry)
+                    } else {
+                        make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn missing_syntax_event() -> OptionalSyntaxEvent {
+    make_optional_syntax_event(false, make_syntax_event(SyntaxEventKind.FnItem, missing_span(), missing_span(), ExprKind.Name))
+}
+
+fn event_stream_new() -> EventStream {
+    make_event_stream(0, false, missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event(), missing_syntax_event())
+}
+
+fn event_stream_push(stream: EventStream, event: OptionalSyntaxEvent) -> EventStream {
+    let next_count = stream.total_count + 1;
+    if stream.total_count == 0 {
+        make_event_stream(next_count, stream.truncated, event, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+    } else {
+        if stream.total_count == 1 {
+            make_event_stream(next_count, stream.truncated, stream.first, event, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+        } else {
+            if stream.total_count == 2 {
+                make_event_stream(next_count, stream.truncated, stream.first, stream.second, event, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+            } else {
+                if stream.total_count == 3 {
+                    make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, event, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                } else {
+                    if stream.total_count == 4 {
+                        make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, event, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                    } else {
+                        if stream.total_count == 5 {
+                            make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, event, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                        } else {
+                            if stream.total_count == 6 {
+                                make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, event, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                            } else {
+                                if stream.total_count == 7 {
+                                    make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, event, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                } else {
+                                    if stream.total_count == 8 {
+                                        make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, event, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                    } else {
+                                        if stream.total_count == 9 {
+                                            make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, event, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                        } else {
+                                            if stream.total_count == 10 {
+                                                make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, event, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                            } else {
+                                                if stream.total_count == 11 {
+                                                    make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, event, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                                } else {
+                                                    if stream.total_count == 12 {
+                                                        make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, event, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                                    } else {
+                                                        if stream.total_count == 13 {
+                                                            make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, event, stream.fifteenth, stream.sixteenth)
+                                                        } else {
+                                                            if stream.total_count == 14 {
+                                                                make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, event, stream.sixteenth)
+                                                            } else {
+                                                                if stream.total_count == 15 {
+                                                                    make_event_stream(next_count, stream.truncated, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, event)
+                                                                } else {
+                                                                    make_event_stream(next_count, true, stream.first, stream.second, stream.third, stream.fourth, stream.fifth, stream.sixth, stream.seventh, stream.eighth, stream.ninth, stream.tenth, stream.eleventh, stream.twelfth, stream.thirteenth, stream.fourteenth, stream.fifteenth, stream.sixteenth)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn missing_fn_header_shape() -> FnHeaderShape {
+    make_fn_header_shape(missing_span(), missing_span(), missing_span(), missing_span(), missing_span(), missing_span(), block_outline_new())
+}
+
+fn make_top_level_entry(kind: TopLevelKind, span: Span, name_span: OptionalSpan) -> TopLevelEntry {
+    TopLevelEntry { kind: kind, span: span, name_span: name_span }
+}
+
+fn make_optional_top_level_entry(present: Bool, entry: TopLevelEntry) -> OptionalTopLevelEntry {
+    OptionalTopLevelEntry { present: present, entry: entry }
+}
+
+fn missing_span() -> OptionalSpan {
+    make_optional_span(false, make_span(0, 0))
+}
+
+fn present_span(start: I32, end: I32) -> OptionalSpan {
+    make_optional_span(true, make_span(start, end))
+}
+
+fn missing_top_level_entry() -> OptionalTopLevelEntry {
+    make_optional_top_level_entry(false, make_top_level_entry(TopLevelKind.Fn, make_span(0, 0), missing_span()))
+}
+
+fn present_top_level_entry(kind: TopLevelKind, start: I32, end: I32, name_span: OptionalSpan) -> OptionalTopLevelEntry {
+    make_optional_top_level_entry(true, make_top_level_entry(kind, make_span(start, end), name_span))
+}
+
+fn span_if_items(count: I32, start: I32, end: I32) -> OptionalSpan {
+    if count == 0 {
+        missing_span()
+    } else {
+        present_span(start, end)
+    }
+}
+
+fn make_parse_state(cursor: Token, status: ParseStatus, last_end: I32) -> ParseState {
+    ParseState { cursor: cursor, status: status, last_end: last_end }
+}
+
+fn make_type_section(struct_count: I32, enum_count: I32, span: OptionalSpan) -> TypeSection {
+    TypeSection { struct_count: struct_count, enum_count: enum_count, span: span }
+}
+
+fn make_item_section(const_count: I32, fn_count: I32, const_span: OptionalSpan, fn_span: OptionalSpan) -> ItemSection {
+    ItemSection { const_count: const_count, fn_count: fn_count, const_span: const_span, fn_span: fn_span }
+}
+
+fn make_top_level_report(types: TypeSection, items: ItemSection) -> TopLevelReport {
+    TopLevelReport { types: types, items: items }
+}
+
+fn make_fn_outline_entry(shape: FnHeaderShape) -> FnOutlineEntry {
+    FnOutlineEntry { shape: shape }
+}
+
+fn make_optional_fn_outline_entry(present: Bool, entry: FnOutlineEntry) -> OptionalFnOutlineEntry {
+    OptionalFnOutlineEntry { present: present, entry: entry }
+}
+
+fn missing_fn_outline_entry() -> OptionalFnOutlineEntry {
+    make_optional_fn_outline_entry(false, make_fn_outline_entry(missing_fn_header_shape()))
+}
+
+fn present_fn_outline_entry(shape: FnHeaderShape) -> OptionalFnOutlineEntry {
+    make_optional_fn_outline_entry(true, make_fn_outline_entry(shape))
+}
+
+fn make_fn_outline(total_count: I32, truncated: Bool, first: OptionalFnOutlineEntry, second: OptionalFnOutlineEntry, third: OptionalFnOutlineEntry, fourth: OptionalFnOutlineEntry, fifth: OptionalFnOutlineEntry) -> FnOutline {
+    FnOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth }
+}
+
+fn fn_outline_new() -> FnOutline {
+    make_fn_outline(0, false, missing_fn_outline_entry(), missing_fn_outline_entry(), missing_fn_outline_entry(), missing_fn_outline_entry(), missing_fn_outline_entry())
+}
+
+fn fn_outline_push(outline: FnOutline, entry: OptionalFnOutlineEntry) -> FnOutline {
+    let next_count = outline.total_count + 1;
+    if outline.total_count == 0 {
+        make_fn_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth)
+    } else {
+        if outline.total_count == 1 {
+            make_fn_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth)
+        } else {
+            if outline.total_count == 2 {
+                make_fn_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth)
+            } else {
+                if outline.total_count == 3 {
+                    make_fn_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth)
+                } else {
+                    if outline.total_count == 4 {
+                        make_fn_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry)
+                    } else {
+                        make_fn_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn make_module_report(ok: Bool, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, module_span: Span, diagnostics: Text) -> ModuleReport {
+    ModuleReport { ok: ok, top_level: top_level, outline: outline, fn_outline: fn_outline, events: events, module_span: module_span, diagnostics: diagnostics }
+}
+
+fn make_top_level_outline(total_count: I32, truncated: Bool, first: OptionalTopLevelEntry, second: OptionalTopLevelEntry, third: OptionalTopLevelEntry, fourth: OptionalTopLevelEntry, fifth: OptionalTopLevelEntry) -> TopLevelOutline {
+    TopLevelOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth }
+}
+
+fn top_level_outline_new() -> TopLevelOutline {
+    make_top_level_outline(0, false, missing_top_level_entry(), missing_top_level_entry(), missing_top_level_entry(), missing_top_level_entry(), missing_top_level_entry())
+}
+
+fn top_level_outline_push(outline: TopLevelOutline, entry: OptionalTopLevelEntry) -> TopLevelOutline {
+    let next_count = outline.total_count + 1;
+    if outline.total_count == 0 {
+        make_top_level_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth)
+    } else {
+        if outline.total_count == 1 {
+            make_top_level_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth)
+        } else {
+            if outline.total_count == 2 {
+                make_top_level_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth)
+            } else {
+                if outline.total_count == 3 {
+                    make_top_level_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth)
+                } else {
+                    if outline.total_count == 4 {
+                        make_top_level_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry)
+                    } else {
+                        make_top_level_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn top_level_entry_at(outline: TopLevelOutline, index: I32) -> OptionalTopLevelEntry {
+    if index == 0 {
+        outline.first
+    } else {
+        if index == 1 {
+            outline.second
+        } else {
+            if index == 2 {
+                outline.third
+            } else {
+                if index == 3 {
+                    outline.fourth
+                } else {
+                    if index == 4 {
+                        outline.fifth
+                    } else {
+                        missing_top_level_entry()
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn fn_outline_entry_at(outline: FnOutline, index: I32) -> OptionalFnOutlineEntry {
+    if index == 0 {
+        outline.first
+    } else {
+        if index == 1 {
+            outline.second
+        } else {
+            if index == 2 {
+                outline.third
+            } else {
+                if index == 3 {
+                    outline.fourth
+                } else {
+                    if index == 4 {
+                        outline.fifth
+                    } else {
+                        missing_fn_outline_entry()
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn block_item_entry_at(outline: BlockOutline, index: I32) -> OptionalBlockItemEntry {
+    if index == 0 {
+        outline.first
+    } else {
+        if index == 1 {
+            outline.second
+        } else {
+            if index == 2 {
+                outline.third
+            } else {
+                if index == 3 {
+                    outline.fourth
+                } else {
+                    if index == 4 {
+                        outline.fifth
+                    } else {
+                        missing_block_item_entry()
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn syntax_event_at(stream: EventStream, index: I32) -> OptionalSyntaxEvent {
+    if index == 0 {
+        stream.first
+    } else {
+        if index == 1 {
+            stream.second
+        } else {
+            if index == 2 {
+                stream.third
+            } else {
+                if index == 3 {
+                    stream.fourth
+                } else {
+                    if index == 4 {
+                        stream.fifth
+                    } else {
+                        if index == 5 {
+                            stream.sixth
+                        } else {
+                            if index == 6 {
+                                stream.seventh
+                            } else {
+                                if index == 7 {
+                                    stream.eighth
+                                } else {
+                                    if index == 8 {
+                                        stream.ninth
+                                    } else {
+                                        if index == 9 {
+                                            stream.tenth
+                                        } else {
+                                            if index == 10 {
+                                                stream.eleventh
+                                            } else {
+                                                if index == 11 {
+                                                    stream.twelfth
+                                                } else {
+                                                    if index == 12 {
+                                                        stream.thirteenth
+                                                    } else {
+                                                        if index == 13 {
+                                                            stream.fourteenth
+                                                        } else {
+                                                            if index == 14 {
+                                                                stream.fifteenth
+                                                            } else {
+                                                                if index == 15 {
+                                                                    stream.sixteenth
+                                                                } else {
+                                                                    missing_syntax_event()
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn syntax_event_kind_matches(stream: EventStream, index: I32, kind: SyntaxEventKind) -> Bool {
+    let event = syntax_event_at(stream, index);
+    event.present and event.event.kind == kind
+}
+
+fn syntax_event_expr_matches(stream: EventStream, index: I32, kind: SyntaxEventKind, expr_kind: ExprKind) -> Bool {
+    let event = syntax_event_at(stream, index);
+    event.present and
+    event.event.kind == kind and
+    event.event.expr_kind == expr_kind
+}
+
+fn top_level_event_kind(kind: TopLevelKind) -> SyntaxEventKind {
+    match kind {
+        TopLevelKind.Struct => {
+            SyntaxEventKind.StructItem
+        },
+        TopLevelKind.Enum => {
+            SyntaxEventKind.EnumItem
+        },
+        TopLevelKind.Const => {
+            SyntaxEventKind.ConstItem
+        },
+        TopLevelKind.Fn => {
+            SyntaxEventKind.FnItem
+        },
+    }
+}
+
+fn block_event_kind(kind: BlockItemKind) -> SyntaxEventKind {
+    match kind {
+        BlockItemKind.Let => {
+            SyntaxEventKind.LetStmt
+        },
+        BlockItemKind.Assign => {
+            SyntaxEventKind.AssignStmt
+        },
+        BlockItemKind.ExprStmt => {
+            SyntaxEventKind.ExprStmt
+        },
+        BlockItemKind.TailExpr => {
+            SyntaxEventKind.TailExpr
+        },
+    }
+}
+
+fn append_clause_event(stream: EventStream, kind: SyntaxEventKind, span: OptionalSpan) -> EventStream {
+    if span.present {
+        event_stream_push(stream, make_optional_syntax_event(true, make_syntax_event(kind, span, missing_span(), ExprKind.Name)))
+    } else {
+        stream
+    }
+}
+
+fn append_block_events(stream: EventStream, outline: BlockOutline) -> EventStream {
+    let mut current = stream;
+    let mut index = 0;
+    while index < 5 {
+        let entry = block_item_entry_at(outline, index);
+        if entry.present {
+            current = event_stream_push(current, make_optional_syntax_event(true, make_syntax_event(block_event_kind(entry.entry.kind), entry.entry.expr_span, entry.entry.binding_span, entry.entry.expr_kind)));
+        };
+        index = index + 1;
+    };
+    current
+}
+
+fn append_fn_shape_events(stream: EventStream, shape: FnHeaderShape) -> EventStream {
+    let mut current = append_clause_event(stream, SyntaxEventKind.FnParams, shape.params_span);
+    current = append_clause_event(current, SyntaxEventKind.FnReturn, shape.return_span);
+    current = append_clause_event(current, SyntaxEventKind.FnEffects, shape.effects_span);
+    current = append_clause_event(current, SyntaxEventKind.FnRequires, shape.requires_span);
+    current = append_clause_event(current, SyntaxEventKind.FnEnsures, shape.ensures_span);
+    append_block_events(current, shape.body_outline)
+}
+
+fn build_event_stream(outline: TopLevelOutline, fn_outline: FnOutline) -> EventStream {
+    let mut current = event_stream_new();
+    let mut item_index = 0;
+    let mut fn_index = 0;
+    while item_index < 5 {
+        let item = top_level_entry_at(outline, item_index);
+        if item.present {
+            current = event_stream_push(current, make_optional_syntax_event(true, make_syntax_event(top_level_event_kind(item.entry.kind), present_span(item.entry.span.start, item.entry.span.end), item.entry.name_span, ExprKind.Name)));
+            if item.entry.kind == TopLevelKind.Fn {
+                let fn_entry = fn_outline_entry_at(fn_outline, fn_index);
+                if fn_entry.present {
+                    current = append_fn_shape_events(current, fn_entry.entry.shape);
+                };
+                fn_index = fn_index + 1;
+            };
+        };
+        item_index = item_index + 1;
+    };
+    current
+}
+
+fn module_report_from_state(state: ParseState, top_level: TopLevelReport, outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> ModuleReport {
+    let ok = state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.Eof;
+    let diagnostics = if ok { "" } else { "invalid\n" };
+    make_module_report(ok, top_level, outline, fn_outline, build_event_stream(outline, fn_outline), make_span(0, text_len(source)), diagnostics)
+}
+
+fn make_block_entry(state: ParseState, tail_seen: Bool) -> BlockEntry {
+    make_block_entry_with_item(state, tail_seen, missing_block_item_entry())
+}
+
+fn make_block_entry_with_item(state: ParseState, tail_seen: Bool, item: OptionalBlockItemEntry) -> BlockEntry {
+    BlockEntry { state: state, tail_seen: tail_seen, item: item }
+}
+
+fn make_type_section_parse(state: ParseState, section: TypeSection, outline: TopLevelOutline) -> TypeSectionParse {
+    TypeSectionParse { state: state, section: section, outline: outline }
+}
+
+fn make_item_section_parse(state: ParseState, section: ItemSection, outline: TopLevelOutline, fn_outline: FnOutline) -> ItemSectionParse {
+    ItemSectionParse { state: state, section: section, outline: outline, fn_outline: fn_outline }
+}
+
+fn make_fn_item_parse(state: ParseState, shape: FnHeaderShape) -> FnItemParse {
+    FnItemParse { state: state, shape: shape }
+}
+
+fn make_spanned_parse(state: ParseState, span: OptionalSpan) -> SpannedParse {
+    SpannedParse { state: state, span: span }
+}
+
+fn present_block_item_entry(kind: BlockItemKind, binding_span: OptionalSpan, expr_span: OptionalSpan, expr_kind: ExprKind) -> OptionalBlockItemEntry {
+    make_optional_block_item_entry(true, make_block_item_entry(kind, binding_span, expr_span, expr_kind))
+}
+
+fn report_matches_sample(report: ModuleReport) -> Bool {
+    report.ok and
+    report.top_level.types.struct_count == 1 and
+    report.top_level.types.enum_count == 1 and
+    report.top_level.items.const_count == 1 and
+    report.top_level.items.fn_count == 2 and
+    report.outline.total_count == 5 and
+    report.outline.truncated == false and
+    report.outline.first.present and
+    report.outline.second.present and
+    report.outline.third.present and
+    report.outline.fourth.present and
+    report.outline.fifth.present and
+    report.outline.first.entry.kind == TopLevelKind.Struct and
+    report.outline.second.entry.kind == TopLevelKind.Enum and
+    report.outline.third.entry.kind == TopLevelKind.Const and
+    report.outline.fourth.entry.kind == TopLevelKind.Fn and
+    report.outline.fifth.entry.kind == TopLevelKind.Fn and
+    report.outline.first.entry.name_span.present and
+    report.outline.second.entry.name_span.present and
+    report.outline.third.entry.name_span.present and
+    report.outline.fourth.entry.name_span.present and
+    report.outline.fifth.entry.name_span.present and
+    report.fn_outline.total_count == 2 and
+    report.fn_outline.truncated == false and
+    report.fn_outline.first.present and
+    report.fn_outline.second.present and
+    report.fn_outline.first.entry.shape.params_span.present and
+    report.fn_outline.first.entry.shape.return_span.present and
+    report.fn_outline.first.entry.shape.effects_span.present == false and
+    report.fn_outline.first.entry.shape.requires_span.present == false and
+    report.fn_outline.first.entry.shape.ensures_span.present == false and
+    report.fn_outline.first.entry.shape.body_span.present and
+    report.fn_outline.first.entry.shape.body_outline.total_count == 2 and
+    report.fn_outline.first.entry.shape.body_outline.truncated == false and
+    report.fn_outline.first.entry.shape.body_outline.first.present and
+    report.fn_outline.first.entry.shape.body_outline.second.present and
+    report.fn_outline.first.entry.shape.body_outline.first.entry.kind == BlockItemKind.Let and
+    report.fn_outline.first.entry.shape.body_outline.second.entry.kind == BlockItemKind.TailExpr and
+    report.fn_outline.first.entry.shape.body_outline.first.entry.binding_span.present and
+    report.fn_outline.first.entry.shape.body_outline.first.entry.expr_span.present and
+    report.fn_outline.first.entry.shape.body_outline.first.entry.expr_kind == ExprKind.Record and
+    report.fn_outline.first.entry.shape.body_outline.second.entry.expr_span.present and
+    report.fn_outline.first.entry.shape.body_outline.second.entry.expr_kind == ExprKind.Name and
+    report.fn_outline.second.entry.shape.params_span.present and
+    report.fn_outline.second.entry.shape.return_span.present and
+    report.fn_outline.second.entry.shape.effects_span.present and
+    report.fn_outline.second.entry.shape.requires_span.present and
+    report.fn_outline.second.entry.shape.ensures_span.present and
+    report.fn_outline.second.entry.shape.body_span.present and
+    report.fn_outline.second.entry.shape.body_outline.total_count == 2 and
+    report.fn_outline.second.entry.shape.body_outline.truncated == false and
+    report.fn_outline.second.entry.shape.body_outline.first.present and
+    report.fn_outline.second.entry.shape.body_outline.second.present and
+    report.fn_outline.second.entry.shape.body_outline.first.entry.kind == BlockItemKind.Let and
+    report.fn_outline.second.entry.shape.body_outline.second.entry.kind == BlockItemKind.TailExpr and
+    report.fn_outline.second.entry.shape.body_outline.first.entry.binding_span.present and
+    report.fn_outline.second.entry.shape.body_outline.first.entry.expr_span.present and
+    report.fn_outline.second.entry.shape.body_outline.first.entry.expr_kind == ExprKind.Name and
+    report.fn_outline.second.entry.shape.body_outline.second.entry.expr_span.present and
+    report.fn_outline.second.entry.shape.body_outline.second.entry.expr_kind == ExprKind.If and
+    report.events.total_count == 16 and
+    report.events.truncated == false and
+    syntax_event_kind_matches(report.events, 0, SyntaxEventKind.StructItem) and
+    syntax_event_kind_matches(report.events, 1, SyntaxEventKind.EnumItem) and
+    syntax_event_kind_matches(report.events, 2, SyntaxEventKind.ConstItem) and
+    syntax_event_kind_matches(report.events, 3, SyntaxEventKind.FnItem) and
+    syntax_event_kind_matches(report.events, 4, SyntaxEventKind.FnParams) and
+    syntax_event_kind_matches(report.events, 5, SyntaxEventKind.FnReturn) and
+    syntax_event_expr_matches(report.events, 6, SyntaxEventKind.LetStmt, ExprKind.Record) and
+    syntax_event_expr_matches(report.events, 7, SyntaxEventKind.TailExpr, ExprKind.Name) and
+    syntax_event_kind_matches(report.events, 8, SyntaxEventKind.FnItem) and
+    syntax_event_kind_matches(report.events, 9, SyntaxEventKind.FnParams) and
+    syntax_event_kind_matches(report.events, 10, SyntaxEventKind.FnReturn) and
+    syntax_event_kind_matches(report.events, 11, SyntaxEventKind.FnEffects) and
+    syntax_event_kind_matches(report.events, 12, SyntaxEventKind.FnRequires) and
+    syntax_event_kind_matches(report.events, 13, SyntaxEventKind.FnEnsures) and
+    syntax_event_expr_matches(report.events, 14, SyntaxEventKind.LetStmt, ExprKind.Name) and
+    syntax_event_expr_matches(report.events, 15, SyntaxEventKind.TailExpr, ExprKind.If) and
+    report.module_span.start == 0 and
+    report.module_span.end > report.module_span.start and
+    report.top_level.types.span.present and
+    report.top_level.items.const_span.present and
+    report.top_level.items.fn_span.present and
+    report.outline.first.entry.span.start == report.top_level.types.span.span.start and
+    report.outline.first.entry.name_span.span.start > report.outline.first.entry.span.start and
+    report.outline.fifth.entry.name_span.span.end <= report.outline.fifth.entry.span.end and
+    report.outline.third.entry.span.start == report.top_level.items.const_span.span.start and
+    report.outline.fourth.entry.span.end <= report.top_level.items.fn_span.span.end and
+    report.top_level.types.span.span.start < report.top_level.items.const_span.span.start and
+    report.top_level.items.const_span.span.start < report.top_level.items.fn_span.span.start and
+    report.top_level.types.span.span.end <= report.top_level.items.const_span.span.start and
+    report.top_level.items.const_span.span.end <= report.top_level.items.fn_span.span.start and
+    report.top_level.items.fn_span.span.end <= report.module_span.end
+}
+
+fn report_matches_empty_module(report: ModuleReport) -> Bool {
+    report.ok and
+    report.top_level.types.struct_count == 0 and
+    report.top_level.types.enum_count == 0 and
+    report.top_level.items.const_count == 0 and
+    report.top_level.items.fn_count == 1 and
+    report.outline.total_count == 1 and
+    report.outline.truncated == false and
+    report.outline.first.present and
+    report.outline.first.entry.kind == TopLevelKind.Fn and
+    report.outline.first.entry.name_span.present and
+    report.fn_outline.total_count == 1 and
+    report.fn_outline.truncated == false and
+    report.fn_outline.first.present and
+    report.fn_outline.first.entry.shape.params_span.present and
+    report.fn_outline.first.entry.shape.return_span.present == false and
+    report.fn_outline.first.entry.shape.effects_span.present == false and
+    report.fn_outline.first.entry.shape.requires_span.present == false and
+    report.fn_outline.first.entry.shape.ensures_span.present == false and
+    report.fn_outline.first.entry.shape.body_span.present and
+    report.fn_outline.first.entry.shape.body_outline.total_count == 0 and
+    report.fn_outline.first.entry.shape.body_outline.truncated == false and
+    report.fn_outline.first.entry.shape.body_outline.first.present == false and
+    report.events.total_count == 2 and
+    report.events.truncated == false and
+    syntax_event_kind_matches(report.events, 0, SyntaxEventKind.FnItem) and
+    syntax_event_kind_matches(report.events, 1, SyntaxEventKind.FnParams) and
+    report.outline.second.present == false and
+    report.outline.fifth.present == false and
+    report.module_span.start == 0 and
+    report.module_span.end == 12 and
+    report.top_level.types.span.present == false and
+    report.top_level.items.const_span.present == false and
+    report.top_level.items.fn_span.present and
+    report.top_level.items.fn_span.span.start == 0 and
+    report.top_level.items.fn_span.span.end == 12
+}
+
+fn report_score(report: ModuleReport) -> I32 {
+    report.top_level.types.struct_count +
+    report.top_level.types.enum_count +
+    report.top_level.items.const_count +
+    report.top_level.items.fn_count +
+    report.outline.total_count +
+    report.fn_outline.total_count +
+    report.events.total_count +
+    i32_from_bool(report.top_level.types.span.present) +
+    i32_from_bool(report.top_level.items.const_span.present) +
+    i32_from_bool(report.top_level.items.fn_span.present) +
+    i32_from_bool(report.events.truncated == false)
+}
+
+fn i32_from_bool(value: Bool) -> I32 {
+    if value {
+        1
+    } else {
+        0
+    }
+}
+
+fn top_level_name_span(source: Text, state: ParseState) -> OptionalSpan {
+    let next = next_significant(source, state.cursor.offset);
+    if next.kind == TokenKind.Ident {
+        present_span(next.start, next.end)
+    } else {
+        missing_span()
+    }
+}
+
+fn is_whitespace(b: I32) -> Bool {
+    b == 32 or
+    b == 9 or
+    b == 12 or
+    b == 13
+}
+
+fn is_newline(b: I32) -> Bool {
+    b == 10
+}
+
+fn is_alpha(b: I32) -> Bool {
+    (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
+}
+
+fn is_digit(b: I32) -> Bool {
+    b >= 48 and b <= 57
+}
+
+fn is_trivia(kind: TokenKind) -> Bool {
+    kind == TokenKind.Whitespace or
+    kind == TokenKind.Newline or
+    kind == TokenKind.Comment
+}
+
+fn is_ident_continue(b: I32) -> Bool {
+    is_alpha(b) or
+    is_digit(b) or
+    b == 95
+}
+
+fn matches_byte_class(class: ByteClass, b: I32) -> Bool {
+    match class {
+        ByteClass.Whitespace => {
+            is_whitespace(b)
+        },
+        ByteClass.Newline => {
+            is_newline(b)
+        },
+        ByteClass.IdentContinue => {
+            is_ident_continue(b)
+        },
+        ByteClass.Digit => {
+            is_digit(b)
+        },
+    }
+}
+
+fn classify_lead_byte(b: I32) -> LeadClass {
+    if is_whitespace(b) {
+        LeadClass.Whitespace
+    } else {
+        if is_newline(b) {
+            LeadClass.Newline
+        } else {
+            if is_alpha(b) {
+                LeadClass.Alpha
+            } else {
+                if is_digit(b) {
+                    LeadClass.Digit
+                } else {
+                    LeadClass.Other
+                }
+            }
+        }
+    }
+}
+
+fn scan_while(source: Text, offset: I32, len: I32, class: ByteClass) -> I32 {
+    let mut end = offset + 1;
+    while end < len and matches_byte_class(class, text_byte(source, end)) {
+        end = end + 1;
+    };
+    end
+}
+
+fn scan_comment(source: Text, offset: I32, len: I32) -> I32 {
+    let mut end = offset + 2;
+    while end < len and is_newline(text_byte(source, end)) == false {
+        end = end + 1;
+    };
+    end
+}
+
+fn scan_string(source: Text, offset: I32, len: I32) -> I32 {
+    let mut end = offset + 1;
+    let mut escaped = false;
+    let mut closed = false;
+    while end < len and closed == false {
+        let next_b = text_byte(source, end);
+        if escaped {
+            escaped = false;
+            end = end + 1;
+        } else {
+            if next_b == 92 {
+                escaped = true;
+                end = end + 1;
+            } else {
+                end = end + 1;
+                closed = next_b == 34;
+            };
+        };
+    };
+    end
+}
+
+fn text_eq_range(source: Text, start: I32, end: I32, expected: Text) -> Bool {
+    let expected_len = text_len(expected);
+    if end - start != expected_len {
+        false
+    } else {
+        let mut equal = true;
+        repeat i in expected_len {
+            if equal {
+                if text_byte(source, start + i) != text_byte(expected, i) {
+                    equal = false;
+                };
+            };
+        };
+        equal
+    }
+}
+
+fn make_single(kind: TokenKind, offset: I32) -> Token {
+    make_token(kind, offset, offset + 1)
+}
+
+fn make_double(kind: TokenKind, offset: I32) -> Token {
+    make_token(kind, offset, offset + 2)
+}
+
+fn next_is(source: Text, offset: I32, len: I32, expected: I32) -> Bool {
+    offset + 1 < len and text_byte(source, offset + 1) == expected
+}
+
+fn keyword_or_ident(source: Text, start: I32, end: I32, expected: Text, kind: TokenKind) -> TokenKind {
+    if text_eq_range(source, start, end, expected) {
+        kind
+    } else {
+        TokenKind.Ident
+    }
+}
+
+fn classify_ident(source: Text, start: I32, end: I32) -> TokenKind {
+    let first = text_byte(source, start);
+    match end - start {
+        2 => {
+            match first {
+                102 => {
+                    keyword_or_ident(source, start, end, "fn", TokenKind.KwFn)
+                },
+                105 => {
+                    if text_byte(source, start + 1) == 102 {
+                        keyword_or_ident(source, start, end, "if", TokenKind.KwIf)
+                    } else {
+                        keyword_or_ident(source, start, end, "in", TokenKind.KwIn)
+                    }
+                },
+                111 => {
+                    keyword_or_ident(source, start, end, "or", TokenKind.KwOr)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        3 => {
+            match first {
+                97 => {
+                    keyword_or_ident(source, start, end, "and", TokenKind.KwAnd)
+                },
+                108 => {
+                    keyword_or_ident(source, start, end, "let", TokenKind.KwLet)
+                },
+                109 => {
+                    keyword_or_ident(source, start, end, "mut", TokenKind.KwMut)
+                },
+                110 => {
+                    keyword_or_ident(source, start, end, "not", TokenKind.KwNot)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        4 => {
+            match first {
+                101 => {
+                    if text_byte(source, start + 1) == 108 {
+                        keyword_or_ident(source, start, end, "else", TokenKind.KwElse)
+                    } else {
+                        keyword_or_ident(source, start, end, "enum", TokenKind.KwEnum)
+                    }
+                },
+                116 => {
+                    keyword_or_ident(source, start, end, "true", TokenKind.KwTrue)
+                },
+                119 => {
+                    keyword_or_ident(source, start, end, "with", TokenKind.KwWith)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        5 => {
+            match first {
+                99 => {
+                    keyword_or_ident(source, start, end, "const", TokenKind.KwConst)
+                },
+                102 => {
+                    keyword_or_ident(source, start, end, "false", TokenKind.KwFalse)
+                },
+                109 => {
+                    keyword_or_ident(source, start, end, "match", TokenKind.KwMatch)
+                },
+                119 => {
+                    keyword_or_ident(source, start, end, "while", TokenKind.KwWhile)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        6 => {
+            match first {
+                114 => {
+                    keyword_or_ident(source, start, end, "repeat", TokenKind.KwRepeat)
+                },
+                115 => {
+                    keyword_or_ident(source, start, end, "struct", TokenKind.KwStruct)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        7 => {
+            match first {
+                101 => {
+                    if text_byte(source, start + 1) == 102 {
+                        keyword_or_ident(source, start, end, "effects", TokenKind.KwEffects)
+                    } else {
+                        keyword_or_ident(source, start, end, "ensures", TokenKind.KwEnsures)
+                    }
+                },
+                104 => {
+                    keyword_or_ident(source, start, end, "handle", TokenKind.KwHandle)
+                },
+                112 => {
+                    keyword_or_ident(source, start, end, "perform", TokenKind.KwPerform)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        8 => {
+            match first {
+                114 => {
+                    keyword_or_ident(source, start, end, "requires", TokenKind.KwRequires)
+                },
+                99 => {
+                    keyword_or_ident(source, start, end, "comptime", TokenKind.KwComptime)
+                },
+                _ => {
+                    TokenKind.Ident
+                },
+            }
+        },
+        _ => {
+            TokenKind.Ident
+        },
+    }
+}
+
+fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
+    match b {
+        34 => {
+            make_token(TokenKind.String, offset, scan_string(source, offset, len))
+        },
+        40 => {
+            make_single(TokenKind.LParen, offset)
+        },
+        41 => {
+            make_single(TokenKind.RParen, offset)
+        },
+        45 => {
+            if next_is(source, offset, len, 62) {
+                make_double(TokenKind.Arrow, offset)
+            } else {
+                make_single(TokenKind.Minus, offset)
+            }
+        },
+        47 => {
+            if next_is(source, offset, len, 47) {
+                make_token(TokenKind.Comment, offset, scan_comment(source, offset, len))
+            } else {
+                make_single(TokenKind.Slash, offset)
+            }
+        },
+        42 => {
+            make_single(TokenKind.Star, offset)
+        },
+        58 => {
+            make_single(TokenKind.Colon, offset)
+        },
+        44 => {
+            make_single(TokenKind.Comma, offset)
+        },
+        46 => {
+            make_single(TokenKind.Dot, offset)
+        },
+        59 => {
+            make_single(TokenKind.Semicolon, offset)
+        },
+        43 => {
+            make_single(TokenKind.Plus, offset)
+        },
+        61 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.EqEq, offset)
+            } else {
+                if next_is(source, offset, len, 62) {
+                    make_double(TokenKind.FatArrow, offset)
+                } else {
+                    make_single(TokenKind.Eq, offset)
+                }
+            }
+        },
+        62 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.Ge, offset)
+            } else {
+                make_single(TokenKind.Gt, offset)
+            }
+        },
+        123 => {
+            make_single(TokenKind.LBrace, offset)
+        },
+        60 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.Le, offset)
+            } else {
+                make_single(TokenKind.Lt, offset)
+            }
+        },
+        91 => {
+            make_single(TokenKind.LBracket, offset)
+        },
+        33 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.NotEq, offset)
+            } else {
+                make_single(TokenKind.Invalid, offset)
+            }
+        },
+        125 => {
+            make_single(TokenKind.RBrace, offset)
+        },
+        93 => {
+            make_single(TokenKind.RBracket, offset)
+        },
+        95 => {
+            make_single(TokenKind.Underscore, offset)
+        },
+        _ => {
+            make_single(TokenKind.Invalid, offset)
+        },
+    }
+}
+
+fn lex_next(source: Text, offset: I32) -> Token {
+    let len = text_len(source);
+    if offset >= len {
+        make_token(TokenKind.Eof, offset, offset)
+    } else {
+        let b = text_byte(source, offset);
+        match classify_lead_byte(b) {
+            LeadClass.Whitespace => {
+                make_token(TokenKind.Whitespace, offset, scan_while(source, offset, len, ByteClass.Whitespace))
+            },
+            LeadClass.Newline => {
+                make_token(TokenKind.Newline, offset, scan_while(source, offset, len, ByteClass.Newline))
+            },
+            LeadClass.Alpha => {
+                let end = scan_while(source, offset, len, ByteClass.IdentContinue);
+                make_token(classify_ident(source, offset, end), offset, end)
+            },
+            LeadClass.Digit => {
+                let start = offset;
+                let end = scan_while(source, offset, len, ByteClass.Digit);
+                if end < len and text_byte(source, end) == 46 { // '.'
+                    let after_dot = scan_while(source, end + 1, len, ByteClass.Digit);
+                    make_token(TokenKind.Float, start, after_dot)
+                } else {
+                    make_token(TokenKind.Integer, start, end)
+                }
+            },
+            LeadClass.Other => {
+                lex_symbol(source, offset, len, b)
+            },
+        }
+    }
+}
+
+fn raw_cursor_new(source: Text) -> Token {
+    lex_next(source, 0)
+}
+
+fn raw_cursor_bump(source: Text, cursor: Token) -> Token {
+    lex_next(source, cursor.offset)
+}
+
+fn skip_trivia(source: Text, cursor: Token) -> Token {
+    let mut current = cursor;
+    while is_trivia(current.kind) {
+        current = raw_cursor_bump(source, current);
+    };
+    current
+}
+
+fn next_significant(source: Text, offset: I32) -> Token {
+    skip_trivia(source, lex_next(source, offset))
+}
+
+fn cursor_new(source: Text) -> Token {
+    skip_trivia(source, raw_cursor_new(source))
+}
+
+fn cursor_bump(source: Text, cursor: Token) -> Token {
+    skip_trivia(source, raw_cursor_bump(source, cursor))
+}
+
+fn cursor_at(cursor: Token, kind: TokenKind) -> Bool {
+    cursor.kind == kind
+}
+
+fn parse_state_new(source: Text) -> ParseState {
+    let cursor = cursor_new(source);
+    make_parse_state(cursor, ParseStatus.Ok, 0)
+}
+
+fn with_parse_state(state: ParseState, cursor: Token, status: ParseStatus) -> ParseState {
+    make_parse_state(cursor, status, state.last_end)
+}
+
+fn with_last_end(state: ParseState, last_end: I32) -> ParseState {
+    make_parse_state(state.cursor, state.status, last_end)
+}
+
+fn parse_advance(source: Text, state: ParseState) -> ParseState {
+    let cursor = next_significant(source, state.cursor.offset);
+    with_parse_state(state, cursor, state.status)
+}
+
+fn parse_expect(source: Text, state: ParseState, kind: TokenKind) -> ParseState {
+    match state.status {
+        ParseStatus.Ok => {
+            if state.cursor.kind == kind {
+                let advanced = parse_advance(source, state);
+                let with_end = with_last_end(advanced, state.cursor.end);
+                with_parse_state(with_end, with_end.cursor, ParseStatus.Ok)
+            } else {
+                with_parse_state(state, state.cursor, ParseStatus.Err)
+            }
+        },
+        ParseStatus.Err => {
+            state
+        },
+    }
+}
+
+fn parse_finished(state: ParseState) -> Bool {
+    state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.Eof
+}
+
+fn parse_fail(state: ParseState) -> ParseState {
+    with_parse_state(state, state.cursor, ParseStatus.Err)
+}
+
+fn infix_left_bp(kind: TokenKind) -> I32 {
+    match kind {
+        TokenKind.KwOr => {
+            1
+        },
+        TokenKind.KwAnd => {
+            3
+        },
+        TokenKind.EqEq => {
+            5
+        },
+        TokenKind.NotEq => {
+            5
+        },
+        TokenKind.Lt => {
+            5
+        },
+        TokenKind.Le => {
+            5
+        },
+        TokenKind.Gt => {
+            5
+        },
+        TokenKind.Ge => {
+            5
+        },
+        TokenKind.Plus => {
+            7
+        },
+        TokenKind.Minus => {
+            7
+        },
+        TokenKind.Star => {
+            9
+        },
+        TokenKind.Slash => {
+            9
+        },
+        _ => {
+            0
+        },
+    }
+}
+
+fn infix_right_bp(kind: TokenKind) -> I32 {
+    infix_left_bp(kind) + 1
+}
+
+fn starts_expr(kind: TokenKind) -> Bool {
+    match kind {
+        TokenKind.Ident => {
+            true
+        },
+        TokenKind.Integer => {
+            true
+        },
+        TokenKind.Float => {
+            true
+        },
+        TokenKind.String => {
+            true
+        },
+        TokenKind.KwTrue => {
+            true
+        },
+        TokenKind.KwFalse => {
+            true
+        },
+        TokenKind.KwNot => {
+            true
+        },
+        TokenKind.KwIf => {
+            true
+        },
+        TokenKind.KwMatch => {
+            true
+        },
+        TokenKind.KwRepeat => {
+            true
+        },
+        TokenKind.KwWhile => {
+            true
+        },
+        TokenKind.LBracket => {
+            true
+        },
+        TokenKind.LParen => {
+            true
+        },
+        _ => {
+            false
+        },
+    }
+}
+
+fn next_after_name(source: Text, cursor: Token) -> Token {
+    let mut current = next_significant(source, cursor.offset);
+    let mut keep_going = current.kind == TokenKind.Dot;
+    while keep_going {
+        let next = next_significant(source, current.offset);
+        if next.kind == TokenKind.Ident {
+            current = next_significant(source, next.offset);
+            keep_going = current.kind == TokenKind.Dot;
+        } else {
+            keep_going = false;
+            current = next;
+        };
+    };
+    current
+}
+
+fn starts_assign(source: Text, state: ParseState) -> Bool {
+    if state.cursor.kind == TokenKind.Ident {
+        next_after_name(source, state.cursor).kind == TokenKind.Eq
+    } else {
+        false
+    }
+}
+
+fn starts_record_literal(source: Text, state: ParseState) -> Bool {
+    if state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.LBrace {
+        let next = next_significant(source, state.cursor.offset);
+        if next.kind == TokenKind.Ident {
+            next_significant(source, next.offset).kind == TokenKind.Colon
+        } else {
+            next.kind == TokenKind.RBrace
+        }
+    } else {
+        false
+    }
+}
+
+fn parse_list_item(source: Text, state: ParseState, kind: ListKind) -> ParseState {
+    match kind {
+        ListKind.FieldInit => {
+            parse_field_init(source, state)
+        },
+        ListKind.Expr => {
+            parse_expr_bp(source, state, 0)
+        },
+        ListKind.Param => {
+            parse_param(source, state)
+        },
+        ListKind.Field => {
+            parse_field(source, state)
+        },
+        ListKind.Variant => {
+            parse_variant(source, state)
+        },
+        ListKind.EffectName => {
+            parse_expect(source, state, TokenKind.Ident)
+        },
+    }
+}
+
+fn parse_comma_list(source: Text, state: ParseState, end_kind: TokenKind, kind: ListKind) -> ParseState {
+    if state.cursor.kind == end_kind {
+        state
+    } else {
+        let mut current = parse_list_item(source, state, kind);
+        while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Comma {
+            current = parse_expect(source, current, TokenKind.Comma);
+            if current.cursor.kind != end_kind {
+                current = parse_list_item(source, current, kind);
+            };
+        };
+        current
+    }
+}
+
+fn parse_field_init(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.Colon);
+    parse_expr_bp(source, current, 0)
+}
+
+fn parse_field_init_list(source: Text, state: ParseState) -> ParseState {
+    parse_comma_list(source, state, TokenKind.RBrace, ListKind.FieldInit)
+}
+
+fn parse_arg_list(source: Text, state: ParseState) -> ParseState {
+    parse_comma_list(source, state, TokenKind.RParen, ListKind.Expr)
+}
+
+fn parse_array_expr(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.LBracket);
+    current = parse_comma_list(source, current, TokenKind.RBracket, ListKind.Expr);
+    parse_expect(source, current, TokenKind.RBracket)
+}
+
+fn parse_if_expr(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwIf);
+    current = parse_expr_bp(source, current, 0);
+    current = parse_block(source, current);
+    if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.KwElse {
+        current = parse_expect(source, current, TokenKind.KwElse);
+        current = if current.cursor.kind == TokenKind.KwIf {
+            parse_if_expr(source, current)
+        } else {
+            parse_block(source, current)
+        };
+    };
+    current
+}
+
+fn parse_payload_pattern(source: Text, state: ParseState) -> ParseState {
+    if state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.LParen {
+        let with_paren = parse_expect(source, state, TokenKind.LParen);
+        let with_ident = parse_expect(source, with_paren, TokenKind.Ident);
+        parse_expect(source, with_ident, TokenKind.RParen)
+    } else {
+        state
+    }
+}
+
+fn parse_match_pattern(source: Text, state: ParseState) -> ParseState {
+    match state.cursor.kind {
+        TokenKind.Ident => {
+            parse_payload_pattern(source, parse_named_type(source, state))
+        },
+        TokenKind.Integer => {
+            parse_expect(source, state, TokenKind.Integer)
+        },
+        TokenKind.String => {
+            parse_expect(source, state, TokenKind.String)
+        },
+        TokenKind.KwTrue => {
+            parse_expect(source, state, TokenKind.KwTrue)
+        },
+        TokenKind.KwFalse => {
+            parse_expect(source, state, TokenKind.KwFalse)
+        },
+        TokenKind.Underscore => {
+            parse_expect(source, state, TokenKind.Underscore)
+        },
+        _ => {
+            parse_fail(state)
+        },
+    }
+}
+
+fn parse_match_expr(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwMatch);
+    current = parse_expr_bp(source, current, 0);
+    current = parse_expect(source, current, TokenKind.LBrace);
+    while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RBrace {
+        current = parse_match_pattern(source, current);
+        current = parse_expect(source, current, TokenKind.FatArrow);
+        current = parse_block(source, current);
+        if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Comma {
+            current = parse_expect(source, current, TokenKind.Comma);
+        };
+    };
+    parse_expect(source, current, TokenKind.RBrace)
+}
+
+fn parse_repeat_expr(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwRepeat);
+    if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Ident {
+        let next = next_significant(source, current.cursor.offset);
+        if next.kind == TokenKind.KwIn {
+            current = parse_expect(source, current, TokenKind.Ident);
+            current = parse_expect(source, current, TokenKind.KwIn);
+        };
+    };
+    current = parse_expr_bp(source, current, 0);
+    parse_block(source, current)
+}
+
+fn parse_while_expr(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwWhile);
+    current = parse_expr_bp(source, current, 0);
+    parse_block(source, current)
+}
+
+fn parse_postfix_expr(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_prefix_expr(source, state);
+    let mut keep_going = current.status == ParseStatus.Ok;
+    while keep_going {
+        if current.cursor.kind == TokenKind.LParen {
+            current = parse_expect(source, current, TokenKind.LParen);
+            current = parse_arg_list(source, current);
+            current = parse_expect(source, current, TokenKind.RParen);
+        } else {
+            if current.cursor.kind == TokenKind.LBracket {
+                current = parse_expect(source, current, TokenKind.LBracket);
+                current = parse_expr_bp(source, current, 0);
+                current = parse_expect(source, current, TokenKind.RBracket);
+            } else {
+                keep_going = false;
+            };
+        };
+    };
+    current
+}
+
+fn parse_prefix_expr(source: Text, state: ParseState) -> ParseState {
+    if state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.KwNot {
+        let with_not = parse_expect(source, state, TokenKind.KwNot);
+        parse_prefix_expr(source, with_not)
+    } else {
+        parse_primary_expr(source, state)
+    }
+}
+
+fn parse_ident_expr(source: Text, state: ParseState) -> ParseState {
+    let current = parse_named_type(source, state);
+    if starts_record_literal(source, current) {
+        let with_lbrace = parse_expect(source, current, TokenKind.LBrace);
+        let with_fields = parse_field_init_list(source, with_lbrace);
+        parse_expect(source, with_fields, TokenKind.RBrace)
+    } else {
+        current
+    }
+}
+
+fn parse_primary_expr(source: Text, state: ParseState) -> ParseState {
+    match state.status {
+        ParseStatus.Err => {
+            state
+        },
+        ParseStatus.Ok => {
+            match state.cursor.kind {
+                TokenKind.Ident => {
+                    parse_ident_expr(source, state)
+                },
+                TokenKind.Integer => {
+                    parse_expect(source, state, TokenKind.Integer)
+                },
+                TokenKind.Float => {
+                    parse_expect(source, state, TokenKind.Float)
+                },
+                TokenKind.String => {
+                    parse_expect(source, state, TokenKind.String)
+                },
+                TokenKind.KwTrue => {
+                    parse_expect(source, state, TokenKind.KwTrue)
+                },
+                TokenKind.KwFalse => {
+                    parse_expect(source, state, TokenKind.KwFalse)
+                },
+                TokenKind.LParen => {
+                    let mut current = parse_expect(source, state, TokenKind.LParen);
+                    current = parse_expr_bp(source, current, 0);
+                    parse_expect(source, current, TokenKind.RParen)
+                },
+                TokenKind.LBracket => {
+                    parse_array_expr(source, state)
+                },
+                TokenKind.KwIf => {
+                    parse_if_expr(source, state)
+                },
+                TokenKind.KwMatch => {
+                    parse_match_expr(source, state)
+                },
+                TokenKind.KwRepeat => {
+                    parse_repeat_expr(source, state)
+                },
+                TokenKind.KwWhile => {
+                    parse_while_expr(source, state)
+                },
+                _ => {
+                    parse_fail(state)
+                },
+            }
+        },
+    }
+}
+
+fn parse_expr_bp(source: Text, state: ParseState, min_bp: I32) -> ParseState {
+    let mut current = parse_postfix_expr(source, state);
+    let mut keep_going = current.status == ParseStatus.Ok;
+    while keep_going {
+        let op = current.cursor.kind;
+        let left_bp = infix_left_bp(op);
+        if left_bp == 0 or left_bp < min_bp {
+            keep_going = false;
+        } else {
+            current = parse_expect(source, current, op);
+            current = parse_expr_bp(source, current, infix_right_bp(op));
+            if current.status == ParseStatus.Err {
+                keep_going = false;
+            };
+        };
+    };
+    current
+}
+
+fn parse_contract_clause(source: Text, state: ParseState, keyword: TokenKind) -> ParseState {
+    let current = parse_expect(source, state, keyword);
+    parse_expr_bp(source, current, 0)
+}
+
+fn parse_const_item(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwConst);
+    current = parse_expect(source, current, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.Colon);
+    current = parse_type(source, current);
+    current = parse_expect(source, current, TokenKind.Eq);
+    current = parse_expr_bp(source, current, 0);
+    parse_expect(source, current, TokenKind.Semicolon)
+}
+
+fn parse_named_type(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.Ident);
+    while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Dot {
+        current = parse_expect(source, current, TokenKind.Dot);
+        current = parse_expect(source, current, TokenKind.Ident);
+    };
+    current
+}
+
+fn parse_array_type(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.LBracket);
+    current = parse_type(source, current);
+    current = parse_expect(source, current, TokenKind.Semicolon);
+    current = parse_expect(source, current, TokenKind.Integer);
+    parse_expect(source, current, TokenKind.RBracket)
+}
+
+fn parse_type(source: Text, state: ParseState) -> ParseState {
+    match state.status {
+        ParseStatus.Err => {
+            state
+        },
+        ParseStatus.Ok => {
+            match state.cursor.kind {
+                TokenKind.Ident => {
+                    parse_named_type(source, state)
+                },
+                TokenKind.LBracket => {
+                    parse_array_type(source, state)
+                },
+                _ => {
+                    parse_fail(state)
+                },
+            }
+        },
+    }
+}
+
+fn parse_param(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.Colon);
+    parse_type(source, current)
+}
+
+fn parse_ident_span(source: Text, state: ParseState) -> SpannedParse {
+    let start = state.cursor.start;
+    let current = parse_expect(source, state, TokenKind.Ident);
+    if current.status == ParseStatus.Ok {
+        make_spanned_parse(current, present_span(start, current.last_end))
+    } else {
+        make_spanned_parse(current, missing_span())
+    }
+}
+
+fn parse_param_list(source: Text, state: ParseState) -> ParseState {
+    parse_comma_list(source, state, TokenKind.RParen, ListKind.Param)
+}
+
+fn parse_fn_params(source: Text, state: ParseState) -> SpannedParse {
+    let params_start = state.cursor.start;
+    let mut current = parse_expect(source, state, TokenKind.LParen);
+    current = parse_param_list(source, current);
+    current = parse_expect(source, current, TokenKind.RParen);
+    if current.status == ParseStatus.Ok {
+        make_spanned_parse(current, present_span(params_start, current.last_end))
+    } else {
+        make_spanned_parse(current, missing_span())
+    }
+}
+
+fn parse_field(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.Colon);
+    parse_type(source, current)
+}
+
+fn parse_field_list(source: Text, state: ParseState) -> ParseState {
+    parse_comma_list(source, state, TokenKind.RBrace, ListKind.Field)
+}
+
+fn parse_variant(source: Text, state: ParseState) -> ParseState {
+    let current = parse_expect(source, state, TokenKind.Ident);
+    if current.cursor.kind == TokenKind.LParen {
+        let with_paren = parse_expect(source, current, TokenKind.LParen);
+        let with_type = parse_type(source, with_paren);
+        parse_expect(source, with_type, TokenKind.RParen)
+    } else {
+        current
+    }
+}
+
+fn parse_variant_list(source: Text, state: ParseState) -> ParseState {
+    parse_comma_list(source, state, TokenKind.RBrace, ListKind.Variant)
+}
+
+fn parse_struct_item(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwStruct);
+    current = parse_expect(source, current, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.LBrace);
+    current = parse_field_list(source, current);
+    parse_expect(source, current, TokenKind.RBrace)
+}
+
+fn parse_enum_item(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwEnum);
+    current = parse_expect(source, current, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.LBrace);
+    current = parse_variant_list(source, current);
+    parse_expect(source, current, TokenKind.RBrace)
+}
+
+fn parse_optional_return_type(source: Text, state: ParseState) -> SpannedParse {
+    if state.cursor.kind == TokenKind.Arrow {
+        let with_arrow = parse_expect(source, state, TokenKind.Arrow);
+        let return_start = with_arrow.cursor.start;
+        let with_type = parse_type(source, with_arrow);
+        if with_type.status == ParseStatus.Ok {
+            make_spanned_parse(with_type, present_span(return_start, with_type.last_end))
+        } else {
+            make_spanned_parse(with_type, missing_span())
+        }
+    } else {
+        make_spanned_parse(state, missing_span())
+    }
+}
+
+fn parse_effects_clause(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwEffects);
+    current = parse_expect(source, current, TokenKind.LBracket);
+    current = parse_comma_list(source, current, TokenKind.RBracket, ListKind.EffectName);
+    parse_expect(source, current, TokenKind.RBracket)
+}
+
+fn parse_optional_effects_clause(source: Text, state: ParseState) -> SpannedParse {
+    if state.cursor.kind == TokenKind.KwEffects {
+        let clause_start = state.cursor.start;
+        let parsed = parse_effects_clause(source, state);
+        if parsed.status == ParseStatus.Ok {
+            make_spanned_parse(parsed, present_span(clause_start, parsed.last_end))
+        } else {
+            make_spanned_parse(parsed, missing_span())
+        }
+    } else {
+        make_spanned_parse(state, missing_span())
+    }
+}
+
+fn parse_optional_requires_clause(source: Text, state: ParseState) -> SpannedParse {
+    if state.cursor.kind == TokenKind.KwRequires {
+        let clause_start = state.cursor.start;
+        let parsed = parse_contract_clause(source, state, TokenKind.KwRequires);
+        if parsed.status == ParseStatus.Ok {
+            make_spanned_parse(parsed, present_span(clause_start, parsed.last_end))
+        } else {
+            make_spanned_parse(parsed, missing_span())
+        }
+    } else {
+        make_spanned_parse(state, missing_span())
+    }
+}
+
+fn parse_optional_ensures_clause(source: Text, state: ParseState) -> SpannedParse {
+    if state.cursor.kind == TokenKind.KwEnsures {
+        let clause_start = state.cursor.start;
+        let parsed = parse_contract_clause(source, state, TokenKind.KwEnsures);
+        if parsed.status == ParseStatus.Ok {
+            make_spanned_parse(parsed, present_span(clause_start, parsed.last_end))
+        } else {
+            make_spanned_parse(parsed, missing_span())
+        }
+    } else {
+        make_spanned_parse(state, missing_span())
+    }
+}
+
+fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
+    if state.cursor.kind == TokenKind.KwLet {
+        let binding_start = state.cursor.start;
+        let mut current = parse_expect(source, state, TokenKind.KwLet);
+        if current.cursor.kind == TokenKind.KwMut {
+            current = parse_expect(source, current, TokenKind.KwMut);
+        };
+        let name_spanned = parse_ident_span(source, current);
+        current = name_spanned.state;
+        current = parse_expect(source, current, TokenKind.Eq);
+        let expr_start = current.cursor.start;
+        let expr_kind = classify_expr_kind(source, current);
+        let parsed_expr = parse_expr_bp(source, current, 0);
+        let with_semi = parse_expect(source, parsed_expr, TokenKind.Semicolon);
+        make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Let, name_spanned.span, present_span(expr_start, expr_start + 1), expr_kind))
+    } else {
+        if starts_assign(source, state) {
+            let target_start = state.cursor.start;
+            let mut current = parse_named_type(source, state);
+            let target_end = current.last_end;
+            current = parse_expect(source, current, TokenKind.Eq);
+            let expr_start = current.cursor.start;
+            let expr_kind = classify_expr_kind(source, current);
+            let parsed_expr = parse_expr_bp(source, current, 0);
+            let with_semi = parse_expect(source, parsed_expr, TokenKind.Semicolon);
+            make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Assign, present_span(target_start, target_end), present_span(expr_start, expr_start + 1), expr_kind))
+        } else {
+            let expr_start = state.cursor.start;
+            let expr_kind = classify_expr_kind(source, state);
+            let current = parse_expr_bp(source, state, 0);
+            if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Semicolon {
+                let with_semi = parse_expect(source, current, TokenKind.Semicolon);
+                make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.ExprStmt, missing_span(), present_span(expr_start, expr_start + 1), expr_kind))
+            } else {
+                make_block_entry_with_item(current, true, present_block_item_entry(BlockItemKind.TailExpr, missing_span(), present_span(expr_start, expr_start + 1), expr_kind))
+            }
+        }
+    }
+}
+
+fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
+    match state.cursor.kind {
+        TokenKind.Ident => {
+            let after_name = parse_named_type(source, state);
+            if starts_record_literal(source, after_name) {
+                ExprKind.Record
+            } else {
+                ExprKind.Name
+            }
+        },
+        TokenKind.Integer => {
+            ExprKind.Integer
+        },
+        TokenKind.Float => {
+            ExprKind.Float
+        },
+        TokenKind.String => {
+            ExprKind.String
+        },
+        TokenKind.KwTrue => {
+            ExprKind.Bool
+        },
+        TokenKind.KwFalse => {
+            ExprKind.Bool
+        },
+        TokenKind.LParen => {
+            ExprKind.Group
+        },
+        TokenKind.LBracket => {
+            ExprKind.Array
+        },
+        TokenKind.LBrace => {
+            ExprKind.Record
+        },
+        TokenKind.KwIf => {
+            ExprKind.If
+        },
+        TokenKind.KwMatch => {
+            ExprKind.Match
+        },
+        TokenKind.KwRepeat => {
+            ExprKind.Repeat
+        },
+        TokenKind.KwWhile => {
+            ExprKind.While
+        },
+        _ => {
+            ExprKind.Name
+        },
+    }
+}
+
+fn parse_block_with_outline(source: Text, state: ParseState) -> FnItemParse {
+    let body_start = state.cursor.start;
+    let mut current = parse_expect(source, state, TokenKind.LBrace);
+    let mut outline = block_outline_new();
+    while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RBrace {
+        let entry = parse_stmt(source, current);
+        current = entry.state;
+        outline = block_outline_push(outline, entry.item);
+        if entry.tail_seen {
+            // After tail expr, must be RBrace
+            if current.cursor.kind != TokenKind.RBrace {
+                current = with_parse_state(current, current.cursor, ParseStatus.Err);
+            };
+        };
+    };
+    let with_rbrace = parse_expect(source, current, TokenKind.RBrace);
+    make_fn_item_parse(with_rbrace, make_fn_header_shape(missing_span(), missing_span(), missing_span(), missing_span(), missing_span(), present_span(body_start, with_rbrace.last_end), outline))
+}
+
+fn parse_block(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.LBrace);
+    while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RBrace {
+        let entry = parse_stmt(source, current);
+        current = entry.state;
+        if entry.tail_seen {
+            if current.cursor.kind != TokenKind.RBrace {
+                current = with_parse_state(current, current.cursor, ParseStatus.Err);
+            };
+        };
+    };
+    parse_expect(source, current, TokenKind.RBrace)
+}
+
+fn parse_fn_item(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.KwFn);
+    current = parse_expect(source, current, TokenKind.Ident);
+    current = (parse_fn_params(source, current)).state;
+    current = (parse_optional_return_type(source, current)).state;
+    current = (parse_optional_effects_clause(source, current)).state;
+    current = (parse_optional_requires_clause(source, current)).state;
+    current = (parse_optional_ensures_clause(source, current)).state;
+    parse_block(source, current)
+}
+
+fn parse_fn_item_with_shape(source: Text, state: ParseState) -> FnItemParse {
+    let mut current = parse_expect(source, state, TokenKind.KwFn);
+    current = parse_expect(source, current, TokenKind.Ident);
+    let params = parse_fn_params(source, current);
+    current = params.state;
+    let returned = parse_optional_return_type(source, current);
+    current = returned.state;
+    let effect_part = parse_optional_effects_clause(source, current);
+    current = effect_part.state;
+    let require_part = parse_optional_requires_clause(source, current);
+    current = require_part.state;
+    let ensure_part = parse_optional_ensures_clause(source, current);
+    current = ensure_part.state;
+    let body = parse_block_with_outline(source, current);
+    make_fn_item_parse(body.state, make_fn_header_shape(params.span, returned.span, effect_part.span, require_part.span, ensure_part.span, body.shape.body_span, body.shape.body_outline))
+}
+
+fn parse_item(source: Text, state: ParseState) -> ParseState {
+    match state.cursor.kind {
+        TokenKind.KwConst => {
+            parse_const_item(source, state)
+        },
+        TokenKind.KwEnum => {
+            parse_enum_item(source, state)
+        },
+        TokenKind.KwFn => {
+            parse_fn_item(source, state)
+        },
+        TokenKind.KwStruct => {
+            parse_struct_item(source, state)
+        },
+        _ => {
+            parse_fail(state)
+        },
+    }
+}
+
+fn parse_type_section_report(source: Text, state: ParseState) -> TypeSectionParse {
+    let mut current = state;
+    let mut outline = top_level_outline_new();
+    let mut struct_count = 0;
+    let mut enum_count = 0;
+    let mut start = 0;
+    let mut end = 0;
+    while current.status == ParseStatus.Ok and (current.cursor.kind == TokenKind.KwEnum or current.cursor.kind == TokenKind.KwStruct) {
+        if struct_count == 0 and enum_count == 0 {
+            start = current.cursor.start;
+        };
+        let name_span = top_level_name_span(source, current);
+        let kind = if current.cursor.kind == TokenKind.KwStruct {
+            struct_count = struct_count + 1;
+            TopLevelKind.Struct
+        } else {
+            enum_count = enum_count + 1;
+            TopLevelKind.Enum
+        };
+        let item_start = current.cursor.start;
+        current = parse_item(source, current);
+        end = current.last_end;
+        outline = top_level_outline_push(outline, present_top_level_entry(kind, item_start, end, name_span));
+    };
+    make_type_section_parse(current, make_type_section(struct_count, enum_count, span_if_items(struct_count + enum_count, start, end)), outline)
+}
+
+fn parse_item_section_report(source: Text, state: ParseState, outline_seed: TopLevelOutline) -> ItemSectionParse {
+    let mut current = state;
+    let mut outline = outline_seed;
+    let mut fn_outline = fn_outline_new();
+    let mut const_count = 0;
+    let mut const_start = 0;
+    let mut const_end = 0;
+    while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.KwConst {
+        let item_start = current.cursor.start;
+        let name_span = top_level_name_span(source, current);
+        if const_count == 0 {
+            const_start = item_start;
+        };
+        const_count = const_count + 1;
+        current = parse_const_item(source, current);
+        const_end = current.last_end;
+        outline = top_level_outline_push(outline, present_top_level_entry(TopLevelKind.Const, item_start, const_end, name_span));
+    };
+    let mut fn_count = 0;
+    let mut fn_start = 0;
+    let mut fn_end = 0;
+    while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.KwFn {
+        let item_start = current.cursor.start;
+        let name_span = top_level_name_span(source, current);
+        if fn_count == 0 {
+            fn_start = item_start;
+        };
+        fn_count = fn_count + 1;
+        let parsed = parse_fn_item_with_shape(source, current);
+        current = parsed.state;
+        fn_end = current.last_end;
+        outline = top_level_outline_push(outline, present_top_level_entry(TopLevelKind.Fn, item_start, fn_end, name_span));
+        fn_outline = fn_outline_push(fn_outline, present_fn_outline_entry(parsed.shape));
+    };
+    make_item_section_parse(current, make_item_section(const_count, fn_count, span_if_items(const_count, const_start, const_end), span_if_items(fn_count, fn_start, fn_end)), outline, fn_outline)
+}
+
+fn parse_module_report(source: Text) -> ModuleReport {
+    let types = parse_type_section_report(source, parse_state_new(source));
+    let items = parse_item_section_report(source, types.state, types.outline);
+    module_report_from_state(items.state, make_top_level_report(types.section, items.section), items.outline, items.fn_outline, source)
+}
+
+fn syntax_selfcheck() -> I32 {
+    let sample = "struct Pair { left: I32, right: [I32; 2], }\nenum OptionText { none, some(Text), }\nconst answer: I32 = 40 + 2;\nfn build(start: I32) -> Token { let token = Token { kind: TokenKind.Ident, start: start, end: start + 1, offset: start + 1 }; token }\nfn pick(pair: Pair) -> Pair effects [alloc] requires answer == 42 ensures true { let value = pair; if not false and answer == 42 or false { value } else { pair } }\n";
+    let sample_ok = report_matches_sample(parse_module_report(sample));
+    let empty_ok = report_matches_empty_module(parse_module_report("fn main() {}"));
+    let broken_ok = parse_module_report("fn broken() { let value = ; }").ok == false;
+    if sample_ok and empty_ok and broken_ok {
+        report_score(parse_module_report(sample))
+    } else {
+        0
+    }
+}
+
+fn parse_f64(source: Text) -> F64 {
+    0.0 // Builtin
+}
+
+fn text_from_f64_fixed(value: F64, digits: I32) -> Text {
+    "" // Builtin
+}

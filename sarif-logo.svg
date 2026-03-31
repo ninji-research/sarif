@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cleanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#CCA3C2" />
+      <stop offset="100%" stop-color="#CC7AA3" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="600" rx="120" fill="#330A25" />
+
+  <g transform="translate(-10, 0)">
+    
+    <g transform="translate(16, 16)">
+      <path d="M 180 160 L 340 300 L 180 440" 
+            fill="none" 
+            stroke="#15040F" 
+            stroke-width="72" 
+            stroke-linecap="round" 
+            stroke-linejoin="round" />
+            
+      <circle cx="460" cy="440" r="36" fill="#15040F" />
+    </g>
+
+    <path d="M 180 160 L 340 300 L 180 440" 
+          fill="none" 
+          stroke="url(#cleanGrad)" 
+          stroke-width="72" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" />
+          
+    <circle cx="460" cy="440" r="36" fill="#CC7A96" />
+    
+  </g>
+</svg>

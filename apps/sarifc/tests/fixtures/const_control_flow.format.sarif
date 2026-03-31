@@ -1,0 +1,28 @@
+enum Flag {
+    off,
+    on,
+}
+
+const answer: I32 = compute(Flag.on);
+
+fn compute(flag: Flag) -> I32 {
+    let mut total = 0;
+    if true {
+        total = total + 2;
+    };
+    match flag {
+        Flag.off => {
+            total = total + 40;
+        },
+        Flag.on => {
+            repeat 2 {
+                total = total + 20;
+            };
+        },
+    };
+    total
+}
+
+fn main() -> I32 {
+    answer
+}

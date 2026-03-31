@@ -1,0 +1,10 @@
+[semantic.rt-type] Error: function `main` parameter `text` has rt-unsafe type `Text`
+   ╭─[ examples/invalid/rt_forbidden_text.sarif:1:9 ]
+   │
+ 1 │ fn main(text: Text) -> Bool {
+   │         ─────┬────  
+   │              ╰────── function `main` parameter `text` has rt-unsafe type `Text`
+   │ 
+   │ Help: Use only bounded, non-allocating types in rt signatures.
+───╯
+check failed

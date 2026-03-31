@@ -1,0 +1,14 @@
+[package]
+name = "sarif_frontend"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+ariadne.workspace = true
+sarif_syntax = { path = "../sarif_syntax" }
+strsim.workspace = true
+
+[lints]
+workspace = true

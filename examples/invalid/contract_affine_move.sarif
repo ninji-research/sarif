@@ -1,0 +1,2 @@
+fn consume(text: Text) -> Text { text }
+fn main(text: Text) -> Text requires consume(text) == text ensures consume(result) == result { text }

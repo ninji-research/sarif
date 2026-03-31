@@ -1,0 +1,3 @@
+fn main() -> I32 {
+    syntax_selfcheck()
+}

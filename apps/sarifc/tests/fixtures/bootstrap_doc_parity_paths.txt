@@ -1,0 +1,6 @@
+# Retained shipped inputs for bootstrap-doc parity.
+# Each line maps <repo-relative path> to an exact markdown fixture.
+examples/const_control_flow.sarif
+examples/multi-file-package
+bootstrap/sarif_syntax
+bootstrap/sarif_tools

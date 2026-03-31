@@ -1,0 +1,4 @@
+[package]
+name = "sarif-tools"
+version = "0.1.0"
+sources = ["../sarif_syntax/src/main.sarif", "src/main.sarif"]
