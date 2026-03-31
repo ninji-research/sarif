@@ -1,0 +1,7 @@
+[alias]
+xfmt = "fmt --all"
+xtest = "test --workspace"
+xlint = "clippy --workspace --all-targets --all-features -- -D warnings"
+xbuild = "build --release -p sarifc"
+xbuild-fast = "build --profile release-fast -p sarifc"
+xbuild-max = "build --profile release-max -p sarifc"
