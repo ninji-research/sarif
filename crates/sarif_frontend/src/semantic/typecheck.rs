@@ -80,6 +80,7 @@ pub(super) fn type_exists(
         | Type::F64
         | Type::Bool
         | Type::Text
+        | Type::TextIndex
         | Type::List(_)
         | Type::TextBuilder
         | Type::Unit
@@ -94,6 +95,7 @@ pub(super) fn types_compatible(expected: &Type, actual: &Type) -> bool {
         | (Type::F64, Type::F64)
         | (Type::Bool, Type::Bool)
         | (Type::Text, Type::Text)
+        | (Type::TextIndex, Type::TextIndex)
         | (Type::TextBuilder, Type::TextBuilder)
         | (Type::Unit, Type::Unit)
         | (Type::Named(_), Type::Named(_))
@@ -141,6 +143,7 @@ pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> 
         "F64" => Some(Type::F64),
         "Bool" => Some(Type::Bool),
         "Text" => Some(Type::Text),
+        "TextIndex" => Some(Type::TextIndex),
         "TextBuilder" => Some(Type::TextBuilder),
         "Unit" => Some(Type::Unit),
         other if other.starts_with("List[") && other.ends_with(']') => {

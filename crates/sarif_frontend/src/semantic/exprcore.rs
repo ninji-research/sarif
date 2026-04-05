@@ -481,6 +481,59 @@ pub(super) fn infer_call_expr(
         };
     }
 
+    if expr.callee == "text_builder_append_i32"
+        && !functions.contains_key("text_builder_append_i32")
+    {
+        require_runtime_builtin_context(
+            "semantic.text_builder_append_i32-runtime-context",
+            "text_builder_append_i32",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_i32-arity",
+                format!(
+                    "builtin `text_builder_append_i32` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_append_i32(builder, value)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_i32-type",
+                format!(
+                    "builtin `text_builder_append_i32` first argument must be TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder accumulator.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_i32-type",
+                format!(
+                    "builtin `text_builder_append_i32` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an integer value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
+            calls,
+        };
+    }
+
     if expr.callee == "text_builder_finish" && !functions.contains_key("text_builder_finish") {
         require_runtime_builtin_context(
             "semantic.text_builder_finish-runtime-context",
@@ -732,6 +785,417 @@ pub(super) fn infer_call_expr(
         }
         return ExprInfo {
             ty: args[0].ty.clone(),
+            calls,
+        };
+    }
+
+    if expr.callee == "list_push" && !functions.contains_key("list_push") {
+        require_runtime_builtin_context(
+            "semantic.list-runtime-context",
+            "list_push",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if !caller_effects.contains(&Effect::Alloc) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.alloc-effect",
+                format!("builtin `list_push` requires `alloc` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect alloc` to the function signature.".to_owned()),
+            ));
+        }
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_push-arity",
+                format!(
+                    "builtin `list_push` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `list_push(vec, len, value)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let element_ty = if let Type::List(element) = &args[0].ty {
+            Some((**element).clone())
+        } else {
+            if args[0].ty != Type::Error {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.list_push-type",
+                    format!(
+                        "builtin `list_push` first argument must be List, found `{}`",
+                        args[0].ty.render(),
+                    ),
+                    expr.span,
+                    Some("Pass a List value.".to_owned()),
+                ));
+            }
+            None
+        };
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_push-type",
+                format!(
+                    "builtin `list_push` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass the used length as an integer.".to_owned()),
+            ));
+        }
+        if let Some(expected) = element_ty
+            && args[2].ty != expected
+            && args[2].ty != Type::Error
+        {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_push-type",
+                format!(
+                    "builtin `list_push` third argument must be {}, found `{}`",
+                    expected.render(),
+                    args[2].ty.render(),
+                ),
+                expr.span,
+                Some(format!("Pass a {} element value.", expected.render())),
+            ));
+        }
+        return ExprInfo {
+            ty: args[0].ty.clone(),
+            calls,
+        };
+    }
+
+    if expr.callee == "list_sort_text" && !functions.contains_key("list_sort_text") {
+        require_runtime_builtin_context(
+            "semantic.list-runtime-context",
+            "list_sort_text",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_text-arity",
+                format!(
+                    "builtin `list_sort_text` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `list_sort_text(vec, len)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        match &args[0].ty {
+            Type::List(element) if **element == Type::Text => {}
+            Type::List(_) => diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_text-type",
+                format!(
+                    "builtin `list_sort_text` first argument must be List[Text], found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a List[Text] value.".to_owned()),
+            )),
+            Type::Error => {}
+            _ => diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_text-type",
+                format!(
+                    "builtin `list_sort_text` first argument must be List[Text], found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a List[Text] value.".to_owned()),
+            )),
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_text-type",
+                format!(
+                    "builtin `list_sort_text` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass the used length as an integer.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: args[0].ty.clone(),
+            calls,
+        };
+    }
+
+    if expr.callee == "list_sort_by_text_field" && !functions.contains_key("list_sort_by_text_field")
+    {
+        require_runtime_builtin_context(
+            "semantic.list-runtime-context",
+            "list_sort_by_text_field",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_text_field-arity",
+                format!(
+                    "builtin `list_sort_by_text_field` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `list_sort_by_text_field(vec, len, \"field\")`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let mut list_ok = false;
+        match &args[0].ty {
+            Type::List(element) => {
+                if let Type::Named(name) = &**element {
+                    list_ok = true;
+                    if let Some(fields) = struct_layouts.get(name) {
+                        match &expr.args[2] {
+                            Expr::String(field_name) => {
+                                if let Some((_, field_ty)) =
+                                    fields.iter().find(|(field, _)| field == &field_name.value)
+                                {
+                                    if *field_ty != Type::Text {
+                                        diagnostics.push(Diagnostic::new(
+                                            "semantic.list_sort_by_text_field-type",
+                                            format!(
+                                                "builtin `list_sort_by_text_field` field `{name}.{}`
+must have type `Text`, found `{}`",
+                                                field_name.value,
+                                                field_ty.render(),
+                                            ),
+                                            expr.span,
+                                            Some("Sort by a Text field.".to_owned()),
+                                        ));
+                                    }
+                                } else {
+                                    diagnostics.push(Diagnostic::new(
+                                        "semantic.list_sort_by_text_field-field",
+                                        format!(
+                                            "record `{name}` has no field `{}`",
+                                            field_name.value
+                                        ),
+                                        expr.span,
+                                        Some("Use one of the declared Text field names.".to_owned()),
+                                    ));
+                                }
+                            }
+                            _ => diagnostics.push(Diagnostic::new(
+                                "semantic.list_sort_by_text_field-field",
+                                "builtin `list_sort_by_text_field` requires a string literal field name"
+                                    .to_owned(),
+                                expr.span,
+                                Some("Pass a field name like `\"id\"`.".to_owned()),
+                            )),
+                        }
+                    }
+                } else if args[0].ty != Type::Error {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.list_sort_by_text_field-type",
+                        format!(
+                            "builtin `list_sort_by_text_field` first argument must be List[record], found `{}`",
+                            args[0].ty.render(),
+                        ),
+                        expr.span,
+                        Some("Pass a list of records with a Text field.".to_owned()),
+                    ));
+                }
+            }
+            Type::Error => {}
+            _ => diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_text_field-type",
+                format!(
+                    "builtin `list_sort_by_text_field` first argument must be List[record], found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a list of records with a Text field.".to_owned()),
+            )),
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_text_field-type",
+                format!(
+                    "builtin `list_sort_by_text_field` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass the used length as an integer.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::Text && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_text_field-type",
+                format!(
+                    "builtin `list_sort_by_text_field` third argument must be Text, found `{}`",
+                    args[2].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text field name.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: if list_ok { args[0].ty.clone() } else { Type::Error },
+            calls,
+        };
+    }
+
+    if expr.callee == "text_index_new" && !functions.contains_key("text_index_new") {
+        require_runtime_builtin_context(
+            "semantic.text_index-runtime-context",
+            "text_index_new",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if !caller_effects.contains(&Effect::Alloc) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.alloc-effect",
+                format!("builtin `text_index_new` requires `alloc` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect alloc` to the function signature.".to_owned()),
+            ));
+        }
+        if !args.is_empty() {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_new-arity",
+                format!(
+                    "builtin `text_index_new` expects 0 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_index_new()` with no arguments.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::TextIndex,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_index_get" && !functions.contains_key("text_index_get") {
+        require_runtime_builtin_context(
+            "semantic.text_index-runtime-context",
+            "text_index_get",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_get-arity",
+                format!(
+                    "builtin `text_index_get` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_index_get(index, key)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextIndex && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_get-type",
+                format!(
+                    "builtin `text_index_get` first argument must be TextIndex, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextIndex handle.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::Text && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_get-type",
+                format!(
+                    "builtin `text_index_get` second argument must be Text, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text lookup key.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_index_set" && !functions.contains_key("text_index_set") {
+        require_runtime_builtin_context(
+            "semantic.text_index-runtime-context",
+            "text_index_set",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_set-arity",
+                format!(
+                    "builtin `text_index_set` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_index_set(index, key, value)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextIndex && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_set-type",
+                format!(
+                    "builtin `text_index_set` first argument must be TextIndex, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextIndex handle.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::Text && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_set-type",
+                format!(
+                    "builtin `text_index_set` second argument must be Text, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text lookup key.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_set-type",
+                format!(
+                    "builtin `text_index_set` third argument must be I32, found `{}`",
+                    args[2].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an I32 slot value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextIndex,
             calls,
         };
     }
@@ -1041,6 +1505,72 @@ pub(super) fn infer_call_expr(
         };
     }
 
+    if expr.callee == "text_find_byte_range" && !functions.contains_key("text_find_byte_range") {
+        if args.len() != 4 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_find_byte_range-arity",
+                format!(
+                    "builtin `text_find_byte_range` expects 4 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_find_byte_range(text, start, end, byte)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_find_byte_range-type",
+                format!(
+                    "builtin `text_find_byte_range` first argument must be Text, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_find_byte_range-type",
+                format!(
+                    "builtin `text_find_byte_range` second argument must be I32, found `{}`",
+                    args[1].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer start offset.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_find_byte_range-type",
+                format!(
+                    "builtin `text_find_byte_range` third argument must be I32, found `{}`",
+                    args[2].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer end offset.".to_owned()),
+            ));
+        }
+        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_find_byte_range-type",
+                format!(
+                    "builtin `text_find_byte_range` fourth argument must be I32, found `{}`",
+                    args[3].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer byte value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
     if expr.callee == "arg_count" && !functions.contains_key("arg_count") {
         if !args.is_empty() {
             diagnostics.push(Diagnostic::new(
@@ -1191,6 +1721,39 @@ pub(super) fn infer_call_expr(
         }
         return ExprInfo {
             ty: Type::Unit,
+            calls,
+        };
+    }
+
+    if expr.callee == "stdout_write_builder" && !functions.contains_key("stdout_write_builder") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdout_write_builder-arity",
+                format!(
+                    "builtin `stdout_write_builder` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `stdout_write_builder(builder)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdout_write_builder-type",
+                format!(
+                    "builtin `stdout_write_builder` expects TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
             calls,
         };
     }
@@ -1399,14 +1962,19 @@ pub(super) fn infer_binary_expr(
         | crate::hir::BinaryOp::Sub
         | crate::hir::BinaryOp::Mul
         | crate::hir::BinaryOp::Div => {
-            if let Some(ty) = matching_numeric_type(&left.ty, &right.ty) {
+            if expr.op == crate::hir::BinaryOp::Add
+                && left.ty == Type::TextBuilder
+                && matches!(right.ty, Type::Text | Type::I32)
+            {
+                Type::TextBuilder
+            } else if let Some(ty) = matching_numeric_type(&left.ty, &right.ty) {
                 ty
             } else {
                 if left.ty != Type::Error && right.ty != Type::Error {
                     diagnostics.push(Diagnostic::new(
                         "semantic.binary-type",
                         format!(
-                            "operands of `{}` must both be `I32` or both be `F64`, found `{}` and `{}`",
+                            "operands of `{}` must both be `I32`, both be `F64`, or append to `TextBuilder`, found `{}` and `{}`",
                             expr.op.symbol(),
                             left.ty.render(),
                             right.ty.render(),
@@ -1559,6 +2127,23 @@ pub(super) fn infer_field_expr(
         caller_effects,
         &nested_context,
     );
+    if expr.field == "len" {
+        match &base.ty {
+            Type::Array(_, _) | Type::List(_) | Type::Text => {
+                return ExprInfo {
+                    ty: Type::I32,
+                    calls: base.calls,
+                };
+            }
+            Type::Error => {
+                return ExprInfo {
+                    ty: Type::Error,
+                    calls: base.calls,
+                };
+            }
+            _ => {}
+        }
+    }
     let ty = if let Some(ty) = field_type(&base.ty, &expr.field, struct_layouts) {
         ty
     } else {
@@ -1828,7 +2413,15 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "text_builder_new"
                     | "text_builder_append"
                     | "text_builder_append_codepoint"
+                    | "text_builder_append_i32"
                     | "text_builder_finish"
+                    | "stdout_write_builder"
+                    | "list_push"
+                    | "list_sort_text"
+                    | "list_sort_by_text_field"
+                    | "text_index_new"
+                    | "text_index_get"
+                    | "text_index_set"
             ) || call.args.iter().any(contains_forbidden_comptime_effect)
         }
         Expr::Array(array) => array
@@ -2113,7 +2706,8 @@ pub(super) fn infer_index_expr(
         ));
     }
     let ty = match &base.ty {
-        Type::Array(element, _) => (**element).clone(),
+        Type::Array(element, _) | Type::List(element) => (**element).clone(),
+        Type::Text => Type::I32,
         Type::Error => Type::Error,
         other => {
             diagnostics.push(Diagnostic::new(
@@ -2123,7 +2717,7 @@ pub(super) fn infer_index_expr(
                     other.pretty(),
                 ),
                 expr.base.span(),
-                Some("Index into an array literal or an array-valued local binding.".to_owned()),
+                Some("Index into a Text, List, or array value in stage-0.".to_owned()),
             ));
             Type::Error
         }

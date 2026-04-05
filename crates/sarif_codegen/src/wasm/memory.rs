@@ -168,6 +168,11 @@ pub(super) fn decode_record_from_memory(
             WasmValueKind::I32 => RuntimeValue::Int(raw),
             WasmValueKind::F64 => RuntimeValue::F64(f64::from_bits(raw as u64)),
             WasmValueKind::Bool => RuntimeValue::Bool(raw != 0),
+            WasmValueKind::TextIndex => {
+                return Err(WasmError::new(
+                    "wasm backend does not yet support text index values in stage-0",
+                ));
+            }
             WasmValueKind::TextBuilder => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support text builder values in stage-0",
@@ -240,6 +245,11 @@ pub(super) fn decode_enum_from_memory(
                 WasmValueKind::I32 => RuntimeValue::Int(raw),
                 WasmValueKind::F64 => RuntimeValue::F64(f64::from_bits(raw as u64)),
                 WasmValueKind::Bool => RuntimeValue::Bool(raw != 0),
+                WasmValueKind::TextIndex => {
+                    return Err(WasmError::new(
+                        "wasm backend does not yet support text index values in stage-0",
+                    ));
+                }
                 WasmValueKind::TextBuilder => {
                     return Err(WasmError::new(
                         "wasm backend does not yet support text builder values in stage-0",

@@ -146,7 +146,11 @@ impl<'a> Parser<'a> {
         }
 
         self.collect_trivia(&mut children);
-        children.push(Element::Node(self.parse_expr_body()));
+        if self.at(TokenKind::Eq) {
+            children.push(Element::Node(self.parse_inline_expr_body()));
+        } else {
+            children.push(Element::Node(self.parse_expr_body()));
+        }
 
         Node::new(NodeKind::FnItem, children)
     }
@@ -624,9 +628,26 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.tokens
-            .get(index)
-            .is_some_and(|token| token.kind == TokenKind::Eq)
+        self.tokens.get(index).is_some_and(|token| {
+            matches!(
+                token.kind,
+                TokenKind::Eq
+                    | TokenKind::PlusEq
+                    | TokenKind::MinusEq
+                    | TokenKind::StarEq
+                    | TokenKind::SlashEq
+            )
+        })
+    }
+
+    fn parse_inline_expr_body(&mut self) -> Node {
+        let mut children = Vec::new();
+        children.push(Element::Token(self.expect(TokenKind::Eq)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_expr_bp(0)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::Semicolon)));
+        Node::new(NodeKind::Body, children)
     }
 
     const fn starts_expr(kind: TokenKind) -> bool {
@@ -672,12 +693,22 @@ impl<'a> Parser<'a> {
         let mut children = Vec::new();
         children.push(Element::Node(self.parse_assign_target_expr()));
         self.collect_trivia(&mut children);
-        children.push(Element::Token(self.expect(TokenKind::Eq)));
+        children.push(Element::Token(self.expect_assign_op()));
         self.collect_trivia(&mut children);
         children.push(Element::Node(self.parse_expr_bp(0)));
         self.collect_trivia(&mut children);
         children.push(Element::Token(self.expect(TokenKind::Semicolon)));
         Node::new(NodeKind::AssignStmt, children)
+    }
+
+    fn expect_assign_op(&mut self) -> Token {
+        match self.current_non_trivia_kind() {
+            Some(TokenKind::PlusEq) => self.expect(TokenKind::PlusEq),
+            Some(TokenKind::MinusEq) => self.expect(TokenKind::MinusEq),
+            Some(TokenKind::StarEq) => self.expect(TokenKind::StarEq),
+            Some(TokenKind::SlashEq) => self.expect(TokenKind::SlashEq),
+            _ => self.expect(TokenKind::Eq),
+        }
     }
 
     fn parse_assign_target_expr(&mut self) -> Node {
@@ -849,13 +880,19 @@ impl<'a> Parser<'a> {
                 self.collect_trivia(&mut children);
                 let token = self.expect(TokenKind::Ident);
                 let lexeme = token.lexeme.clone();
+                let looks_like_type_name = lexeme
+                    .as_bytes()
+                    .first()
+                    .is_some_and(u8::is_ascii_uppercase)
+                    && lexeme.as_bytes().iter().any(u8::is_ascii_lowercase);
                 children.push(Element::Token(token));
                 if lexeme == "result" {
                     Node::new(NodeKind::ExprContractResult, children)
-                } else if self.starts_record_literal() {
+                } else if looks_like_type_name && self.starts_record_literal() {
                     self.collect_trivia(&mut children);
                     children.push(Element::Token(self.expect(TokenKind::LBrace)));
                     children.push(Element::Node(self.parse_field_init_list()));
+                    self.collect_trivia(&mut children);
                     children.push(Element::Token(self.expect(TokenKind::RBrace)));
                     Node::new(NodeKind::ExprRecord, children)
                 } else {
@@ -1078,9 +1115,11 @@ impl<'a> Parser<'a> {
             self.collect_trivia(&mut init_children);
             init_children.push(Element::Token(self.expect(TokenKind::Ident)));
             self.collect_trivia(&mut init_children);
-            init_children.push(Element::Token(self.expect(TokenKind::Colon)));
-            self.collect_trivia(&mut init_children);
-            init_children.push(Element::Node(self.parse_expr_bp(0)));
+            if self.at(TokenKind::Colon) {
+                init_children.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut init_children);
+                init_children.push(Element::Node(self.parse_expr_bp(0)));
+            }
             children.push(Element::Node(Node::new(NodeKind::FieldInit, init_children)));
             self.collect_trivia(&mut children);
 
@@ -1230,6 +1269,13 @@ impl<'a> Parser<'a> {
         {
             index += 1;
         }
+        if self
+            .tokens
+            .get(index)
+            .is_some_and(|token| token.kind == TokenKind::RBrace)
+        {
+            return true;
+        }
         if !self
             .tokens
             .get(index)
@@ -1245,9 +1291,12 @@ impl<'a> Parser<'a> {
         {
             index += 1;
         }
-        self.tokens
-            .get(index)
-            .is_some_and(|token| token.kind == TokenKind::Colon)
+        self.tokens.get(index).is_some_and(|token| {
+            matches!(
+                token.kind,
+                TokenKind::Colon | TokenKind::Comma | TokenKind::RBrace
+            )
+        })
     }
 
     fn at(&self, kind: TokenKind) -> bool {
@@ -1317,6 +1366,28 @@ mod tests {
             child,
             Element::Node(node) if node.kind == NodeKind::FnItem
         )));
+    }
+
+    #[test]
+    fn parses_expression_bodied_functions() {
+        let lexed = lex("fn add(left: I32, right: I32) -> I32 = left + right;");
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty());
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("FnItem"));
+        assert!(tree.contains("Body"));
+        assert!(tree.contains("ExprBinary"));
+    }
+
+    #[test]
+    fn parses_compound_assignments() {
+        let lexed = lex("fn main() -> I32 { let mut total = 0; total += 2; total *= 3; total }");
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty());
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("AssignStmt"));
     }
 
     #[test]
@@ -1420,6 +1491,41 @@ mod tests {
         assert!(tree.contains("ExprRecord"));
         assert!(tree.contains("FieldInitList"));
         assert!(tree.contains("ExprField"));
+    }
+
+    #[test]
+    fn parses_record_field_punning() {
+        let lexed =
+            lex("struct Pair { left: I32, right: I32 }\nfn main() -> Pair { let left = 7; let right = 9; Pair { left, right } }");
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty());
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("ExprRecord"));
+        assert!(tree.contains("FieldInit"));
+    }
+
+    #[test]
+    fn parses_multiline_record_literal_with_call_fields() {
+        let lexed = lex(
+            "struct OrderRow { customer: Text, qty: I32, cents: I32 }\n\
+             fn parse_order(source: Text, start: I32, end: I32) -> OrderRow {\n\
+                 let comma1 = text_find_byte_range(source, start, end, 44);\n\
+                 let comma2 = text_find_byte_range(source, comma1 + 1, end, 44);\n\
+                 let comma3 = text_find_byte_range(source, comma2 + 1, end, 44);\n\
+                 OrderRow {\n\
+                     customer: text_slice(source, start, comma1),\n\
+                     qty: parse_i32_range(source, comma2 + 1, comma3),\n\
+                     cents: parse_i32_range(source, comma3 + 1, end),\n\
+                 }\n\
+             }",
+        );
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("ExprRecord"));
+        assert!(tree.contains("FieldInitList"));
     }
 
     #[test]

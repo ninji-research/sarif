@@ -482,9 +482,14 @@ impl AffineUseChecker<'_> {
                     || expr.callee == "text_len"
                     || expr.callee == "text_slice"
                     || expr.callee == "text_byte"
+                    || expr.callee == "text_cmp"
                     || expr.callee == "text_eq_range"
+                    || expr.callee == "text_find_byte_range"
+                    || expr.callee == "text_builder_append_i32"
                     || expr.callee == "parse_i32_range"
                     || expr.callee == "text_builder_append_codepoint"
+                    || expr.callee == "text_index_get"
+                    || expr.callee == "text_index_set"
                     || expr.callee == "list_len"
                     || expr.callee == "list_get"
                 {
@@ -1059,9 +1064,14 @@ fn collect_param_modes(
                 || expr.callee == "text_len"
                 || expr.callee == "text_slice"
                 || expr.callee == "text_byte"
+                || expr.callee == "text_cmp"
                 || expr.callee == "text_eq_range"
+                || expr.callee == "text_find_byte_range"
+                || expr.callee == "text_builder_append_i32"
                 || expr.callee == "parse_i32_range"
                 || expr.callee == "text_builder_append_codepoint"
+                || expr.callee == "text_index_get"
+                || expr.callee == "text_index_set"
                 || expr.callee == "list_len"
                 || expr.callee == "list_get"
             {
@@ -1319,7 +1329,8 @@ fn expr_type_for_ownership(
         Expr::Index(expr) => {
             let base = expr_type_for_ownership(&expr.base, locals, struct_layouts, result_type)?;
             match base {
-                Type::Array(element, _) => Some(*element),
+                Type::Array(element, _) | Type::List(element) => Some(*element),
+                Type::Text => Some(Type::I32),
                 _ => None,
             }
         }
@@ -1331,13 +1342,23 @@ fn expr_type_for_ownership(
                 return Some(Type::Named(base_name.name.clone()));
             }
             let base = expr_type_for_ownership(&expr.base, locals, struct_layouts, result_type)?;
-            field_type(&base, &expr.field, struct_layouts)
+            if expr.field == "len"
+                && matches!(base, Type::Array(_, _) | Type::List(_) | Type::Text)
+            {
+                Some(Type::I32)
+            } else {
+                field_type(&base, &expr.field, struct_layouts)
+            }
         }
         Expr::Record(expr) => Some(Type::Named(expr.name.clone())),
         Expr::Call(expr) => match expr.callee.as_str() {
-            "text_builder_new" | "text_builder_append" | "text_builder_append_codepoint" => {
+            "text_builder_new" | "text_builder_append"
+            | "text_builder_append_codepoint"
+            | "text_builder_append_i32"
+            | "stdout_write_builder" => {
                 Some(Type::TextBuilder)
             }
+            "text_index_new" => Some(Type::TextIndex),
             "text_builder_finish" => Some(Type::Text),
             "list_new" => expr
                 .args
@@ -1357,6 +1378,17 @@ fn expr_type_for_ownership(
             "list_set" => expr.args.first().and_then(|list| {
                 expr_type_for_ownership(list, locals, struct_layouts, result_type)
             }),
+            "list_push" => expr.args.first().and_then(|list| {
+                expr_type_for_ownership(list, locals, struct_layouts, result_type)
+            }),
+            "list_sort_text" => expr.args.first().and_then(|list| {
+                expr_type_for_ownership(list, locals, struct_layouts, result_type)
+            }),
+            "list_sort_by_text_field" => expr.args.first().and_then(|list| {
+                expr_type_for_ownership(list, locals, struct_layouts, result_type)
+            }),
+            "text_index_get" => Some(Type::I32),
+            "text_index_set" => Some(Type::TextIndex),
             "text_eq_range" => Some(Type::Bool),
             "parse_i32_range" => Some(Type::I32),
             _ => None,
@@ -1437,7 +1469,7 @@ fn is_affine_type_inner(
     visiting: &mut BTreeSet<String>,
 ) -> bool {
     match ty {
-        Type::Text | Type::TextBuilder => true,
+        Type::Text | Type::TextIndex | Type::TextBuilder => true,
         Type::List(_) => true,
         Type::Pair(left, right) => {
             is_affine_type_inner(left, struct_fields, enum_variants, visiting)

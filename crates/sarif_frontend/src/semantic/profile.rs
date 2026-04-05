@@ -14,7 +14,7 @@ pub enum Profile {
     /// Total: Forbid partial functions (while, repeat without proof of termination)
     Total,
     /// RT (Runtime): Enforce determinism, restrict nondeterminism,
-    /// forbid heap allocation (`Text`, `List`, `TextBuilder`)
+    /// forbid heap allocation (`Text`, `List`, `TextBuilder`, `TextIndex`)
     Rt,
 }
 
@@ -71,7 +71,7 @@ fn type_is_rt_safe_inner(
         }
         Type::Param(_) => false,
         Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => true,
-        Type::TextBuilder | Type::List(_) => false,
+        Type::TextIndex | Type::TextBuilder | Type::List(_) => false,
     }
 }
 

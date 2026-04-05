@@ -200,6 +200,7 @@ fn child_record_expr(kind: &NativeValueKind) -> String {
         | NativeValueKind::F64
         | NativeValueKind::Bool
         | NativeValueKind::Text
+        | NativeValueKind::TextIndex
         | NativeValueKind::TextBuilder
         | NativeValueKind::List(_)
         | NativeValueKind::Enum(_) => "0".to_owned(),
@@ -214,6 +215,7 @@ fn child_enum_expr(kind: &NativeValueKind) -> String {
         | NativeValueKind::F64
         | NativeValueKind::Bool
         | NativeValueKind::Text
+        | NativeValueKind::TextIndex
         | NativeValueKind::TextBuilder
         | NativeValueKind::List(_)
         | NativeValueKind::Record(_) => "0".to_owned(),
@@ -292,6 +294,7 @@ const fn c_kind(kind: &NativeValueKind) -> u32 {
         NativeValueKind::F64 => 6,
         NativeValueKind::TextBuilder => 7,
         NativeValueKind::List(_) => 8,
+        NativeValueKind::TextIndex => 9,
     }
 }
 

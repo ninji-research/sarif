@@ -210,6 +210,7 @@ pub enum CodegenValueKind {
     F64,
     Bool,
     Text,
+    TextIndex,
     TextBuilder,
     List(Box<Self>),
     Enum(String),
@@ -282,6 +283,9 @@ pub enum Inst {
     TextBuilderNew {
         dest: ValueId,
     },
+    TextIndexNew {
+        dest: ValueId,
+    },
     TextBuilderAppend {
         dest: ValueId,
         builder: ValueId,
@@ -292,9 +296,29 @@ pub enum Inst {
         builder: ValueId,
         codepoint: ValueId,
     },
+    TextBuilderAppendI32 {
+        dest: ValueId,
+        builder: ValueId,
+        value: ValueId,
+    },
     TextBuilderFinish {
         dest: ValueId,
         builder: ValueId,
+    },
+    StdoutWriteBuilder {
+        dest: ValueId,
+        builder: ValueId,
+    },
+    TextIndexGet {
+        dest: ValueId,
+        index: ValueId,
+        key: ValueId,
+    },
+    TextIndexSet {
+        dest: ValueId,
+        index: ValueId,
+        key: ValueId,
+        value: ValueId,
     },
     ListNew {
         dest: ValueId,
@@ -315,6 +339,23 @@ pub enum Inst {
         list: ValueId,
         index: ValueId,
         value: ValueId,
+    },
+    ListPush {
+        dest: ValueId,
+        list: ValueId,
+        len: ValueId,
+        value: ValueId,
+    },
+    ListSortText {
+        dest: ValueId,
+        list: ValueId,
+        len: ValueId,
+    },
+    ListSortRecordTextField {
+        dest: ValueId,
+        list: ValueId,
+        len: ValueId,
+        field: String,
     },
     F64FromI32 {
         dest: ValueId,
@@ -575,6 +616,9 @@ impl Inst {
             Self::TextBuilderNew { dest } => {
                 format!("{} = text-builder-new", dest.render())
             }
+            Self::TextIndexNew { dest } => {
+                format!("{} = text-index-new", dest.render())
+            }
             Self::TextBuilderAppend {
                 dest,
                 builder,
@@ -595,10 +639,43 @@ impl Inst {
                 builder.render(),
                 codepoint.render()
             ),
+            Self::TextBuilderAppendI32 {
+                dest,
+                builder,
+                value,
+            } => format!(
+                "{} = text-builder-append-i32 {}, {}",
+                dest.render(),
+                builder.render(),
+                value.render()
+            ),
             Self::TextBuilderFinish { dest, builder } => format!(
                 "{} = text-builder-finish {}",
                 dest.render(),
                 builder.render()
+            ),
+            Self::StdoutWriteBuilder { dest, builder } => format!(
+                "{} = stdout-write-builder {}",
+                dest.render(),
+                builder.render()
+            ),
+            Self::TextIndexGet { dest, index, key } => format!(
+                "{} = text-index-get {}, {}",
+                dest.render(),
+                index.render(),
+                key.render()
+            ),
+            Self::TextIndexSet {
+                dest,
+                index,
+                key,
+                value,
+            } => format!(
+                "{} = text-index-set {}, {}, {}",
+                dest.render(),
+                index.render(),
+                key.render(),
+                value.render()
             ),
             Self::ListNew { dest, len, value } => format!(
                 "{} = list-new {}, {}",
@@ -628,6 +705,36 @@ impl Inst {
                 list.render(),
                 index.render(),
                 value.render()
+            ),
+            Self::ListPush {
+                dest,
+                list,
+                len,
+                value,
+            } => format!(
+                "{} = list-push {}, {}, {}",
+                dest.render(),
+                list.render(),
+                len.render(),
+                value.render()
+            ),
+            Self::ListSortText { dest, list, len } => format!(
+                "{} = list-sort-text {}, {}",
+                dest.render(),
+                list.render(),
+                len.render()
+            ),
+            Self::ListSortRecordTextField {
+                dest,
+                list,
+                len,
+                field,
+            } => format!(
+                "{} = list-sort-record-text-field {}, {}, {:?}",
+                dest.render(),
+                list.render(),
+                len.render(),
+                field
             ),
             Self::F64FromI32 { dest, value } => {
                 format!("{} = f64-from-i32 {}", dest.render(), value.render())
@@ -1006,6 +1113,7 @@ pub enum RuntimeValue {
     F64(f64),
     Bool(bool),
     Text(String),
+    TextIndex(u64),
     TextBuilder(u64),
     List(u64),
     Enum(RuntimeEnum),
@@ -1034,6 +1142,7 @@ impl RuntimeValue {
             Self::F64(value) => value.to_string(),
             Self::Bool(value) => value.to_string(),
             Self::Text(value) => value.clone(),
+            Self::TextIndex(_) => "<text-index>".to_owned(),
             Self::TextBuilder(_) => "<text-builder>".to_owned(),
             Self::List(_) => "<list>".to_owned(),
             Self::Enum(value) => value.payload.as_ref().map_or_else(
@@ -1976,38 +2085,53 @@ impl ConstEvaluator<'_, '_> {
         env: &mut ConstEnv,
     ) -> Result<ConstFlow, ConstEvalError> {
         let base = self.eval_expr_value(&expr.base, env)?;
-        let RuntimeValue::Record(record) = base else {
-            return Err(ConstEvalError::new(
-                expr.base.span(),
-                "compile-time indexing requires an internal array value",
-            ));
-        };
-        let Some((_, len)) = synthetic_array_record_info(&record) else {
-            return Err(ConstEvalError::new(
-                expr.base.span(),
-                "compile-time indexing requires an internal array value",
-            ));
-        };
         let index = expect_const_int(&self.eval_expr_value(&expr.index, env)?, expr.index.span())?;
         if index < 0 {
             return Err(ConstEvalError::new(
                 expr.index.span(),
-                "compile-time array indices must be non-negative",
+                "compile-time indices must be non-negative",
             ));
         }
         let Ok(index) = usize::try_from(index) else {
             return Err(ConstEvalError::new(
                 expr.index.span(),
-                "compile-time array index exceeds platform limits",
+                "compile-time index exceeds platform limits",
             ));
         };
-        let Some((_, value)) = record.fields.get(index) else {
-            return Err(ConstEvalError::new(
-                expr.span,
-                format!("compile-time array index {index} is out of bounds for length {len}"),
-            ));
-        };
-        Ok(ConstFlow::Value(value.clone()))
+        match base {
+            RuntimeValue::Record(record) => {
+                let Some((_, len)) = synthetic_array_record_info(&record) else {
+                    return Err(ConstEvalError::new(
+                        expr.base.span(),
+                        "compile-time indexing requires an internal array value",
+                    ));
+                };
+                let Some((_, value)) = record.fields.get(index) else {
+                    return Err(ConstEvalError::new(
+                        expr.span,
+                        format!("compile-time array index {index} is out of bounds for length {len}"),
+                    ));
+                };
+                Ok(ConstFlow::Value(value.clone()))
+            }
+            RuntimeValue::Text(text) => {
+                let bytes = text.as_bytes();
+                let Some(byte) = bytes.get(index) else {
+                    return Err(ConstEvalError::new(
+                        expr.span,
+                        format!(
+                            "compile-time text index {index} is out of bounds for length {}",
+                            bytes.len()
+                        ),
+                    ));
+                };
+                Ok(ConstFlow::Value(RuntimeValue::Int(i64::from(*byte))))
+            }
+            _ => Err(ConstEvalError::new(
+                expr.base.span(),
+                "compile-time indexing requires an internal array or Text value",
+            )),
+        }
     }
 
     fn eval_field_expr(
@@ -2019,6 +2143,29 @@ impl ConstEvaluator<'_, '_> {
             && let Some(value) = self.payload_free_enum_variant_value(&base_name.name, &expr.field)
         {
             return Ok(ConstFlow::Value(value));
+        }
+        if expr.field == "len" {
+            let base = self.eval_expr_value(&expr.base, env)?;
+            return match base {
+                RuntimeValue::Record(record) => {
+                    let (_, len) = synthetic_array_record_info(&record).ok_or_else(|| {
+                        ConstEvalError::new(
+                            expr.span,
+                            "compile-time `.len` requires an internal array or Text value",
+                        )
+                    })?;
+                    Ok(ConstFlow::Value(RuntimeValue::Int(
+                        i64::try_from(len).expect("array len fits in i64"),
+                    )))
+                }
+                RuntimeValue::Text(text) => Ok(ConstFlow::Value(RuntimeValue::Int(
+                    i64::try_from(text.len()).expect("text len fits in i64"),
+                ))),
+                _ => Err(ConstEvalError::new(
+                    expr.span,
+                    "compile-time `.len` requires an internal array or Text value",
+                )),
+            };
         }
         let base = self.eval_expr_value(&expr.base, env)?;
         let RuntimeValue::Record(record) = base else {
@@ -2507,13 +2654,20 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::ConstBool { .. }
             | Inst::ConstText { .. }
             | Inst::TextBuilderNew { .. }
+            | Inst::TextIndexNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderAppendCodepoint { .. }
+            | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
+            | Inst::TextIndexGet { .. }
+            | Inst::TextIndexSet { .. }
             | Inst::ListNew { .. }
             | Inst::ListLen { .. }
             | Inst::ListGet { .. }
             | Inst::ListSet { .. }
+            | Inst::ListPush { .. }
+            | Inst::ListSortText { .. }
+            | Inst::ListSortRecordTextField { .. }
             | Inst::F64FromI32 { .. }
             | Inst::TextLen { .. }
             | Inst::TextConcat { .. }
@@ -2529,6 +2683,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::ArgText { .. }
             | Inst::StdinText { .. }
             | Inst::StdoutWrite { .. }
+            | Inst::StdoutWriteBuilder { .. }
             | Inst::ParseI32 { .. }
             | Inst::ParseI32Range { .. }
             | Inst::ParseF64 { .. }
@@ -2664,6 +2819,7 @@ enum LowerType {
     F64,
     Bool,
     Text,
+    TextIndex,
     TextBuilder,
     List(Box<Self>),
     Unit,
@@ -2679,6 +2835,7 @@ impl LowerType {
             "F64" => Self::F64,
             "Bool" => Self::Bool,
             "Text" => Self::Text,
+            "TextIndex" => Self::TextIndex,
             "TextBuilder" => Self::TextBuilder,
             "Unit" => Self::Unit,
             other if other.starts_with("List[") && other.ends_with(']') => {
@@ -2697,6 +2854,7 @@ impl LowerType {
             Self::F64 => Some("F64".to_owned()),
             Self::Bool => Some("Bool".to_owned()),
             Self::Text => Some("Text".to_owned()),
+            Self::TextIndex => Some("TextIndex".to_owned()),
             Self::TextBuilder => Some("TextBuilder".to_owned()),
             Self::List(element) => Some(format!("List[{}]", lower_type_name(element)?)),
             Self::Unit => Some("Unit".to_owned()),
@@ -3086,6 +3244,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_text_builder_new_expr(expr);
                 }
+                if expr.callee == "text_index_new"
+                    && !self.function_returns.contains_key("text_index_new")
+                {
+                    return self.lower_text_index_new_expr(expr);
+                }
                 if expr.callee == "text_builder_append"
                     && !self.function_returns.contains_key("text_builder_append")
                 {
@@ -3098,10 +3261,25 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_text_builder_append_codepoint_expr(expr);
                 }
+                if expr.callee == "text_builder_append_i32"
+                    && !self.function_returns.contains_key("text_builder_append_i32")
+                {
+                    return self.lower_text_builder_append_i32_expr(expr);
+                }
                 if expr.callee == "text_builder_finish"
                     && !self.function_returns.contains_key("text_builder_finish")
                 {
                     return self.lower_text_builder_finish_expr(expr);
+                }
+                if expr.callee == "text_index_get"
+                    && !self.function_returns.contains_key("text_index_get")
+                {
+                    return self.lower_text_index_get_expr(expr);
+                }
+                if expr.callee == "text_index_set"
+                    && !self.function_returns.contains_key("text_index_set")
+                {
+                    return self.lower_text_index_set_expr(expr);
                 }
                 if expr.callee == "list_new"
                     && !self.function_returns.contains_key("list_new")
@@ -3122,6 +3300,21 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     && !self.function_returns.contains_key("list_set")
                 {
                     return self.lower_list_set_expr(expr);
+                }
+                if expr.callee == "list_push"
+                    && !self.function_returns.contains_key("list_push")
+                {
+                    return self.lower_list_push_expr(expr);
+                }
+                if expr.callee == "list_sort_text"
+                    && !self.function_returns.contains_key("list_sort_text")
+                {
+                    return self.lower_list_sort_text_expr(expr);
+                }
+                if expr.callee == "list_sort_by_text_field"
+                    && !self.function_returns.contains_key("list_sort_by_text_field")
+                {
+                    return self.lower_list_sort_by_text_field_expr(expr);
                 }
                 if expr.callee == "f64_from_i32"
                     && !self.function_returns.contains_key("f64_from_i32")
@@ -3199,6 +3392,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_stdout_write_expr(expr);
                 }
+                if expr.callee == "stdout_write_builder"
+                    && !self.function_returns.contains_key("stdout_write_builder")
+                {
+                    return self.lower_stdout_write_builder_expr(expr);
+                }
                 if let Some((enum_name, variant_name, payload_type)) =
                     self.enum_constructor_for_call(&expr.callee)
                 {
@@ -3241,6 +3439,62 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         payload: None,
                     });
                     return dest;
+                }
+                if expr.field == "len"
+                    && matches!(
+                        self.infer_expr_type(&expr.base),
+                        LowerType::Array(_, _) | LowerType::List(_) | LowerType::Text
+                    )
+                {
+                    return match self.infer_expr_type(&expr.base) {
+                        LowerType::Array(_, len) => {
+                            let Ok(value) = i64::try_from(len) else {
+                                self.diagnostics.push(Diagnostic::new(
+                                    "mir.array-len-range",
+                                    format!(
+                                        "failed to lower synthetic `.len` in `{}` because the array length exceeds stage-0 integer limits",
+                                        self.function.name,
+                                    ),
+                                    expr.span,
+                                    Some(
+                                        "Keep stage-0 array lengths within `I32`/`I64`-sized limits."
+                                            .to_owned(),
+                                    ),
+                                ));
+                                return self.emit_unit_value();
+                            };
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstInt { dest, value });
+                            dest
+                        }
+                        LowerType::List(_) => {
+                            let list = self.lower_expr(&expr.base);
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ListLen { dest, list });
+                            dest
+                        }
+                        LowerType::Text => {
+                            let text = self.lower_expr(&expr.base);
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::TextLen { dest, text });
+                            dest
+                        }
+                        _ => {
+                            self.diagnostics.push(Diagnostic::new(
+                                "mir.len-field-base",
+                                format!(
+                                    "failed to lower synthetic `.len` in `{}` because the base is not Text, List, or array",
+                                    self.function.name,
+                                ),
+                                expr.base.span(),
+                                Some(
+                                    "Use `.len` only on stage-0 Text, List, or array values."
+                                        .to_owned(),
+                                ),
+                            ));
+                            self.emit_unit_value()
+                        }
+                    };
                 }
                 let base = self.lower_expr(&expr.base);
                 let dest = self.fresh_value();
@@ -3325,7 +3579,26 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let right = self.lower_expr(&expr.right);
                 let dest = self.fresh_value();
                 let inst = match expr.op {
-                    BinaryOp::Add => Inst::Add { dest, left, right },
+                    BinaryOp::Add => match (
+                        self.infer_expr_type(&expr.left),
+                        self.infer_expr_type(&expr.right),
+                    ) {
+                        (LowerType::TextBuilder, LowerType::Text) => {
+                            Inst::TextBuilderAppend {
+                                dest,
+                                builder: left,
+                                text: right,
+                            }
+                        }
+                        (LowerType::TextBuilder, LowerType::I32) => {
+                            Inst::TextBuilderAppendI32 {
+                                dest,
+                                builder: left,
+                                value: right,
+                            }
+                        }
+                        _ => Inst::Add { dest, left, right },
+                    },
                     BinaryOp::Sub => Inst::Sub { dest, left, right },
                     BinaryOp::Mul => Inst::Mul { dest, left, right },
                     BinaryOp::Div => Inst::Div { dest, left, right },
@@ -3737,6 +4010,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 "text_builder_new" if !self.function_returns.contains_key("text_builder_new") => {
                     LowerType::TextBuilder
                 }
+                "text_index_new" if !self.function_returns.contains_key("text_index_new") => {
+                    LowerType::TextIndex
+                }
                 "text_builder_append"
                     if !self.function_returns.contains_key("text_builder_append") =>
                 {
@@ -3749,10 +4025,21 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     LowerType::TextBuilder
                 }
+                "text_builder_append_i32"
+                    if !self.function_returns.contains_key("text_builder_append_i32") =>
+                {
+                    LowerType::TextBuilder
+                }
                 "text_builder_finish"
                     if !self.function_returns.contains_key("text_builder_finish") =>
                 {
                     LowerType::Text
+                }
+                "text_index_get" if !self.function_returns.contains_key("text_index_get") => {
+                    LowerType::I32
+                }
+                "text_index_set" if !self.function_returns.contains_key("text_index_set") => {
+                    LowerType::TextIndex
                 }
                 "list_new" if !self.function_returns.contains_key("list_new") => {
                     match expr.args.get(1).map(|arg| self.infer_expr_type(arg)) {
@@ -3768,6 +4055,26 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     }
                 }
                 "list_set" if !self.function_returns.contains_key("list_set") => {
+                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                        Some(LowerType::List(element)) => LowerType::List(element),
+                        _ => LowerType::Error,
+                    }
+                }
+                "list_push" if !self.function_returns.contains_key("list_push") => {
+                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                        Some(LowerType::List(element)) => LowerType::List(element),
+                        _ => LowerType::Error,
+                    }
+                }
+                "list_sort_text" if !self.function_returns.contains_key("list_sort_text") => {
+                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                        Some(LowerType::List(element)) => LowerType::List(element),
+                        _ => LowerType::Error,
+                    }
+                }
+                "list_sort_by_text_field"
+                    if !self.function_returns.contains_key("list_sort_by_text_field") =>
+                {
                     match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
                         Some(LowerType::List(element)) => LowerType::List(element),
                         _ => LowerType::Error,
@@ -3824,6 +4131,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     LowerType::Named(enum_name)
                 } else {
                     match self.infer_expr_type(&expr.base) {
+                        LowerType::Array(_, _) | LowerType::List(_) | LowerType::Text
+                            if expr.field == "len" =>
+                        {
+                            LowerType::I32
+                        }
                         LowerType::Named(name) => self
                             .struct_layouts
                             .get(&name)
@@ -3841,7 +4153,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
             }
             Expr::Index(expr) => match self.infer_expr_type(&expr.base) {
-                LowerType::Array(element, _) => *element,
+                LowerType::Array(element, _) | LowerType::List(element) => *element,
+                LowerType::Text => LowerType::I32,
                 _ => LowerType::Error,
             },
             Expr::If(expr) => self.infer_body_type(&expr.then_body),
@@ -3859,6 +4172,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     self.infer_expr_type(&expr.left),
                     self.infer_expr_type(&expr.right),
                 ) {
+                    (LowerType::TextBuilder, LowerType::Text | LowerType::I32)
+                        if expr.op == BinaryOp::Add =>
+                    {
+                        LowerType::TextBuilder
+                    }
                     (LowerType::F64, LowerType::F64) => LowerType::F64,
                     (LowerType::I32, LowerType::I32) => LowerType::I32,
                     _ => LowerType::Error,
@@ -3973,23 +4291,40 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     }
 
     fn lower_index_expr(&mut self, expr: &sarif_frontend::hir::IndexExpr) -> ValueId {
-        let array_ty = self.infer_expr_type(&expr.base);
-        let LowerType::Array(_, len) = array_ty else {
-            self.diagnostics.push(Diagnostic::new(
-                "mir.array-index-base",
-                format!(
-                    "failed to lower array index in `{}` because the base is not an array",
-                    self.function.name
-                ),
-                expr.base.span(),
-                Some("Index into a stage-0 array-valued local or literal.".to_owned()),
-            ));
-            return self.emit_unit_value();
-        };
-        let base = self.lower_expr(&expr.base);
-        let index = self.lower_expr(&expr.index);
-        self.emit_bounds_assert(index, len);
-        self.lower_index_choice(base, index, 0, len)
+        match self.infer_expr_type(&expr.base) {
+            LowerType::Array(_, len) => {
+                let base = self.lower_expr(&expr.base);
+                let index = self.lower_expr(&expr.index);
+                self.emit_bounds_assert(index, len);
+                self.lower_index_choice(base, index, 0, len)
+            }
+            LowerType::List(_) => {
+                let list = self.lower_expr(&expr.base);
+                let index = self.lower_expr(&expr.index);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ListGet { dest, list, index });
+                dest
+            }
+            LowerType::Text => {
+                let text = self.lower_expr(&expr.base);
+                let index = self.lower_expr(&expr.index);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::TextByte { dest, text, index });
+                dest
+            }
+            _ => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.array-index-base",
+                    format!(
+                        "failed to lower index in `{}` because the base is not Text, List, or array",
+                        self.function.name
+                    ),
+                    expr.base.span(),
+                    Some("Index into a stage-0 Text, List, or array value.".to_owned()),
+                ));
+                self.emit_unit_value()
+            }
+        }
     }
 
     fn lower_array_index_assign_statement(
@@ -4006,7 +4341,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     self.function.name
                 ),
                 span,
-                Some("Use `name[index] = value;` on a mutable local array.".to_owned()),
+                Some("Use `name[index] = value;` on a mutable local array or list.".to_owned()),
             ));
             return;
         };
@@ -4030,85 +4365,104 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     base.name, self.function.name
                 ),
                 span,
-                Some("Keep indexed assignment on mutable local arrays.".to_owned()),
+                Some("Keep indexed assignment on mutable local arrays or lists.".to_owned()),
             ));
             return;
         };
-        let LowerType::Array(_, len) = array_ty.clone() else {
-            self.diagnostics.push(Diagnostic::new(
-                "mir.assign-index-base",
-                format!(
-                    "indexed assignment target `{}` in `{}` is not an array",
-                    base.name, self.function.name
-                ),
-                target.base.span(),
-                Some("Use `name[index] = value;` only on mutable local arrays.".to_owned()),
-            ));
-            return;
-        };
-        let Some(struct_name) = self.register_type_name(&array_ty) else {
-            self.diagnostics.push(Diagnostic::new(
-                "mir.assign-index-base",
-                format!(
-                    "indexed assignment target `{}` in `{}` uses a stage-0 unsupported array type",
-                    base.name, self.function.name
-                ),
-                target.base.span(),
-                Some(
-                    "Keep indexed assignment on stage-0 supported array element types.".to_owned(),
-                ),
-            ));
-            return;
-        };
+        match array_ty.clone() {
+            LowerType::Array(_, len) => {
+                let Some(struct_name) = self.register_type_name(&array_ty) else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-index-base",
+                        format!(
+                            "indexed assignment target `{}` in `{}` uses a stage-0 unsupported array type",
+                            base.name, self.function.name
+                        ),
+                        target.base.span(),
+                        Some(
+                            "Keep indexed assignment on stage-0 supported array element types."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
 
-        let current_array = self.fresh_value();
-        self.instructions.push(Inst::LoadLocal {
-            dest: current_array,
-            slot,
-        });
-        let index = self.lower_expr(&target.index);
-        self.emit_bounds_assert(index, len);
+                let current_array = self.fresh_value();
+                self.instructions.push(Inst::LoadLocal {
+                    dest: current_array,
+                    slot,
+                });
+                let index = self.lower_expr(&target.index);
+                self.emit_bounds_assert(index, len);
 
-        let mut fields = Vec::with_capacity(len);
-        for offset in 0..len {
-            let current_field = self.fresh_value();
-            self.instructions.push(Inst::Field {
-                dest: current_field,
-                base: current_array,
-                name: array_field_name(offset),
-            });
+                let mut fields = Vec::with_capacity(len);
+                for offset in 0..len {
+                    let current_field = self.fresh_value();
+                    self.instructions.push(Inst::Field {
+                        dest: current_field,
+                        base: current_array,
+                        name: array_field_name(offset),
+                    });
 
-            let field_index = self.fresh_value();
-            self.instructions.push(Inst::ConstInt {
-                dest: field_index,
-                value: i64::try_from(offset).expect("array field offset fits in i64"),
-            });
-            let matches = self.fresh_value();
-            self.instructions.push(Inst::Eq {
-                dest: matches,
-                left: index,
-                right: field_index,
-            });
-            let selected = self.fresh_value();
-            self.instructions.push(Inst::If {
-                dest: selected,
-                condition: matches,
-                then_insts: Vec::new(),
-                then_result: Some(value),
-                else_insts: Vec::new(),
-                else_result: Some(current_field),
-            });
-            fields.push((array_field_name(offset), selected));
+                    let field_index = self.fresh_value();
+                    self.instructions.push(Inst::ConstInt {
+                        dest: field_index,
+                        value: i64::try_from(offset).expect("array field offset fits in i64"),
+                    });
+                    let matches = self.fresh_value();
+                    self.instructions.push(Inst::Eq {
+                        dest: matches,
+                        left: index,
+                        right: field_index,
+                    });
+                    let selected = self.fresh_value();
+                    self.instructions.push(Inst::If {
+                        dest: selected,
+                        condition: matches,
+                        then_insts: Vec::new(),
+                        then_result: Some(value),
+                        else_insts: Vec::new(),
+                        else_result: Some(current_field),
+                    });
+                    fields.push((array_field_name(offset), selected));
+                }
+
+                let updated = self.fresh_value();
+                self.instructions.push(Inst::MakeRecord {
+                    dest: updated,
+                    name: struct_name,
+                    fields,
+                });
+                self.instructions.push(Inst::StoreLocal { slot, src: updated });
+            }
+            LowerType::List(_) => {
+                let current_list = self.fresh_value();
+                self.instructions.push(Inst::LoadLocal {
+                    dest: current_list,
+                    slot,
+                });
+                let index = self.lower_expr(&target.index);
+                let updated = self.fresh_value();
+                self.instructions.push(Inst::ListSet {
+                    dest: updated,
+                    list: current_list,
+                    index,
+                    value,
+                });
+                self.instructions.push(Inst::StoreLocal { slot, src: updated });
+            }
+            _ => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.assign-index-base",
+                    format!(
+                        "indexed assignment target `{}` in `{}` is not an array or list",
+                        base.name, self.function.name
+                    ),
+                    target.base.span(),
+                    Some("Use `name[index] = value;` only on mutable local arrays or lists.".to_owned()),
+                ));
+            }
         }
-
-        let updated = self.fresh_value();
-        self.instructions.push(Inst::MakeRecord {
-            dest: updated,
-            name: struct_name,
-            fields,
-        });
-        self.instructions
-            .push(Inst::StoreLocal { slot, src: updated });
     }
 
     fn emit_bounds_assert(&mut self, index: ValueId, len: usize) {
@@ -4431,6 +4785,18 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 });
                 dest
             }
+            RuntimeValue::TextIndex(_) => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.text-index-const",
+                    format!(
+                        "failed to lower compile-time text index value in `{}` because text indexes are runtime-only",
+                        self.function.name
+                    ),
+                    self.function.span,
+                    Some("Construct TextIndex values at runtime.".to_owned()),
+                ));
+                self.emit_unit_value()
+            }
             RuntimeValue::TextBuilder(_) => {
                 self.diagnostics.push(Diagnostic::new(
                     "mir.text-builder-const",
@@ -4533,6 +4899,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_index_new_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextIndexNew { dest });
+        dest
+    }
+
     fn lower_text_builder_append_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
@@ -4572,6 +4944,24 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_builder_append_i32_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let builder = self.lower_expr(arg0);
+        let value = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions
+            .push(Inst::TextBuilderAppendI32 { dest, builder, value });
+        dest
+    }
+
     fn lower_text_builder_finish_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
@@ -4580,6 +4970,43 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let dest = self.fresh_value();
         self.instructions
             .push(Inst::TextBuilderFinish { dest, builder });
+        dest
+    }
+
+    fn lower_text_index_get_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let index = self.lower_expr(arg0);
+        let key = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextIndexGet { dest, index, key });
+        dest
+    }
+
+    fn lower_text_index_set_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg2) = expr.args.get(2) else {
+            return self.emit_unit_value();
+        };
+        let index = self.lower_expr(arg0);
+        let key = self.lower_expr(arg1);
+        let value = self.lower_expr(arg2);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextIndexSet {
+            dest,
+            index,
+            key,
+            value,
+        });
         dest
     }
 
@@ -4640,6 +5067,73 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             list,
             index,
             value,
+        });
+        dest
+    }
+
+    fn lower_list_push_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg2) = expr.args.get(2) else {
+            return self.emit_unit_value();
+        };
+        let list = self.lower_expr(arg0);
+        let len = self.lower_expr(arg1);
+        let value = self.lower_expr(arg2);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::ListPush {
+            dest,
+            list,
+            len,
+            value,
+        });
+        dest
+    }
+
+    fn lower_list_sort_text_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let list = self.lower_expr(arg0);
+        let len = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions
+            .push(Inst::ListSortText { dest, list, len });
+        dest
+    }
+
+    fn lower_list_sort_by_text_field_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg2) = expr.args.get(2) else {
+            return self.emit_unit_value();
+        };
+        let field = match arg2 {
+            Expr::String(text) => text.value.clone(),
+            _ => String::new(),
+        };
+        let list = self.lower_expr(arg0);
+        let len = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::ListSortRecordTextField {
+            dest,
+            list,
+            len,
+            field,
         });
         dest
     }
@@ -4838,6 +5332,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         self.emit_unit_value()
     }
 
+    fn lower_stdout_write_builder_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let builder = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions
+            .push(Inst::StdoutWriteBuilder { dest, builder });
+        dest
+    }
+
     fn lower_sqrt_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
@@ -4938,6 +5443,7 @@ fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
         RuntimeValue::F64(_) => LowerType::F64,
         RuntimeValue::Bool(_) => LowerType::Bool,
         RuntimeValue::Text(_) => LowerType::Text,
+        RuntimeValue::TextIndex(_) => LowerType::TextIndex,
         RuntimeValue::TextBuilder(_) => LowerType::TextBuilder,
         RuntimeValue::List(_) => LowerType::List(Box::new(LowerType::Error)), // opaque handle
         RuntimeValue::Enum(value) => LowerType::Named(value.name.clone()),
@@ -5066,6 +5572,8 @@ struct Interpreter<'a> {
     stdout_text: String,
     next_text_builder_id: u64,
     text_builders: BTreeMap<u64, Vec<u8>>,
+    next_text_index_id: u64,
+    text_indices: BTreeMap<u64, BTreeMap<String, i64>>,
     next_list_id: u64,
     lists: BTreeMap<u64, Vec<RuntimeValue>>,
     handlers: Vec<Vec<HandleArm>>,
@@ -5094,6 +5602,8 @@ impl<'a> Interpreter<'a> {
             stdout_text: String::new(),
             next_text_builder_id: 0,
             text_builders: BTreeMap::new(),
+            next_text_index_id: 0,
+            text_indices: BTreeMap::new(),
             next_list_id: 0,
             lists: BTreeMap::new(),
             handlers: Vec::new(),
@@ -5212,6 +5722,12 @@ impl<'a> Interpreter<'a> {
                     self.text_builders.insert(id, Vec::new());
                     values.insert(*dest, RuntimeValue::TextBuilder(id));
                 }
+                Inst::TextIndexNew { dest } => {
+                    let id = self.next_text_index_id;
+                    self.next_text_index_id += 1;
+                    self.text_indices.insert(id, BTreeMap::new());
+                    values.insert(*dest, RuntimeValue::TextIndex(id));
+                }
                 Inst::TextBuilderAppend {
                     dest,
                     builder,
@@ -5260,6 +5776,26 @@ impl<'a> Interpreter<'a> {
                     bytes.extend_from_slice(encoded.as_bytes());
                     values.insert(*dest, RuntimeValue::TextBuilder(id));
                 }
+                Inst::TextBuilderAppendI32 {
+                    dest,
+                    builder,
+                    value,
+                } => {
+                    let builder_val = extract_value(values, *builder)?;
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::TextBuilder(id) = builder_val else {
+                        return Err(RuntimeError::new("expected TextBuilder"));
+                    };
+                    let RuntimeValue::Int(value) = value_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let bytes = self
+                        .text_builders
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    bytes.extend_from_slice(value.to_string().as_bytes());
+                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                }
                 Inst::TextBuilderFinish { dest, builder } => {
                     let builder_val = extract_value(values, *builder)?;
                     let RuntimeValue::TextBuilder(id) = builder_val else {
@@ -5272,6 +5808,48 @@ impl<'a> Interpreter<'a> {
                     let text = String::from_utf8(bytes)
                         .map_err(|_| RuntimeError::new("text builder produced invalid UTF-8"))?;
                     values.insert(*dest, RuntimeValue::Text(text));
+                }
+                Inst::TextIndexGet { dest, index, key } => {
+                    let index_val = extract_value(values, *index)?;
+                    let key_val = extract_value(values, *key)?;
+                    let RuntimeValue::TextIndex(id) = index_val else {
+                        return Err(RuntimeError::new("expected TextIndex"));
+                    };
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let value = self
+                        .text_indices
+                        .get(&id)
+                        .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
+                        .get(&key)
+                        .copied()
+                        .unwrap_or(-1);
+                    values.insert(*dest, RuntimeValue::Int(value));
+                }
+                Inst::TextIndexSet {
+                    dest,
+                    index,
+                    key,
+                    value,
+                } => {
+                    let index_val = extract_value(values, *index)?;
+                    let key_val = extract_value(values, *key)?;
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::TextIndex(id) = index_val else {
+                        return Err(RuntimeError::new("expected TextIndex"));
+                    };
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Int(value) = value_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    self.text_indices
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
+                        .insert(key, value);
+                    values.insert(*dest, RuntimeValue::TextIndex(id));
                 }
                 Inst::ListNew { dest, len, value } => {
                     let len_val = extract_value(values, *len)?;
@@ -5353,6 +5931,127 @@ impl<'a> Interpreter<'a> {
                         RuntimeError::new("bounds assertion failed in `list_set`")
                     })?;
                     *slot = value_val;
+                    values.insert(*dest, RuntimeValue::List(id));
+                }
+                Inst::ListPush {
+                    dest,
+                    list,
+                    len,
+                    value,
+                } => {
+                    let list_val = extract_value(values, *list)?;
+                    let len_val = extract_value(values, *len)?;
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
+                    };
+                    let RuntimeValue::Int(len) = len_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    if len < 0 {
+                        return Err(RuntimeError::new("list_push length must be non-negative"));
+                    }
+                    let used = usize::try_from(len)
+                        .map_err(|_| RuntimeError::new("list_push length exceeds limits"))?;
+                    let list_ref = self
+                        .lists
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    if used < list_ref.len() {
+                        list_ref[used] = value_val;
+                    } else if used == list_ref.len() {
+                        let next_cap = if used == 0 { 8 } else { used.saturating_mul(2) };
+                        let mut grown = vec![value_val.clone(); next_cap.max(used + 1)];
+                        grown[..used].clone_from_slice(list_ref);
+                        grown[used] = value_val;
+                        *list_ref = grown;
+                    } else {
+                        return Err(RuntimeError::new("bounds assertion failed in `list_push`"));
+                    }
+                    values.insert(*dest, RuntimeValue::List(id));
+                }
+                Inst::ListSortText { dest, list, len } => {
+                    let list_val = extract_value(values, *list)?;
+                    let len_val = extract_value(values, *len)?;
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
+                    };
+                    let RuntimeValue::Int(len) = len_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    if len < 0 {
+                        return Err(RuntimeError::new("list_sort_text length must be non-negative"));
+                    }
+                    let used = usize::try_from(len)
+                        .map_err(|_| RuntimeError::new("list_sort_text length exceeds limits"))?;
+                    let list_ref = self
+                        .lists
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    if used > list_ref.len() {
+                        return Err(RuntimeError::new("bounds assertion failed in `list_sort_text`"));
+                    }
+                    list_ref[..used].sort_by(|left, right| match (left, right) {
+                        (RuntimeValue::Text(left), RuntimeValue::Text(right)) => left.cmp(right),
+                        _ => std::cmp::Ordering::Equal,
+                    });
+                    values.insert(*dest, RuntimeValue::List(id));
+                }
+                Inst::ListSortRecordTextField {
+                    dest,
+                    list,
+                    len,
+                    field,
+                } => {
+                    let list_val = extract_value(values, *list)?;
+                    let len_val = extract_value(values, *len)?;
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
+                    };
+                    let RuntimeValue::Int(len) = len_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    if len < 0 {
+                        return Err(RuntimeError::new(
+                            "list_sort_by_text_field length must be non-negative",
+                        ));
+                    }
+                    let used = usize::try_from(len).map_err(|_| {
+                        RuntimeError::new("list_sort_by_text_field length exceeds limits")
+                    })?;
+                    let list_ref = self
+                        .lists
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    if used > list_ref.len() {
+                        return Err(RuntimeError::new(
+                            "bounds assertion failed in `list_sort_by_text_field`",
+                        ));
+                    }
+                    list_ref[..used].sort_by(|left, right| {
+                        let left_key = match left {
+                            RuntimeValue::Record(record) => record
+                                .fields
+                                .iter()
+                                .find(|(name, _)| name == field)
+                                .map(|(_, value)| value),
+                            _ => None,
+                        };
+                        let right_key = match right {
+                            RuntimeValue::Record(record) => record
+                                .fields
+                                .iter()
+                                .find(|(name, _)| name == field)
+                                .map(|(_, value)| value),
+                            _ => None,
+                        };
+                        match (left_key, right_key) {
+                            (Some(RuntimeValue::Text(left)), Some(RuntimeValue::Text(right))) => {
+                                left.cmp(right)
+                            }
+                            _ => std::cmp::Ordering::Equal,
+                        }
+                    });
                     values.insert(*dest, RuntimeValue::List(id));
                 }
                 Inst::F64FromI32 { dest, value } => {
@@ -5629,6 +6328,21 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Text"));
                     };
                     self.stdout_text.push_str(&text);
+                }
+                Inst::StdoutWriteBuilder { dest, builder } => {
+                    let builder_val = extract_value(values, *builder)?;
+                    let RuntimeValue::TextBuilder(id) = builder_val else {
+                        return Err(RuntimeError::new("expected TextBuilder"));
+                    };
+                    let bytes = self
+                        .text_builders
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    let text = String::from_utf8(bytes.clone())
+                        .map_err(|_| RuntimeError::new("text builder produced invalid UTF-8"))?;
+                    self.stdout_text.push_str(&text);
+                    bytes.clear();
+                    values.insert(*dest, RuntimeValue::TextBuilder(id));
                 }
                 Inst::MakeEnum {
                     dest,
@@ -6537,6 +7251,17 @@ fn main() -> I32 {
     }
 
     #[test]
+    fn runs_text_builder_compound_append() {
+        let mir = lower_source(
+            "fn main() -> Text { let mut builder = text_builder_new(); builder += \"A\"; builder += 42; builder += \"\\n\"; text_builder_finish(builder) }",
+        );
+
+        assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+        let result = run_main(&mir.program).expect("program should run");
+        assert_eq!(result, RuntimeValue::Text("A42\n".to_owned()));
+    }
+
+    #[test]
     fn preserves_typed_list_builtin_lowering() {
         let mir = lower_source(
             "fn head(xs: List[I32]) -> I32 { let mut ys = xs; ys = list_set(ys, 0, 42); list_get(ys, 0) }\nfn main() -> I32 { head(list_new(1, 7)) }",
@@ -6552,5 +7277,16 @@ fn main() -> I32 {
         );
         let result = run_main(&mir.program).expect("program should run");
         assert_eq!(result, RuntimeValue::Int(42));
+    }
+
+    #[test]
+    fn supports_len_and_index_sugar_for_text_list_and_array() {
+        let mir = lower_source(
+            "fn main() -> I32 { let mut xs = list_new(2, 7); xs[1] = 9; let text = \"AZ\"; let arr = [3, 4, 5]; xs[1] + text[1] + text.len + xs.len + arr[2] + arr.len }",
+        );
+
+        assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+        let result = run_main(&mir.program).expect("program should run");
+        assert_eq!(result, RuntimeValue::Int(111));
     }
 }

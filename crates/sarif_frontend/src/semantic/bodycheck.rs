@@ -228,7 +228,7 @@ fn handle_assign_statement(
                     "unsupported complex assignment target in stage-0",
                     statement.span,
                     Some(
-                        "Only simple local name or indexed array assignments are supported."
+                        "Only simple local name or indexed array/list assignments are supported."
                             .to_owned(),
                     ),
                 ));
@@ -275,22 +275,26 @@ fn handle_assign_statement(
                 ));
                 return;
             };
-            let Type::Array(element, _) = current_ty else {
-                context.diagnostics.push(Diagnostic::new(
-                    "semantic.array-index-base",
-                    format!(
-                        "cannot index value of type `{}` in `{}`",
-                        current_ty.pretty(),
-                        context.fn_name,
-                    ),
-                    target.base.span(),
-                    Some(
-                        "Index into an array literal or an array-valued local binding.".to_owned(),
-                    ),
-                ));
-                return;
+            let expected_ty = match current_ty {
+                Type::Array(element, _) | Type::List(element) => *element,
+                other => {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.array-index-base",
+                        format!(
+                            "cannot index value of type `{}` in `{}`",
+                            other.pretty(),
+                            context.fn_name,
+                        ),
+                        target.base.span(),
+                        Some(
+                            "Index assignment requires a mutable local array or list value."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                }
             };
-            (base.name.clone(), *element)
+            (base.name.clone(), expected_ty)
         }
         _ => {
             context.diagnostics.push(Diagnostic::new(
@@ -298,7 +302,8 @@ fn handle_assign_statement(
                 "unsupported complex assignment target in stage-0",
                 statement.span,
                 Some(
-                    "Only simple local name or indexed array assignments are supported.".to_owned(),
+                    "Only simple local name or indexed array/list assignments are supported."
+                        .to_owned(),
                 ),
             ));
             return;

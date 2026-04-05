@@ -1126,6 +1126,7 @@ impl<'a> WasmEmitter<'a> {
             }
             WasmValueKind::I32
             | WasmValueKind::Bool
+            | WasmValueKind::TextIndex
             | WasmValueKind::TextBuilder
             | WasmValueKind::List(_) => {
                 self.emit_memory_load(output, left_base, offset, WasmType::I64);
@@ -1260,9 +1261,14 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextConcat { dest, .. }
                 | Inst::TextSlice { dest, .. }
                 | Inst::TextBuilderNew { dest }
+                | Inst::TextIndexNew { dest }
                 | Inst::TextBuilderAppend { dest, .. }
                 | Inst::TextBuilderAppendCodepoint { dest, .. }
+                | Inst::TextBuilderAppendI32 { dest, .. }
                 | Inst::TextBuilderFinish { dest, .. }
+                | Inst::StdoutWriteBuilder { dest, .. }
+                | Inst::TextIndexGet { dest, .. }
+                | Inst::TextIndexSet { dest, .. }
                 | Inst::TextFromF64Fixed { dest, .. }
                 | Inst::ArgCount { dest, .. }
                 | Inst::ArgText { dest, .. }
@@ -1279,6 +1285,9 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::ListLen { dest, .. }
                 | Inst::ListGet { dest, .. }
                 | Inst::ListSet { dest, .. }
+                | Inst::ListPush { dest, .. }
+                | Inst::ListSortText { dest, .. }
+                | Inst::ListSortRecordTextField { dest, .. }
                 | Inst::Add { dest, .. }
                 | Inst::Sub { dest, .. }
                 | Inst::Mul { dest, .. }
@@ -1456,11 +1465,16 @@ impl<'a> WasmEmitter<'a> {
                     .expect("writing to a string cannot fail");
             }
             Inst::TextBuilderNew { .. }
+            | Inst::TextIndexNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderAppendCodepoint { .. }
-            | Inst::TextBuilderFinish { .. } => {
+            | Inst::TextBuilderAppendI32 { .. }
+            | Inst::TextBuilderFinish { .. }
+            | Inst::StdoutWriteBuilder { .. }
+            | Inst::TextIndexGet { .. }
+            | Inst::TextIndexSet { .. } => {
                 return Err(WasmError::new(
-                    "wasm backend does not yet support text builder builtins in stage-0",
+                    "wasm backend does not yet support text builder/index builtins in stage-0",
                 ));
             }
             Inst::TextFromF64Fixed { .. } => {
@@ -1604,7 +1618,10 @@ impl<'a> WasmEmitter<'a> {
             Inst::ListNew { .. }
             | Inst::ListLen { .. }
             | Inst::ListGet { .. }
-            | Inst::ListSet { .. } => {
+            | Inst::ListSet { .. }
+            | Inst::ListPush { .. }
+            | Inst::ListSortText { .. }
+            | Inst::ListSortRecordTextField { .. } => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support list values in stage-0",
                 ));
@@ -2115,11 +2132,16 @@ fn collect_inst_kinds(
                 kinds.insert(*dest, WasmValueKind::Text);
             }
             Inst::TextBuilderNew { .. }
+            | Inst::TextIndexNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderAppendCodepoint { .. }
-            | Inst::TextBuilderFinish { .. } => {
+            | Inst::TextBuilderAppendI32 { .. }
+            | Inst::TextBuilderFinish { .. }
+            | Inst::StdoutWriteBuilder { .. }
+            | Inst::TextIndexGet { .. }
+            | Inst::TextIndexSet { .. } => {
                 return Err(WasmError::new(
-                    "wasm backend does not yet support text builder builtins in stage-0",
+                    "wasm backend does not yet support text builder/index builtins in stage-0",
                 ));
             }
             Inst::ListNew { dest, value, .. } => {
@@ -2133,11 +2155,14 @@ fn collect_inst_kinds(
                 };
                 kinds.insert(*dest, WasmValueKind::List(Box::new(kind)));
             }
-            Inst::ListSet { dest, list, .. } => {
+            Inst::ListSet { dest, list, .. }
+            | Inst::ListPush { dest, list, .. }
+            | Inst::ListSortText { dest, list, .. }
+            | Inst::ListSortRecordTextField { dest, list, .. } => {
                 // ListSet returns the same type as the list
                 let Some(kind) = kinds.get(list).cloned() else {
                     return Err(WasmError::new(format!(
-                        "wasm list_set input {} has unknown kind in `{}`",
+                        "wasm list mutation input {} has unknown kind in `{}`",
                         list.render(),
                         function.name
                     )));

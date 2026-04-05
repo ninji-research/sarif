@@ -10,12 +10,15 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use crate::native::{
     ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
-    declare_arg_count, declare_arg_text, declare_list_new, declare_parse_f64, declare_parse_i32,
-    declare_parse_i32_range, declare_record_allocator, declare_stdin_text, declare_stdout_write,
-    declare_text_builder_append, declare_text_builder_append_codepoint, declare_text_builder_finish,
-    declare_text_builder_new, declare_text_cmp, declare_text_concat, declare_text_data_for_insts,
-    declare_text_eq, declare_text_eq_range, declare_text_find_byte_range,
-    declare_text_from_f64_fixed, declare_text_slice,
+    declare_arg_count, declare_arg_text, declare_list_new, declare_list_push,
+    declare_list_sort_by_text_field, declare_list_sort_text,
+    declare_parse_f64, declare_parse_i32, declare_parse_i32_range, declare_record_allocator,
+    declare_stdin_text, declare_stdout_write, declare_stdout_write_builder, declare_text_builder_append,
+    declare_text_builder_append_codepoint, declare_text_builder_append_i32,
+    declare_text_builder_finish, declare_text_builder_new, declare_text_cmp,
+    declare_text_concat, declare_text_data_for_insts, declare_text_eq,
+    declare_text_eq_range, declare_text_find_byte_range, declare_text_from_f64_fixed,
+    declare_text_index_get, declare_text_index_new, declare_text_index_set, declare_text_slice,
     encode_text_blob, infer_value_kinds, lower_insts, native_type as shared_native_type,
     native_value_kind, value_repr as shared_value_repr,
 };
@@ -59,8 +62,16 @@ struct ObjectBackend<'a> {
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_append_codepoint_id: FuncId,
+    text_builder_append_i32_id: FuncId,
     text_builder_finish_id: FuncId,
+    stdout_write_builder_id: FuncId,
+    text_index_new_id: FuncId,
+    text_index_get_id: FuncId,
+    text_index_set_id: FuncId,
     list_new_id: FuncId,
+    list_push_id: FuncId,
+    list_sort_text_id: FuncId,
+    list_sort_by_text_field_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     text_eq_range_id: FuncId,
@@ -115,9 +126,24 @@ impl<'a> ObjectBackend<'a> {
         let text_builder_append_codepoint_id =
             declare_text_builder_append_codepoint(&mut module, "object")
                 .map_err(ObjectError::new)?;
+        let text_builder_append_i32_id =
+            declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)?;
         let text_builder_finish_id =
             declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new)?;
+        let stdout_write_builder_id =
+            declare_stdout_write_builder(&mut module, "object").map_err(ObjectError::new)?;
+        let text_index_new_id =
+            declare_text_index_new(&mut module, "object").map_err(ObjectError::new)?;
+        let text_index_get_id =
+            declare_text_index_get(&mut module, "object").map_err(ObjectError::new)?;
+        let text_index_set_id =
+            declare_text_index_set(&mut module, "object").map_err(ObjectError::new)?;
         let list_new_id = declare_list_new(&mut module, "object").map_err(ObjectError::new)?;
+        let list_push_id = declare_list_push(&mut module, "object").map_err(ObjectError::new)?;
+        let list_sort_text_id =
+            declare_list_sort_text(&mut module, "object").map_err(ObjectError::new)?;
+        let list_sort_by_text_field_id =
+            declare_list_sort_by_text_field(&mut module, "object").map_err(ObjectError::new)?;
         let text_concat_id =
             declare_text_concat(&mut module, "object").map_err(ObjectError::new)?;
         let text_slice_id = declare_text_slice(&mut module, "object").map_err(ObjectError::new)?;
@@ -150,8 +176,16 @@ impl<'a> ObjectBackend<'a> {
             text_builder_new_id,
             text_builder_append_id,
             text_builder_append_codepoint_id,
+            text_builder_append_i32_id,
             text_builder_finish_id,
+            stdout_write_builder_id,
+            text_index_new_id,
+            text_index_get_id,
+            text_index_set_id,
             list_new_id,
+            list_push_id,
+            list_sort_text_id,
+            list_sort_by_text_field_id,
             text_concat_id,
             text_slice_id,
             text_eq_range_id,
@@ -338,8 +372,16 @@ impl<'a> ObjectBackend<'a> {
             self.text_builder_new_id,
             self.text_builder_append_id,
             self.text_builder_append_codepoint_id,
+            self.text_builder_append_i32_id,
             self.text_builder_finish_id,
+            self.stdout_write_builder_id,
+            self.text_index_new_id,
+            self.text_index_get_id,
+            self.text_index_set_id,
             self.list_new_id,
+            self.list_push_id,
+            self.list_sort_text_id,
+            self.list_sort_by_text_field_id,
             self.text_concat_id,
             self.text_slice_id,
             self.text_eq_range_id,

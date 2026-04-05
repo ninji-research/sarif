@@ -1271,12 +1271,43 @@ impl Lowerer {
     }
 
     fn lower_assign_stmt(&mut self, node: &Node) -> Option<AssignStmt> {
-        let mut exprs = node.children.iter().filter_map(|child| match child {
-            Element::Node(expr) => self.lower_expr(expr),
-            Element::Token(_) => None,
-        });
-        let target = exprs.next()?;
-        let value = exprs.next()?;
+        let mut target = None;
+        let mut value = None;
+        let mut op = TokenKind::Eq;
+        for child in &node.children {
+            match child {
+                Element::Node(expr) => {
+                    if target.is_none() {
+                        target = self.lower_expr(expr);
+                    } else if value.is_none() {
+                        value = self.lower_expr(expr);
+                    }
+                }
+                Element::Token(token)
+                    if matches!(
+                        token.kind,
+                        TokenKind::Eq
+                            | TokenKind::PlusEq
+                            | TokenKind::MinusEq
+                            | TokenKind::StarEq
+                            | TokenKind::SlashEq
+                    ) =>
+                {
+                    op = token.kind;
+                }
+                Element::Token(_) => {}
+            }
+        }
+        let target = target?;
+        let mut value = value?;
+        if let Some(binary_op) = compound_assign_op(op) {
+            value = Expr::Binary(BinaryExpr {
+                op: binary_op,
+                left: Box::new(target.clone()),
+                right: Box::new(value),
+                span: node.span,
+            });
+        }
         Some(AssignStmt {
             target,
             value,
@@ -1806,10 +1837,19 @@ impl Lowerer {
 
     fn lower_field_init(&mut self, node: &Node) -> Option<FieldInit> {
         let name = Self::first_ident(node)?;
-        let value = node.children.iter().find_map(|child| match child {
-            Element::Node(expr) => self.lower_expr(expr),
-            Element::Token(_) => None,
-        })?;
+        let value = node
+            .children
+            .iter()
+            .find_map(|child| match child {
+                Element::Node(expr) => self.lower_expr(expr),
+                Element::Token(_) => None,
+            })
+            .unwrap_or_else(|| {
+                Expr::Name(NameExpr {
+                    name: name.clone(),
+                    span: node.span,
+                })
+            });
 
         Some(FieldInit {
             name,
@@ -1928,6 +1968,16 @@ impl Lowerer {
             Element::Token(token) if token.kind == kind => Some(token),
             Element::Node(_) | Element::Token(_) => None,
         })
+    }
+}
+
+const fn compound_assign_op(kind: TokenKind) -> Option<BinaryOp> {
+    match kind {
+        TokenKind::PlusEq => Some(BinaryOp::Add),
+        TokenKind::MinusEq => Some(BinaryOp::Sub),
+        TokenKind::StarEq => Some(BinaryOp::Mul),
+        TokenKind::SlashEq => Some(BinaryOp::Div),
+        _ => None,
     }
 }
 
@@ -2117,6 +2167,30 @@ mod tests {
         };
 
         assert_eq!(expr.binding.as_deref(), Some("i"));
+        assert!(ast.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_record_field_punning_to_name_exprs() {
+        let lexed =
+            lex("struct Pair { left: I32, right: I32 }\nfn main() -> Pair { let left = 7; let right = 9; Pair { left, right } }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.last().expect("function item") else {
+            panic!("expected function");
+        };
+
+        let Expr::Record(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected record expression");
+        };
+
+        assert!(matches!(expr.fields[0].value, Expr::Name(_)));
+        assert!(matches!(expr.fields[1].value, Expr::Name(_)));
         assert!(ast.diagnostics.is_empty());
     }
 

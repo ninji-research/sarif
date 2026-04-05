@@ -69,6 +69,14 @@ enum RawTokenKind {
     Dot,
     #[token("=")]
     Eq,
+    #[token("+=")]
+    PlusEq,
+    #[token("-=")]
+    MinusEq,
+    #[token("*=")]
+    StarEq,
+    #[token("/=")]
+    SlashEq,
     #[token("=>")]
     FatArrow,
     #[token("==")]
@@ -196,6 +204,10 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::Comma => TokenKind::Comma,
         RawTokenKind::Dot => TokenKind::Dot,
         RawTokenKind::Eq => TokenKind::Eq,
+        RawTokenKind::PlusEq => TokenKind::PlusEq,
+        RawTokenKind::MinusEq => TokenKind::MinusEq,
+        RawTokenKind::StarEq => TokenKind::StarEq,
+        RawTokenKind::SlashEq => TokenKind::SlashEq,
         RawTokenKind::FatArrow => TokenKind::FatArrow,
         RawTokenKind::EqEq => TokenKind::EqEq,
         RawTokenKind::Ge => TokenKind::Ge,
@@ -268,6 +280,18 @@ mod tests {
                 .any(|kind| kind == TokenKind::KwWhile)
         );
         assert!(output.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lexes_compound_assignment_tokens() {
+        let output = lex("fn main() = { let mut x = 0; x += 1; x -= 1; x *= 2; x /= 2; x };");
+        let kinds: Vec<_> = output.tokens.iter().map(|token| token.kind).collect();
+
+        assert!(kinds.contains(&TokenKind::PlusEq));
+        assert!(kinds.contains(&TokenKind::MinusEq));
+        assert!(kinds.contains(&TokenKind::StarEq));
+        assert!(kinds.contains(&TokenKind::SlashEq));
+        assert_eq!(output.diagnostics.len(), 0);
     }
 
     #[test]

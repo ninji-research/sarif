@@ -31,6 +31,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         "F64".to_owned(),
         "Bool".to_owned(),
         "Text".to_owned(),
+        "TextIndex".to_owned(),
         "TextBuilder".to_owned(),
         "List".to_owned(),
         "Unit".to_owned(),

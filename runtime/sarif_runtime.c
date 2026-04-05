@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
@@ -18,6 +19,7 @@ static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
 static unsigned char sarif_empty_text[8] = {0};
 static int sarif_write_text_blob(const unsigned char* text, int newline);
+int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
 #define SARIF_RECORD_ALIGN 16u
 #define SARIF_RECORD_ARENA_CHUNK_SIZE (1u << 20)
@@ -318,6 +320,26 @@ void* sarif_text_builder_append_codepoint(void* raw_builder, int64_t codepoint) 
     return builder;
 }
 
+void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    int len = 0;
+    char digits[32];
+    if (builder == NULL) {
+        return NULL;
+    }
+    len = snprintf(digits, sizeof(digits), "%" PRId64, value);
+    if (len < 0 || (size_t)len >= sizeof(digits)) {
+        return NULL;
+    }
+    builder = sarif_text_builder_reserve(builder, (uint64_t)len);
+    if (builder == NULL) {
+        return NULL;
+    }
+    memcpy(builder->bytes + builder->len, digits, (size_t)len);
+    builder->len += (uint64_t)len;
+    return builder;
+}
+
 void* sarif_text_builder_finish(void* raw_builder) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
     unsigned char* text = NULL;
@@ -410,114 +432,261 @@ void* sarif_list_new_f64(int64_t len, double fill) {
     }
     return vec;
 }
+
+void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
+    SarifList* list = (SarifList*)list_ptr;
+    uint64_t used = 0;
+    uint64_t next_cap = 0;
+    uint64_t* grown = NULL;
+    if (list == NULL || list->values == NULL || len < 0) {
+        return NULL;
+    }
+    used = (uint64_t)len;
+    if (used < list->len) {
+        list->values[used] = value;
+        return list;
+    }
+    if (used != list->len) {
+        return NULL;
+    }
+    next_cap = used == 0 ? 8u : used * 2u;
+    if (next_cap <= used) {
+        next_cap = used + 1u;
+    }
+    if (next_cap > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
+        return NULL;
+    }
+    grown = realloc(list->values, (size_t)next_cap * sizeof(uint64_t));
+    if (grown == NULL) {
+        return NULL;
+    }
+    list->values = grown;
+    list->values[used] = value;
+    list->len = next_cap;
+    return list;
+}
+
+static int sarif_compare_text_handles(uint64_t left, uint64_t right) {
+    return (int)sarif_text_cmp((const unsigned char*)left, (const unsigned char*)right);
+}
+
+static int sarif_compare_record_text_field_handles(uint64_t left, uint64_t right, uint64_t offset) {
+    const unsigned char* left_record = (const unsigned char*)left;
+    const unsigned char* right_record = (const unsigned char*)right;
+    uint64_t left_text = 0;
+    uint64_t right_text = 0;
+    if (left_record == right_record) {
+        return 0;
+    }
+    if (left_record == NULL) {
+        return right_record == NULL ? 0 : -1;
+    }
+    if (right_record == NULL) {
+        return 1;
+    }
+    left_text = sarif_load_u64(left_record, offset);
+    right_text = sarif_load_u64(right_record, offset);
+    return sarif_compare_text_handles(left_text, right_text);
+}
+
+static uint64_t sarif_sort_text_field_offset = 0;
+
+static int sarif_qsort_compare_text_handles(const void* left, const void* right) {
+    const uint64_t left_handle = *(const uint64_t*)left;
+    const uint64_t right_handle = *(const uint64_t*)right;
+    return sarif_compare_text_handles(left_handle, right_handle);
+}
+
+static int sarif_qsort_compare_record_text_field_handles(const void* left, const void* right) {
+    const uint64_t left_handle = *(const uint64_t*)left;
+    const uint64_t right_handle = *(const uint64_t*)right;
+    return sarif_compare_record_text_field_handles(
+        left_handle,
+        right_handle,
+        sarif_sort_text_field_offset
+    );
+}
+
+void* sarif_list_sort_text(void* list_ptr, int64_t len) {
+    SarifList* list = (SarifList*)list_ptr;
+    uint64_t used = 0;
+    if (list == NULL || list->values == NULL || len < 0) {
+        return NULL;
+    }
+    used = (uint64_t)len;
+    if (used > list->len) {
+        return NULL;
+    }
+    if (used > 1) {
+        qsort(
+            list->values,
+            (size_t)used,
+            sizeof(uint64_t),
+            sarif_qsort_compare_text_handles
+        );
+    }
+    return list;
+}
+
+void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset) {
+    SarifList* list = (SarifList*)list_ptr;
+    uint64_t used = 0;
+    uint64_t field_offset = 0;
+    if (list == NULL || list->values == NULL || len < 0 || offset < 0) {
+        return NULL;
+    }
+    used = (uint64_t)len;
+    field_offset = (uint64_t)offset;
+    if (used > list->len) {
+        return NULL;
+    }
+    if (used > 1) {
+        sarif_sort_text_field_offset = field_offset;
+        qsort(
+            list->values,
+            (size_t)used,
+            sizeof(uint64_t),
+            sarif_qsort_compare_record_text_field_handles
+        );
+    }
+    return list;
+}
 // =============================================================================
-// Ordered Map[T, V] substrate using lightweight open-addressing with linear probing
-// Maintains insertion order for ordered iteration (needed for csvgroupby, joinagg, sortuniq)
+// TextIndex substrate: content-aware Text -> I32 open-addressed index.
+// This is the maintained native primitive for text-keyed aggregation.
 // =============================================================================
 
-typedef struct SarifMapEntry {
+typedef struct SarifTextIndexEntry {
     uint64_t key;
-    uint64_t value;
+    int64_t value;
     uint32_t hash;
     uint8_t occupied;
-} SarifMapEntry;
+} SarifTextIndexEntry;
 
-typedef struct SarifMap {
+typedef struct SarifTextIndex {
     uint64_t len;
     uint64_t cap;
-    SarifMapEntry* entries;
-} SarifMap;
+    SarifTextIndexEntry* entries;
+} SarifTextIndex;
 
-static uint32_t sarif_map_hash(uint64_t key) {
-    // Simple hash mixing - good enough for our use case
-    uint32_t x = (uint32_t)(key >> 32) ^ (uint32_t)(key & 0xffffffff);
-    x = ((x >> 16) ^ x) * 0x45d9f3b;
-    x = ((x >> 16) ^ x) * 0x45d9f3b;
-    x = (x >> 16) ^ x;
-    return x;
+static uint32_t sarif_text_hash_handle(uint64_t key) {
+    const unsigned char* text = (const unsigned char*)key;
+    uint64_t len = 0;
+    uint32_t hash = 2166136261u;
+    uint64_t i = 0;
+    if (text == NULL) {
+        return 0u;
+    }
+    len = sarif_load_u64(text, 0);
+    for (i = 0; i < len; i += 1) {
+        hash ^= text[8 + i];
+        hash *= 16777619u;
+    }
+    hash ^= (uint32_t)len;
+    return hash;
 }
 
-void* sarif_map_new(void) {
-    SarifMap* map = calloc(1u, sizeof(SarifMap));
-    if (map == NULL) {
-        return NULL;
+static int sarif_text_handle_eq(uint64_t left, uint64_t right) {
+    const unsigned char* left_text = (const unsigned char*)left;
+    const unsigned char* right_text = (const unsigned char*)right;
+    uint64_t left_len = 0;
+    uint64_t right_len = 0;
+    if (left_text == right_text) {
+        return 1;
     }
-    map->cap = 16;  // Start with reasonable capacity
-    map->entries = calloc(map->cap, sizeof(SarifMapEntry));
-    if (map->entries == NULL) {
-        free(map);
-        return NULL;
+    if (left_text == NULL || right_text == NULL) {
+        return 0;
     }
-    return map;
+    left_len = sarif_load_u64(left_text, 0);
+    right_len = sarif_load_u64(right_text, 0);
+    if (left_len != right_len) {
+        return 0;
+    }
+    if (left_len == 0) {
+        return 1;
+    }
+    return memcmp(left_text + 8, right_text + 8, (size_t)left_len) == 0 ? 1 : 0;
 }
 
-void* sarif_map_insert(void* map_ptr, uint64_t key, uint64_t value) {
-    SarifMap* map = (SarifMap*)map_ptr;
-    if (map == NULL || map->entries == NULL) {
+void* sarif_text_index_new(void) {
+    SarifTextIndex* index = calloc(1u, sizeof(SarifTextIndex));
+    if (index == NULL) {
         return NULL;
     }
-    // Grow if load factor > 0.75
-    if (map->len * 4 >= map->cap * 3) {
-        uint64_t new_cap = map->cap * 2;
-        SarifMapEntry* new_entries = realloc(map->entries, new_cap * sizeof(SarifMapEntry));
+    index->cap = 16;
+    index->entries = calloc(index->cap, sizeof(SarifTextIndexEntry));
+    if (index->entries == NULL) {
+        free(index);
+        return NULL;
+    }
+    return index;
+}
+
+void* sarif_text_index_set(void* index_ptr, uint64_t key, int64_t value) {
+    SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    if (index == NULL || index->entries == NULL) {
+        return NULL;
+    }
+    if (index->len * 4 >= index->cap * 3) {
+        uint64_t new_cap = index->cap * 2;
+        SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
         if (new_entries == NULL) {
             return NULL;
         }
-        // Rehash all entries
-        memset(new_entries + map->cap, 0, (new_cap - map->cap) * sizeof(SarifMapEntry));
-        for (uint64_t i = 0; i < map->cap; i++) {
-            if (new_entries[i].occupied) {
-                uint32_t new_idx = sarif_map_hash(new_entries[i].key) % new_cap;
-                if (new_idx != i) {
-                    SarifMapEntry tmp = new_entries[i];
-                    new_entries[i].occupied = 0;
-                    while (new_entries[new_idx].occupied) {
-                        new_idx = (new_idx + 1) % new_cap;
-                    }
-                    new_entries[new_idx] = tmp;
+        for (uint64_t i = 0; i < index->cap; i += 1) {
+            if (index->entries[i].occupied) {
+                uint64_t idx = index->entries[i].hash % new_cap;
+                while (new_entries[idx].occupied) {
+                    idx = (idx + 1) % new_cap;
                 }
+                new_entries[idx] = index->entries[i];
             }
         }
-        map->entries = new_entries;
-        map->cap = new_cap;
+        free(index->entries);
+        index->entries = new_entries;
+        index->cap = new_cap;
     }
-    // Insert with linear probing
-    uint32_t hash = sarif_map_hash(key);
-    uint64_t idx = hash % map->cap;
-    while (map->entries[idx].occupied) {
-        if (map->entries[idx].key == key) {
-            // Update existing
-            map->entries[idx].value = value;
-            return map;
+    uint32_t hash = sarif_text_hash_handle(key);
+    uint64_t idx = hash % index->cap;
+    while (index->entries[idx].occupied) {
+        if (
+            index->entries[idx].hash == hash &&
+            sarif_text_handle_eq(index->entries[idx].key, key)
+        ) {
+            index->entries[idx].value = value;
+            return index;
         }
-        idx = (idx + 1) % map->cap;
+        idx = (idx + 1) % index->cap;
     }
-    map->entries[idx].key = key;
-    map->entries[idx].value = value;
-    map->entries[idx].hash = hash;
-    map->entries[idx].occupied = 1;
-    map->len++;
-    return map;
+    index->entries[idx].key = key;
+    index->entries[idx].value = value;
+    index->entries[idx].hash = hash;
+    index->entries[idx].occupied = 1;
+    index->len += 1;
+    return index;
 }
 
-uint64_t sarif_map_get(void* map_ptr, uint64_t key, uint64_t default_val) {
-    SarifMap* map = (SarifMap*)map_ptr;
-    if (map == NULL || map->entries == NULL) {
-        return default_val;
+int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
+    SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    if (index == NULL || index->entries == NULL) {
+        return -1;
     }
-    uint32_t hash = sarif_map_hash(key);
-    uint64_t idx = hash % map->cap;
+    uint32_t hash = sarif_text_hash_handle(key);
+    uint64_t idx = hash % index->cap;
     uint64_t start = idx;
-    while (map->entries[idx].occupied) {
-        if (map->entries[idx].key == key) {
-            return map->entries[idx].value;
+    while (index->entries[idx].occupied) {
+        if (
+            index->entries[idx].hash == hash &&
+            sarif_text_handle_eq(index->entries[idx].key, key)
+        ) {
+            return index->entries[idx].value;
         }
-        idx = (idx + 1) % map->cap;
+        idx = (idx + 1) % index->cap;
         if (idx == start) {
             break;
         }
     }
-    return default_val;
+    return -1;
 }
 
 void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
@@ -661,6 +830,55 @@ uint64_t sarif_text_eq_range(
         return 1;
     }
     return memcmp(source + 8 + clamped_start, expected + 8, (size_t)expected_len) == 0 ? 1 : 0;
+}
+
+int64_t sarif_text_find_byte_range(
+    const unsigned char* source,
+    int64_t start,
+    int64_t end,
+    int64_t byte
+) {
+    uint64_t source_len = 0;
+    uint64_t clamped_start = 0;
+    uint64_t clamped_end = 0;
+    uint64_t index = 0;
+    unsigned char needle = 0;
+    if (source == NULL) {
+        return end;
+    }
+    source_len = sarif_load_u64(source, 0);
+    if (start <= 0) {
+        clamped_start = 0;
+    } else {
+        clamped_start = (uint64_t)start;
+        if (clamped_start > source_len) {
+            clamped_start = source_len;
+        }
+    }
+    if (end <= 0) {
+        clamped_end = 0;
+    } else {
+        clamped_end = (uint64_t)end;
+        if (clamped_end > source_len) {
+            clamped_end = source_len;
+        }
+    }
+    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
+        clamped_start += 1;
+    }
+    while (clamped_end < source_len && sarif_is_utf8_continuation(source[8 + clamped_end])) {
+        clamped_end -= 1;
+    }
+    if (clamped_end < clamped_start) {
+        clamped_end = clamped_start;
+    }
+    needle = (unsigned char)((uint64_t)byte & 0xffu);
+    for (index = clamped_start; index < clamped_end; index += 1) {
+        if (source[8 + index] == needle) {
+            return (int64_t)index;
+        }
+    }
+    return (int64_t)clamped_end;
 }
 
 void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) {
@@ -951,6 +1169,18 @@ void* sarif_stdin_text(void) {
 
 void sarif_stdout_write(const unsigned char* text) {
     (void)sarif_write_text_blob(text, 0);
+}
+
+void* sarif_stdout_write_builder(void* raw_builder) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    if (builder == NULL) {
+        return NULL;
+    }
+    if (builder->len != 0 && fwrite(builder->bytes, 1, (size_t)builder->len, stdout) != (size_t)builder->len) {
+        return NULL;
+    }
+    builder->len = 0;
+    return builder;
 }
 
 static int sarif_write_text_blob(const unsigned char* text, int newline) {

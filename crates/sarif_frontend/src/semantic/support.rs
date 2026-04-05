@@ -104,7 +104,7 @@ pub(super) fn type_contains_affine_values(
 }
 
 pub(super) const fn mutable_local_allows_affine_values(ty: &Type) -> bool {
-    matches!(ty, Type::Text | Type::TextBuilder | Type::List(_))
+    matches!(ty, Type::Text | Type::TextIndex | Type::TextBuilder | Type::List(_))
 }
 
 fn type_contains_affine_values_inner(
@@ -155,7 +155,7 @@ fn type_contains_affine_values_inner(
             visiting.remove(name);
             true
         }
-        Type::TextBuilder | Type::List(_) => true,
+        Type::TextIndex | Type::TextBuilder | Type::List(_) => true,
         Type::Param(_) => false,
         Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => false,
     }

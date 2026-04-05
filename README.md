@@ -6,6 +6,8 @@
 
 Sarif is a minimal, single-style, memory-safe systems language and stage-0 self-hosting-oriented compiler/toolchain. The maintained implementation is still Rust-hosted, but the repository is organized around one stable workflow, one semantic core, and one compiler pipeline: syntax -> HIR -> MIR.
 
+The maintained stage-0 surface now accepts compact expression-bodied functions (`fn add(a: I32, b: I32) -> I32 = a + b;`), record-field punning (`Pair { left, right }`), compound assignments (`+=`, `-=`, `*=`, `/=`), direct list-growth through `list_push(...)`, and integer text emission through `text_builder_append_i32(...)` so retained benchmark code can stay tighter without weakening the semantic model.
+
 ## Current State
 
 Sarif is still in Stage 0.

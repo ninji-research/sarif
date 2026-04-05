@@ -55,6 +55,19 @@ fn run_supports_mutable_locals() {
 }
 
 #[test]
+fn run_accepts_expression_bodied_functions() {
+    assert_run_parity(
+        "fn add(left: I32, right: I32) -> I32 = left + right;\nfn main() -> I32 = add(20, 22);",
+        "42",
+    );
+}
+
+#[test]
+fn run_accepts_compound_assignments() {
+    assert_run_parity("fn main() -> I32 { let mut total = 20; total += 22; total }", "42");
+}
+
+#[test]
 fn run_executes_nested_mutation_consistently() {
     assert_run_parity(
         "fn main() -> I32 { let mut total = 20; if true { total = total + 22; }; total }",
@@ -120,6 +133,14 @@ fn run_executes_text_builder_consistently() {
     assert_run_parity(
         "fn main() -> Text effects [alloc] { let mut builder = text_builder_new(); builder = text_builder_append(builder, \"sa\"); builder = text_builder_append(builder, text_slice(\"sarif\", 2, 5)); text_builder_finish(builder) }",
         "sarif",
+    );
+}
+
+#[test]
+fn run_executes_record_field_punning_consistently() {
+    assert_run_parity(
+        "struct Pair { left: I32, right: I32 }\nfn main() -> I32 { let left = 7; let right = 9; let pair = Pair { left, right }; pair.left + pair.right }",
+        "16",
     );
 }
 
