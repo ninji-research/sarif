@@ -1,4 +1,4 @@
-use std::{env, fs, process::ExitCode};
+use std::{env, fs, io::Read, process::ExitCode};
 
 #[cfg(feature = "native-build")]
 mod artifact;
@@ -17,10 +17,10 @@ use reports::{
 use sarif_codegen::Program;
 #[cfg(feature = "codegen")]
 use sarif_codegen::emit_object;
-#[cfg(feature = "wasm")]
-use sarif_codegen::{emit_wasm, emit_wat};
 #[cfg(feature = "codegen")]
 use sarif_codegen::{RuntimeError, RuntimeValue, lower as lower_mir};
+#[cfg(feature = "wasm")]
+use sarif_codegen::{emit_wasm, emit_wat};
 use sarif_frontend::semantic::Profile;
 use sarif_frontend::{FrontendDatabase, SourceId};
 use sarif_syntax::Diagnostic;
@@ -233,9 +233,20 @@ fn run_program(command: command::Command) -> Result<(), String> {
 
     let mut program_args = vec![command.path];
     program_args.extend(command.program_args);
+    let mut stdin_text = String::new();
+    std::io::stdin()
+        .read_to_string(&mut stdin_text)
+        .map_err(|error| format!("failed to read stdin: {error}"))?;
 
-    let result = sarif_codegen::run_main_with_args(&loaded.mir().program, &program_args).map_err(
-        |error| {
+    let program = loaded.mir().program.clone();
+    let (result, stdout_text) = std::thread::Builder::new()
+        .name("sarif-run".to_owned())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(move || sarif_codegen::run_main_with_io_capture(&program, &program_args, stdin_text))
+        .map_err(|error| format!("failed to start run thread: {error}"))?
+        .join()
+        .map_err(|_| "runtime error: run thread panicked".to_owned())?
+        .map_err(|error| {
             let message = match error {
                 RuntimeError::Message(m) => m,
                 RuntimeError::EffectUnwind {
@@ -243,8 +254,8 @@ fn run_program(command: command::Command) -> Result<(), String> {
                 } => format!("unhandled effect {effect}.{operation}"),
             };
             format!("runtime error: {message}")
-        },
-    )?;
+        })?;
+    print!("{stdout_text}");
     if !matches!(result, RuntimeValue::Unit) {
         println!("{}", result.render());
     }
@@ -352,9 +363,14 @@ fn render_lower_dump(loaded: &LoadedSource) -> String {
 }
 
 #[cfg(feature = "wasm")]
-fn render_codegen_dump(loaded: &LoadedSource, command: &command::Command) -> Result<String, String> {
+fn render_codegen_dump(
+    loaded: &LoadedSource,
+    command: &command::Command,
+) -> Result<String, String> {
     if command.target != BuildTarget::Wasm {
-        return Err("codegen IR dumps are currently supported only with `--target wasm`".to_owned());
+        return Err(
+            "codegen IR dumps are currently supported only with `--target wasm`".to_owned(),
+        );
     }
     emit_wat(&loaded.mir().program).map_err(|error| error.message)
 }

@@ -264,10 +264,17 @@ fn infer_inst_kinds(
             }
             Inst::ConstInt { dest, .. }
             | Inst::TextLen { dest, .. }
+            | Inst::BytesLen { dest, .. }
             | Inst::TextByte { dest, .. }
+            | Inst::BytesByte { dest, .. }
             | Inst::TextCmp { dest, .. }
             | Inst::TextEqRange { dest, .. }
             | Inst::TextFindByteRange { dest, .. }
+            | Inst::BytesFindByteRange { dest, .. }
+            | Inst::TextLineEnd { dest, .. }
+            | Inst::TextNextLine { dest, .. }
+            | Inst::TextFieldEnd { dest, .. }
+            | Inst::TextNextField { dest, .. }
             | Inst::ArgCount { dest, .. }
             | Inst::ListLen { dest, .. }
             | Inst::ParseI32 { dest, .. }
@@ -293,6 +300,8 @@ fn infer_inst_kinds(
             | Inst::TextIndexNew { dest }
             | Inst::TextBuilderAppend { dest, .. }
             | Inst::TextBuilderAppendCodepoint { dest, .. }
+            | Inst::TextBuilderAppendAscii { dest, .. }
+            | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
             | Inst::StdoutWriteBuilder { dest, .. } => {
                 kinds.insert(
@@ -343,11 +352,15 @@ fn infer_inst_kinds(
 
             Inst::TextConcat { dest, .. }
             | Inst::TextSlice { dest, .. }
+            | Inst::BytesSlice { dest, .. }
             | Inst::TextBuilderFinish { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgText { dest, .. }
             | Inst::StdinText { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
+            }
+            Inst::StdinBytes { dest } => {
+                kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdoutWrite { .. } => {}
             Inst::ConstF64 { dest, .. } | Inst::Sqrt { dest, .. } => {
@@ -375,6 +388,13 @@ fn infer_inst_kinds(
                         ));
                     }
                 }
+            }
+            Inst::BitAnd { dest, .. }
+            | Inst::BitOr { dest, .. }
+            | Inst::BitXor { dest, .. }
+            | Inst::Shl { dest, .. }
+            | Inst::Shr { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::I32);
             }
             Inst::ConstBool { dest, .. }
             | Inst::And { dest, .. }
@@ -505,11 +525,17 @@ pub fn native_value_kind(
         let element_kind = native_value_kind(element, records, enums)?;
         return Ok(NativeValueKind::List(Box::new(element_kind)));
     }
+    if let Some(array_name) = array_record_name(name)
+        && records.contains_key(&array_name)
+    {
+        return Ok(NativeValueKind::Record(array_name));
+    }
     match name {
         "I32" => Ok(NativeValueKind::I32),
         "F64" => Ok(NativeValueKind::F64),
         "Bool" => Ok(NativeValueKind::Bool),
         "Text" => Ok(NativeValueKind::Text),
+        "Bytes" => Ok(NativeValueKind::Bytes),
         "TextIndex" => Ok(NativeValueKind::TextIndex),
         "TextBuilder" => Ok(NativeValueKind::TextBuilder),
         "List" => Ok(NativeValueKind::List(Box::new(NativeValueKind::F64))),
@@ -520,6 +546,35 @@ pub fn native_value_kind(
             "native backend does not support values of type `{other}` in stage-0"
         )),
     }
+}
+
+fn array_record_name(name: &str) -> Option<String> {
+    let inner = name.strip_prefix('[')?.strip_suffix(']')?;
+    let mut depth = 0usize;
+    let mut split = None::<usize>;
+    for (index, ch) in inner.char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            ';' if depth == 0 => {
+                split = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let split = split?;
+    let element = inner[..split].trim();
+    let len = inner[split + 1..].trim().parse::<usize>().ok()?;
+    Some(array_struct_name(element, len))
+}
+
+fn array_struct_name(element_ty: &str, len: usize) -> String {
+    let sanitized = element_ty
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>();
+    format!("__Array_{sanitized}_{len}")
 }
 
 pub fn record_offset(index: usize) -> Result<u32, String> {
@@ -676,7 +731,7 @@ fn lower_native_kind_equality<M: Module>(
             let compare = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
             Ok(builder.ins().uextend(types::I64, compare))
         }
-        NativeValueKind::Text => {
+        NativeValueKind::Text | NativeValueKind::Bytes => {
             let helper = module.declare_func_in_func(text_eq_id, builder.func);
             let call = builder.ins().call(helper, &[left, right]);
             Ok(*builder
@@ -965,6 +1020,8 @@ pub fn lower_insts<M: Module>(
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_append_codepoint_id: FuncId,
+    text_builder_append_ascii_id: FuncId,
+    text_builder_append_slice_id: FuncId,
     text_builder_append_i32_id: FuncId,
     text_builder_finish_id: FuncId,
     stdout_write_builder_id: FuncId,
@@ -977,8 +1034,13 @@ pub fn lower_insts<M: Module>(
     list_sort_by_text_field_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
+    bytes_slice_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
+    text_line_end_id: FuncId,
+    text_next_line_id: FuncId,
+    text_field_end_id: FuncId,
+    text_next_field_id: FuncId,
     text_from_f64_fixed_id: FuncId,
     parse_i32_id: FuncId,
     parse_i32_range_id: FuncId,
@@ -1014,6 +1076,8 @@ pub fn lower_insts<M: Module>(
             text_builder_new_id,
             text_builder_append_id,
             text_builder_append_codepoint_id,
+            text_builder_append_ascii_id,
+            text_builder_append_slice_id,
             text_builder_append_i32_id,
             text_builder_finish_id,
             stdout_write_builder_id,
@@ -1026,8 +1090,13 @@ pub fn lower_insts<M: Module>(
             list_sort_by_text_field_id,
             text_concat_id,
             text_slice_id,
+            bytes_slice_id,
             text_eq_range_id,
             text_find_byte_range_id,
+            text_line_end_id,
+            text_next_line_id,
+            text_field_end_id,
+            text_next_field_id,
             text_from_f64_fixed_id,
             parse_i32_id,
             parse_i32_range_id,
@@ -1069,6 +1138,8 @@ pub fn lower_inst<M: Module>(
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_append_codepoint_id: FuncId,
+    text_builder_append_ascii_id: FuncId,
+    text_builder_append_slice_id: FuncId,
     text_builder_append_i32_id: FuncId,
     text_builder_finish_id: FuncId,
     stdout_write_builder_id: FuncId,
@@ -1081,8 +1152,13 @@ pub fn lower_inst<M: Module>(
     list_sort_by_text_field_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
+    bytes_slice_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
+    text_line_end_id: FuncId,
+    text_next_line_id: FuncId,
+    text_field_end_id: FuncId,
+    text_next_field_id: FuncId,
     text_from_f64_fixed_id: FuncId,
     parse_i32_id: FuncId,
     parse_i32_range_id: FuncId,
@@ -1274,6 +1350,96 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::TextBuilderAppendAscii {
+            dest,
+            builder: builder_value,
+            byte,
+        } => {
+            let builder_val = native_value(
+                values,
+                *builder_value,
+                function,
+                "text_builder_append_ascii builder",
+                backend,
+            )?;
+            let byte_val = native_value(
+                values,
+                *byte,
+                function,
+                "text_builder_append_ascii byte",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(text_builder_append_ascii_id, builder.func);
+            let call = builder.ins().call(helper, &[builder_val, byte_val]);
+            let ptr = match builder.inst_results(call) {
+                [ptr] => *ptr,
+                _ => {
+                    return Err(format!(
+                        "{backend} text builder append ascii helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            let null = builder.ins().iconst(types::I64, 0);
+            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
+            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TextBuilderAppendSlice {
+            dest,
+            builder: builder_value,
+            text,
+            start,
+            end,
+        } => {
+            let builder_val = native_value(
+                values,
+                *builder_value,
+                function,
+                "text_builder_append_slice builder",
+                backend,
+            )?;
+            let text_val = native_value(
+                values,
+                *text,
+                function,
+                "text_builder_append_slice text",
+                backend,
+            )?;
+            let start_val = native_value(
+                values,
+                *start,
+                function,
+                "text_builder_append_slice start",
+                backend,
+            )?;
+            let end_val = native_value(
+                values,
+                *end,
+                function,
+                "text_builder_append_slice end",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(text_builder_append_slice_id, builder.func);
+            let call = builder
+                .ins()
+                .call(helper, &[builder_val, text_val, start_val, end_val]);
+            let ptr = match builder.inst_results(call) {
+                [ptr] => *ptr,
+                _ => {
+                    return Err(format!(
+                        "{backend} text builder append slice helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            let null = builder.ins().iconst(types::I64, 0);
+            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
+            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::TextBuilderAppendI32 {
             dest,
             builder: builder_value,
@@ -1286,8 +1452,13 @@ pub fn lower_inst<M: Module>(
                 "text_builder_append_i32 builder",
                 backend,
             )?;
-            let value_val =
-                native_value(values, *value, function, "text_builder_append_i32 value", backend)?;
+            let value_val = native_value(
+                values,
+                *value,
+                function,
+                "text_builder_append_i32 value",
+                backend,
+            )?;
             let helper = module.declare_func_in_func(text_builder_append_i32_id, builder.func);
             let call = builder.ins().call(helper, &[builder_val, value_val]);
             let ptr = match builder.inst_results(call) {
@@ -1352,7 +1523,8 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::TextIndexGet { dest, index, key } => {
-            let index_val = native_value(values, *index, function, "text_index_get index", backend)?;
+            let index_val =
+                native_value(values, *index, function, "text_index_get index", backend)?;
             let key_val = native_value(values, *key, function, "text_index_get key", backend)?;
             let helper = module.declare_func_in_func(text_index_get_id, builder.func);
             let call = builder.ins().call(helper, &[index_val, key_val]);
@@ -1374,9 +1546,11 @@ pub fn lower_inst<M: Module>(
             key,
             value,
         } => {
-            let index_val = native_value(values, *index, function, "text_index_set index", backend)?;
+            let index_val =
+                native_value(values, *index, function, "text_index_set index", backend)?;
             let key_val = native_value(values, *key, function, "text_index_set key", backend)?;
-            let value_val = native_value(values, *value, function, "text_index_set value", backend)?;
+            let value_val =
+                native_value(values, *value, function, "text_index_set value", backend)?;
             let helper = module.declare_func_in_func(text_index_set_id, builder.func);
             let call = builder.ins().call(helper, &[index_val, key_val, value_val]);
             let ptr = match builder.inst_results(call) {
@@ -1588,8 +1762,7 @@ pub fn lower_inst<M: Module>(
             let NativeValueKind::Record(record_name) = element_kind.as_ref() else {
                 return Err(format!(
                     "{backend} list_sort_by_text_field requires List[record], found `{:?}` in `{}`",
-                    element_kind,
-                    function.name
+                    element_kind, function.name
                 ));
             };
             let record = records
@@ -1608,11 +1781,12 @@ pub fn lower_inst<M: Module>(
             if field_desc.kind != NativeValueKind::Text {
                 return Err(format!(
                     "{backend} list_sort_by_text_field requires a Text field, but `{record_name}.{field}` is `{:?}` in `{}`",
-                    field_desc.kind,
-                    function.name
+                    field_desc.kind, function.name
                 ));
             }
-            let offset = builder.ins().iconst(types::I64, i64::from(field_desc.offset));
+            let offset = builder
+                .ins()
+                .iconst(types::I64, i64::from(field_desc.offset));
             let helper = module.declare_func_in_func(list_sort_by_text_field_id, builder.func);
             let call = builder.ins().call(helper, &[vec_val, len_val, offset]);
             let ptr = match builder.inst_results(call) {
@@ -1642,6 +1816,17 @@ pub fn lower_inst<M: Module>(
                 types::I64,
                 cranelift_codegen::ir::MemFlags::trusted(),
                 text_val,
+                0,
+            );
+            values.insert(*dest, NativeValueRepr::Native(len));
+            Ok(true)
+        }
+        Inst::BytesLen { dest, bytes } => {
+            let bytes_val = native_value(values, *bytes, function, "bytes_len", backend)?;
+            let len = builder.ins().load(
+                types::I64,
+                cranelift_codegen::ir::MemFlags::trusted(),
+                bytes_val,
                 0,
             );
             values.insert(*dest, NativeValueRepr::Native(len));
@@ -1693,11 +1878,52 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::BytesSlice {
+            dest,
+            bytes,
+            start,
+            end,
+        } => {
+            let bytes_val = native_value(values, *bytes, function, "bytes_slice bytes", backend)?;
+            let start_val = native_value(values, *start, function, "bytes_slice start", backend)?;
+            let end_val = native_value(values, *end, function, "bytes_slice end", backend)?;
+            let helper = module.declare_func_in_func(bytes_slice_id, builder.func);
+            let call = builder.ins().call(helper, &[bytes_val, start_val, end_val]);
+            let ptr = match builder.inst_results(call) {
+                [ptr] => *ptr,
+                _ => {
+                    return Err(format!(
+                        "{backend} bytes slice helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            let null = builder.ins().iconst(types::I64, 0);
+            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
+            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::TextByte { dest, text, index } => {
             let text_val = native_value(values, *text, function, "text_byte text", backend)?;
             let index_val = native_value(values, *index, function, "text_byte index", backend)?;
             let offset = builder.ins().iadd_imm(index_val, 8);
             let addr = builder.ins().iadd(text_val, offset);
+            let byte = builder.ins().load(
+                types::I8,
+                cranelift_codegen::ir::MemFlags::trusted(),
+                addr,
+                0,
+            );
+            let byte_i64 = builder.ins().uextend(types::I64, byte);
+            values.insert(*dest, NativeValueRepr::Native(byte_i64));
+            Ok(true)
+        }
+        Inst::BytesByte { dest, bytes, index } => {
+            let bytes_val = native_value(values, *bytes, function, "bytes_byte bytes", backend)?;
+            let index_val = native_value(values, *index, function, "bytes_byte index", backend)?;
+            let offset = builder.ins().iadd_imm(index_val, 8);
+            let addr = builder.ins().iadd(bytes_val, offset);
             let byte = builder.ins().load(
                 types::I8,
                 cranelift_codegen::ir::MemFlags::trusted(),
@@ -1732,13 +1958,21 @@ pub fn lower_inst<M: Module>(
             end,
             expected,
         } => {
-            let source_val = native_value(values, *source, function, "text_eq_range source", backend)?;
+            let source_val =
+                native_value(values, *source, function, "text_eq_range source", backend)?;
             let start_val = native_value(values, *start, function, "text_eq_range start", backend)?;
             let end_val = native_value(values, *end, function, "text_eq_range end", backend)?;
-            let expected_val =
-                native_value(values, *expected, function, "text_eq_range expected", backend)?;
+            let expected_val = native_value(
+                values,
+                *expected,
+                function,
+                "text_eq_range expected",
+                backend,
+            )?;
             let helper = module.declare_func_in_func(text_eq_range_id, builder.func);
-            let call = builder.ins().call(helper, &[source_val, start_val, end_val, expected_val]);
+            let call = builder
+                .ins()
+                .call(helper, &[source_val, start_val, end_val, expected_val]);
             let value = match builder.inst_results(call) {
                 [value] => *value,
                 _ => {
@@ -1758,14 +1992,29 @@ pub fn lower_inst<M: Module>(
             end,
             byte,
         } => {
-            let source_val =
-                native_value(values, *source, function, "text_find_byte_range source", backend)?;
-            let start_val =
-                native_value(values, *start, function, "text_find_byte_range start", backend)?;
+            let source_val = native_value(
+                values,
+                *source,
+                function,
+                "text_find_byte_range source",
+                backend,
+            )?;
+            let start_val = native_value(
+                values,
+                *start,
+                function,
+                "text_find_byte_range start",
+                backend,
+            )?;
             let end_val =
                 native_value(values, *end, function, "text_find_byte_range end", backend)?;
-            let byte_val =
-                native_value(values, *byte, function, "text_find_byte_range byte", backend)?;
+            let byte_val = native_value(
+                values,
+                *byte,
+                function,
+                "text_find_byte_range byte",
+                backend,
+            )?;
             let helper = module.declare_func_in_func(text_find_byte_range_id, builder.func);
             let call = builder
                 .ins()
@@ -1775,6 +2024,155 @@ pub fn lower_inst<M: Module>(
                 _ => {
                     return Err(format!(
                         "{backend} text_find_byte_range helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::BytesFindByteRange {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            let source_val = native_value(
+                values,
+                *source,
+                function,
+                "bytes_find_byte_range source",
+                backend,
+            )?;
+            let start_val = native_value(
+                values,
+                *start,
+                function,
+                "bytes_find_byte_range start",
+                backend,
+            )?;
+            let end_val =
+                native_value(values, *end, function, "bytes_find_byte_range end", backend)?;
+            let byte_val = native_value(
+                values,
+                *byte,
+                function,
+                "bytes_find_byte_range byte",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(text_find_byte_range_id, builder.func);
+            let call = builder
+                .ins()
+                .call(helper, &[source_val, start_val, end_val, byte_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} bytes_find_byte_range helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextLineEnd {
+            dest,
+            source,
+            start,
+        } => {
+            let source_val =
+                native_value(values, *source, function, "text_line_end source", backend)?;
+            let start_val = native_value(values, *start, function, "text_line_end start", backend)?;
+            let helper = module.declare_func_in_func(text_line_end_id, builder.func);
+            let call = builder.ins().call(helper, &[source_val, start_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} text_line_end helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextNextLine {
+            dest,
+            source,
+            start,
+        } => {
+            let source_val =
+                native_value(values, *source, function, "text_next_line source", backend)?;
+            let start_val =
+                native_value(values, *start, function, "text_next_line start", backend)?;
+            let helper = module.declare_func_in_func(text_next_line_id, builder.func);
+            let call = builder.ins().call(helper, &[source_val, start_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} text_next_line helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextFieldEnd {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            let source_val =
+                native_value(values, *source, function, "text_field_end source", backend)?;
+            let start_val =
+                native_value(values, *start, function, "text_field_end start", backend)?;
+            let end_val = native_value(values, *end, function, "text_field_end end", backend)?;
+            let byte_val = native_value(values, *byte, function, "text_field_end byte", backend)?;
+            let helper = module.declare_func_in_func(text_field_end_id, builder.func);
+            let call = builder
+                .ins()
+                .call(helper, &[source_val, start_val, end_val, byte_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} text_field_end helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextNextField {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            let source_val =
+                native_value(values, *source, function, "text_next_field source", backend)?;
+            let start_val =
+                native_value(values, *start, function, "text_next_field start", backend)?;
+            let end_val = native_value(values, *end, function, "text_next_field end", backend)?;
+            let byte_val = native_value(values, *byte, function, "text_next_field byte", backend)?;
+            let helper = module.declare_func_in_func(text_next_field_id, builder.func);
+            let call = builder
+                .ins()
+                .call(helper, &[source_val, start_val, end_val, byte_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} text_next_field helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
                 }
@@ -1916,6 +2314,24 @@ pub fn lower_inst<M: Module>(
                 _ => {
                     return Err(format!(
                         "{backend} stdin text helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            let null = builder.ins().iconst(types::I64, 0);
+            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
+            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::StdinBytes { dest } => {
+            let helper = module.declare_func_in_func(stdin_text_id, builder.func);
+            let call = builder.ins().call(helper, &[]);
+            let ptr = match builder.inst_results(call) {
+                [ptr] => *ptr,
+                _ => {
+                    return Err(format!(
+                        "{backend} stdin bytes helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
                 }
@@ -2160,6 +2576,46 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(native));
             Ok(true)
         }
+        Inst::BitAnd { dest, left, right } => {
+            let native = builder.ins().band(
+                native_value(values, *left, function, "bitand left operand", backend)?,
+                native_value(values, *right, function, "bitand right operand", backend)?,
+            );
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
+        Inst::BitOr { dest, left, right } => {
+            let native = builder.ins().bor(
+                native_value(values, *left, function, "bitor left operand", backend)?,
+                native_value(values, *right, function, "bitor right operand", backend)?,
+            );
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
+        Inst::BitXor { dest, left, right } => {
+            let native = builder.ins().bxor(
+                native_value(values, *left, function, "bitxor left operand", backend)?,
+                native_value(values, *right, function, "bitxor right operand", backend)?,
+            );
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
+        Inst::Shl { dest, left, right } => {
+            let native = builder.ins().ishl(
+                native_value(values, *left, function, "shl left operand", backend)?,
+                native_value(values, *right, function, "shl right operand", backend)?,
+            );
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
+        Inst::Shr { dest, left, right } => {
+            let native = builder.ins().sshr(
+                native_value(values, *left, function, "shr left operand", backend)?,
+                native_value(values, *right, function, "shr right operand", backend)?,
+            );
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
         Inst::And { dest, left, right } => {
             let native = builder.ins().band(
                 native_value(values, *left, function, "and left operand", backend)?,
@@ -2359,6 +2815,8 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_append_codepoint_id,
+                text_builder_append_ascii_id,
+                text_builder_append_slice_id,
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
@@ -2371,8 +2829,13 @@ pub fn lower_inst<M: Module>(
                 list_sort_by_text_field_id,
                 text_concat_id,
                 text_slice_id,
+                bytes_slice_id,
                 text_eq_range_id,
                 text_find_byte_range_id,
+                text_line_end_id,
+                text_next_line_id,
+                text_field_end_id,
+                text_next_field_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
                 parse_i32_range_id,
@@ -2422,6 +2885,8 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_append_codepoint_id,
+                text_builder_append_ascii_id,
+                text_builder_append_slice_id,
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
@@ -2434,8 +2899,13 @@ pub fn lower_inst<M: Module>(
                 list_sort_by_text_field_id,
                 text_concat_id,
                 text_slice_id,
+                bytes_slice_id,
                 text_eq_range_id,
                 text_find_byte_range_id,
+                text_line_end_id,
+                text_next_line_id,
+                text_field_end_id,
+                text_next_field_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
                 parse_i32_range_id,
@@ -2587,6 +3057,8 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_append_codepoint_id,
+                text_builder_append_ascii_id,
+                text_builder_append_slice_id,
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
@@ -2599,8 +3071,13 @@ pub fn lower_inst<M: Module>(
                 list_sort_by_text_field_id,
                 text_concat_id,
                 text_slice_id,
+                bytes_slice_id,
                 text_eq_range_id,
                 text_find_byte_range_id,
+                text_line_end_id,
+                text_next_line_id,
+                text_field_end_id,
+                text_next_field_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
                 parse_i32_range_id,
@@ -2665,6 +3142,8 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_append_codepoint_id,
+                text_builder_append_ascii_id,
+                text_builder_append_slice_id,
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
@@ -2677,8 +3156,13 @@ pub fn lower_inst<M: Module>(
                 list_sort_by_text_field_id,
                 text_concat_id,
                 text_slice_id,
+                bytes_slice_id,
                 text_eq_range_id,
                 text_find_byte_range_id,
+                text_line_end_id,
+                text_next_line_id,
+                text_field_end_id,
+                text_next_field_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
                 parse_i32_range_id,
@@ -2734,6 +3218,8 @@ pub fn lower_inst<M: Module>(
                 text_builder_new_id,
                 text_builder_append_id,
                 text_builder_append_codepoint_id,
+                text_builder_append_ascii_id,
+                text_builder_append_slice_id,
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
@@ -2746,8 +3232,13 @@ pub fn lower_inst<M: Module>(
                 list_sort_by_text_field_id,
                 text_concat_id,
                 text_slice_id,
+                bytes_slice_id,
                 text_eq_range_id,
                 text_find_byte_range_id,
+                text_line_end_id,
+                text_next_line_id,
+                text_field_end_id,
+                text_next_field_id,
                 text_from_f64_fixed_id,
                 parse_i32_id,
                 parse_i32_range_id,
@@ -2851,16 +3342,25 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::ListGet { dest, .. }
             | Inst::F64FromI32 { dest, .. }
             | Inst::TextLen { dest, .. }
+            | Inst::BytesLen { dest, .. }
             | Inst::TextConcat { dest, .. }
             | Inst::TextSlice { dest, .. }
+            | Inst::BytesSlice { dest, .. }
             | Inst::TextByte { dest, .. }
+            | Inst::BytesByte { dest, .. }
             | Inst::TextCmp { dest, .. }
             | Inst::TextEqRange { dest, .. }
             | Inst::TextFindByteRange { dest, .. }
+            | Inst::BytesFindByteRange { dest, .. }
+            | Inst::TextLineEnd { dest, .. }
+            | Inst::TextNextLine { dest, .. }
+            | Inst::TextFieldEnd { dest, .. }
+            | Inst::TextNextField { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgCount { dest }
             | Inst::ArgText { dest, .. }
             | Inst::StdinText { dest }
+            | Inst::StdinBytes { dest }
             | Inst::ParseI32 { dest, .. }
             | Inst::ParseI32Range { dest, .. }
             | Inst::ParseF64 { dest, .. }
@@ -2882,6 +3382,11 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::Sub { dest, .. }
             | Inst::Mul { dest, .. }
             | Inst::Div { dest, .. }
+            | Inst::BitAnd { dest, .. }
+            | Inst::BitOr { dest, .. }
+            | Inst::BitXor { dest, .. }
+            | Inst::Shl { dest, .. }
+            | Inst::Shr { dest, .. }
             | Inst::Sqrt { dest, .. }
             | Inst::And { dest, .. }
             | Inst::Or { dest, .. }
@@ -2896,6 +3401,8 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             }
             Inst::TextBuilderAppend { dest, .. }
             | Inst::TextBuilderAppendCodepoint { dest, .. }
+            | Inst::TextBuilderAppendAscii { dest, .. }
+            | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
             | Inst::TextIndexGet { dest, .. }
             | Inst::TextIndexSet { dest, .. }
@@ -3196,11 +3703,7 @@ pub fn declare_list_sort_by_text_field<M: Module>(
     signature.params.push(AbiParam::new(types::I64));
     signature.returns.push(AbiParam::new(types::I64));
     module
-        .declare_function(
-            "sarif_list_sort_by_text_field",
-            Linkage::Import,
-            &signature,
-        )
+        .declare_function("sarif_list_sort_by_text_field", Linkage::Import, &signature)
         .map_err(|error| {
             format!("failed to declare {backend} list sort by text field helper: {error}")
         })
@@ -3252,6 +3755,48 @@ pub fn declare_text_builder_append_codepoint<M: Module>(
         })
 }
 
+pub fn declare_text_builder_append_ascii<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function(
+            "sarif_text_builder_append_ascii",
+            Linkage::Import,
+            &signature,
+        )
+        .map_err(|error| {
+            format!("failed to declare {backend} text builder append ascii helper: {error}")
+        })
+}
+
+pub fn declare_text_builder_append_slice<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function(
+            "sarif_text_builder_append_slice",
+            Linkage::Import,
+            &signature,
+        )
+        .map_err(|error| {
+            format!("failed to declare {backend} text builder append slice helper: {error}")
+        })
+}
+
 pub fn declare_text_builder_append_i32<M: Module>(
     module: &mut M,
     backend: &str,
@@ -3263,7 +3808,9 @@ pub fn declare_text_builder_append_i32<M: Module>(
     signature.returns.push(AbiParam::new(types::I64));
     module
         .declare_function("sarif_text_builder_append_i32", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text builder append i32 helper: {error}"))
+        .map_err(|error| {
+            format!("failed to declare {backend} text builder append i32 helper: {error}")
+        })
 }
 
 pub fn declare_text_builder_finish<M: Module>(
@@ -3323,6 +3870,18 @@ pub fn declare_text_slice<M: Module>(module: &mut M, backend: &str) -> Result<Fu
         .map_err(|error| format!("failed to declare {backend} text slice helper: {error}"))
 }
 
+pub fn declare_bytes_slice<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function("sarif_bytes_slice", Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} bytes slice helper: {error}"))
+}
+
 pub fn declare_text_eq_range<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
     let mut signature = module.make_signature();
     signature.call_conv = CallConv::triple_default(module.isa().triple());
@@ -3349,7 +3908,57 @@ pub fn declare_text_find_byte_range<M: Module>(
     signature.returns.push(AbiParam::new(types::I64));
     module
         .declare_function("sarif_text_find_byte_range", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text_find_byte_range helper: {error}"))
+        .map_err(|error| {
+            format!("failed to declare {backend} text_find_byte_range helper: {error}")
+        })
+}
+
+pub fn declare_text_line_end<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function("sarif_text_line_end", Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} text_line_end helper: {error}"))
+}
+
+pub fn declare_text_next_line<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function("sarif_text_next_line", Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} text_next_line helper: {error}"))
+}
+
+pub fn declare_text_field_end<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function("sarif_text_field_end", Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} text_field_end helper: {error}"))
+}
+
+pub fn declare_text_next_field<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function("sarif_text_next_field", Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} text_next_field helper: {error}"))
 }
 
 pub fn declare_text_from_f64_fixed<M: Module>(
@@ -3378,10 +3987,7 @@ pub fn declare_parse_i32<M: Module>(module: &mut M, backend: &str) -> Result<Fun
         .map_err(|error| format!("failed to declare {backend} parse_i32 helper: {error}"))
 }
 
-pub fn declare_parse_i32_range<M: Module>(
-    module: &mut M,
-    backend: &str,
-) -> Result<FuncId, String> {
+pub fn declare_parse_i32_range<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
     let mut signature = module.make_signature();
     signature.call_conv = CallConv::triple_default(module.isa().triple());
     signature.params.push(AbiParam::new(types::I64));
@@ -3472,7 +4078,9 @@ pub fn declare_stdout_write_builder<M: Module>(
     signature.returns.push(AbiParam::new(types::I64));
     module
         .declare_function("sarif_stdout_write_builder", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} stdout_write_builder helper: {error}"))
+        .map_err(|error| {
+            format!("failed to declare {backend} stdout_write_builder helper: {error}")
+        })
 }
 
 pub fn declare_text_data_for_insts<M: Module>(

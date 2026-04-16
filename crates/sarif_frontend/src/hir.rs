@@ -222,6 +222,12 @@ impl MatchPattern {
             Self::Integer { value, .. } => value.to_string(),
             Self::String { literal, .. } => literal.clone(),
             Self::Bool { value, .. } => value.to_string(),
+            Self::IntegerRange { start, end, .. } => format!("{start}..{end}"),
+            Self::Or { patterns, .. } => patterns
+                .iter()
+                .map(Self::pretty)
+                .collect::<Vec<_>>()
+                .join(" | "),
             Self::Wildcard { .. } => "_".to_owned(),
         }
     }
@@ -233,6 +239,8 @@ impl MatchPattern {
             | Self::Integer { span, .. }
             | Self::String { span, .. }
             | Self::Bool { span, .. }
+            | Self::IntegerRange { span, .. }
+            | Self::Or { span, .. }
             | Self::Wildcard { span } => *span,
         }
     }
@@ -454,6 +462,7 @@ pub struct CallExpr {
 #[derive(Clone, Debug)]
 pub struct ArrayExpr {
     pub elements: Vec<Expr>,
+    pub repeat_len: Option<ConstExpr>,
     pub span: Span,
 }
 
@@ -511,6 +520,15 @@ pub enum MatchPattern {
     },
     Bool {
         value: bool,
+        span: Span,
+    },
+    IntegerRange {
+        start: i64,
+        end: i64,
+        span: Span,
+    },
+    Or {
+        patterns: Vec<Self>,
         span: Span,
     },
     Wildcard {
@@ -572,12 +590,17 @@ pub struct GroupExpr {
 pub enum BinaryOp {
     And,
     Or,
+    BitOr,
+    BitXor,
+    BitAnd,
     Eq,
     Ne,
     Lt,
     Le,
     Gt,
     Ge,
+    Shl,
+    Shr,
     Add,
     Sub,
     Mul,
@@ -604,12 +627,17 @@ impl BinaryOp {
         match self {
             Self::And => "and",
             Self::Or => "or",
+            Self::BitOr => "|",
+            Self::BitXor => "^",
+            Self::BitAnd => "&",
             Self::Eq => "==",
             Self::Ne => "!=",
             Self::Lt => "<",
             Self::Le => "<=",
             Self::Gt => ">",
             Self::Ge => ">=",
+            Self::Shl => "<<",
+            Self::Shr => ">>",
             Self::Add => "+",
             Self::Sub => "-",
             Self::Mul => "*",
@@ -958,6 +986,7 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
         }),
         ast::Expr::Array(expr) => Expr::Array(ArrayExpr {
             elements: expr.elements.iter().map(lower_expr).collect(),
+            repeat_len: expr.repeat_len.as_ref().map(lower_array_len),
             span: expr.span,
         }),
         ast::Expr::Field(expr) => Expr::Field(FieldExpr {
@@ -1075,6 +1104,15 @@ fn lower_match_pattern(pattern: &ast::MatchPattern) -> MatchPattern {
             value: *value,
             span: *span,
         },
+        ast::MatchPattern::IntegerRange { start, end, span } => MatchPattern::IntegerRange {
+            start: *start,
+            end: *end,
+            span: *span,
+        },
+        ast::MatchPattern::Or { patterns, span } => MatchPattern::Or {
+            patterns: patterns.iter().map(lower_match_pattern).collect(),
+            span: *span,
+        },
         ast::MatchPattern::Wildcard { span } => MatchPattern::Wildcard { span: *span },
     }
 }
@@ -1107,12 +1145,17 @@ const fn lower_binary_op(op: ast::BinaryOp) -> BinaryOp {
     match op {
         ast::BinaryOp::And => BinaryOp::And,
         ast::BinaryOp::Or => BinaryOp::Or,
+        ast::BinaryOp::BitOr => BinaryOp::BitOr,
+        ast::BinaryOp::BitXor => BinaryOp::BitXor,
+        ast::BinaryOp::BitAnd => BinaryOp::BitAnd,
         ast::BinaryOp::Eq => BinaryOp::Eq,
         ast::BinaryOp::Ne => BinaryOp::Ne,
         ast::BinaryOp::Lt => BinaryOp::Lt,
         ast::BinaryOp::Le => BinaryOp::Le,
         ast::BinaryOp::Gt => BinaryOp::Gt,
         ast::BinaryOp::Ge => BinaryOp::Ge,
+        ast::BinaryOp::Shl => BinaryOp::Shl,
+        ast::BinaryOp::Shr => BinaryOp::Shr,
         ast::BinaryOp::Add => BinaryOp::Add,
         ast::BinaryOp::Sub => BinaryOp::Sub,
         ast::BinaryOp::Mul => BinaryOp::Mul,
@@ -1123,6 +1166,13 @@ const fn lower_binary_op(op: ast::BinaryOp) -> BinaryOp {
 const fn lower_unary_op(op: ast::UnaryOp) -> UnaryOp {
     match op {
         ast::UnaryOp::Not => UnaryOp::Not,
+    }
+}
+
+fn lower_array_len(len: &ast::ArrayLen) -> ConstExpr {
+    match len {
+        ast::ArrayLen::Literal(len) => ConstExpr::Literal(u32::try_from(*len).unwrap_or(0)),
+        ast::ArrayLen::Name(name) => ConstExpr::Param(name.clone()),
     }
 }
 

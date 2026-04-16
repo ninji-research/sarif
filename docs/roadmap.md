@@ -40,6 +40,20 @@ Sarif does not have a full maintained standard library yet. The next real standa
 - stable filesystem/process boundaries
 - versioned library surface instead of ad hoc builtin growth
 
+## Reactive Runtime Direction
+
+Sarif's maintained direction for reactive and notebook-like systems is runtime-first, not syntax-first.
+
+The intended rule is:
+
+- keep the language core general-purpose
+- keep pure-function semantics and explicit effects as the foundation
+- add zero-copy runtime-facing data surfaces where they remain broadly useful
+- build DAG invalidation, recomputation, and scheduling as a maintained runtime layer
+- avoid hardcoding one dataframe, transport, or UI stack into the language
+
+This allows Sarif to host a zero-copy reactive environment without turning the language into a product-specific DSL.
+
 ## Concurrency And Scheduling
 
 Sarif does not have a maintained async or multithreaded story yet.
@@ -50,6 +64,7 @@ The intended direction is:
 - analyzable task spawning and channels first
 - bounded executor semantics
 - `RT` restricted to deterministic, bounded scheduling rules
+- any future reactive scheduler must reuse that same explicit task model instead of introducing hidden parallelism
 
 Async syntax is only acceptable if it lowers to that same maintained task model instead of creating a second runtime.
 
@@ -65,10 +80,13 @@ The maintained direction is:
 
 ## Current Hard Boundaries
 
-As of March 31, 2026, Sarif does not yet ship:
+Sarif does not yet ship:
 
 - a full standard library
 - maintained async support
 - maintained multithreading support
 - maintained parallel runtime primitives
+- a maintained reactive DAG runtime
 - self-hosted release authority for `format`, `check`, or `doc`
+
+Platform reality is tracked separately in [platforms.md](/home/user/sarif/docs/platforms.md): Linux native is the maintained host target, macOS native is feasible but less exercised, wasm is maintained with explicit exclusions, and Windows/mobile/cross-compilation remain future work rather than implied support.

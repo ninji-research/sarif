@@ -4,7 +4,7 @@ use wasmtime::{Engine, Instance, Memory, Module, Store, TypedFunc, Val};
 
 use super::memory::{
     decode_enum_from_memory, decode_payload_free_enum_tag, decode_record_from_memory,
-    read_text_from_memory, runtime_value_to_wasm_arg, unpack_text_value,
+    read_bytes_from_memory, read_text_from_memory, runtime_value_to_wasm_arg, unpack_text_value,
 };
 use super::{WasmEmitter, WasmEnum, WasmError, WasmRecord, enum_is_payload_free};
 use crate::{Program, RuntimeError, RuntimeValue, emit_wasm, run_function, run_main};
@@ -182,6 +182,16 @@ fn decode_main_wasm_result(
             })?;
             Ok(RuntimeValue::Text(value))
         }
+        "Bytes" => {
+            let packed = call_main_i64(instance, store)?;
+            let memory = instance
+                .get_memory(&mut *store, "memory")
+                .ok_or_else(|| WasmError::new("missing exported wasm memory for bytes result"))?;
+            let (ptr, len) = unpack_text_value(packed)?;
+            Ok(RuntimeValue::Bytes(read_bytes_from_memory(
+                &memory, store, ptr, len,
+            )?))
+        }
         other if emitter.enums.contains_key(other) => {
             let raw = call_main_i64(instance, store)?;
             let memory = instance
@@ -264,6 +274,17 @@ fn decode_wasm_result(
                 "wasm backend expected i64 result for `Text` but observed {other:?}"
             ))),
         },
+        "Bytes" => match result {
+            Some(Val::I64(packed)) => {
+                let (ptr, len) = unpack_text_value(*packed)?;
+                Ok(RuntimeValue::Bytes(read_bytes_from_memory(
+                    memory, store, ptr, len,
+                )?))
+            }
+            other => Err(WasmError::new(format!(
+                "wasm backend expected i64 result for `Bytes` but observed {other:?}"
+            ))),
+        },
         other if enums.contains_key(other) => match result {
             Some(Val::I64(raw)) => {
                 let enum_ty = enums.get(other).ok_or_else(|| {
@@ -316,8 +337,8 @@ mod tests {
     use sarif_syntax::lexer::lex;
     use sarif_syntax::parser::parse;
 
-    use super::{call_main_i64, instantiate_wasm_module};
-    use crate::{emit_wasm, lower};
+    use super::{call_main_i64, instantiate_wasm_module, run_function_wasm};
+    use crate::{RuntimeValue, emit_wasm, lower};
 
     fn lower_program(source: &str) -> crate::Program {
         let lexed = lex(source);
@@ -351,5 +372,15 @@ mod tests {
         .expect_err("wasm should trap on contract failure");
         assert!(error.contains("wasm call failed"), "{error}");
         assert!(error.contains("!broken"), "{error}");
+    }
+
+    #[test]
+    fn wasm_function_execution_accepts_bytes_values() {
+        let program = lower_program(
+            "fn probe(xs: Bytes) -> I32 { if bytes_len(xs) == 4 and bytes_byte(xs, 0) == 115 and bytes_find_byte_range(xs, 0, bytes_len(xs), 105) == 3 and bytes_len(bytes_slice(xs, 1, 3)) == 2 { 42 } else { 0 } }",
+        );
+        let result = run_function_wasm(&program, "probe", &[RuntimeValue::Bytes(b"sari".to_vec())])
+            .expect("wasm bytes function should run");
+        assert_eq!(result, RuntimeValue::Int(42));
     }
 }

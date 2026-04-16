@@ -1,8 +1,10 @@
 use super::support::{
     bootstrap_doc_cases, bootstrap_syntax_dir, bootstrap_tools_dir, const_control_flow_example,
     multi_file_package_dir, multi_file_package_manifest, package_dir, package_manifest,
-    relativize_repo_root, run_path_profiled, semantic_doc_cases, temp_package, temp_source,
+    relativize_repo_root, run_path_profiled, run_sarif_with_env, semantic_doc_cases, temp_artifact,
+    temp_output, temp_package, temp_source,
 };
+use std::fs;
 
 #[cfg(feature = "codegen")]
 #[test]
@@ -30,7 +32,7 @@ fn doc_renders_semantic_output_without_mir_const_values() {
 
 #[test]
 fn doc_rejects_invalid_programs_without_partial_output() {
-    let path = temp_source("fn main() -> I32 { let value = 1; value; 0 }");
+    let path = temp_source("fn main() -> I32 { let value = true; value + 1 }");
     let output = run_path_profiled("doc", &path, "core");
 
     assert!(!output.status.success());
@@ -38,7 +40,6 @@ fn doc_rejects_invalid_programs_without_partial_output() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stdout.trim().is_empty());
     assert!(stderr.contains("doc generation failed"));
-    assert!(stderr.contains("statement expression"));
 }
 
 #[test]
@@ -123,4 +124,112 @@ fn bootstrap_doc_matches_retained_semantic_docs_for_single_files_and_packages() 
             expected.trim_end_matches('\n')
         );
     }
+}
+
+#[cfg(feature = "native-build")]
+#[test]
+fn native_build_reuses_cached_runtime_objects_for_identical_build_modes() {
+    let cache_root = temp_output("runtime_cache", "tmp");
+    fs::create_dir_all(&cache_root).expect("cache root should exist");
+    let path = temp_source("fn main() -> I32 { 42 }");
+    let first_binary = temp_artifact("runtime_cache_first", "bin");
+    let second_binary = temp_artifact("runtime_cache_second", "bin");
+    let tmpdir = cache_root.to_str().expect("utf-8 cache root");
+
+    let first = run_sarif_with_env(
+        &[
+            "build",
+            path.to_str().expect("utf-8 path"),
+            "--print-main",
+            "-o",
+            first_binary.to_str().expect("utf-8 path"),
+        ],
+        &[("TMPDIR", tmpdir), ("SARIF_NATIVE_CPU", "baseline")],
+    );
+    assert!(
+        first.status.success(),
+        "first native build should succeed: {}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let second = run_sarif_with_env(
+        &[
+            "build",
+            path.to_str().expect("utf-8 path"),
+            "--print-main",
+            "-o",
+            second_binary.to_str().expect("utf-8 path"),
+        ],
+        &[("TMPDIR", tmpdir), ("SARIF_NATIVE_CPU", "baseline")],
+    );
+    assert!(
+        second.status.success(),
+        "second native build should succeed: {}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+
+    let runtime_cache = cache_root.join("sarif/runtime-cache");
+    let object_count = fs::read_dir(&runtime_cache)
+        .expect("runtime cache should exist")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "o"))
+        .count();
+    assert_eq!(
+        object_count, 1,
+        "identical native builds should reuse one cached runtime object"
+    );
+}
+
+#[cfg(feature = "native-build")]
+#[test]
+fn native_build_runtime_cache_changes_across_cpu_modes() {
+    let cache_root = temp_output("runtime_cache_modes", "tmp");
+    fs::create_dir_all(&cache_root).expect("cache root should exist");
+    let path = temp_source("fn main() -> I32 { 42 }");
+    let baseline_binary = temp_artifact("runtime_cache_baseline", "bin");
+    let native_binary = temp_artifact("runtime_cache_native", "bin");
+    let tmpdir = cache_root.to_str().expect("utf-8 cache root");
+
+    let baseline = run_sarif_with_env(
+        &[
+            "build",
+            path.to_str().expect("utf-8 path"),
+            "--print-main",
+            "-o",
+            baseline_binary.to_str().expect("utf-8 path"),
+        ],
+        &[("TMPDIR", tmpdir), ("SARIF_NATIVE_CPU", "baseline")],
+    );
+    assert!(
+        baseline.status.success(),
+        "baseline native build should succeed: {}",
+        String::from_utf8_lossy(&baseline.stderr)
+    );
+
+    let native = run_sarif_with_env(
+        &[
+            "build",
+            path.to_str().expect("utf-8 path"),
+            "--print-main",
+            "-o",
+            native_binary.to_str().expect("utf-8 path"),
+        ],
+        &[("TMPDIR", tmpdir), ("SARIF_NATIVE_CPU", "native")],
+    );
+    assert!(
+        native.status.success(),
+        "native-tuned build should succeed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+
+    let runtime_cache = cache_root.join("sarif/runtime-cache");
+    let object_count = fs::read_dir(&runtime_cache)
+        .expect("runtime cache should exist")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "o"))
+        .count();
+    assert_eq!(
+        object_count, 2,
+        "distinct CPU modes should produce distinct cached runtime objects"
+    );
 }

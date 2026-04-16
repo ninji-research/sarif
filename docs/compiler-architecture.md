@@ -27,3 +27,15 @@ The Sarif compiler follows a strict three-layer implementation model designed fo
 -   **Self-Hosting Target:** The compiler is being structured to allow self-hosting the formatter, documentation generator, and a subset of the checker.
 -   **Deterministic Codegen:** Programs inside the maintained stage-0 subset must lower to exactly one executable behavior across the interpreter, native backend, and binary Wasm backend.
 -   **Rigid Boundaries:** Crates (`sarif_syntax`, `sarif_frontend`, `sarif_codegen`, `sarif_tools`) protect stability and internal implementation details.
+
+## Reactive Runtime Boundary
+
+Sarif may grow a maintained reactive runtime above this compiler pipeline, but that runtime is not a fourth compiler layer.
+
+The intended boundary is:
+
+- language and compiler define semantics
+- runtime systems may add DAG execution, caching, transport, and scheduling
+- those runtime systems must reuse Sarif's explicit purity and effect model rather than bypassing it
+
+This keeps the compiler architecture stable even if a larger zero-copy reactive platform is built on top of it.

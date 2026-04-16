@@ -31,6 +31,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         "F64".to_owned(),
         "Bool".to_owned(),
         "Text".to_owned(),
+        "Bytes".to_owned(),
         "TextIndex".to_owned(),
         "TextBuilder".to_owned(),
         "List".to_owned(),
@@ -198,6 +199,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                 functions.insert(
                     function.name.clone(),
                     FunctionSignature {
+                        const_params: collect_const_params_from_function(function, &generic_params),
                         param_usages: vec![ParamUsage::borrow_only(); params.len()],
                         params,
                         return_type: function
@@ -264,5 +266,59 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         struct_fields,
         struct_layouts,
         known_types,
+    }
+}
+
+fn collect_const_params_from_function(
+    function: &crate::hir::Function,
+    generic_params: &BTreeSet<String>,
+) -> BTreeSet<String> {
+    let mut params = BTreeSet::new();
+    for param in &function.params {
+        collect_const_params_from_type(&type_from_ref(&param.ty, generic_params), &mut params);
+    }
+    if let Some(return_type) = &function.return_type {
+        collect_const_params_from_type(&type_from_ref(return_type, generic_params), &mut params);
+    }
+    params
+}
+
+fn collect_const_params_from_type(ty: &Type, params: &mut BTreeSet<String>) {
+    match ty {
+        Type::Array(element, size) => {
+            collect_const_params_from_type(element, params);
+            collect_const_expr_params(size, params);
+        }
+        Type::List(element) => collect_const_params_from_type(element, params),
+        Type::Pair(left, right) => {
+            collect_const_params_from_type(left, params);
+            collect_const_params_from_type(right, params);
+        }
+        Type::I32
+        | Type::F64
+        | Type::Bool
+        | Type::Text
+        | Type::Bytes
+        | Type::TextIndex
+        | Type::TextBuilder
+        | Type::Unit
+        | Type::Named(_)
+        | Type::Param(_)
+        | Type::Error => {}
+    }
+}
+
+fn collect_const_expr_params(expr: &crate::hir::ConstExpr, params: &mut BTreeSet<String>) {
+    match expr {
+        crate::hir::ConstExpr::Literal(_) => {}
+        crate::hir::ConstExpr::Param(name) => {
+            params.insert(name.clone());
+        }
+        crate::hir::ConstExpr::Add(left, right)
+        | crate::hir::ConstExpr::Sub(left, right)
+        | crate::hir::ConstExpr::Mul(left, right) => {
+            collect_const_expr_params(left, params);
+            collect_const_expr_params(right, params);
+        }
     }
 }

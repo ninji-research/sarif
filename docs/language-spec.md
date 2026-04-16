@@ -10,6 +10,7 @@ This document describes the maintained stage-0 language surface that the current
 - compact expression-bodied functions through `fn name(...) ... = expr;`
 - record-field punning through `Pair { left, right }`
 - compound mutation through `+=`, `-=`, `*=`, and `/=`
+- integer bitwise operators through `&`, `|`, `^`, `<<`, and `>>`
 - one semantic oracle: the MIR interpreter
 - profiles restrict the same language rather than creating dialects
 
@@ -31,13 +32,17 @@ Sarif keeps one declaration order:
 - named `struct`
 - named `enum`
 - fixed arrays `[T; N]`
+- repeat fixed-array literals `[value; N]` for duplicate-safe fixed-array elements
+- const-generic array length names such as `N` are available as immutable `I32` values inside the same generic function body and contracts
 - `TextBuilder` through maintained runtime builtins
 - `List[T]` through maintained runtime builtins
 
 ## Maintained Stage-0 Control Flow
 
 - `if` / `else`
-- `match`
+- chained `else if`
+- `match` with literal alternatives through `a | b | c`
+- `match` with half-open integer ranges through `lo..hi`
 - `while`
 - `repeat n`
 - `repeat i in n`
@@ -48,12 +53,15 @@ Sarif keeps one declaration order:
 - `arg_count() -> I32`
 - `arg_text(index: I32) -> Text`
 - `stdin_text() -> Text`
+- `stdin_bytes() -> Bytes`
 - `stdout_write(text: Text) -> Unit`
 - `alloc_push() -> Unit`
 - `alloc_pop() -> Unit`
 - `text_builder_new() -> TextBuilder`
 - `text_builder_append(builder: TextBuilder, piece: Text) -> TextBuilder`
 - `text_builder_append_codepoint(builder: TextBuilder, codepoint: I32) -> TextBuilder`
+- `text_builder_append_ascii(builder: TextBuilder, byte: I32) -> TextBuilder`
+- `text_builder_append_slice(builder: TextBuilder, source: Text, start: I32, end: I32) -> TextBuilder`
 - `text_builder_append_i32(builder: TextBuilder, value: I32) -> TextBuilder`
 - `text_builder_finish(builder: TextBuilder) -> Text`
 - `text_index_new() -> TextIndex`
@@ -69,9 +77,17 @@ Sarif keeps one declaration order:
 - `f64_from_i32(value: I32) -> F64`
 - `parse_i32(text: Text) -> I32`
 - `parse_i32_range(text: Text, start: I32, end: I32) -> I32`
+- `bytes_len(bytes: Bytes) -> I32`
+- `bytes_byte(bytes: Bytes, index: I32) -> I32`
+- `bytes_slice(bytes: Bytes, start: I32, end: I32) -> Bytes`
+- `bytes_find_byte_range(bytes: Bytes, start: I32, end: I32, byte: I32) -> I32`
 - `text_cmp(left: Text, right: Text) -> I32`
 - `text_eq_range(text: Text, start: I32, end: I32, expected: Text) -> Bool`
 - `text_find_byte_range(text: Text, start: I32, end: I32, byte: I32) -> I32`
+- `text_line_end(text: Text, start: I32) -> I32`
+- `text_next_line(text: Text, start: I32) -> I32`
+- `text_field_end(text: Text, start: I32, end: I32, byte: I32) -> I32`
+- `text_next_field(text: Text, start: I32, end: I32, byte: I32) -> I32`
 - `sqrt(value: F64) -> F64`
 - `text_from_f64_fixed(value: F64, digits: I32) -> Text`
 

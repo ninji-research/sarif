@@ -23,11 +23,13 @@ cargo xbuild-max
 
 ## Native Artifact Policy
 
-`sarifc build` emits native binaries by lowering through Cranelift, then compiling and linking the Sarif runtime with a C toolchain.
+`sarifc build` emits native binaries by lowering through Cranelift, then linking the Sarif runtime with a C toolchain.
 
 Current native policy:
 
-- `-O3`
+- generated native code keeps the maintained performance-oriented path
+- shared runtime C code is compiled with a size-oriented `-Os` path
+- `-O3` for generated-code-facing C compilation and link steps
 - `-march=native`
 - `-mtune=native`
 - `-fomit-frame-pointer`
@@ -35,6 +37,9 @@ Current native policy:
 - `-fno-trapping-math`
 - `-pipe`
 - linker preference: `mold`, then `lld`, then system default
+- cached runtime objects so unchanged native runtime code is not recompiled on every build
+
+For same-ABI portability instead of host-specific tuning, set `SARIF_NATIVE_CPU=baseline`. That removes `-march=native` and `-mtune=native`, but it still does not turn the native path into maintained cross-compilation. See [platforms.md](/home/user/sarif/docs/platforms.md).
 
 These are current implementation facts, not an abstract wish list.
 
@@ -46,13 +51,25 @@ Current verified state:
 
 - the Sarif lane in `~/bnch` covers the full retained main-track suite
 - allocation-scope builtins now exist so short-lived native allocations can be reclaimed deterministically
-- the latest local `~/bnch` report places Sarif `1/7` in memory and `5/7` overall on this machine
+- the latest local `~/bnch` report places Sarif `1/7` overall, `1/7` speed, `1/7` memory, `1/7` build, and `2/7` deploy size on this machine
+
+## Reactive Runtime Performance Boundary
+
+Sarif's zero-copy reactive direction should improve runtime behavior by moving less data and recomputing less work, not by hiding mutable global state behind notebook semantics.
+
+The maintained direction is:
+
+- zero-copy boundaries where data remains contiguous and explicit
+- incremental recomputation in a runtime layer rather than implicit language mutation
+- scheduler-driven parallelism only where purity and dependency information make behavior auditable
+- benchmark validation through retained workloads rather than product demos
 
 ## What Is Not Finished
 
 - no parallel codegen pipeline yet
 - no async runtime yet
 - no maintained multithreaded scheduler yet
+- no maintained reactive DAG runtime yet
 - no final self-hosted optimizer pipeline yet
 
 Those remain roadmap items, not hidden partial features.

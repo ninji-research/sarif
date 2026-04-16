@@ -113,7 +113,9 @@ impl ReplayHarness {
 
     /// Replay a read event (returns recorded input)
     pub fn replay_read(&mut self) -> Option<String> {
-        if let Mode::Replaying(events) = &mut self.mode && self.replay_index < events.len() {
+        if let Mode::Replaying(events) = &mut self.mode
+            && self.replay_index < events.len()
+        {
             let event = &events[self.replay_index];
             self.replay_index += 1;
             if let EventType::Read(s) = &event.event_type {
@@ -125,7 +127,9 @@ impl ReplayHarness {
 
     /// Replay a write event (returns expected output)
     pub fn replay_write(&mut self) -> Option<String> {
-        if let Mode::Replaying(events) = &mut self.mode && self.replay_index < events.len() {
+        if let Mode::Replaying(events) = &mut self.mode
+            && self.replay_index < events.len()
+        {
             let event = &events[self.replay_index];
             self.replay_index += 1;
             if let EventType::Write(s) = &event.event_type {
@@ -137,7 +141,9 @@ impl ReplayHarness {
 
     /// Replay a random number
     pub fn replay_random(&mut self) -> Option<u64> {
-        if let Mode::Replaying(events) = &mut self.mode && self.replay_index < events.len() {
+        if let Mode::Replaying(events) = &mut self.mode
+            && self.replay_index < events.len()
+        {
             let event = &events[self.replay_index];
             self.replay_index += 1;
             if let EventType::Random(v) = &event.event_type {
@@ -149,7 +155,9 @@ impl ReplayHarness {
 
     /// Replay current time
     pub fn replay_now(&mut self) -> Option<u64> {
-        if let Mode::Replaying(events) = &mut self.mode && self.replay_index < events.len() {
+        if let Mode::Replaying(events) = &mut self.mode
+            && self.replay_index < events.len()
+        {
             let event = &events[self.replay_index];
             self.replay_index += 1;
             if let EventType::Now(t) = &event.event_type {

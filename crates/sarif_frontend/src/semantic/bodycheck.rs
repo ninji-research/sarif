@@ -7,7 +7,7 @@ use super::exprcore::{CallSite, ExprContext, infer_expr};
 use super::{
     BodyInfo, BodyStatementsInfo, ConstSignature, EnumVariantInfo, FunctionSignature, Type,
 };
-use super::{mutable_local_allows_affine_values, type_contains_affine_values};
+use super::{field_type, mutable_local_allows_affine_values, type_contains_affine_values};
 use crate::hir::Effect;
 
 #[allow(clippy::too_many_arguments)]
@@ -139,7 +139,7 @@ fn handle_let_statement(
         context.diagnostics,
         context.fn_name,
         context.caller_effects,
-        &ExprContext::Body,
+        &ExprContext::Statement,
     );
     state.calls.extend(info.calls);
     if state.locals.contains_key(&binding.name) {
@@ -202,7 +202,7 @@ fn handle_assign_statement(
     );
     state.calls.extend(info.calls);
 
-    let (name, expected_ty) = match &statement.target {
+    let (name, expected_ty, update_local_type) = match &statement.target {
         Expr::Name(target) => {
             let Some(current_ty) = state.locals.get(&target.name).cloned() else {
                 context.diagnostics.push(Diagnostic::new(
@@ -219,7 +219,7 @@ fn handle_assign_statement(
                 ));
                 return;
             };
-            (target.name.clone(), current_ty)
+            (target.name.clone(), current_ty, true)
         }
         Expr::Index(target) => {
             let Expr::Name(base) = target.base.as_ref() else {
@@ -294,15 +294,173 @@ fn handle_assign_statement(
                     return;
                 }
             };
-            (base.name.clone(), expected_ty)
+            (base.name.clone(), expected_ty, true)
         }
+        Expr::Field(target) => match target.base.as_ref() {
+            Expr::Name(base) => {
+                let Some(current_ty) = state.locals.get(&base.name).cloned() else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-unknown",
+                        format!(
+                            "cannot assign to `{}` in `{}` because it is not a local binding",
+                            base.name, context.fn_name
+                        ),
+                        statement.span,
+                        Some(
+                            "Declare a local with `let mut name = ...;` before assigning to it."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Some(expected_ty) =
+                    field_type(&current_ty, &target.field, context.struct_layouts)
+                else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-field",
+                        format!(
+                            "cannot assign to field `{}` on value of type `{}` in `{}`",
+                            target.field,
+                            current_ty.pretty(),
+                            context.fn_name
+                        ),
+                        target.span,
+                        Some(
+                            "Assign fields only on mutable locals whose type declares that field."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                (base.name.clone(), expected_ty, false)
+            }
+            Expr::Index(indexed) => {
+                let Expr::Name(base) = indexed.base.as_ref() else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-complex",
+                        "unsupported complex assignment target in stage-0",
+                        statement.span,
+                        Some(
+                            "Use `array[index].field = value;` on a mutable local array."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let index = infer_expr(
+                    &indexed.index,
+                    &state.locals,
+                    &state.mutable_locals,
+                    context.functions,
+                    context.consts,
+                    context.enum_variants,
+                    context.struct_layouts,
+                    context.diagnostics,
+                    context.fn_name,
+                    context.caller_effects,
+                    &ExprContext::Body,
+                );
+                state.calls.extend(index.calls);
+                if index.ty != Type::I32 && index.ty != Type::Error {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.array-index-type",
+                        format!(
+                            "array index in `{}` assignment must be `I32`, found `{}`",
+                            context.fn_name,
+                            index.ty.render(),
+                        ),
+                        indexed.index.span(),
+                        Some("Use an integer index for stage-0 array assignment.".to_owned()),
+                    ));
+                }
+                let Some(current_ty) = state.locals.get(&base.name).cloned() else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-unknown",
+                        format!(
+                            "cannot assign to `{}` in `{}` because it is not a local binding",
+                            base.name, context.fn_name
+                        ),
+                        statement.span,
+                        Some(
+                            "Declare a local with `let mut name = ...;` before assigning to it."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Type::Array(ref element, _) = current_ty else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-index-base",
+                        format!(
+                            "cannot index value of type `{}` in `{}`",
+                            current_ty.pretty(),
+                            context.fn_name,
+                        ),
+                        indexed.base.span(),
+                        Some(
+                            "Nested field assignment requires a mutable local array value."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Type::Named(record_name) = &**element else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-index-base",
+                        format!(
+                            "cannot assign a field through indexed value of type `{}` in `{}`",
+                            current_ty.pretty(),
+                            context.fn_name,
+                        ),
+                        indexed.base.span(),
+                        Some(
+                            "Nested field assignment requires an array of declared records."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Some(expected_ty) = field_type(
+                    &Type::Named(record_name.clone()),
+                    &target.field,
+                    context.struct_layouts,
+                ) else {
+                    context.diagnostics.push(Diagnostic::new(
+                        "semantic.assign-field",
+                        format!(
+                            "cannot assign to field `{}` on indexed record type `{}` in `{}`",
+                            target.field, record_name, context.fn_name
+                        ),
+                        target.span,
+                        Some(
+                            "Assign fields only on records whose layouts declare that field."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                (base.name.clone(), expected_ty, true)
+            }
+            _ => {
+                context.diagnostics.push(Diagnostic::new(
+                    "semantic.assign-complex",
+                    "unsupported complex assignment target in stage-0",
+                    statement.span,
+                    Some(
+                        "Use a local record field or `array[index].field = value;` in stage-0."
+                            .to_owned(),
+                    ),
+                ));
+                return;
+            }
+        },
         _ => {
             context.diagnostics.push(Diagnostic::new(
                 "semantic.assign-complex",
                 "unsupported complex assignment target in stage-0",
                 statement.span,
                 Some(
-                    "Only simple local name or indexed array/list assignments are supported."
+                    "Only simple local, indexed array/list, or local record-field assignments are supported."
                         .to_owned(),
                 ),
             ));
@@ -335,7 +493,7 @@ fn handle_assign_statement(
                 Some("Assign a value with the same type as the mutable local.".to_owned()),
             ));
         }
-    } else {
+    } else if update_local_type {
         state.locals.insert(name, info.ty);
     }
 }
@@ -356,22 +514,7 @@ fn handle_expr_statement(
         context.diagnostics,
         context.fn_name,
         context.caller_effects,
-        &ExprContext::Statement,
+        &ExprContext::Body,
     );
     state.calls.extend(info.calls);
-    if info.ty != Type::Unit && info.ty != Type::Error {
-        context.diagnostics.push(Diagnostic::new(
-            "semantic.statement-type",
-            format!(
-                "statement expression in `{}` must be `Unit`, found `{}`",
-                context.fn_name,
-                info.ty.render(),
-            ),
-            stmt.span,
-            Some(
-                "Use a unit-valued expression as a statement, or move the value into a `let` binding or tail expression."
-                    .to_owned(),
-            ),
-        ));
-    }
 }

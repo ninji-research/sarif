@@ -6,7 +6,11 @@
 
 Sarif is a minimal, single-style, memory-safe systems language and stage-0 self-hosting-oriented compiler/toolchain. The maintained implementation is still Rust-hosted, but the repository is organized around one stable workflow, one semantic core, and one compiler pipeline: syntax -> HIR -> MIR.
 
-The maintained stage-0 surface now accepts compact expression-bodied functions (`fn add(a: I32, b: I32) -> I32 = a + b;`), record-field punning (`Pair { left, right }`), compound assignments (`+=`, `-=`, `*=`, `/=`), direct list-growth through `list_push(...)`, and integer text emission through `text_builder_append_i32(...)` so retained benchmark code can stay tighter without weakening the semantic model.
+The maintained stage-0 surface now accepts compact expression-bodied functions (`fn add(a: I32, b: I32) -> I32 = a + b;`), record-field punning (`Pair { left, right }`), compound assignments (`+=`, `-=`, `*=`, `/=`), integer bitwise operators (`&`, `|`, `^`, `<<`, `>>`), richer `match` patterns through literal alternatives (`65 | 97`) and half-open integer ranges (`0..37792`), maintained line and field scanning through `text_line_end(...)`, `text_next_line(...)`, `text_field_end(...)`, and `text_next_field(...)`, direct list-growth through `list_push(...)`, integer text emission through `text_builder_append_i32(...)`, and a raw `Bytes` substrate through `stdin_bytes(...)`, `bytes_len(...)`, `bytes_byte(...)`, `bytes_slice(...)`, and `bytes_find_byte_range(...)` so byte-heavy code does not need to pretend it is UTF-8 text.
+
+The maintained direction for notebook-like and reactive systems is runtime-first: Sarif may host a zero-copy reactive DAG environment, but dependency tracking, recomputation, transport, and UI integration belong in a runtime/platform layer rather than in the core language surface. See [docs/reactive-runtime.md](/home/user/sarif/docs/reactive-runtime.md), [docs/reactive-runtime-checklist.md](/home/user/sarif/docs/reactive-runtime-checklist.md), and [docs/execution-checklist.md](/home/user/sarif/docs/execution-checklist.md).
+
+Platform support is documented explicitly in [docs/platforms.md](/home/user/sarif/docs/platforms.md). The short version is: Linux native is the maintained host path, macOS native is feasible but less exercised, wasm is maintained with explicit builtin exclusions, and native builds are host-native rather than cross-targeted.
 
 ## Current State
 

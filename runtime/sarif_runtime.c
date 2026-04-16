@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifndef SARIF_MAIN_KIND
 #define SARIF_MAIN_KIND 0
@@ -19,10 +20,29 @@ static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
 static unsigned char sarif_empty_text[8] = {0};
 static int sarif_write_text_blob(const unsigned char* text, int newline);
+static int sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
+static int sarif_write_all(const unsigned char* bytes, uint64_t len) {
+    while (len != 0) {
+        size_t chunk = len > (uint64_t)SIZE_MAX ? SIZE_MAX : (size_t)len;
+        ssize_t written = write(STDOUT_FILENO, bytes, chunk);
+        if (written <= 0) {
+            return 1;
+        }
+        bytes += (size_t)written;
+        len -= (uint64_t)written;
+    }
+    return 0;
+}
+
+static int sarif_write_byte(unsigned char byte) {
+    return sarif_write_all(&byte, 1);
+}
+
 #define SARIF_RECORD_ALIGN 16u
-#define SARIF_RECORD_ARENA_CHUNK_SIZE (1u << 20)
+#define SARIF_RECORD_ARENA_CHUNK_MIN_SIZE (1u << 14)
+#define SARIF_RECORD_ARENA_CHUNK_MAX_SIZE (1u << 20)
 #define SARIF_TEXT_BUILDER_INITIAL_CAP 4096u
 #define SARIF_STDIN_CHUNK_SIZE 16384u
 
@@ -80,15 +100,18 @@ struct SarifAllocScope {
     SarifAllocScope* prev;
 };
 
-// SarifList uses SoA (Struct of Arrays) layout for cache-oblivious access
-// This allows SIMD-friendly patterns and better memory locality
+// SarifList stores opaque 64-bit slots; typed interpretation happens at the
+// call boundary so the runtime keeps one list representation.
 struct SarifList {
     uint64_t len;
     uint64_t* values;  // elements stored as bitcast handles
 };
 
+#if SARIF_MAIN_KIND == 4
 extern const SarifRecordDesc* sarif_get_main_record_desc(void);
+#elif SARIF_MAIN_KIND == 5
 extern const SarifEnumDesc* sarif_get_main_enum_desc(void);
+#endif
 
 #if SARIF_MAIN_KIND == 1
 extern int32_t sarif_user_main(void);
@@ -110,6 +133,22 @@ static SarifRecordChunk* sarif_record_chunks = NULL;
 static SarifRecordChunk* sarif_record_current = NULL;
 static SarifAllocScope* sarif_alloc_scope_stack = NULL;
 
+static size_t sarif_record_next_chunk_cap(size_t aligned) {
+    size_t target = SARIF_RECORD_ARENA_CHUNK_MIN_SIZE;
+    if (sarif_record_current != NULL && sarif_record_current->cap > target) {
+        target = sarif_record_current->cap;
+        if (target < SARIF_RECORD_ARENA_CHUNK_MAX_SIZE / 2u) {
+            target *= 2u;
+        } else {
+            target = SARIF_RECORD_ARENA_CHUNK_MAX_SIZE;
+        }
+    }
+    if (target < aligned) {
+        target = aligned;
+    }
+    return target;
+}
+
 void* sarif_record_alloc(uint64_t size) {
     SarifRecordChunk* chunk = NULL;
     size_t aligned = 0;
@@ -128,7 +167,7 @@ void* sarif_record_alloc(uint64_t size) {
         chunk->used += aligned;
         return ptr;
     }
-    min_cap = aligned > SARIF_RECORD_ARENA_CHUNK_SIZE ? aligned : SARIF_RECORD_ARENA_CHUNK_SIZE;
+    min_cap = sarif_record_next_chunk_cap(aligned);
     if (min_cap > SIZE_MAX - sizeof(SarifRecordChunk)) {
         return NULL;
     }
@@ -320,6 +359,49 @@ void* sarif_text_builder_append_codepoint(void* raw_builder, int64_t codepoint) 
     return builder;
 }
 
+void* sarif_text_builder_append_ascii(void* raw_builder, int64_t byte) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    if (builder == NULL || byte < 0 || byte > 0x7f) {
+        return NULL;
+    }
+    builder = sarif_text_builder_reserve(builder, 1);
+    if (builder == NULL) {
+        return NULL;
+    }
+    builder->bytes[builder->len] = (unsigned char)byte;
+    builder->len += 1;
+    return builder;
+}
+
+void* sarif_text_builder_append_slice(
+    void* raw_builder,
+    const unsigned char* text,
+    int64_t start,
+    int64_t end
+) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    uint64_t text_len = 0;
+    uint64_t slice_len = 0;
+    if (builder == NULL || text == NULL || start < 0 || end < start) {
+        return NULL;
+    }
+    text_len = sarif_load_u64(text, 0);
+    if ((uint64_t)end > text_len) {
+        return NULL;
+    }
+    slice_len = (uint64_t)(end - start);
+    if (slice_len == 0) {
+        return builder;
+    }
+    builder = sarif_text_builder_reserve(builder, slice_len);
+    if (builder == NULL) {
+        return NULL;
+    }
+    memcpy(builder->bytes + builder->len, text + 8 + start, (size_t)slice_len);
+    builder->len += slice_len;
+    return builder;
+}
+
 void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
     int len = 0;
@@ -395,40 +477,6 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
         for (index = 0; index < vec->len; index += 1) {
             vec->values[index] = fill;
         }
-    }
-    return vec;
-}
-
-void* sarif_list_new_f64(int64_t len, double fill) {
-    SarifList* vec = NULL;
-    uint64_t index = 0;
-    if (len < 0) {
-        return NULL;
-    }
-    if ((uint64_t)len > (uint64_t)SIZE_MAX / sizeof(double)) {
-        return NULL;
-    }
-    vec = calloc(1u, sizeof(SarifList));
-    if (vec == NULL) {
-        return NULL;
-    }
-    vec->len = (uint64_t)len;
-    if (fill == 0.0) {
-        vec->values = calloc((size_t)len, sizeof(double));
-        if (vec->values == NULL) {
-            free(vec);
-            return NULL;
-        }
-    } else {
-        double* fvalues = malloc((size_t)len * sizeof(double));
-        if (fvalues == NULL) {
-            free(vec);
-            return NULL;
-        }
-        for (index = 0; index < (uint64_t)len; index++) {
-            fvalues[index] = fill;
-        }
-        vec->values = (uint64_t*)fvalues;
     }
     return vec;
 }
@@ -841,7 +889,7 @@ int64_t sarif_text_find_byte_range(
     uint64_t source_len = 0;
     uint64_t clamped_start = 0;
     uint64_t clamped_end = 0;
-    uint64_t index = 0;
+    const unsigned char* found = NULL;
     unsigned char needle = 0;
     if (source == NULL) {
         return end;
@@ -873,12 +921,95 @@ int64_t sarif_text_find_byte_range(
         clamped_end = clamped_start;
     }
     needle = (unsigned char)((uint64_t)byte & 0xffu);
-    for (index = clamped_start; index < clamped_end; index += 1) {
-        if (source[8 + index] == needle) {
-            return (int64_t)index;
-        }
+    if (clamped_end == clamped_start) {
+        return (int64_t)clamped_end;
+    }
+    found = memchr(source + 8 + clamped_start, needle, (size_t)(clamped_end - clamped_start));
+    if (found != NULL) {
+        return (int64_t)(found - (source + 8));
     }
     return (int64_t)clamped_end;
+}
+
+int64_t sarif_text_line_end(const unsigned char* source, int64_t start) {
+    uint64_t source_len = 0;
+    uint64_t clamped_start = 0;
+    const unsigned char* found = NULL;
+    uint64_t line_end = 0;
+    if (source == NULL) {
+        return 0;
+    }
+    source_len = sarif_load_u64(source, 0);
+    if (start <= 0) {
+        clamped_start = 0;
+    } else {
+        clamped_start = (uint64_t)start;
+        if (clamped_start > source_len) {
+            clamped_start = source_len;
+        }
+    }
+    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
+        clamped_start += 1;
+    }
+    found = memchr(source + 8 + clamped_start, '\n', (size_t)(source_len - clamped_start));
+    line_end = found == NULL ? source_len : (uint64_t)(found - (source + 8));
+    if (line_end > clamped_start && source[8 + line_end - 1] == '\r') {
+        return (int64_t)(line_end - 1);
+    }
+    return (int64_t)line_end;
+}
+
+int64_t sarif_text_next_line(const unsigned char* source, int64_t start) {
+    uint64_t source_len = 0;
+    uint64_t clamped_start = 0;
+    const unsigned char* found = NULL;
+    if (source == NULL) {
+        return 0;
+    }
+    source_len = sarif_load_u64(source, 0);
+    if (start <= 0) {
+        clamped_start = 0;
+    } else {
+        clamped_start = (uint64_t)start;
+        if (clamped_start > source_len) {
+            clamped_start = source_len;
+        }
+    }
+    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
+        clamped_start += 1;
+    }
+    found = memchr(source + 8 + clamped_start, '\n', (size_t)(source_len - clamped_start));
+    if (found != NULL) {
+        return (int64_t)(found - (source + 8)) + 1;
+    }
+    return (int64_t)source_len;
+}
+
+int64_t sarif_text_field_end(
+    const unsigned char* source,
+    int64_t start,
+    int64_t end,
+    int64_t byte
+) {
+    return sarif_text_find_byte_range(source, start, end, byte);
+}
+
+int64_t sarif_text_next_field(
+    const unsigned char* source,
+    int64_t start,
+    int64_t end,
+    int64_t byte
+) {
+    int64_t field_end = sarif_text_find_byte_range(source, start, end, byte);
+    uint64_t source_len = 0;
+    if (source == NULL) {
+        return 0;
+    }
+    source_len = sarif_load_u64(source, 0);
+    if (field_end < end && field_end < (int64_t)source_len) {
+        return field_end + 1;
+    }
+    return field_end;
 }
 
 void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) {
@@ -912,6 +1043,34 @@ void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) 
     }
     sarif_store_u64(result, 0, (uint64_t)slice_len);
     memcpy(result + 8, text + 8 + clamped_start, slice_len);
+    return result;
+}
+
+void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end) {
+    uint64_t len = 0;
+    uint64_t clamped_start = 0;
+    uint64_t clamped_end = 0;
+    size_t slice_len = 0;
+    unsigned char* result = NULL;
+    if (bytes == NULL) {
+        return NULL;
+    }
+    len = sarif_load_u64(bytes, 0);
+    clamped_start = start < len ? start : len;
+    clamped_end = end < len ? end : len;
+    if (clamped_end <= clamped_start) {
+        return sarif_empty_text;
+    }
+    if (clamped_start == 0 && clamped_end == len) {
+        return (void*)bytes;
+    }
+    slice_len = (size_t)(clamped_end - clamped_start);
+    result = malloc(8u + slice_len);
+    if (result == NULL) {
+        return NULL;
+    }
+    sarif_store_u64(result, 0, (uint64_t)slice_len);
+    memcpy(result + 8, bytes + 8 + clamped_start, slice_len);
     return result;
 }
 
@@ -1176,7 +1335,7 @@ void* sarif_stdout_write_builder(void* raw_builder) {
     if (builder == NULL) {
         return NULL;
     }
-    if (builder->len != 0 && fwrite(builder->bytes, 1, (size_t)builder->len, stdout) != (size_t)builder->len) {
+    if (builder->len != 0 && sarif_write_all(builder->bytes, builder->len) != 0) {
         return NULL;
     }
     builder->len = 0;
@@ -1191,22 +1350,53 @@ static int sarif_write_text_blob(const unsigned char* text, int newline) {
     }
     len = sarif_load_u64(text, 0);
     bytes = text + 8;
-    if (fwrite(bytes, 1, (size_t)len, stdout) != (size_t)len) {
+    if (sarif_write_all(bytes, len) != 0) {
         return 1;
     }
-    if (newline && fputc('\n', stdout) == EOF) {
+    if (newline && sarif_write_byte('\n') != 0) {
         return 1;
     }
     return 0;
 }
 
+#if SARIF_MAIN_KIND == 4 || SARIF_MAIN_KIND == 5
 static int sarif_write_value(
     uint32_t kind,
     uint64_t raw,
     const SarifRecordDesc* record,
     const SarifEnumDesc* enum_desc
 );
+#endif
 
+static int sarif_write_i64(int64_t value, int newline) {
+    char buffer[21];
+    uint64_t magnitude = 0;
+    int index = 20;
+    if (value < 0) {
+        buffer[--index] = (char)('0' + (-(value % 10)));
+        magnitude = (uint64_t)(-(value / 10));
+        while (magnitude != 0) {
+            buffer[--index] = (char)('0' + (magnitude % 10));
+            magnitude /= 10;
+        }
+        buffer[--index] = '-';
+    } else {
+        magnitude = (uint64_t)value;
+        do {
+            buffer[--index] = (char)('0' + (magnitude % 10));
+            magnitude /= 10;
+        } while (magnitude != 0);
+    }
+    if (sarif_write_all((const unsigned char*)(buffer + index), (uint64_t)(20 - index)) != 0) {
+        return 1;
+    }
+    if (newline && sarif_write_byte('\n') != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+#if SARIF_MAIN_KIND == 4 || SARIF_MAIN_KIND == 5
 static int sarif_enum_has_payloads(const SarifEnumDesc* enum_desc) {
     uint64_t index = 0;
     if (enum_desc == NULL) {
@@ -1240,25 +1430,25 @@ static int sarif_write_enum(uint64_t raw, const SarifEnumDesc* enum_desc) {
         return 1;
     }
     variant = &enum_desc->variants[tag];
-    if (fputs(enum_desc->name, stdout) == EOF) {
+    if (sarif_write_all((const unsigned char*)enum_desc->name, (uint64_t)strlen(enum_desc->name)) != 0) {
         return 1;
     }
-    if (fputc('.', stdout) == EOF) {
+    if (sarif_write_byte('.') != 0) {
         return 1;
     }
-    if (fputs(variant->name, stdout) == EOF) {
+    if (sarif_write_all((const unsigned char*)variant->name, (uint64_t)strlen(variant->name)) != 0) {
         return 1;
     }
     if (variant->payload_kind == 0) {
         return 0;
     }
-    if (fputc('(', stdout) == EOF) {
+    if (sarif_write_byte('(') != 0) {
         return 1;
     }
     if (sarif_write_value(variant->payload_kind, payload, variant->record, variant->enum_desc) != 0) {
         return 1;
     }
-    return fputc(')', stdout) == EOF ? 1 : 0;
+    return sarif_write_byte(')') != 0 ? 1 : 0;
 }
 
 static int sarif_write_record(const unsigned char* record_ptr, const SarifRecordDesc* record) {
@@ -1266,31 +1456,31 @@ static int sarif_write_record(const unsigned char* record_ptr, const SarifRecord
     if (record_ptr == NULL || record == NULL) {
         return 1;
     }
-    if (fputs(record->name, stdout) == EOF) {
+    if (sarif_write_all((const unsigned char*)record->name, (uint64_t)strlen(record->name)) != 0) {
         return 1;
     }
-    if (fputc('{', stdout) == EOF) {
+    if (sarif_write_byte('{') != 0) {
         return 1;
     }
     for (index = 0; index < record->field_count; index += 1) {
         const SarifFieldDesc* field = &record->fields[index];
         const uint64_t raw = sarif_load_u64(record_ptr, field->offset);
         if (index != 0) {
-            if (fputs(", ", stdout) == EOF) {
+            if (sarif_write_all((const unsigned char*)", ", 2) != 0) {
                 return 1;
             }
         }
-        if (fputs(field->name, stdout) == EOF) {
+        if (sarif_write_all((const unsigned char*)field->name, (uint64_t)strlen(field->name)) != 0) {
             return 1;
         }
-        if (fputs(": ", stdout) == EOF) {
+        if (sarif_write_all((const unsigned char*)": ", 2) != 0) {
             return 1;
         }
         if (sarif_write_value(field->kind, raw, field->record, field->enum_desc) != 0) {
             return 1;
         }
     }
-    return fputc('}', stdout) == EOF ? 1 : 0;
+    return sarif_write_byte('}') != 0 ? 1 : 0;
 }
 
 static int sarif_write_value(
@@ -1301,9 +1491,9 @@ static int sarif_write_value(
 ) {
     switch (kind) {
         case 1:
-            return fprintf(stdout, "%lld", (long long)(int64_t)raw) < 0 ? 1 : 0;
+            return sarif_write_i64((int64_t)raw, 0);
         case 2:
-            return fputs(raw != 0 ? "true" : "false", stdout) == EOF ? 1 : 0;
+            return sarif_write_all((const unsigned char*)(raw != 0 ? "true" : "false"), raw != 0 ? 4u : 5u);
         case 3:
             return sarif_write_text_blob((const unsigned char*)(uintptr_t)raw, 0);
         case 4:
@@ -1319,6 +1509,7 @@ static int sarif_write_value(
             return 1;
     }
 }
+#endif
 
 int main(int argc, char** argv) {
     sarif_argc = argc;
@@ -1326,17 +1517,17 @@ int main(int argc, char** argv) {
 #if SARIF_MAIN_KIND == 1
     int32_t value = sarif_user_main();
 #if SARIF_MAIN_PRINT
-    return fprintf(stdout, "%lld\n", (long long)value) < 0 ? 1 : 0;
+    return sarif_write_i64((int64_t)value, 1);
 #else
     return (int)value;
 #endif
 #elif SARIF_MAIN_KIND == 2
     uint32_t value = sarif_user_main();
 #if SARIF_MAIN_PRINT
-    if (fputs(value != 0 ? "true" : "false", stdout) == EOF) {
+    if (sarif_write_all((const unsigned char*)(value != 0 ? "true" : "false"), value != 0 ? 4u : 5u) != 0) {
         return 1;
     }
-    return fputc('\n', stdout) == EOF ? 1 : 0;
+    return sarif_write_byte('\n') != 0 ? 1 : 0;
 #else
     return value ? 0 : 1;
 #endif
@@ -1348,12 +1539,12 @@ int main(int argc, char** argv) {
     if (sarif_write_record(record, sarif_get_main_record_desc()) != 0) {
         return 1;
     }
-    return fputc('\n', stdout) == EOF ? 1 : 0;
+    return sarif_write_byte('\n') != 0 ? 1 : 0;
 #elif SARIF_MAIN_KIND == 5
     if (sarif_write_enum(sarif_user_main(), sarif_get_main_enum_desc()) != 0) {
         return 1;
     }
-    return fputc('\n', stdout) == EOF ? 1 : 0;
+    return sarif_write_byte('\n') != 0 ? 1 : 0;
 #elif SARIF_MAIN_KIND == 6
     double value = sarif_user_main();
 #if SARIF_MAIN_PRINT

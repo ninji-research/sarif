@@ -210,6 +210,7 @@ pub enum CodegenValueKind {
     F64,
     Bool,
     Text,
+    Bytes,
     TextIndex,
     TextBuilder,
     List(Box<Self>),
@@ -296,6 +297,18 @@ pub enum Inst {
         builder: ValueId,
         codepoint: ValueId,
     },
+    TextBuilderAppendAscii {
+        dest: ValueId,
+        builder: ValueId,
+        byte: ValueId,
+    },
+    TextBuilderAppendSlice {
+        dest: ValueId,
+        builder: ValueId,
+        text: ValueId,
+        start: ValueId,
+        end: ValueId,
+    },
     TextBuilderAppendI32 {
         dest: ValueId,
         builder: ValueId,
@@ -365,6 +378,10 @@ pub enum Inst {
         dest: ValueId,
         text: ValueId,
     },
+    BytesLen {
+        dest: ValueId,
+        bytes: ValueId,
+    },
     TextConcat {
         dest: ValueId,
         left: ValueId,
@@ -376,9 +393,20 @@ pub enum Inst {
         start: ValueId,
         end: ValueId,
     },
+    BytesSlice {
+        dest: ValueId,
+        bytes: ValueId,
+        start: ValueId,
+        end: ValueId,
+    },
     TextByte {
         dest: ValueId,
         text: ValueId,
+        index: ValueId,
+    },
+    BytesByte {
+        dest: ValueId,
+        bytes: ValueId,
         index: ValueId,
     },
     TextCmp {
@@ -400,6 +428,37 @@ pub enum Inst {
         end: ValueId,
         byte: ValueId,
     },
+    BytesFindByteRange {
+        dest: ValueId,
+        source: ValueId,
+        start: ValueId,
+        end: ValueId,
+        byte: ValueId,
+    },
+    TextLineEnd {
+        dest: ValueId,
+        source: ValueId,
+        start: ValueId,
+    },
+    TextNextLine {
+        dest: ValueId,
+        source: ValueId,
+        start: ValueId,
+    },
+    TextFieldEnd {
+        dest: ValueId,
+        source: ValueId,
+        start: ValueId,
+        end: ValueId,
+        byte: ValueId,
+    },
+    TextNextField {
+        dest: ValueId,
+        source: ValueId,
+        start: ValueId,
+        end: ValueId,
+        byte: ValueId,
+    },
     TextFromF64Fixed {
         dest: ValueId,
         value: ValueId,
@@ -415,6 +474,9 @@ pub enum Inst {
         index: ValueId,
     },
     StdinText {
+        dest: ValueId,
+    },
+    StdinBytes {
         dest: ValueId,
     },
     StdoutWrite {
@@ -524,6 +586,31 @@ pub enum Inst {
         right: ValueId,
     },
     Div {
+        dest: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    BitAnd {
+        dest: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    BitOr {
+        dest: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    BitXor {
+        dest: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    Shl {
+        dest: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    Shr {
         dest: ValueId,
         left: ValueId,
         right: ValueId,
@@ -639,6 +726,30 @@ impl Inst {
                 builder.render(),
                 codepoint.render()
             ),
+            Self::TextBuilderAppendAscii {
+                dest,
+                builder,
+                byte,
+            } => format!(
+                "{} = text-builder-append-ascii {}, {}",
+                dest.render(),
+                builder.render(),
+                byte.render()
+            ),
+            Self::TextBuilderAppendSlice {
+                dest,
+                builder,
+                text,
+                start,
+                end,
+            } => format!(
+                "{} = text-builder-append-slice {}, {}, {}, {}",
+                dest.render(),
+                builder.render(),
+                text.render(),
+                start.render(),
+                end.render()
+            ),
             Self::TextBuilderAppendI32 {
                 dest,
                 builder,
@@ -742,6 +853,9 @@ impl Inst {
             Self::TextLen { dest, text } => {
                 format!("{} = text-len {}", dest.render(), text.render())
             }
+            Self::BytesLen { dest, bytes } => {
+                format!("{} = bytes-len {}", dest.render(), bytes.render())
+            }
             Self::TextConcat { dest, left, right } => format!(
                 "{} = text-concat {}, {}",
                 dest.render(),
@@ -760,10 +874,28 @@ impl Inst {
                 start.render(),
                 end.render()
             ),
+            Self::BytesSlice {
+                dest,
+                bytes,
+                start,
+                end,
+            } => format!(
+                "{} = bytes-slice {}, {}, {}",
+                dest.render(),
+                bytes.render(),
+                start.render(),
+                end.render()
+            ),
             Self::TextByte { dest, text, index } => format!(
                 "{} = text-byte {}, {}",
                 dest.render(),
                 text.render(),
+                index.render()
+            ),
+            Self::BytesByte { dest, bytes, index } => format!(
+                "{} = bytes-byte {}, {}",
+                dest.render(),
+                bytes.render(),
                 index.render()
             ),
             Self::TextCmp { dest, left, right } => format!(
@@ -800,6 +932,68 @@ impl Inst {
                 end.render(),
                 byte.render()
             ),
+            Self::BytesFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => format!(
+                "{} = bytes-find-byte-range {}, {}, {}, {}",
+                dest.render(),
+                source.render(),
+                start.render(),
+                end.render(),
+                byte.render()
+            ),
+            Self::TextLineEnd {
+                dest,
+                source,
+                start,
+            } => format!(
+                "{} = text-line-end {}, {}",
+                dest.render(),
+                source.render(),
+                start.render()
+            ),
+            Self::TextNextLine {
+                dest,
+                source,
+                start,
+            } => format!(
+                "{} = text-next-line {}, {}",
+                dest.render(),
+                source.render(),
+                start.render()
+            ),
+            Self::TextFieldEnd {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => format!(
+                "{} = text-field-end {}, {}, {}, {}",
+                dest.render(),
+                source.render(),
+                start.render(),
+                end.render(),
+                byte.render()
+            ),
+            Self::TextNextField {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => format!(
+                "{} = text-next-field {}, {}, {}, {}",
+                dest.render(),
+                source.render(),
+                start.render(),
+                end.render(),
+                byte.render()
+            ),
             Self::TextFromF64Fixed {
                 dest,
                 value,
@@ -817,6 +1011,7 @@ impl Inst {
                 format!("{} = arg-text {}", dest.render(), index.render())
             }
             Self::StdinText { dest } => format!("{} = stdin-text", dest.render()),
+            Self::StdinBytes { dest } => format!("{} = stdin-bytes", dest.render()),
             Self::StdoutWrite { text } => format!("stdout-write {}", text.render()),
             Self::ParseI32 { dest, text } => {
                 format!("{} = parse-i32 {}", dest.render(), text.render())
@@ -973,6 +1168,46 @@ impl Inst {
                     right.render()
                 )
             }
+            Self::BitAnd { dest, left, right } => {
+                format!(
+                    "{} = bitand {}, {}",
+                    dest.render(),
+                    left.render(),
+                    right.render()
+                )
+            }
+            Self::BitOr { dest, left, right } => {
+                format!(
+                    "{} = bitor {}, {}",
+                    dest.render(),
+                    left.render(),
+                    right.render()
+                )
+            }
+            Self::BitXor { dest, left, right } => {
+                format!(
+                    "{} = bitxor {}, {}",
+                    dest.render(),
+                    left.render(),
+                    right.render()
+                )
+            }
+            Self::Shl { dest, left, right } => {
+                format!(
+                    "{} = shl {}, {}",
+                    dest.render(),
+                    left.render(),
+                    right.render()
+                )
+            }
+            Self::Shr { dest, left, right } => {
+                format!(
+                    "{} = shr {}, {}",
+                    dest.render(),
+                    left.render(),
+                    right.render()
+                )
+            }
             Self::Sqrt { dest, value } => {
                 format!("{} = sqrt {}", dest.render(), value.render())
             }
@@ -1113,6 +1348,7 @@ pub enum RuntimeValue {
     F64(f64),
     Bool(bool),
     Text(String),
+    Bytes(Vec<u8>),
     TextIndex(u64),
     TextBuilder(u64),
     List(u64),
@@ -1142,6 +1378,7 @@ impl RuntimeValue {
             Self::F64(value) => value.to_string(),
             Self::Bool(value) => value.to_string(),
             Self::Text(value) => value.clone(),
+            Self::Bytes(_) => "<bytes>".to_owned(),
             Self::TextIndex(_) => "<text-index>".to_owned(),
             Self::TextBuilder(_) => "<text-builder>".to_owned(),
             Self::List(_) => "<list>".to_owned(),
@@ -1465,6 +1702,66 @@ impl ConstEnv {
         }
     }
 
+    fn assign_record_field(
+        &mut self,
+        name: &str,
+        field: &str,
+        value: RuntimeValue,
+    ) -> Result<ConstAssignResult, String> {
+        match self.bindings.get(name) {
+            Some(ConstBinding::Slot(slot)) => {
+                let Some(current) = self.slots.get(slot).cloned() else {
+                    return Err(format!(
+                        "compile-time mutable local `{name}` is unavailable"
+                    ));
+                };
+                let RuntimeValue::Record(mut record) = current else {
+                    return Err(format!(
+                        "compile-time field assignment target `{name}` is not a record"
+                    ));
+                };
+                let Some((_, slot_value)) = record
+                    .fields
+                    .iter_mut()
+                    .find(|(candidate, _)| candidate == field)
+                else {
+                    return Err(format!(
+                        "compile-time record `{}` has no field `{field}`",
+                        record.name
+                    ));
+                };
+                *slot_value = value;
+                self.slots.insert(*slot, RuntimeValue::Record(record));
+                Ok(ConstAssignResult::Assigned)
+            }
+            Some(ConstBinding::Value(_)) => Ok(ConstAssignResult::Immutable),
+            None => Ok(ConstAssignResult::Unknown),
+        }
+    }
+
+    fn assign_array_record_field(
+        &mut self,
+        name: &str,
+        index: i64,
+        field: &str,
+        value: RuntimeValue,
+    ) -> Result<ConstAssignResult, String> {
+        match self.bindings.get(name) {
+            Some(ConstBinding::Slot(slot)) => {
+                let Some(current) = self.slots.get(slot).cloned() else {
+                    return Err(format!(
+                        "compile-time mutable local `{name}` is unavailable"
+                    ));
+                };
+                let updated = update_runtime_array_record_field(current, index, field, value)?;
+                self.slots.insert(*slot, updated);
+                Ok(ConstAssignResult::Assigned)
+            }
+            Some(ConstBinding::Value(_)) => Ok(ConstAssignResult::Immutable),
+            None => Ok(ConstAssignResult::Unknown),
+        }
+    }
+
     fn outer_slot_ids(&self) -> Vec<ConstSlotId> {
         self.slots.keys().copied().collect()
     }
@@ -1639,6 +1936,86 @@ impl ConstEvaluator<'_, '_> {
                                 ));
                             }
                         },
+                        Expr::Field(target) => match target.base.as_ref() {
+                            Expr::Name(base) => {
+                                match env
+                                    .assign_record_field(&base.name, &target.field, value)
+                                    .map_err(|message| {
+                                        ConstEvalError::new(statement.span, message)
+                                    })? {
+                                    ConstAssignResult::Assigned => {}
+                                    ConstAssignResult::Immutable => {
+                                        return Err(ConstEvalError::new(
+                                            statement.span,
+                                            format!(
+                                                "compile-time assignment targets immutable local `{}`",
+                                                base.name
+                                            ),
+                                        ));
+                                    }
+                                    ConstAssignResult::Unknown => {
+                                        return Err(ConstEvalError::new(
+                                            statement.span,
+                                            format!(
+                                                "compile-time assignment targets unknown local `{}`",
+                                                base.name
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                            Expr::Index(indexed) => {
+                                let Expr::Name(base) = indexed.base.as_ref() else {
+                                    return Err(ConstEvalError::new(
+                                        statement.span,
+                                        "compile-time field assignment must target a local record or local array element",
+                                    ));
+                                };
+                                let index = self.eval_expr_value(&indexed.index, env)?;
+                                let RuntimeValue::Int(index) = index else {
+                                    return Err(ConstEvalError::new(
+                                        indexed.index.span(),
+                                        "compile-time indexed field assignment expects an Int index",
+                                    ));
+                                };
+                                match env
+                                    .assign_array_record_field(
+                                        &base.name,
+                                        index,
+                                        &target.field,
+                                        value,
+                                    )
+                                    .map_err(|message| {
+                                        ConstEvalError::new(statement.span, message)
+                                    })? {
+                                    ConstAssignResult::Assigned => {}
+                                    ConstAssignResult::Immutable => {
+                                        return Err(ConstEvalError::new(
+                                            statement.span,
+                                            format!(
+                                                "compile-time assignment targets immutable local `{}`",
+                                                base.name
+                                            ),
+                                        ));
+                                    }
+                                    ConstAssignResult::Unknown => {
+                                        return Err(ConstEvalError::new(
+                                            statement.span,
+                                            format!(
+                                                "compile-time assignment targets unknown local `{}`",
+                                                base.name
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(ConstEvalError::new(
+                                    statement.span,
+                                    "compile-time field assignment must target a local record or local array element",
+                                ));
+                            }
+                        },
                         Expr::Index(target) => {
                             let Expr::Name(base) = target.base.as_ref() else {
                                 return Err(ConstEvalError::new(
@@ -1681,7 +2058,7 @@ impl ConstEvaluator<'_, '_> {
                         _ => {
                             return Err(ConstEvalError::new(
                                 statement.span,
-                                "compile-time assignment target must be a local or local array element",
+                                "compile-time assignment target must be a local, local field, or local array element",
                             ));
                         }
                     }
@@ -2042,9 +2419,27 @@ impl ConstEvaluator<'_, '_> {
         expr: &sarif_frontend::hir::ArrayExpr,
         env: &mut ConstEnv,
     ) -> Result<ConstFlow, ConstEvalError> {
-        let mut elements = Vec::with_capacity(expr.elements.len());
-        for element in &expr.elements {
-            elements.push(self.eval_expr_value(element, env)?);
+        let repeat_count = expr
+            .repeat_len
+            .as_ref()
+            .map(|len| resolve_const_eval_len(len, env, expr.span))
+            .transpose()?;
+        let element_count = repeat_count.unwrap_or(expr.elements.len());
+        let mut elements = Vec::with_capacity(element_count);
+        if let Some(repeat_count) = repeat_count {
+            let Some(element) = expr.elements.first() else {
+                return Err(ConstEvalError::new(
+                    expr.span,
+                    "repeat array literals must include one element expression",
+                ));
+            };
+            for _ in 0..repeat_count {
+                elements.push(self.eval_expr_value(element, env)?);
+            }
+        } else {
+            for element in &expr.elements {
+                elements.push(self.eval_expr_value(element, env)?);
+            }
         }
         let Some(first) = elements.first() else {
             return Err(ConstEvalError::new(
@@ -2109,7 +2504,9 @@ impl ConstEvaluator<'_, '_> {
                 let Some((_, value)) = record.fields.get(index) else {
                     return Err(ConstEvalError::new(
                         expr.span,
-                        format!("compile-time array index {index} is out of bounds for length {len}"),
+                        format!(
+                            "compile-time array index {index} is out of bounds for length {len}"
+                        ),
                     ));
                 };
                 Ok(ConstFlow::Value(value.clone()))
@@ -2348,6 +2745,30 @@ impl ConstEvaluator<'_, '_> {
                     ));
                 }
             },
+            BinaryOp::BitAnd => RuntimeValue::Int(
+                ((expect_const_int(&left, expr.left.span())? as i32)
+                    & (expect_const_int(&right, expr.right.span())? as i32)) as i64,
+            ),
+            BinaryOp::BitOr => RuntimeValue::Int(
+                ((expect_const_int(&left, expr.left.span())? as i32)
+                    | (expect_const_int(&right, expr.right.span())? as i32)) as i64,
+            ),
+            BinaryOp::BitXor => RuntimeValue::Int(
+                ((expect_const_int(&left, expr.left.span())? as i32)
+                    ^ (expect_const_int(&right, expr.right.span())? as i32)) as i64,
+            ),
+            BinaryOp::Shl => {
+                let shift = (expect_const_int(&right, expr.right.span())? as u32) & 31;
+                RuntimeValue::Int(
+                    (expect_const_int(&left, expr.left.span())? as i32).wrapping_shl(shift) as i64,
+                )
+            }
+            BinaryOp::Shr => {
+                let shift = (expect_const_int(&right, expr.right.span())? as u32) & 31;
+                RuntimeValue::Int(
+                    ((expect_const_int(&left, expr.left.span())? as i32) >> shift) as i64,
+                )
+            }
             BinaryOp::And => RuntimeValue::Bool(
                 expect_const_bool(&left, expr.left.span())?
                     && expect_const_bool(&right, expr.right.span())?,
@@ -2488,6 +2909,23 @@ impl ConstEvaluator<'_, '_> {
                 } else {
                     PatternMatch::NoMatch
                 })
+            }
+            sarif_frontend::hir::MatchPattern::IntegerRange { start, end, .. } => {
+                Ok(match scrutinee {
+                    RuntimeValue::Int(value) if start <= value && value < end => {
+                        PatternMatch::Match(None)
+                    }
+                    _ => PatternMatch::NoMatch,
+                })
+            }
+            sarif_frontend::hir::MatchPattern::Or { patterns, .. } => {
+                for pattern in patterns {
+                    match Self::match_pattern(scrutinee, pattern, span)? {
+                        PatternMatch::NoMatch => {}
+                        matched => return Ok(matched),
+                    }
+                }
+                Ok(PatternMatch::NoMatch)
             }
             sarif_frontend::hir::MatchPattern::Wildcard { .. } => Ok(PatternMatch::Match(None)),
         }
@@ -2657,6 +3095,8 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextIndexNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderAppendCodepoint { .. }
+            | Inst::TextBuilderAppendAscii { .. }
+            | Inst::TextBuilderAppendSlice { .. }
             | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::TextIndexGet { .. }
@@ -2670,18 +3110,27 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::ListSortRecordTextField { .. }
             | Inst::F64FromI32 { .. }
             | Inst::TextLen { .. }
+            | Inst::BytesLen { .. }
             | Inst::TextConcat { .. }
             | Inst::TextSlice { .. }
+            | Inst::BytesSlice { .. }
             | Inst::TextByte { .. }
+            | Inst::BytesByte { .. }
             | Inst::TextCmp { .. }
             | Inst::TextEqRange { .. }
             | Inst::TextFindByteRange { .. }
+            | Inst::BytesFindByteRange { .. }
+            | Inst::TextLineEnd { .. }
+            | Inst::TextNextLine { .. }
+            | Inst::TextFieldEnd { .. }
+            | Inst::TextNextField { .. }
             | Inst::TextFromF64Fixed { .. }
             | Inst::ArgCount { .. }
             | Inst::AllocPush
             | Inst::AllocPop
             | Inst::ArgText { .. }
             | Inst::StdinText { .. }
+            | Inst::StdinBytes { .. }
             | Inst::StdoutWrite { .. }
             | Inst::StdoutWriteBuilder { .. }
             | Inst::ParseI32 { .. }
@@ -2696,6 +3145,11 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Sub { .. }
             | Inst::Mul { .. }
             | Inst::Div { .. }
+            | Inst::BitAnd { .. }
+            | Inst::BitOr { .. }
+            | Inst::BitXor { .. }
+            | Inst::Shl { .. }
+            | Inst::Shr { .. }
             | Inst::Sqrt { .. }
             | Inst::And { .. }
             | Inst::Or { .. }
@@ -2730,6 +3184,7 @@ fn lower_function_monomorphized<'a>(
     new_name: Option<String>,
 ) -> Function {
     let mut lowerer = FunctionLowerer::new(function, shared, substitutions.clone());
+    lowerer.ensure_signature_types_registered();
     if let Some(requires) = &function.requires {
         let condition = lowerer.lower_expr(requires);
         lowerer.instructions.push(Inst::Assert {
@@ -2758,14 +3213,12 @@ fn lower_function_monomorphized<'a>(
             .iter()
             .map(|param| Param {
                 name: param.name.clone(),
-                ty: LowerType::from_type_name(&param.ty.path, &substitutions)
-                    .type_name()
+                ty: lower_type_name(&LowerType::from_type_name(&param.ty.path, &substitutions))
                     .unwrap_or_else(|| param.ty.path.clone()),
             })
             .collect(),
         return_type: function.return_type.as_ref().map(|ty| {
-            LowerType::from_type_name(&ty.path, &substitutions)
-                .type_name()
+            lower_type_name(&LowerType::from_type_name(&ty.path, &substitutions))
                 .unwrap_or_else(|| ty.path.clone())
         }),
         effects: function
@@ -2797,15 +3250,17 @@ struct FunctionLowerer<'a, 'shared> {
     instructions: Vec<Inst>,
     locals: HashMap<String, LocalBinding>,
     local_types: HashMap<String, LowerType>,
+    trusted_repeat_bounds: HashMap<String, usize>,
     mutable_locals: Vec<MutableLocal>,
     contract_result: Option<ValueId>,
     diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum LocalBinding {
     Value(ValueId),
     Slot(LocalSlotId),
+    ArraySlots(Vec<LocalSlotId>),
 }
 
 struct BodyLowering {
@@ -2819,6 +3274,7 @@ enum LowerType {
     F64,
     Bool,
     Text,
+    Bytes,
     TextIndex,
     TextBuilder,
     List(Box<Self>),
@@ -2835,6 +3291,7 @@ impl LowerType {
             "F64" => Self::F64,
             "Bool" => Self::Bool,
             "Text" => Self::Text,
+            "Bytes" => Self::Bytes,
             "TextIndex" => Self::TextIndex,
             "TextBuilder" => Self::TextBuilder,
             "Unit" => Self::Unit,
@@ -2854,6 +3311,7 @@ impl LowerType {
             Self::F64 => Some("F64".to_owned()),
             Self::Bool => Some("Bool".to_owned()),
             Self::Text => Some("Text".to_owned()),
+            Self::Bytes => Some("Bytes".to_owned()),
             Self::TextIndex => Some("TextIndex".to_owned()),
             Self::TextBuilder => Some("TextBuilder".to_owned()),
             Self::List(element) => Some(format!("List[{}]", lower_type_name(element)?)),
@@ -2942,22 +3400,29 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             instructions: Vec::new(),
             locals: HashMap::new(),
             local_types: HashMap::new(),
+            trusted_repeat_bounds: HashMap::new(),
             mutable_locals: Vec::new(),
             contract_result: None,
             diagnostics: Vec::new(),
         };
         for (index, param) in function.params.iter().enumerate() {
             let dest = lowerer.fresh_value();
-            lowerer
-                .locals
-                .insert(param.name.clone(), LocalBinding::Value(dest));
-            lowerer.local_types.insert(
-                param.name.clone(),
-                LowerType::from_type_name(&param.ty.path, &substitutions),
-            );
             lowerer.instructions.push(Inst::LoadParam { dest, index });
+            let ty = LowerType::from_type_name(&param.ty.path, &substitutions);
+            lowerer.bind_local(&param.name, ty, dest, false, true);
         }
         lowerer
+    }
+
+    fn ensure_signature_types_registered(&mut self) {
+        for param in &self.function.params {
+            let ty = LowerType::from_type_name(&param.ty.path, &self.substitutions);
+            let _ = self.register_type_name(&ty);
+        }
+        if let Some(return_type) = &self.function.return_type {
+            let ty = LowerType::from_type_name(&return_type.path, &self.substitutions);
+            let _ = self.register_type_name(&ty);
+        }
     }
 
     fn lower_body(&mut self, body: &sarif_frontend::hir::Body, _top_level: bool) -> BodyLowering {
@@ -2966,46 +3431,42 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 Stmt::Let(binding) => {
                     let value = self.lower_expr(&binding.value);
                     let ty = self.infer_expr_type(&binding.value);
-                    if binding.mutable {
-                        let Some(slot_ty) = self.register_type_name(&ty) else {
-                            self.diagnostics.push(Diagnostic::new(
-                                "mir.unsupported-mutable-local",
-                                format!(
-                                    "mutable local `{}` in `{}` uses a stage-0 unsupported type",
-                                    binding.name, self.function.name
-                                ),
-                                binding.span,
-                                Some(
-                                    "Keep mutable locals to stage-0 runtime-supported value types."
-                                        .to_owned(),
-                                ),
-                            ));
-                            continue;
-                        };
-                        let slot = self.fresh_slot();
-                        self.mutable_locals.push(MutableLocal {
-                            slot,
-                            name: binding.name.clone(),
-                            ty: slot_ty,
-                            mutable: true,
-                        });
-                        self.instructions
-                            .push(Inst::StoreLocal { slot, src: value });
-                        self.locals
-                            .insert(binding.name.clone(), LocalBinding::Slot(slot));
-                    } else {
-                        self.locals
-                            .insert(binding.name.clone(), LocalBinding::Value(value));
+                    if !self.bind_local(
+                        &binding.name,
+                        ty.clone(),
+                        value,
+                        binding.mutable,
+                        binding.mutable,
+                    ) {
+                        self.diagnostics.push(Diagnostic::new(
+                            "mir.unsupported-mutable-local",
+                            format!(
+                                "mutable local `{}` in `{}` uses a stage-0 unsupported type",
+                                binding.name, self.function.name
+                            ),
+                            binding.span,
+                            Some(
+                                "Keep mutable locals to stage-0 runtime-supported value types."
+                                    .to_owned(),
+                            ),
+                        ));
+                        continue;
                     }
-                    self.local_types.insert(binding.name.clone(), ty);
                 }
                 Stmt::Assign(statement) => {
                     let value = self.lower_expr(&statement.value);
                     match &statement.target {
-                        Expr::Name(target) => match self.locals.get(&target.name).copied() {
+                        Expr::Name(target) => match self.locals.get(&target.name).cloned() {
                             Some(LocalBinding::Slot(slot)) => {
                                 self.instructions
                                     .push(Inst::StoreLocal { slot, src: value });
+                                self.local_types.insert(
+                                    target.name.clone(),
+                                    self.infer_expr_type(&statement.value),
+                                );
+                            }
+                            Some(LocalBinding::ArraySlots(slots)) => {
+                                self.store_array_slots_from_value(&slots, value);
                                 self.local_types.insert(
                                     target.name.clone(),
                                     self.infer_expr_type(&statement.value),
@@ -3026,6 +3487,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                                 ));
                             }
                         },
+                        Expr::Field(target) => {
+                            self.lower_record_field_assign_statement(target, value, statement.span);
+                        }
                         Expr::Index(target) => {
                             self.lower_array_index_assign_statement(target, value, statement.span);
                         }
@@ -3033,11 +3497,14 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                             self.diagnostics.push(Diagnostic::new(
                                 "mir.assign-target",
                                 format!(
-                                    "assignment target in `{}` must be a mutable local or mutable local array element",
+                                    "assignment target in `{}` must be a mutable local, mutable local field, or mutable local array element",
                                     self.function.name
                                 ),
                                 statement.span,
-                                Some("Use `name = value;` or `name[index] = value;`.".to_owned()),
+                                Some(
+                                    "Use `name = value;`, `name.field = value;`, or `name[index] = value;`."
+                                        .to_owned(),
+                                ),
                             ));
                         }
                     }
@@ -3092,13 +3559,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 dest
             }
             Expr::Name(expr) => {
-                if let Some(binding) = self.locals.get(&expr.name).copied() {
+                if let Some(binding) = self.locals.get(&expr.name).cloned() {
                     match binding {
                         LocalBinding::Value(value) => value,
                         LocalBinding::Slot(slot) => {
                             let dest = self.fresh_value();
                             self.instructions.push(Inst::LoadLocal { dest, slot });
                             dest
+                        }
+                        LocalBinding::ArraySlots(slots) => {
+                            self.materialize_array_slots(&expr.name, &slots, expr.span)
                         }
                     }
                 } else if let Some(&value) = self.substitutions.get(&expr.name) {
@@ -3261,6 +3731,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_text_builder_append_codepoint_expr(expr);
                 }
+                if expr.callee == "text_builder_append_ascii"
+                    && !self.function_returns.contains_key("text_builder_append_ascii")
+                {
+                    return self.lower_text_builder_append_ascii_expr(expr);
+                }
+                if expr.callee == "text_builder_append_slice"
+                    && !self.function_returns.contains_key("text_builder_append_slice")
+                {
+                    return self.lower_text_builder_append_slice_expr(expr);
+                }
                 if expr.callee == "text_builder_append_i32"
                     && !self.function_returns.contains_key("text_builder_append_i32")
                 {
@@ -3321,6 +3801,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_f64_from_i32_expr(expr);
                 }
+                if expr.callee == "bytes_len"
+                    && !self.function_returns.contains_key("bytes_len")
+                {
+                    return self.lower_bytes_len_expr(expr);
+                }
                 if expr.callee == "text_concat"
                     && !self.function_returns.contains_key("text_concat")
                 {
@@ -3330,8 +3815,18 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     return self.lower_text_slice_expr(expr);
                 }
+                if expr.callee == "bytes_slice"
+                    && !self.function_returns.contains_key("bytes_slice")
+                {
+                    return self.lower_bytes_slice_expr(expr);
+                }
                 if expr.callee == "text_byte" && !self.function_returns.contains_key("text_byte") {
                     return self.lower_text_byte_expr(expr);
+                }
+                if expr.callee == "bytes_byte"
+                    && !self.function_returns.contains_key("bytes_byte")
+                {
+                    return self.lower_bytes_byte_expr(expr);
                 }
                 if expr.callee == "text_cmp" && !self.function_returns.contains_key("text_cmp") {
                     return self.lower_text_cmp_expr(expr);
@@ -3345,6 +3840,31 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     && !self.function_returns.contains_key("text_find_byte_range")
                 {
                     return self.lower_text_find_byte_range_expr(expr);
+                }
+                if expr.callee == "bytes_find_byte_range"
+                    && !self.function_returns.contains_key("bytes_find_byte_range")
+                {
+                    return self.lower_bytes_find_byte_range_expr(expr);
+                }
+                if expr.callee == "text_line_end"
+                    && !self.function_returns.contains_key("text_line_end")
+                {
+                    return self.lower_text_line_end_expr(expr);
+                }
+                if expr.callee == "text_next_line"
+                    && !self.function_returns.contains_key("text_next_line")
+                {
+                    return self.lower_text_next_line_expr(expr);
+                }
+                if expr.callee == "text_field_end"
+                    && !self.function_returns.contains_key("text_field_end")
+                {
+                    return self.lower_text_field_end_expr(expr);
+                }
+                if expr.callee == "text_next_field"
+                    && !self.function_returns.contains_key("text_next_field")
+                {
+                    return self.lower_text_next_field_expr(expr);
                 }
                 if expr.callee == "text_from_f64_fixed"
                     && !self.function_returns.contains_key("text_from_f64_fixed")
@@ -3386,6 +3906,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     && !self.function_returns.contains_key("stdin_text")
                 {
                     return self.lower_stdin_text_expr(expr);
+                }
+                if expr.callee == "stdin_bytes"
+                    && !self.function_returns.contains_key("stdin_bytes")
+                {
+                    return self.lower_stdin_bytes_expr(expr);
                 }
                 if expr.callee == "stdout_write"
                     && !self.function_returns.contains_key("stdout_write")
@@ -3443,7 +3968,10 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 if expr.field == "len"
                     && matches!(
                         self.infer_expr_type(&expr.base),
-                        LowerType::Array(_, _) | LowerType::List(_) | LowerType::Text
+                        LowerType::Array(_, _)
+                            | LowerType::List(_)
+                            | LowerType::Text
+                            | LowerType::Bytes
                     )
                 {
                     return match self.infer_expr_type(&expr.base) {
@@ -3477,6 +4005,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                             let text = self.lower_expr(&expr.base);
                             let dest = self.fresh_value();
                             self.instructions.push(Inst::TextLen { dest, text });
+                            dest
+                        }
+                        LowerType::Bytes => {
+                            let bytes = self.lower_expr(&expr.base);
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::BytesLen { dest, bytes });
                             dest
                         }
                         _ => {
@@ -3602,6 +4136,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     BinaryOp::Sub => Inst::Sub { dest, left, right },
                     BinaryOp::Mul => Inst::Mul { dest, left, right },
                     BinaryOp::Div => Inst::Div { dest, left, right },
+                    BinaryOp::BitAnd => Inst::BitAnd { dest, left, right },
+                    BinaryOp::BitOr => Inst::BitOr { dest, left, right },
+                    BinaryOp::BitXor => Inst::BitXor { dest, left, right },
+                    BinaryOp::Shl => Inst::Shl { dest, left, right },
+                    BinaryOp::Shr => Inst::Shr { dest, left, right },
                     BinaryOp::And => Inst::And { dest, left, right },
                     BinaryOp::Or => Inst::Or { dest, left, right },
                     BinaryOp::Eq => Inst::Eq { dest, left, right },
@@ -3856,6 +4395,55 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 });
                 Some(self.lower_value_eq(scrutinee, right))
             }
+            sarif_frontend::hir::MatchPattern::IntegerRange { start, end, .. } => {
+                let lower = self.fresh_value();
+                self.instructions.push(Inst::ConstInt {
+                    dest: lower,
+                    value: *start,
+                });
+                let lower_ok = self.fresh_value();
+                self.instructions.push(Inst::Ge {
+                    dest: lower_ok,
+                    left: scrutinee,
+                    right: lower,
+                });
+                let upper = self.fresh_value();
+                self.instructions.push(Inst::ConstInt {
+                    dest: upper,
+                    value: *end,
+                });
+                let upper_ok = self.fresh_value();
+                self.instructions.push(Inst::Lt {
+                    dest: upper_ok,
+                    left: scrutinee,
+                    right: upper,
+                });
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::And {
+                    dest,
+                    left: lower_ok,
+                    right: upper_ok,
+                });
+                Some(dest)
+            }
+            sarif_frontend::hir::MatchPattern::Or { patterns, .. } => {
+                let mut conditions = patterns
+                    .iter()
+                    .filter_map(|pattern| self.lower_match_pattern_condition(scrutinee, pattern))
+                    .collect::<Vec<_>>()
+                    .into_iter();
+                let mut combined = conditions.next()?;
+                for right in conditions {
+                    let dest = self.fresh_value();
+                    self.instructions.push(Inst::Or {
+                        dest,
+                        left: combined,
+                        right,
+                    });
+                    combined = dest;
+                }
+                Some(combined)
+            }
             sarif_frontend::hir::MatchPattern::Wildcard { .. } => None,
         }
     }
@@ -3997,7 +4585,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     }
                 }
                 "text_len" if !self.function_returns.contains_key("text_len") => LowerType::I32,
+                "bytes_len" if !self.function_returns.contains_key("bytes_len") => LowerType::I32,
                 "text_byte" if !self.function_returns.contains_key("text_byte") => LowerType::I32,
+                "bytes_byte" if !self.function_returns.contains_key("bytes_byte") => LowerType::I32,
                 "text_cmp" if !self.function_returns.contains_key("text_cmp") => LowerType::I32,
                 "text_eq_range" if !self.function_returns.contains_key("text_eq_range") => {
                     LowerType::Bool
@@ -4005,6 +4595,23 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 "text_find_byte_range"
                     if !self.function_returns.contains_key("text_find_byte_range") =>
                 {
+                    LowerType::I32
+                }
+                "bytes_find_byte_range"
+                    if !self.function_returns.contains_key("bytes_find_byte_range") =>
+                {
+                    LowerType::I32
+                }
+                "text_line_end" if !self.function_returns.contains_key("text_line_end") => {
+                    LowerType::I32
+                }
+                "text_next_line" if !self.function_returns.contains_key("text_next_line") => {
+                    LowerType::I32
+                }
+                "text_field_end" if !self.function_returns.contains_key("text_field_end") => {
+                    LowerType::I32
+                }
+                "text_next_field" if !self.function_returns.contains_key("text_next_field") => {
                     LowerType::I32
                 }
                 "text_builder_new" if !self.function_returns.contains_key("text_builder_new") => {
@@ -4025,8 +4632,24 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 {
                     LowerType::TextBuilder
                 }
+                "text_builder_append_ascii"
+                    if !self
+                        .function_returns
+                        .contains_key("text_builder_append_ascii") =>
+                {
+                    LowerType::TextBuilder
+                }
+                "text_builder_append_slice"
+                    if !self
+                        .function_returns
+                        .contains_key("text_builder_append_slice") =>
+                {
+                    LowerType::TextBuilder
+                }
                 "text_builder_append_i32"
-                    if !self.function_returns.contains_key("text_builder_append_i32") =>
+                    if !self
+                        .function_returns
+                        .contains_key("text_builder_append_i32") =>
                 {
                     LowerType::TextBuilder
                 }
@@ -4073,7 +4696,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     }
                 }
                 "list_sort_by_text_field"
-                    if !self.function_returns.contains_key("list_sort_by_text_field") =>
+                    if !self
+                        .function_returns
+                        .contains_key("list_sort_by_text_field") =>
                 {
                     match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
                         Some(LowerType::List(element)) => LowerType::List(element),
@@ -4089,6 +4714,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 "text_slice" if !self.function_returns.contains_key("text_slice") => {
                     LowerType::Text
                 }
+                "bytes_slice" if !self.function_returns.contains_key("bytes_slice") => {
+                    LowerType::Bytes
+                }
                 "text_from_f64_fixed"
                     if !self.function_returns.contains_key("text_from_f64_fixed") =>
                 {
@@ -4097,11 +4725,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 "alloc_push" if !self.function_returns.contains_key("alloc_push") => {
                     LowerType::Unit
                 }
-                "alloc_pop" if !self.function_returns.contains_key("alloc_pop") => {
-                    LowerType::Unit
-                }
+                "alloc_pop" if !self.function_returns.contains_key("alloc_pop") => LowerType::Unit,
                 "stdin_text" if !self.function_returns.contains_key("stdin_text") => {
                     LowerType::Text
+                }
+                "stdin_bytes" if !self.function_returns.contains_key("stdin_bytes") => {
+                    LowerType::Bytes
                 }
                 "sqrt" if !self.function_returns.contains_key("sqrt") => LowerType::F64,
                 "parse_i32" if !self.function_returns.contains_key("parse_i32") => LowerType::I32,
@@ -4122,7 +4751,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
             },
             Expr::Array(expr) => expr.elements.first().map_or(LowerType::Error, |first| {
-                LowerType::Array(Box::new(self.infer_expr_type(first)), expr.elements.len())
+                let len = expr
+                    .repeat_len
+                    .as_ref()
+                    .and_then(|len| resolve_const_expr_len_value(len, &self.substitutions))
+                    .unwrap_or(expr.elements.len());
+                LowerType::Array(Box::new(self.infer_expr_type(first)), len)
             }),
             Expr::Field(expr) => {
                 if let Some((enum_name, _)) =
@@ -4131,7 +4765,10 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     LowerType::Named(enum_name)
                 } else {
                     match self.infer_expr_type(&expr.base) {
-                        LowerType::Array(_, _) | LowerType::List(_) | LowerType::Text
+                        LowerType::Array(_, _)
+                        | LowerType::List(_)
+                        | LowerType::Text
+                        | LowerType::Bytes
                             if expr.field == "len" =>
                         {
                             LowerType::I32
@@ -4154,7 +4791,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             Expr::Index(expr) => match self.infer_expr_type(&expr.base) {
                 LowerType::Array(element, _) | LowerType::List(element) => *element,
-                LowerType::Text => LowerType::I32,
+                LowerType::Text | LowerType::Bytes => LowerType::I32,
                 _ => LowerType::Error,
             },
             Expr::If(expr) => self.infer_body_type(&expr.then_body),
@@ -4178,6 +4815,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         LowerType::TextBuilder
                     }
                     (LowerType::F64, LowerType::F64) => LowerType::F64,
+                    (LowerType::I32, LowerType::I32) => LowerType::I32,
+                    _ => LowerType::Error,
+                },
+                BinaryOp::BitAnd
+                | BinaryOp::BitOr
+                | BinaryOp::BitXor
+                | BinaryOp::Shl
+                | BinaryOp::Shr => match (
+                    self.infer_expr_type(&expr.left),
+                    self.infer_expr_type(&expr.right),
+                ) {
                     (LowerType::I32, LowerType::I32) => LowerType::I32,
                     _ => LowerType::Error,
                 },
@@ -4216,7 +4864,28 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             return self.emit_unit_value();
         };
         let element_ty = self.infer_expr_type(first);
-        let array_ty = LowerType::Array(Box::new(element_ty), expr.elements.len());
+        let len = match expr
+            .repeat_len
+            .as_ref()
+            .map(|len| resolve_const_expr_len(len, &self.substitutions, expr.span))
+            .transpose()
+        {
+            Ok(Some(len)) => len,
+            Ok(None) => expr.elements.len(),
+            Err(error) => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.array-repeat-len",
+                    error.message,
+                    expr.span,
+                    Some(
+                        "Use an integer literal or in-scope fixed-array length parameter."
+                            .to_owned(),
+                    ),
+                ));
+                return self.emit_unit_value();
+            }
+        };
+        let array_ty = LowerType::Array(Box::new(element_ty), len);
         let Some(struct_name) = self.register_type_name(&array_ty) else {
             self.diagnostics.push(Diagnostic::new(
                 "mir.array-type",
@@ -4229,12 +4898,18 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             ));
             return self.emit_unit_value();
         };
-        let fields = expr
-            .elements
-            .iter()
-            .enumerate()
-            .map(|(index, element)| (array_field_name(index), self.lower_expr(element)))
-            .collect::<Vec<_>>();
+        let fields = if expr.repeat_len.is_some() {
+            let element = expr.elements.first().expect("repeat array has one element");
+            (0..len)
+                .map(|index| (array_field_name(index), self.lower_expr(element)))
+                .collect::<Vec<_>>()
+        } else {
+            expr.elements
+                .iter()
+                .enumerate()
+                .map(|(index, element)| (array_field_name(index), self.lower_expr(element)))
+                .collect::<Vec<_>>()
+        };
         let dest = self.fresh_value();
         self.instructions.push(Inst::MakeRecord {
             dest,
@@ -4291,12 +4966,44 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     }
 
     fn lower_index_expr(&mut self, expr: &sarif_frontend::hir::IndexExpr) -> ValueId {
+        if let Expr::Name(base) = expr.base.as_ref()
+            && let Some(LocalBinding::ArraySlots(slots)) = self.locals.get(&base.name).cloned()
+        {
+            if let Some(index) = self.const_index_expr_value(&expr.index)
+                && index < slots.len()
+            {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::LoadLocal {
+                    dest,
+                    slot: slots[index],
+                });
+                return dest;
+            }
+            let index = self.lower_expr(&expr.index);
+            if !self.index_expr_is_in_bounds(&expr.index, slots.len()) {
+                self.emit_bounds_assert(index, slots.len());
+            }
+            return self.lower_array_slot_choice(&slots, index);
+        }
         match self.infer_expr_type(&expr.base) {
             LowerType::Array(_, len) => {
                 let base = self.lower_expr(&expr.base);
+                if let Some(index) = self.const_index_expr_value(&expr.index)
+                    && index < len
+                {
+                    let dest = self.fresh_value();
+                    self.instructions.push(Inst::Field {
+                        dest,
+                        base,
+                        name: array_field_name(index),
+                    });
+                    return dest;
+                }
                 let index = self.lower_expr(&expr.index);
-                self.emit_bounds_assert(index, len);
-                self.lower_index_choice(base, index, 0, len)
+                if !self.index_expr_is_in_bounds(&expr.index, len) {
+                    self.emit_bounds_assert(index, len);
+                }
+                self.lower_index_choice(base, index, len)
             }
             LowerType::List(_) => {
                 let list = self.lower_expr(&expr.base);
@@ -4312,15 +5019,23 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.instructions.push(Inst::TextByte { dest, text, index });
                 dest
             }
+            LowerType::Bytes => {
+                let bytes = self.lower_expr(&expr.base);
+                let index = self.lower_expr(&expr.index);
+                let dest = self.fresh_value();
+                self.instructions
+                    .push(Inst::BytesByte { dest, bytes, index });
+                dest
+            }
             _ => {
                 self.diagnostics.push(Diagnostic::new(
                     "mir.array-index-base",
                     format!(
-                        "failed to lower index in `{}` because the base is not Text, List, or array",
+                        "failed to lower index in `{}` because the base is not Bytes, Text, List, or array",
                         self.function.name
                     ),
                     expr.base.span(),
-                    Some("Index into a stage-0 Text, List, or array value.".to_owned()),
+                    Some("Index into a stage-0 Bytes, Text, List, or array value.".to_owned()),
                 ));
                 self.emit_unit_value()
             }
@@ -4345,7 +5060,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             ));
             return;
         };
-        let Some(LocalBinding::Slot(slot)) = self.locals.get(&base.name).copied() else {
+        let Some(binding) = self.locals.get(&base.name).cloned() else {
             self.diagnostics.push(Diagnostic::new(
                 "mir.assign-without-slot",
                 format!(
@@ -4369,8 +5084,24 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             ));
             return;
         };
-        match array_ty.clone() {
-            LowerType::Array(_, len) => {
+        match (binding, array_ty.clone()) {
+            (LocalBinding::ArraySlots(slots), LowerType::Array(_, _)) => {
+                if let Some(index) = self.const_index_expr_value(&target.index)
+                    && index < slots.len()
+                {
+                    self.instructions.push(Inst::StoreLocal {
+                        slot: slots[index],
+                        src: value,
+                    });
+                    return;
+                }
+                let index = self.lower_expr(&target.index);
+                if !self.index_expr_is_in_bounds(&target.index, slots.len()) {
+                    self.emit_bounds_assert(index, slots.len());
+                }
+                self.store_array_slot_choice(&slots, index, value);
+            }
+            (LocalBinding::Slot(slot), LowerType::Array(_, len)) => {
                 let Some(struct_name) = self.register_type_name(&array_ty) else {
                     self.diagnostics.push(Diagnostic::new(
                         "mir.assign-index-base",
@@ -4392,8 +5123,41 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     dest: current_array,
                     slot,
                 });
+                if let Some(index) = self.const_index_expr_value(&target.index)
+                    && index < len
+                {
+                    let mut fields = Vec::with_capacity(len);
+                    for offset in 0..len {
+                        fields.push((
+                            array_field_name(offset),
+                            if offset == index {
+                                value
+                            } else {
+                                let current_field = self.fresh_value();
+                                self.instructions.push(Inst::Field {
+                                    dest: current_field,
+                                    base: current_array,
+                                    name: array_field_name(offset),
+                                });
+                                current_field
+                            },
+                        ));
+                    }
+
+                    let updated = self.fresh_value();
+                    self.instructions.push(Inst::MakeRecord {
+                        dest: updated,
+                        name: struct_name,
+                        fields,
+                    });
+                    self.instructions
+                        .push(Inst::StoreLocal { slot, src: updated });
+                    return;
+                }
                 let index = self.lower_expr(&target.index);
-                self.emit_bounds_assert(index, len);
+                if !self.index_expr_is_in_bounds(&target.index, len) {
+                    self.emit_bounds_assert(index, len);
+                }
 
                 let mut fields = Vec::with_capacity(len);
                 for offset in 0..len {
@@ -4433,9 +5197,10 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     name: struct_name,
                     fields,
                 });
-                self.instructions.push(Inst::StoreLocal { slot, src: updated });
+                self.instructions
+                    .push(Inst::StoreLocal { slot, src: updated });
             }
-            LowerType::List(_) => {
+            (LocalBinding::Slot(slot), LowerType::List(_)) => {
                 let current_list = self.fresh_value();
                 self.instructions.push(Inst::LoadLocal {
                     dest: current_list,
@@ -4449,7 +5214,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     index,
                     value,
                 });
-                self.instructions.push(Inst::StoreLocal { slot, src: updated });
+                self.instructions
+                    .push(Inst::StoreLocal { slot, src: updated });
             }
             _ => {
                 self.diagnostics.push(Diagnostic::new(
@@ -4459,10 +5225,266 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         base.name, self.function.name
                     ),
                     target.base.span(),
-                    Some("Use `name[index] = value;` only on mutable local arrays or lists.".to_owned()),
+                    Some(
+                        "Use `name[index] = value;` only on mutable local arrays or lists."
+                            .to_owned(),
+                    ),
                 ));
             }
         }
+    }
+
+    fn lower_record_field_assign_statement(
+        &mut self,
+        target: &sarif_frontend::hir::FieldExpr,
+        value: ValueId,
+        span: Span,
+    ) {
+        match target.base.as_ref() {
+            Expr::Name(base) => {
+                let Some(binding) = self.locals.get(&base.name).cloned() else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-without-slot",
+                        format!(
+                            "mutable assignment to `{}` in `{}` is missing a lowered slot",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some(
+                            "Only `let mut` bindings may be assigned to in stage-0 MIR.".to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Some(record_ty) = self.local_types.get(&base.name).cloned() else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "mutable assignment target `{}` in `{}` has no lowered type",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some("Keep field assignment on mutable local records.".to_owned()),
+                    ));
+                    return;
+                };
+                let LowerType::Named(record_name) = record_ty else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "field assignment target `{}` in `{}` is not a record",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some("Use field assignment only on mutable local records.".to_owned()),
+                    ));
+                    return;
+                };
+                let LocalBinding::Slot(slot) = binding else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "field assignment target `{}` in `{}` must be a mutable local record",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some("Use field assignment on a mutable local record value.".to_owned()),
+                    ));
+                    return;
+                };
+
+                let current_record = self.fresh_value();
+                self.instructions.push(Inst::LoadLocal {
+                    dest: current_record,
+                    slot,
+                });
+                let updated = self.lower_updated_record(
+                    current_record,
+                    &record_name,
+                    &target.field,
+                    value,
+                    span,
+                );
+                self.instructions
+                    .push(Inst::StoreLocal { slot, src: updated });
+            }
+            Expr::Index(indexed) => {
+                let Expr::Name(base) = indexed.base.as_ref() else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "field assignment in `{}` must target a mutable local array",
+                            self.function.name
+                        ),
+                        span,
+                        Some(
+                            "Use `array[index].field = value;` on a mutable local array."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Some(binding) = self.locals.get(&base.name).cloned() else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-without-slot",
+                        format!(
+                            "mutable assignment to `{}` in `{}` is missing a lowered slot",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some(
+                            "Only `let mut` bindings may be assigned to in stage-0 MIR.".to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let Some(array_ty) = self.local_types.get(&base.name).cloned() else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "mutable assignment target `{}` in `{}` has no lowered type",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some("Keep field assignment on mutable local arrays.".to_owned()),
+                    ));
+                    return;
+                };
+                let LocalBinding::ArraySlots(slots) = binding else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "field assignment target `{}` in `{}` must be a mutable local array",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some(
+                            "Use field assignment on a mutable local array of records.".to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                let LowerType::Array(element, _) = array_ty else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "field assignment target `{}` in `{}` is not an array",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some("Use field assignment only on mutable local arrays.".to_owned()),
+                    ));
+                    return;
+                };
+                let LowerType::Named(record_name) = *element else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "mir.assign-target",
+                        format!(
+                            "field assignment target `{}` in `{}` does not hold record elements",
+                            base.name, self.function.name
+                        ),
+                        span,
+                        Some(
+                            "Nested field assignment requires an array of declared records."
+                                .to_owned(),
+                        ),
+                    ));
+                    return;
+                };
+                if let Some(index) = self.const_index_expr_value(&indexed.index)
+                    && index < slots.len()
+                {
+                    let current_record = self.fresh_value();
+                    self.instructions.push(Inst::LoadLocal {
+                        dest: current_record,
+                        slot: slots[index],
+                    });
+                    let updated = self.lower_updated_record(
+                        current_record,
+                        &record_name,
+                        &target.field,
+                        value,
+                        span,
+                    );
+                    self.instructions.push(Inst::StoreLocal {
+                        slot: slots[index],
+                        src: updated,
+                    });
+                    return;
+                }
+                let index = self.lower_expr(&indexed.index);
+                if !self.index_expr_is_in_bounds(&indexed.index, slots.len()) {
+                    self.emit_bounds_assert(index, slots.len());
+                }
+                let current_record = self.lower_array_slot_choice(&slots, index);
+                let updated = self.lower_updated_record(
+                    current_record,
+                    &record_name,
+                    &target.field,
+                    value,
+                    span,
+                );
+                self.store_array_slot_choice(&slots, index, updated);
+            }
+            _ => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.assign-target",
+                    format!(
+                        "field assignment target in `{}` must be a mutable local record or array element",
+                        self.function.name
+                    ),
+                    span,
+                    Some(
+                        "Use `name.field = value;` or `array[index].field = value;`."
+                            .to_owned(),
+                    ),
+                ));
+            }
+        }
+    }
+
+    fn lower_updated_record(
+        &mut self,
+        current_record: ValueId,
+        record_name: &str,
+        field_name: &str,
+        value: ValueId,
+        span: Span,
+    ) -> ValueId {
+        let Some(fields) = self.struct_layouts.get(record_name).cloned() else {
+            self.diagnostics.push(Diagnostic::new(
+                "mir.assign-target",
+                format!(
+                    "field assignment target in `{}` has no record layout",
+                    self.function.name
+                ),
+                span,
+                Some("Use field assignment on declared struct values.".to_owned()),
+            ));
+            return self.emit_unit_value();
+        };
+        let mut updated_fields = Vec::with_capacity(fields.len());
+        for (field, _) in fields {
+            let field_value = if field == field_name {
+                value
+            } else {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::Field {
+                    dest,
+                    base: current_record,
+                    name: field.clone(),
+                });
+                dest
+            };
+            updated_fields.push((field, field_value));
+        }
+        let updated = self.fresh_value();
+        self.instructions.push(Inst::MakeRecord {
+            dest: updated,
+            name: record_name.to_owned(),
+            fields: updated_fields,
+        });
+        updated
     }
 
     fn emit_bounds_assert(&mut self, index: ValueId, len: usize) {
@@ -4500,45 +5522,83 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         });
     }
 
-    fn lower_index_choice(
+    fn repeat_static_count(&self, expr: &sarif_frontend::hir::Expr) -> Option<usize> {
+        match expr {
+            Expr::Integer(value) => usize::try_from(value.value).ok(),
+            Expr::Name(name) => self.name_static_index_bound(&name.name),
+            _ => None,
+        }
+    }
+
+    fn const_index_expr_value(&self, expr: &sarif_frontend::hir::Expr) -> Option<usize> {
+        match expr {
+            Expr::Integer(value) => usize::try_from(value.value).ok(),
+            Expr::Name(name) => match self.evaluated_consts.get(&name.name) {
+                Some(RuntimeValue::Int(value)) => usize::try_from(*value).ok(),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn name_static_index_bound(&self, name: &str) -> Option<usize> {
+        self.trusted_repeat_bounds
+            .get(name)
+            .copied()
+            .or_else(|| self.substitutions.get(name).copied())
+            .or_else(|| match self.evaluated_consts.get(name) {
+                Some(RuntimeValue::Int(value)) => usize::try_from(*value).ok(),
+                _ => None,
+            })
+    }
+
+    fn index_expr_is_in_bounds(&self, expr: &sarif_frontend::hir::Expr, len: usize) -> bool {
+        match expr {
+            Expr::Integer(value) => usize::try_from(value.value).is_ok_and(|value| value < len),
+            Expr::Name(name) => self
+                .name_static_index_bound(&name.name)
+                .is_some_and(|bound| bound <= len),
+            _ => false,
+        }
+    }
+
+    fn lower_index_choice(&mut self, base: ValueId, index: ValueId, len: usize) -> ValueId {
+        self.lower_index_choice_range(base, index, 0, len)
+    }
+
+    fn lower_index_choice_range(
         &mut self,
         base: ValueId,
         index: ValueId,
-        offset: usize,
-        len: usize,
+        start: usize,
+        end: usize,
     ) -> ValueId {
-        if offset + 1 == len {
+        if start + 1 == end {
             let dest = self.fresh_value();
             self.instructions.push(Inst::Field {
                 dest,
                 base,
-                name: array_field_name(offset),
+                name: array_field_name(start),
             });
             return dest;
         }
 
+        let split = start + (end - start) / 2;
         let expected = self.fresh_value();
         self.instructions.push(Inst::ConstInt {
             dest: expected,
-            value: i64::try_from(offset).expect("array index fits in i64"),
+            value: i64::try_from(split).expect("array index fits in i64"),
         });
         let condition = self.fresh_value();
-        self.instructions.push(Inst::Eq {
+        self.instructions.push(Inst::Lt {
             dest: condition,
             left: index,
             right: expected,
         });
-        let (then_insts, then_result) = self.capture_nested_value(|this| {
-            let dest = this.fresh_value();
-            this.instructions.push(Inst::Field {
-                dest,
-                base,
-                name: array_field_name(offset),
-            });
-            dest
-        });
-        let (else_insts, else_result) =
-            self.capture_nested_value(|this| this.lower_index_choice(base, index, offset + 1, len));
+        let (then_insts, then_result) = self
+            .capture_nested_value(|this| this.lower_index_choice_range(base, index, start, split));
+        let (else_insts, else_result) = self
+            .capture_nested_value(|this| this.lower_index_choice_range(base, index, split, end));
         let dest = self.fresh_value();
         self.instructions.push(Inst::If {
             dest,
@@ -4549,6 +5609,234 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             else_result: Some(else_result),
         });
         dest
+    }
+
+    fn create_array_slots_for_type(
+        &mut self,
+        name: &str,
+        ty: &LowerType,
+        mutable: bool,
+    ) -> Option<Vec<LocalSlotId>> {
+        let LowerType::Array(element, len) = ty else {
+            return None;
+        };
+        let element_ty = self.register_type_name(element)?;
+        let mut slots = Vec::with_capacity(*len);
+        for index in 0..*len {
+            let slot = self.fresh_slot();
+            self.mutable_locals.push(MutableLocal {
+                slot,
+                name: format!("{name}[{index}]"),
+                ty: element_ty.clone(),
+                mutable,
+            });
+            slots.push(slot);
+        }
+        Some(slots)
+    }
+
+    fn bind_local(
+        &mut self,
+        name: &str,
+        ty: LowerType,
+        value: ValueId,
+        mutable: bool,
+        scalarize_arrays: bool,
+    ) -> bool {
+        if scalarize_arrays
+            && let Some(slots) = self.create_array_slots_for_type(name, &ty, mutable)
+        {
+            self.store_array_slots_from_value(&slots, value);
+            self.locals
+                .insert(name.to_owned(), LocalBinding::ArraySlots(slots));
+            self.local_types.insert(name.to_owned(), ty);
+            return true;
+        }
+        if mutable {
+            let Some(slot_ty) = self.register_type_name(&ty) else {
+                return false;
+            };
+            let slot = self.fresh_slot();
+            self.mutable_locals.push(MutableLocal {
+                slot,
+                name: name.to_owned(),
+                ty: slot_ty,
+                mutable: true,
+            });
+            self.instructions
+                .push(Inst::StoreLocal { slot, src: value });
+            self.locals
+                .insert(name.to_owned(), LocalBinding::Slot(slot));
+        } else {
+            self.locals
+                .insert(name.to_owned(), LocalBinding::Value(value));
+        }
+        self.local_types.insert(name.to_owned(), ty);
+        true
+    }
+
+    fn store_array_slots_from_value(&mut self, slots: &[LocalSlotId], value: ValueId) {
+        for (index, slot) in slots.iter().enumerate() {
+            let field = self.fresh_value();
+            self.instructions.push(Inst::Field {
+                dest: field,
+                base: value,
+                name: array_field_name(index),
+            });
+            self.instructions.push(Inst::StoreLocal {
+                slot: *slot,
+                src: field,
+            });
+        }
+    }
+
+    fn materialize_array_slots(
+        &mut self,
+        name: &str,
+        slots: &[LocalSlotId],
+        span: Span,
+    ) -> ValueId {
+        let Some(array_ty) = self.local_types.get(name).cloned() else {
+            self.diagnostics.push(Diagnostic::new(
+                "mir.array-slot-type",
+                format!(
+                    "failed to materialize array local `{name}` in `{}` because its lowered type is unavailable",
+                    self.function.name
+                ),
+                span,
+                Some("Keep mutable array locals on valid stage-0 array types.".to_owned()),
+            ));
+            return self.emit_unit_value();
+        };
+        let Some(struct_name) = self.register_type_name(&array_ty) else {
+            self.diagnostics.push(Diagnostic::new(
+                "mir.array-slot-type",
+                format!(
+                    "failed to materialize array local `{name}` in `{}` because its stage-0 array type is unsupported",
+                    self.function.name
+                ),
+                span,
+                Some("Keep mutable array locals on stage-0 supported element types.".to_owned()),
+            ));
+            return self.emit_unit_value();
+        };
+        let mut fields = Vec::with_capacity(slots.len());
+        for (index, slot) in slots.iter().enumerate() {
+            let field = self.fresh_value();
+            self.instructions.push(Inst::LoadLocal {
+                dest: field,
+                slot: *slot,
+            });
+            fields.push((array_field_name(index), field));
+        }
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::MakeRecord {
+            dest,
+            name: struct_name,
+            fields,
+        });
+        dest
+    }
+
+    fn lower_array_slot_choice(&mut self, slots: &[LocalSlotId], index: ValueId) -> ValueId {
+        self.lower_array_slot_choice_range(slots, index, 0, slots.len())
+    }
+
+    fn lower_array_slot_choice_range(
+        &mut self,
+        slots: &[LocalSlotId],
+        index: ValueId,
+        start: usize,
+        end: usize,
+    ) -> ValueId {
+        if start + 1 == end {
+            let dest = self.fresh_value();
+            self.instructions.push(Inst::LoadLocal {
+                dest,
+                slot: slots[start],
+            });
+            return dest;
+        }
+
+        let split = start + (end - start) / 2;
+        let expected = self.fresh_value();
+        self.instructions.push(Inst::ConstInt {
+            dest: expected,
+            value: i64::try_from(split).expect("array index fits in i64"),
+        });
+        let condition = self.fresh_value();
+        self.instructions.push(Inst::Lt {
+            dest: condition,
+            left: index,
+            right: expected,
+        });
+        let (then_insts, then_result) = self.capture_nested_value(|this| {
+            this.lower_array_slot_choice_range(slots, index, start, split)
+        });
+        let (else_insts, else_result) = self.capture_nested_value(|this| {
+            this.lower_array_slot_choice_range(slots, index, split, end)
+        });
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::If {
+            dest,
+            condition,
+            then_insts,
+            then_result: Some(then_result),
+            else_insts,
+            else_result: Some(else_result),
+        });
+        dest
+    }
+
+    fn store_array_slot_choice(&mut self, slots: &[LocalSlotId], index: ValueId, value: ValueId) {
+        self.store_array_slot_choice_range(slots, index, 0, slots.len(), value);
+    }
+
+    fn store_array_slot_choice_range(
+        &mut self,
+        slots: &[LocalSlotId],
+        index: ValueId,
+        start: usize,
+        end: usize,
+        value: ValueId,
+    ) {
+        if start + 1 == end {
+            self.instructions.push(Inst::StoreLocal {
+                slot: slots[start],
+                src: value,
+            });
+            return;
+        }
+
+        let split = start + (end - start) / 2;
+        let expected = self.fresh_value();
+        self.instructions.push(Inst::ConstInt {
+            dest: expected,
+            value: i64::try_from(split).expect("array index fits in i64"),
+        });
+        let condition = self.fresh_value();
+        self.instructions.push(Inst::Lt {
+            dest: condition,
+            left: index,
+            right: expected,
+        });
+        let (then_insts, _) = self.capture_nested_value(|this| {
+            this.store_array_slot_choice_range(slots, index, start, split, value);
+            this.emit_unit_value()
+        });
+        let (else_insts, _) = self.capture_nested_value(|this| {
+            this.store_array_slot_choice_range(slots, index, split, end, value);
+            this.emit_unit_value()
+        });
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::If {
+            dest,
+            condition,
+            then_insts,
+            then_result: None,
+            else_insts,
+            else_result: None,
+        });
     }
 
     fn capture_nested_value(
@@ -4689,11 +5977,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let saved_instructions = std::mem::take(&mut self.instructions);
         let saved_locals = self.locals.clone();
         let saved_local_types = self.local_types.clone();
+        let saved_trusted_repeat_bounds = self.trusted_repeat_bounds.clone();
         let body = self.lower_body(body, false);
         let nested_instructions = std::mem::take(&mut self.instructions);
         self.instructions = saved_instructions;
         self.locals = saved_locals;
         self.local_types = saved_local_types;
+        self.trusted_repeat_bounds = saved_trusted_repeat_bounds;
         NestedBodyLowering {
             instructions: nested_instructions,
             result: body.result,
@@ -4705,11 +5995,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let saved_instructions = std::mem::take(&mut self.instructions);
         let saved_locals = self.locals.clone();
         let saved_local_types = self.local_types.clone();
+        let saved_trusted_repeat_bounds = self.trusted_repeat_bounds.clone();
         let value = self.lower_expr(expr);
         let nested_instructions = std::mem::take(&mut self.instructions);
         self.instructions = saved_instructions;
         self.locals = saved_locals;
         self.local_types = saved_local_types;
+        self.trusted_repeat_bounds = saved_trusted_repeat_bounds;
         NestedExprLowering {
             instructions: nested_instructions,
             value,
@@ -4723,6 +6015,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let saved_instructions = std::mem::take(&mut self.instructions);
         let saved_locals = self.locals.clone();
         let saved_local_types = self.local_types.clone();
+        let saved_trusted_repeat_bounds = self.trusted_repeat_bounds.clone();
         let index_slot = expr.binding.as_ref().map(|binding| {
             let slot = self.fresh_slot();
             self.mutable_locals.push(MutableLocal {
@@ -4734,6 +6027,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             self.locals
                 .insert(binding.clone(), LocalBinding::Slot(slot));
             self.local_types.insert(binding.clone(), LowerType::I32);
+            if let Some(count) = self.repeat_static_count(&expr.count) {
+                self.trusted_repeat_bounds.insert(binding.clone(), count);
+            }
             slot
         });
         let body = self.lower_body(&expr.body, false);
@@ -4741,6 +6037,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         self.instructions = saved_instructions;
         self.locals = saved_locals;
         self.local_types = saved_local_types;
+        self.trusted_repeat_bounds = saved_trusted_repeat_bounds;
         (
             index_slot,
             NestedBodyLowering {
@@ -4784,6 +6081,18 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     value: value.clone(),
                 });
                 dest
+            }
+            RuntimeValue::Bytes(_) => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.bytes-const",
+                    format!(
+                        "failed to lower compile-time bytes value in `{}` because Bytes values are runtime-only",
+                        self.function.name
+                    ),
+                    self.function.span,
+                    Some("Construct Bytes values at runtime.".to_owned()),
+                ));
+                self.emit_unit_value()
             }
             RuntimeValue::TextIndex(_) => {
                 self.diagnostics.push(Diagnostic::new(
@@ -4893,6 +6202,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_bytes_len_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let bytes = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::BytesLen { dest, bytes });
+        dest
+    }
+
     fn lower_text_builder_new_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let dest = self.fresh_value();
         self.instructions.push(Inst::TextBuilderNew { dest });
@@ -4944,6 +6263,58 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_builder_append_ascii_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let builder = self.lower_expr(arg0);
+        let byte = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextBuilderAppendAscii {
+            dest,
+            builder,
+            byte,
+        });
+        dest
+    }
+
+    fn lower_text_builder_append_slice_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg2) = expr.args.get(2) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg3) = expr.args.get(3) else {
+            return self.emit_unit_value();
+        };
+        let builder = self.lower_expr(arg0);
+        let text = self.lower_expr(arg1);
+        let start = self.lower_expr(arg2);
+        let end = self.lower_expr(arg3);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextBuilderAppendSlice {
+            dest,
+            builder,
+            text,
+            start,
+            end,
+        });
+        dest
+    }
+
     fn lower_text_builder_append_i32_expr(
         &mut self,
         expr: &sarif_frontend::hir::CallExpr,
@@ -4957,8 +6328,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let builder = self.lower_expr(arg0);
         let value = self.lower_expr(arg1);
         let dest = self.fresh_value();
-        self.instructions
-            .push(Inst::TextBuilderAppendI32 { dest, builder, value });
+        self.instructions.push(Inst::TextBuilderAppendI32 {
+            dest,
+            builder,
+            value,
+        });
         dest
     }
 
@@ -4983,7 +6357,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let index = self.lower_expr(arg0);
         let key = self.lower_expr(arg1);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::TextIndexGet { dest, index, key });
+        self.instructions
+            .push(Inst::TextIndexGet { dest, index, key });
         dest
     }
 
@@ -5163,7 +6538,35 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
-    fn lower_text_slice_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_binary_builtin_expr<F>(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+        build: F,
+    ) -> ValueId
+    where
+        F: FnOnce(ValueId, ValueId, ValueId) -> Inst,
+    {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let first = self.lower_expr(arg0);
+        let second = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(build(dest, first, second));
+        dest
+    }
+
+    fn lower_ternary_builtin_expr<F>(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+        build: F,
+    ) -> ValueId
+    where
+        F: FnOnce(ValueId, ValueId, ValueId, ValueId) -> Inst,
+    {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
         };
@@ -5173,31 +6576,76 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let Some(arg2) = expr.args.get(2) else {
             return self.emit_unit_value();
         };
-        let text = self.lower_expr(arg0);
-        let start = self.lower_expr(arg1);
-        let end = self.lower_expr(arg2);
+        let first = self.lower_expr(arg0);
+        let second = self.lower_expr(arg1);
+        let third = self.lower_expr(arg2);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::TextSlice {
-            dest,
-            text,
-            start,
-            end,
-        });
+        self.instructions.push(build(dest, first, second, third));
         dest
     }
 
-    fn lower_text_byte_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_quaternary_builtin_expr<F>(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+        build: F,
+    ) -> ValueId
+    where
+        F: FnOnce(ValueId, ValueId, ValueId, ValueId, ValueId) -> Inst,
+    {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
         };
         let Some(arg1) = expr.args.get(1) else {
             return self.emit_unit_value();
         };
-        let text = self.lower_expr(arg0);
-        let index = self.lower_expr(arg1);
+        let Some(arg2) = expr.args.get(2) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg3) = expr.args.get(3) else {
+            return self.emit_unit_value();
+        };
+        let first = self.lower_expr(arg0);
+        let second = self.lower_expr(arg1);
+        let third = self.lower_expr(arg2);
+        let fourth = self.lower_expr(arg3);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::TextByte { dest, text, index });
+        self.instructions
+            .push(build(dest, first, second, third, fourth));
         dest
+    }
+
+    fn lower_text_slice_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_ternary_builtin_expr(expr, |dest, text, start, end| Inst::TextSlice {
+            dest,
+            text,
+            start,
+            end,
+        })
+    }
+
+    fn lower_bytes_slice_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_ternary_builtin_expr(expr, |dest, bytes, start, end| Inst::BytesSlice {
+            dest,
+            bytes,
+            start,
+            end,
+        })
+    }
+
+    fn lower_text_byte_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_binary_builtin_expr(expr, |dest, text, index| Inst::TextByte {
+            dest,
+            text,
+            index,
+        })
+    }
+
+    fn lower_bytes_byte_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_binary_builtin_expr(expr, |dest, bytes, index| Inst::BytesByte {
+            dest,
+            bytes,
+            index,
+        })
     }
 
     fn lower_text_cmp_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
@@ -5215,62 +6663,82 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     }
 
     fn lower_text_eq_range_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let Some(arg0) = expr.args.first() else {
-            return self.emit_unit_value();
-        };
-        let Some(arg1) = expr.args.get(1) else {
-            return self.emit_unit_value();
-        };
-        let Some(arg2) = expr.args.get(2) else {
-            return self.emit_unit_value();
-        };
-        let Some(arg3) = expr.args.get(3) else {
-            return self.emit_unit_value();
-        };
-        let source = self.lower_expr(arg0);
-        let start = self.lower_expr(arg1);
-        let end = self.lower_expr(arg2);
-        let expected = self.lower_expr(arg3);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::TextEqRange {
-            dest,
-            source,
-            start,
-            end,
-            expected,
-        });
-        dest
+        self.lower_quaternary_builtin_expr(expr, |dest, source, start, end, expected| {
+            Inst::TextEqRange {
+                dest,
+                source,
+                start,
+                end,
+                expected,
+            }
+        })
     }
 
-    fn lower_text_find_byte_range_expr(
+    fn lower_text_find_byte_range_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_quaternary_builtin_expr(expr, |dest, source, start, end, byte| {
+            Inst::TextFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            }
+        })
+    }
+
+    fn lower_bytes_find_byte_range_expr(
         &mut self,
         expr: &sarif_frontend::hir::CallExpr,
     ) -> ValueId {
-        let Some(arg0) = expr.args.first() else {
-            return self.emit_unit_value();
-        };
-        let Some(arg1) = expr.args.get(1) else {
-            return self.emit_unit_value();
-        };
-        let Some(arg2) = expr.args.get(2) else {
-            return self.emit_unit_value();
-        };
-        let Some(arg3) = expr.args.get(3) else {
-            return self.emit_unit_value();
-        };
-        let source = self.lower_expr(arg0);
-        let start = self.lower_expr(arg1);
-        let end = self.lower_expr(arg2);
-        let byte = self.lower_expr(arg3);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::TextFindByteRange {
+        self.lower_quaternary_builtin_expr(expr, |dest, source, start, end, byte| {
+            Inst::BytesFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            }
+        })
+    }
+
+    fn lower_text_line_end_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_binary_builtin_expr(expr, |dest, source, start| Inst::TextLineEnd {
             dest,
             source,
             start,
-            end,
-            byte,
-        });
-        dest
+        })
+    }
+
+    fn lower_text_next_line_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_binary_builtin_expr(expr, |dest, source, start| Inst::TextNextLine {
+            dest,
+            source,
+            start,
+        })
+    }
+
+    fn lower_text_field_end_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_quaternary_builtin_expr(expr, |dest, source, start, end, byte| {
+            Inst::TextFieldEnd {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            }
+        })
+    }
+
+    fn lower_text_next_field_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        self.lower_quaternary_builtin_expr(expr, |dest, source, start, end, byte| {
+            Inst::TextNextField {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            }
+        })
     }
 
     fn lower_text_from_f64_fixed_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
@@ -5320,6 +6788,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     fn lower_stdin_text_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let dest = self.fresh_value();
         self.instructions.push(Inst::StdinText { dest });
+        dest
+    }
+
+    fn lower_stdin_bytes_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::StdinBytes { dest });
         dest
     }
 
@@ -5411,6 +6885,79 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     }
 }
 
+fn resolve_const_expr_len_value(
+    len: &sarif_frontend::hir::ConstExpr,
+    substitutions: &HashMap<String, usize>,
+) -> Option<usize> {
+    match len {
+        sarif_frontend::hir::ConstExpr::Literal(value) => Some((*value).try_into().ok()?),
+        sarif_frontend::hir::ConstExpr::Param(name) => substitutions.get(name).copied(),
+        sarif_frontend::hir::ConstExpr::Add(left, right) => Some(
+            resolve_const_expr_len_value(left, substitutions)?
+                .checked_add(resolve_const_expr_len_value(right, substitutions)?)?,
+        ),
+        sarif_frontend::hir::ConstExpr::Sub(left, right) => Some(
+            resolve_const_expr_len_value(left, substitutions)?
+                .checked_sub(resolve_const_expr_len_value(right, substitutions)?)?,
+        ),
+        sarif_frontend::hir::ConstExpr::Mul(left, right) => Some(
+            resolve_const_expr_len_value(left, substitutions)?
+                .checked_mul(resolve_const_expr_len_value(right, substitutions)?)?,
+        ),
+    }
+}
+
+fn resolve_const_expr_len(
+    len: &sarif_frontend::hir::ConstExpr,
+    substitutions: &HashMap<String, usize>,
+    span: Span,
+) -> Result<usize, ConstEvalError> {
+    resolve_const_expr_len_value(len, substitutions).ok_or_else(|| {
+        ConstEvalError::new(
+            span,
+            "repeat array length must be a compile-time fixed array length",
+        )
+    })
+}
+
+fn resolve_const_eval_len_value(
+    len: &sarif_frontend::hir::ConstExpr,
+    env: &ConstEnv,
+) -> Option<usize> {
+    match len {
+        sarif_frontend::hir::ConstExpr::Literal(value) => Some((*value).try_into().ok()?),
+        sarif_frontend::hir::ConstExpr::Param(name) => match env.read(name)? {
+            RuntimeValue::Int(value) => value.try_into().ok(),
+            _ => None,
+        },
+        sarif_frontend::hir::ConstExpr::Add(left, right) => Some(
+            resolve_const_eval_len_value(left, env)?
+                .checked_add(resolve_const_eval_len_value(right, env)?)?,
+        ),
+        sarif_frontend::hir::ConstExpr::Sub(left, right) => Some(
+            resolve_const_eval_len_value(left, env)?
+                .checked_sub(resolve_const_eval_len_value(right, env)?)?,
+        ),
+        sarif_frontend::hir::ConstExpr::Mul(left, right) => Some(
+            resolve_const_eval_len_value(left, env)?
+                .checked_mul(resolve_const_eval_len_value(right, env)?)?,
+        ),
+    }
+}
+
+fn resolve_const_eval_len(
+    len: &sarif_frontend::hir::ConstExpr,
+    env: &ConstEnv,
+    span: Span,
+) -> Result<usize, ConstEvalError> {
+    resolve_const_eval_len_value(len, env).ok_or_else(|| {
+        ConstEvalError::new(
+            span,
+            "repeat array length must be a compile-time fixed array length",
+        )
+    })
+}
+
 struct NestedBodyLowering {
     instructions: Vec<Inst>,
     result: Option<ValueId>,
@@ -5443,6 +6990,7 @@ fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
         RuntimeValue::F64(_) => LowerType::F64,
         RuntimeValue::Bool(_) => LowerType::Bool,
         RuntimeValue::Text(_) => LowerType::Text,
+        RuntimeValue::Bytes(_) => LowerType::Bytes,
         RuntimeValue::TextIndex(_) => LowerType::TextIndex,
         RuntimeValue::TextBuilder(_) => LowerType::TextBuilder,
         RuntimeValue::List(_) => LowerType::List(Box::new(LowerType::Error)), // opaque handle
@@ -5527,6 +7075,56 @@ fn update_runtime_array_index(
         return Err("compile-time indexed assignment target is not an array".to_owned());
     };
     *value = replacement;
+    Ok(RuntimeValue::Record(record))
+}
+
+fn update_runtime_record_field(
+    value: RuntimeValue,
+    field: &str,
+    replacement: RuntimeValue,
+) -> Result<RuntimeValue, String> {
+    let RuntimeValue::Record(mut record) = value else {
+        return Err("compile-time field assignment target is not a record".to_owned());
+    };
+    let Some((_, value)) = record.fields.iter_mut().find(|(name, _)| name == field) else {
+        return Err(format!(
+            "compile-time record `{}` has no field `{field}`",
+            record.name
+        ));
+    };
+    *value = replacement;
+    Ok(RuntimeValue::Record(record))
+}
+
+fn update_runtime_array_record_field(
+    value: RuntimeValue,
+    index: i64,
+    field: &str,
+    replacement: RuntimeValue,
+) -> Result<RuntimeValue, String> {
+    if index < 0 {
+        return Err("compile-time array index is out of bounds".to_owned());
+    }
+    let RuntimeValue::Record(mut record) = value else {
+        return Err("compile-time indexed field assignment target is not an array".to_owned());
+    };
+    let Some((_, len)) = synthetic_array_record_info(&record) else {
+        return Err("compile-time indexed field assignment target is not an array".to_owned());
+    };
+    let index = usize::try_from(index).map_err(|_| "compile-time array index is out of bounds")?;
+    if index >= len {
+        return Err("compile-time array index is out of bounds".to_owned());
+    }
+    let field_name = array_field_name(index);
+    let Some((_, value)) = record
+        .fields
+        .iter_mut()
+        .find(|(name, _)| name == &field_name)
+    else {
+        return Err("compile-time indexed field assignment target is not an array".to_owned());
+    };
+    let updated = update_runtime_record_field(value.clone(), field, replacement)?;
+    *value = updated;
     Ok(RuntimeValue::Record(record))
 }
 
@@ -5776,6 +7374,71 @@ impl<'a> Interpreter<'a> {
                     bytes.extend_from_slice(encoded.as_bytes());
                     values.insert(*dest, RuntimeValue::TextBuilder(id));
                 }
+                Inst::TextBuilderAppendAscii {
+                    dest,
+                    builder,
+                    byte,
+                } => {
+                    let builder_val = extract_value(values, *builder)?;
+                    let byte_val = extract_value(values, *byte)?;
+                    let RuntimeValue::TextBuilder(id) = builder_val else {
+                        return Err(RuntimeError::new("expected TextBuilder"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let byte = u8::try_from(byte)
+                        .map_err(|_| RuntimeError::new("ASCII byte must fit in 0..255"))?;
+                    if byte > 0x7f {
+                        return Err(RuntimeError::new("ASCII byte must fit in 0..127"));
+                    }
+                    let bytes = self
+                        .text_builders
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    bytes.push(byte);
+                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                }
+                Inst::TextBuilderAppendSlice {
+                    dest,
+                    builder,
+                    text,
+                    start,
+                    end,
+                } => {
+                    let builder_val = extract_value(values, *builder)?;
+                    let text_val = extract_value(values, *text)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let RuntimeValue::TextBuilder(id) = builder_val else {
+                        return Err(RuntimeError::new("expected TextBuilder"));
+                    };
+                    let RuntimeValue::Text(text) = text_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let start = usize::try_from(start)
+                        .map_err(|_| RuntimeError::new("slice start must be non-negative"))?;
+                    let end = usize::try_from(end)
+                        .map_err(|_| RuntimeError::new("slice end must be non-negative"))?;
+                    let text_bytes = text.as_bytes();
+                    if start > end || end > text_bytes.len() {
+                        return Err(RuntimeError::new(
+                            "text builder slice range is out of bounds",
+                        ));
+                    }
+                    let bytes = self
+                        .text_builders
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    bytes.extend_from_slice(&text_bytes[start..end]);
+                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                }
                 Inst::TextBuilderAppendI32 {
                     dest,
                     builder,
@@ -5980,7 +7643,9 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     if len < 0 {
-                        return Err(RuntimeError::new("list_sort_text length must be non-negative"));
+                        return Err(RuntimeError::new(
+                            "list_sort_text length must be non-negative",
+                        ));
                     }
                     let used = usize::try_from(len)
                         .map_err(|_| RuntimeError::new("list_sort_text length exceeds limits"))?;
@@ -5989,7 +7654,9 @@ impl<'a> Interpreter<'a> {
                         .get_mut(&id)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     if used > list_ref.len() {
-                        return Err(RuntimeError::new("bounds assertion failed in `list_sort_text`"));
+                        return Err(RuntimeError::new(
+                            "bounds assertion failed in `list_sort_text`",
+                        ));
                     }
                     list_ref[..used].sort_by(|left, right| match (left, right) {
                         (RuntimeValue::Text(left), RuntimeValue::Text(right)) => left.cmp(right),
@@ -6063,10 +7730,19 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
-                    let RuntimeValue::Text(t) = text_val else {
-                        return Err(RuntimeError::new("expected Text"));
+                    let len = match text_val {
+                        RuntimeValue::Text(text) => text.len(),
+                        RuntimeValue::Bytes(bytes) => bytes.len(),
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
                     };
-                    values.insert(*dest, RuntimeValue::Int(t.len() as i64));
+                    values.insert(*dest, RuntimeValue::Int(len as i64));
+                }
+                Inst::BytesLen { dest, bytes } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let RuntimeValue::Bytes(bytes) = bytes_val else {
+                        return Err(RuntimeError::new("expected Bytes"));
+                    };
+                    values.insert(*dest, RuntimeValue::Int(bytes.len() as i64));
                 }
                 Inst::TextConcat { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
@@ -6121,16 +7797,58 @@ impl<'a> Interpreter<'a> {
                     };
                     values.insert(*dest, RuntimeValue::Text(sliced));
                 }
+                Inst::BytesSlice {
+                    dest,
+                    bytes,
+                    start,
+                    end,
+                } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let RuntimeValue::Bytes(bytes) = bytes_val else {
+                        return Err(RuntimeError::new("expected Bytes"));
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let len = bytes.len();
+                    let start = usize::try_from(start).unwrap_or(0).min(len);
+                    let end = usize::try_from(end).unwrap_or(0).min(len);
+                    let (start, end) = if end < start {
+                        (start, start)
+                    } else {
+                        (start, end)
+                    };
+                    values.insert(*dest, RuntimeValue::Bytes(bytes[start..end].to_vec()));
+                }
                 Inst::TextByte { dest, text, index } => {
                     let text_val = extract_value(values, *text)?;
                     let index_val = extract_value(values, *index)?;
-                    let RuntimeValue::Text(t) = text_val else {
-                        return Err(RuntimeError::new("expected Text"));
+                    let bytes = match &text_val {
+                        RuntimeValue::Text(text) => text.as_bytes(),
+                        RuntimeValue::Bytes(bytes) => bytes.as_slice(),
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
                     };
                     let RuntimeValue::Int(idx) = index_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    let byte = t.as_bytes().get(idx as usize).copied().unwrap_or(0);
+                    let byte = bytes.get(idx as usize).copied().unwrap_or(0);
+                    values.insert(*dest, RuntimeValue::Int(byte as i64));
+                }
+                Inst::BytesByte { dest, bytes, index } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let index_val = extract_value(values, *index)?;
+                    let RuntimeValue::Bytes(bytes) = bytes_val else {
+                        return Err(RuntimeError::new("expected Bytes"));
+                    };
+                    let RuntimeValue::Int(idx) = index_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let byte = bytes.get(idx as usize).copied().unwrap_or(0);
                     values.insert(*dest, RuntimeValue::Int(byte as i64));
                 }
                 Inst::TextCmp { dest, left, right } => {
@@ -6195,6 +7913,142 @@ impl<'a> Interpreter<'a> {
                     let start_val = extract_value(values, *start)?;
                     let end_val = extract_value(values, *end)?;
                     let byte_val = extract_value(values, *byte)?;
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let bytes = match &source_val {
+                        RuntimeValue::Text(text) => text.as_bytes(),
+                        RuntimeValue::Bytes(bytes) => bytes.as_slice(),
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                    };
+                    let start = clamp_text_slice_start(bytes, start);
+                    let raw_end = clamp_text_slice_end(bytes, end);
+                    let end = if raw_end < start { start } else { raw_end };
+                    let mut found = end as i64;
+                    let mut index = start;
+                    while index < end {
+                        if bytes[index] == byte as u8 {
+                            found = index as i64;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    values.insert(*dest, RuntimeValue::Int(found));
+                }
+                Inst::BytesFindByteRange {
+                    dest,
+                    source,
+                    start,
+                    end,
+                    byte,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let byte_val = extract_value(values, *byte)?;
+                    let RuntimeValue::Bytes(bytes) = source_val else {
+                        return Err(RuntimeError::new("expected Bytes"));
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let start = usize::try_from(start).unwrap_or(0).min(bytes.len());
+                    let end = usize::try_from(end).unwrap_or(0).min(bytes.len());
+                    let end = end.max(start);
+                    let mut found = end as i64;
+                    let mut index = start;
+                    while index < end {
+                        if bytes[index] == byte as u8 {
+                            found = index as i64;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    values.insert(*dest, RuntimeValue::Int(found));
+                }
+                Inst::TextLineEnd {
+                    dest,
+                    source,
+                    start,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let RuntimeValue::Text(source_text) = source_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let bytes = source_text.as_bytes();
+                    let start = clamp_text_slice_start(bytes, start);
+                    let mut line_end = bytes.len();
+                    let mut index = start;
+                    while index < bytes.len() {
+                        if bytes[index] == b'\n' {
+                            line_end = index;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    if line_end > start && bytes[line_end - 1] == b'\r' {
+                        line_end -= 1;
+                    }
+                    values.insert(*dest, RuntimeValue::Int(line_end as i64));
+                }
+                Inst::TextNextLine {
+                    dest,
+                    source,
+                    start,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let RuntimeValue::Text(source_text) = source_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let bytes = source_text.as_bytes();
+                    let start = clamp_text_slice_start(bytes, start);
+                    let mut line_end = bytes.len();
+                    let mut index = start;
+                    while index < bytes.len() {
+                        if bytes[index] == b'\n' {
+                            line_end = index;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    let next = if line_end < bytes.len() {
+                        line_end + 1
+                    } else {
+                        line_end
+                    };
+                    values.insert(*dest, RuntimeValue::Int(next as i64));
+                }
+                Inst::TextFieldEnd {
+                    dest,
+                    source,
+                    start,
+                    end,
+                    byte,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let byte_val = extract_value(values, *byte)?;
                     let RuntimeValue::Text(source_text) = source_val else {
                         return Err(RuntimeError::new("expected Text"));
                     };
@@ -6211,16 +8065,54 @@ impl<'a> Interpreter<'a> {
                     let start = clamp_text_slice_start(bytes, start);
                     let raw_end = clamp_text_slice_end(bytes, end);
                     let end = if raw_end < start { start } else { raw_end };
-                    let mut found = end as i64;
+                    let mut found = end;
                     let mut index = start;
                     while index < end {
                         if bytes[index] == byte as u8 {
-                            found = index as i64;
+                            found = index;
                             break;
                         }
                         index += 1;
                     }
-                    values.insert(*dest, RuntimeValue::Int(found));
+                    values.insert(*dest, RuntimeValue::Int(found as i64));
+                }
+                Inst::TextNextField {
+                    dest,
+                    source,
+                    start,
+                    end,
+                    byte,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let byte_val = extract_value(values, *byte)?;
+                    let RuntimeValue::Text(source_text) = source_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let bytes = source_text.as_bytes();
+                    let start = clamp_text_slice_start(bytes, start);
+                    let raw_end = clamp_text_slice_end(bytes, end);
+                    let end = if raw_end < start { start } else { raw_end };
+                    let mut next = end;
+                    let mut index = start;
+                    while index < end {
+                        if bytes[index] == byte as u8 {
+                            next = index + 1;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    values.insert(*dest, RuntimeValue::Int(next as i64));
                 }
                 Inst::ParseI32 { dest, text } => {
                     let text_val = extract_value(values, *text)?;
@@ -6321,6 +8213,12 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::StdinText { dest } => {
                     values.insert(*dest, RuntimeValue::Text(self.stdin_text.clone()));
+                }
+                Inst::StdinBytes { dest } => {
+                    values.insert(
+                        *dest,
+                        RuntimeValue::Bytes(self.stdin_text.as_bytes().to_vec()),
+                    );
                 }
                 Inst::StdoutWrite { text } => {
                     let text_val = extract_value(values, *text)?;
@@ -6613,6 +8511,31 @@ impl<'a> Interpreter<'a> {
                     };
                     values.insert(*dest, value);
                 }
+                Inst::BitAnd { dest, left, right } => {
+                    let left = extract_int(values, *left)? as i32;
+                    let right = extract_int(values, *right)? as i32;
+                    values.insert(*dest, RuntimeValue::Int((left & right) as i64));
+                }
+                Inst::BitOr { dest, left, right } => {
+                    let left = extract_int(values, *left)? as i32;
+                    let right = extract_int(values, *right)? as i32;
+                    values.insert(*dest, RuntimeValue::Int((left | right) as i64));
+                }
+                Inst::BitXor { dest, left, right } => {
+                    let left = extract_int(values, *left)? as i32;
+                    let right = extract_int(values, *right)? as i32;
+                    values.insert(*dest, RuntimeValue::Int((left ^ right) as i64));
+                }
+                Inst::Shl { dest, left, right } => {
+                    let left = extract_int(values, *left)? as i32;
+                    let right = (extract_int(values, *right)? as u32) & 31;
+                    values.insert(*dest, RuntimeValue::Int(left.wrapping_shl(right) as i64));
+                }
+                Inst::Shr { dest, left, right } => {
+                    let left = extract_int(values, *left)? as i32;
+                    let right = (extract_int(values, *right)? as u32) & 31;
+                    values.insert(*dest, RuntimeValue::Int((left >> right) as i64));
+                }
                 Inst::And { dest, left, right } => {
                     let left = extract_bool(values, *left)?;
                     let right = extract_bool(values, *right)?;
@@ -6811,6 +8734,7 @@ impl<'a> Interpreter<'a> {
             | ("F64", RuntimeValue::F64(_))
             | ("Bool", RuntimeValue::Bool(_))
             | ("Text", RuntimeValue::Text(_))
+            | ("Bytes", RuntimeValue::Bytes(_))
             | ("TextBuilder", RuntimeValue::TextBuilder(_))
             | ("List", RuntimeValue::List(_))
             | ("Unit", RuntimeValue::Unit) => Ok(()),
@@ -7086,7 +9010,10 @@ mod tests {
     use sarif_syntax::lexer::lex;
     use sarif_syntax::parser::parse;
 
-    use crate::{Inst, RuntimeValue, for_each_inst_recursive, lower, run_main, run_main_with_args};
+    use crate::{
+        ContractKind, Inst, RuntimeValue, for_each_inst_recursive, lower, run_main,
+        run_main_with_args,
+    };
 
     fn lower_source(source: &str) -> crate::MirLowering {
         let lexed = lex(source);
@@ -7288,5 +9215,34 @@ fn main() -> I32 {
         assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
         let result = run_main(&mir.program).expect("program should run");
         assert_eq!(result, RuntimeValue::Int(111));
+    }
+
+    #[test]
+    fn skips_redundant_bounds_asserts_for_repeat_indexed_fixed_arrays() {
+        let mir = lower_source(
+            "fn main() -> I32 { let arr = [1, 2, 3, 4, 5]; let mut total = 0; repeat i in 5 { total = total + arr[i]; }; total }",
+        );
+
+        assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+        let main = mir
+            .program
+            .functions
+            .iter()
+            .find(|function| function.name == "main")
+            .expect("main should exist");
+        let mut bounds_asserts = 0;
+        for_each_inst_recursive(&main.instructions, &mut |inst| {
+            if let Inst::Assert {
+                kind: ContractKind::Bounds,
+                ..
+            } = inst
+            {
+                bounds_asserts += 1;
+            }
+        });
+        assert_eq!(bounds_asserts, 0, "{}", mir.program.pretty());
+
+        let result = run_main(&mir.program).expect("program should run");
+        assert_eq!(result, RuntimeValue::Int(15));
     }
 }

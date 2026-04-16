@@ -80,6 +80,7 @@ pub(super) fn type_exists(
         | Type::F64
         | Type::Bool
         | Type::Text
+        | Type::Bytes
         | Type::TextIndex
         | Type::List(_)
         | Type::TextBuilder
@@ -95,6 +96,7 @@ pub(super) fn types_compatible(expected: &Type, actual: &Type) -> bool {
         | (Type::F64, Type::F64)
         | (Type::Bool, Type::Bool)
         | (Type::Text, Type::Text)
+        | (Type::Bytes, Type::Bytes)
         | (Type::TextIndex, Type::TextIndex)
         | (Type::TextBuilder, Type::TextBuilder)
         | (Type::Unit, Type::Unit)
@@ -119,14 +121,8 @@ pub(super) fn array_len_compatible(expected: &ConstExpr, actual: &ConstExpr) -> 
     match (expected, actual) {
         (ConstExpr::Literal(expected), ConstExpr::Literal(actual)) => expected == actual,
         (ConstExpr::Param(_), _) | (_, ConstExpr::Param(_)) => true,
-        (
-            ConstExpr::Add(_, _) | ConstExpr::Sub(_, _) | ConstExpr::Mul(_, _),
-            _,
-        )
-        | (
-            _,
-            ConstExpr::Add(_, _) | ConstExpr::Sub(_, _) | ConstExpr::Mul(_, _),
-        ) => true,
+        (ConstExpr::Add(_, _) | ConstExpr::Sub(_, _) | ConstExpr::Mul(_, _), _)
+        | (_, ConstExpr::Add(_, _) | ConstExpr::Sub(_, _) | ConstExpr::Mul(_, _)) => true,
     }
 }
 
@@ -143,6 +139,7 @@ pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> 
         "F64" => Some(Type::F64),
         "Bool" => Some(Type::Bool),
         "Text" => Some(Type::Text),
+        "Bytes" => Some(Type::Bytes),
         "TextIndex" => Some(Type::TextIndex),
         "TextBuilder" => Some(Type::TextBuilder),
         "Unit" => Some(Type::Unit),

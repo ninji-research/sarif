@@ -104,7 +104,10 @@ pub(super) fn type_contains_affine_values(
 }
 
 pub(super) const fn mutable_local_allows_affine_values(ty: &Type) -> bool {
-    matches!(ty, Type::Text | Type::TextIndex | Type::TextBuilder | Type::List(_))
+    matches!(
+        ty,
+        Type::Text | Type::Bytes | Type::TextIndex | Type::TextBuilder | Type::List(_)
+    )
 }
 
 fn type_contains_affine_values_inner(
@@ -114,7 +117,7 @@ fn type_contains_affine_values_inner(
     visiting: &mut BTreeSet<String>,
 ) -> bool {
     match ty {
-        Type::Text => true,
+        Type::Text | Type::Bytes => true,
         Type::Array(element, _) => {
             type_contains_affine_values_inner(element, struct_layouts, enum_variants, visiting)
         }

@@ -24,6 +24,28 @@ fn check_accepts_const_control_flow_example() {
 }
 
 #[test]
+fn format_preserves_top_level_float_consts() {
+    let path = temp_source("const X: F64 = 3.5;\nfn main() -> F64 { X }\n");
+    let output = run_sarif(&["format", path.to_str().expect("utf-8 path")]);
+
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("const X: F64 = 3.5;"));
+}
+
+#[test]
+fn format_preserves_top_level_indexed_consts() {
+    let path = temp_source(
+        "const XS: [I32; 2] = [20, 22];\nconst X: I32 = XS[0] + XS[1];\nfn main() -> I32 { X }\n",
+    );
+    let output = run_sarif(&["format", path.to_str().expect("utf-8 path")]);
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("const XS: [I32; 2] = [20, 22];"));
+    assert!(stdout.contains("const X: I32 = XS[0] + XS[1];"));
+}
+
+#[test]
 fn check_accepts_package_inputs() {
     for path in [
         package_dir(),
@@ -168,6 +190,22 @@ fn dump_ir_emits_the_requested_representation() {
         assert!(codegen_stdout.contains("(module"));
         assert!(codegen_stdout.contains("(memory (export \"memory\")"));
     }
+
+    #[cfg(feature = "codegen")]
+    {
+        let native_codegen = run_sarif(&[
+            "build",
+            example.to_str().expect("utf-8 path"),
+            "--dump-ir=codegen",
+            "-o",
+            "/tmp/sarif-cli-dump-ir-native",
+        ]);
+        assert!(!native_codegen.status.success());
+        assert!(
+            String::from_utf8_lossy(&native_codegen.stderr)
+                .contains("codegen IR dumps are currently supported only with `--target wasm`")
+        );
+    }
 }
 
 #[test]
@@ -282,6 +320,16 @@ fn mutation_diagnostics_are_specific() {
     assert!(
         String::from_utf8_lossy(&non_array_output.stderr).contains("semantic.array-index-base")
     );
+}
+
+#[test]
+fn check_rejects_repeat_arrays_of_affine_values() {
+    let source =
+        temp_source("fn main() -> Text effects [alloc] { let xs = [list_new(1, 0); 2]; \"ok\" }");
+    let output = run_path_profiled("check", &source, "core");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("semantic.array-repeat-affine"));
 }
 
 #[test]

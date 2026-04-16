@@ -61,6 +61,10 @@ enum RawTokenKind {
     KwWith,
     #[token("->")]
     Arrow,
+    #[token("&")]
+    Amp,
+    #[token("^")]
+    Caret,
     #[token(":")]
     Colon,
     #[token(",")]
@@ -99,6 +103,8 @@ enum RawTokenKind {
     Minus,
     #[token("!=")]
     NotEq,
+    #[token("|")]
+    Pipe,
     #[token("+")]
     Plus,
     #[token("}")]
@@ -109,8 +115,12 @@ enum RawTokenKind {
     RParen,
     #[token(";")]
     Semicolon,
+    #[token("<<")]
+    Shl,
     #[token("/")]
     Slash,
+    #[token(">>")]
+    Shr,
     #[token("*")]
     Star,
     #[token("_")]
@@ -200,6 +210,8 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::KwWhile => TokenKind::KwWhile,
         RawTokenKind::KwWith => TokenKind::KwWith,
         RawTokenKind::Arrow => TokenKind::Arrow,
+        RawTokenKind::Amp => TokenKind::Amp,
+        RawTokenKind::Caret => TokenKind::Caret,
         RawTokenKind::Colon => TokenKind::Colon,
         RawTokenKind::Comma => TokenKind::Comma,
         RawTokenKind::Dot => TokenKind::Dot,
@@ -219,12 +231,15 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::LParen => TokenKind::LParen,
         RawTokenKind::Minus => TokenKind::Minus,
         RawTokenKind::NotEq => TokenKind::NotEq,
+        RawTokenKind::Pipe => TokenKind::Pipe,
         RawTokenKind::Plus => TokenKind::Plus,
         RawTokenKind::RBrace => TokenKind::RBrace,
         RawTokenKind::RBracket => TokenKind::RBracket,
         RawTokenKind::RParen => TokenKind::RParen,
         RawTokenKind::Semicolon => TokenKind::Semicolon,
+        RawTokenKind::Shl => TokenKind::Shl,
         RawTokenKind::Slash => TokenKind::Slash,
+        RawTokenKind::Shr => TokenKind::Shr,
         RawTokenKind::Star => TokenKind::Star,
         RawTokenKind::Underscore => TokenKind::Underscore,
         RawTokenKind::Float => TokenKind::Float,

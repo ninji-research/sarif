@@ -599,6 +599,30 @@ impl<'a> Parser<'a> {
                 index += 1;
             }
 
+            if self
+                .tokens
+                .get(index)
+                .is_some_and(|token| token.kind == TokenKind::Dot)
+            {
+                index += 1;
+                while self
+                    .tokens
+                    .get(index)
+                    .is_some_and(|token| token.kind.is_trivia())
+                {
+                    index += 1;
+                }
+                if !self
+                    .tokens
+                    .get(index)
+                    .is_some_and(|token| token.kind == TokenKind::Ident)
+                {
+                    return false;
+                }
+                index += 1;
+                continue;
+            }
+
             if !self
                 .tokens
                 .get(index)
@@ -718,6 +742,15 @@ impl<'a> Parser<'a> {
         let mut expr = Node::new(NodeKind::ExprName, children);
 
         loop {
+            if self.peek_trivia_then(TokenKind::Dot) {
+                let mut field_children = vec![Element::Node(expr)];
+                self.collect_trivia(&mut field_children);
+                field_children.push(Element::Token(self.expect(TokenKind::Dot)));
+                self.collect_trivia(&mut field_children);
+                field_children.push(Element::Token(self.expect(TokenKind::Ident)));
+                expr = Node::new(NodeKind::ExprField, field_children);
+                continue;
+            }
             if self.peek_trivia_then(TokenKind::LBracket) {
                 let mut index_children = vec![Element::Node(expr)];
                 self.collect_trivia(&mut index_children);
@@ -746,10 +779,7 @@ impl<'a> Parser<'a> {
     fn parse_expr_bp(&mut self, min_bp: u8) -> Node {
         let mut lhs = self.parse_postfix_expr();
 
-        loop {
-            let Some(op_kind) = self.peek_non_trivia_kind() else {
-                break;
-            };
+        while let Some(op_kind) = self.peek_non_trivia_kind() {
             let Some((left_bp, right_bp)) = infix_binding_power(op_kind) else {
                 break;
             };
@@ -816,7 +846,7 @@ impl<'a> Parser<'a> {
             self.collect_trivia(&mut children);
             children.push(Element::Token(self.expect(TokenKind::KwNot)));
             self.collect_trivia(&mut children);
-            children.push(Element::Node(self.parse_prefix_expr()));
+            children.push(Element::Node(self.parse_postfix_expr()));
             return Node::new(NodeKind::ExprUnary, children);
         }
 
@@ -926,7 +956,15 @@ impl<'a> Parser<'a> {
             self.collect_trivia(&mut children);
             children.push(Element::Token(self.expect(TokenKind::KwElse)));
             self.collect_trivia(&mut children);
-            children.push(Element::Node(self.parse_expr_body()));
+            if self.at(TokenKind::KwIf) {
+                let nested = self.parse_if_expr();
+                children.push(Element::Node(Node::new(
+                    NodeKind::Body,
+                    vec![Element::Node(nested)],
+                )));
+            } else {
+                children.push(Element::Node(self.parse_expr_body()));
+            }
         }
         Node::new(NodeKind::ExprIf, children)
     }
@@ -969,6 +1007,20 @@ impl<'a> Parser<'a> {
     fn parse_match_pattern(&mut self) -> Node {
         let mut children = Vec::new();
         self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_match_pattern_atom()));
+        self.collect_trivia(&mut children);
+        while self.at(TokenKind::Pipe) {
+            children.push(Element::Token(self.bump()));
+            self.collect_trivia(&mut children);
+            children.push(Element::Node(self.parse_match_pattern_atom()));
+            self.collect_trivia(&mut children);
+        }
+        Node::new(NodeKind::MatchPattern, children)
+    }
+
+    fn parse_match_pattern_atom(&mut self) -> Node {
+        let mut children = Vec::new();
+        self.collect_trivia(&mut children);
         match self.current_non_trivia_kind() {
             Some(TokenKind::Ident) => {
                 children.push(Element::Node(self.parse_type_path()));
@@ -983,6 +1035,14 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Integer) => {
                 children.push(Element::Token(self.expect(TokenKind::Integer)));
+                self.collect_trivia(&mut children);
+                if self.at(TokenKind::Dot) && self.peek_trivia_then(TokenKind::Dot) {
+                    children.push(Element::Token(self.expect(TokenKind::Dot)));
+                    self.collect_trivia(&mut children);
+                    children.push(Element::Token(self.expect(TokenKind::Dot)));
+                    self.collect_trivia(&mut children);
+                    children.push(Element::Token(self.expect(TokenKind::Integer)));
+                }
             }
             Some(TokenKind::String) => {
                 children.push(Element::Token(self.expect(TokenKind::String)));
@@ -1061,7 +1121,20 @@ impl<'a> Parser<'a> {
             children.push(Element::Node(self.parse_expr_bp(0)));
             self.collect_trivia(&mut children);
 
-            if self.at(TokenKind::Comma) {
+            if self.at(TokenKind::Semicolon) {
+                children.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut children);
+                match self.current_non_trivia_kind() {
+                    Some(TokenKind::Ident) => {
+                        children.push(Element::Token(self.expect(TokenKind::Ident)));
+                    }
+                    _ => {
+                        children.push(Element::Token(self.expect(TokenKind::Integer)));
+                    }
+                }
+                self.collect_trivia(&mut children);
+                break;
+            } else if self.at(TokenKind::Comma) {
                 children.push(Element::Token(self.bump()));
             } else {
                 break;
@@ -1322,14 +1395,18 @@ const fn infix_binding_power(kind: TokenKind) -> Option<(u8, u8)> {
     match kind {
         TokenKind::KwOr => Some((1, 2)),
         TokenKind::KwAnd => Some((3, 4)),
+        TokenKind::Pipe => Some((5, 6)),
+        TokenKind::Caret => Some((7, 8)),
+        TokenKind::Amp => Some((9, 10)),
         TokenKind::EqEq
         | TokenKind::NotEq
         | TokenKind::Lt
         | TokenKind::Le
         | TokenKind::Gt
-        | TokenKind::Ge => Some((5, 6)),
-        TokenKind::Plus | TokenKind::Minus => Some((7, 8)),
-        TokenKind::Star | TokenKind::Slash => Some((9, 10)),
+        | TokenKind::Ge => Some((11, 12)),
+        TokenKind::Shl | TokenKind::Shr => Some((13, 14)),
+        TokenKind::Plus | TokenKind::Minus => Some((15, 16)),
+        TokenKind::Star | TokenKind::Slash => Some((17, 18)),
         _ => None,
     }
 }
@@ -1369,6 +1446,17 @@ mod tests {
     }
 
     #[test]
+    fn parses_not_before_call_expressions() {
+        let lexed = lex("fn flag() -> Bool { false }\nfn main() -> Bool { not flag() }");
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty());
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("ExprUnary"));
+        assert!(tree.contains("ExprCall"));
+    }
+
+    #[test]
     fn parses_expression_bodied_functions() {
         let lexed = lex("fn add(left: I32, right: I32) -> I32 = left + right;");
         let parsed = parse(&lexed.tokens);
@@ -1387,6 +1475,19 @@ mod tests {
 
         assert!(parsed.diagnostics.is_empty());
         let tree = parsed.root.pretty();
+        assert!(tree.contains("AssignStmt"));
+    }
+
+    #[test]
+    fn parses_field_assignments() {
+        let lexed = lex(
+            "struct Pair { left: I32, right: I32 }\nfn main() -> I32 { let mut pair = Pair { left: 1, right: 2 }; pair.left = 3; pair.left }",
+        );
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty());
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("ExprField"));
         assert!(tree.contains("AssignStmt"));
     }
 
@@ -1495,8 +1596,9 @@ mod tests {
 
     #[test]
     fn parses_record_field_punning() {
-        let lexed =
-            lex("struct Pair { left: I32, right: I32 }\nfn main() -> Pair { let left = 7; let right = 9; Pair { left, right } }");
+        let lexed = lex(
+            "struct Pair { left: I32, right: I32 }\nfn main() -> Pair { let left = 7; let right = 9; Pair { left, right } }",
+        );
         let parsed = parse(&lexed.tokens);
 
         assert!(parsed.diagnostics.is_empty());
@@ -1507,8 +1609,7 @@ mod tests {
 
     #[test]
     fn parses_multiline_record_literal_with_call_fields() {
-        let lexed = lex(
-            "struct OrderRow { customer: Text, qty: I32, cents: I32 }\n\
+        let lexed = lex("struct OrderRow { customer: Text, qty: I32, cents: I32 }\n\
              fn parse_order(source: Text, start: I32, end: I32) -> OrderRow {\n\
                  let comma1 = text_find_byte_range(source, start, end, 44);\n\
                  let comma2 = text_find_byte_range(source, comma1 + 1, end, 44);\n\
@@ -1518,8 +1619,7 @@ mod tests {
                      qty: parse_i32_range(source, comma2 + 1, comma3),\n\
                      cents: parse_i32_range(source, comma3 + 1, end),\n\
                  }\n\
-             }",
-        );
+             }");
         let parsed = parse(&lexed.tokens);
 
         assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
@@ -1537,6 +1637,17 @@ mod tests {
         let tree = parsed.root.pretty();
         assert!(tree.contains("ExprArray"));
         assert!(tree.contains("ExprIndex"));
+    }
+
+    #[test]
+    fn parses_repeat_array_literals() {
+        let lexed = lex("fn main[N]() -> I32 { let xs = [7; N]; xs[0] }");
+        let parsed = parse(&lexed.tokens);
+
+        assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
+        let tree = parsed.root.pretty();
+        assert!(tree.contains("ExprArray"));
+        assert!(tree.contains("Semicolon"));
     }
 
     #[test]
@@ -1733,6 +1844,54 @@ mod tests {
                 )
                 .count(),
             2
+        );
+        assert!(parsed.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn parses_else_if_expression_chains() {
+        let lexed = lex("fn main() -> I32 { if false { 0 } else if true { 42 } else { 7 } }");
+        let parsed = parse(&lexed.tokens);
+        let function = parsed
+            .root
+            .children
+            .iter()
+            .find_map(|child| match child {
+                Element::Node(node) if node.kind == NodeKind::FnItem => Some(node),
+                _ => None,
+            })
+            .expect("function item");
+        let body = function
+            .children
+            .iter()
+            .find_map(|child| match child {
+                Element::Node(node) if node.kind == NodeKind::Body => Some(node),
+                _ => None,
+            })
+            .expect("body");
+        let if_expr = body
+            .children
+            .iter()
+            .find_map(|child| match child {
+                Element::Node(node) if node.kind == NodeKind::ExprIf => Some(node),
+                _ => None,
+            })
+            .expect("if expression");
+        let bodies = if_expr
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                Element::Node(node) if node.kind == NodeKind::Body => Some(node),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(bodies.len(), 2);
+        assert!(
+            bodies[1]
+                .children
+                .iter()
+                .any(|child| matches!(child, Element::Node(node) if node.kind == NodeKind::ExprIf))
         );
         assert!(parsed.diagnostics.is_empty());
     }

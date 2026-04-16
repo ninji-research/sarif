@@ -10,17 +10,18 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use crate::native::{
     ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
-    declare_arg_count, declare_arg_text, declare_list_new, declare_list_push,
-    declare_list_sort_by_text_field, declare_list_sort_text,
-    declare_parse_f64, declare_parse_i32, declare_parse_i32_range, declare_record_allocator,
-    declare_stdin_text, declare_stdout_write, declare_stdout_write_builder, declare_text_builder_append,
+    declare_arg_count, declare_arg_text, declare_bytes_slice, declare_list_new, declare_list_push,
+    declare_list_sort_by_text_field, declare_list_sort_text, declare_parse_f64, declare_parse_i32,
+    declare_parse_i32_range, declare_record_allocator, declare_stdin_text, declare_stdout_write,
+    declare_stdout_write_builder, declare_text_builder_append, declare_text_builder_append_ascii,
     declare_text_builder_append_codepoint, declare_text_builder_append_i32,
-    declare_text_builder_finish, declare_text_builder_new, declare_text_cmp,
-    declare_text_concat, declare_text_data_for_insts, declare_text_eq,
-    declare_text_eq_range, declare_text_find_byte_range, declare_text_from_f64_fixed,
-    declare_text_index_get, declare_text_index_new, declare_text_index_set, declare_text_slice,
-    encode_text_blob, infer_value_kinds, lower_insts, native_type as shared_native_type,
-    native_value_kind, value_repr as shared_value_repr,
+    declare_text_builder_append_slice, declare_text_builder_finish, declare_text_builder_new,
+    declare_text_cmp, declare_text_concat, declare_text_data_for_insts, declare_text_eq,
+    declare_text_eq_range, declare_text_field_end, declare_text_find_byte_range,
+    declare_text_from_f64_fixed, declare_text_index_get, declare_text_index_new,
+    declare_text_index_set, declare_text_line_end, declare_text_next_field, declare_text_next_line,
+    declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts,
+    native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
 use crate::{Function, Program, ValueId};
 
@@ -55,6 +56,7 @@ struct ObjectBackend<'a> {
     program: &'a Program,
     module: Option<ObjectModule>,
     function_ids: BTreeMap<String, FuncId>,
+    function_signatures: BTreeMap<String, Signature>,
     data_ids: BTreeMap<String, DataId>,
     allocator_id: FuncId,
     alloc_push_id: FuncId,
@@ -62,6 +64,8 @@ struct ObjectBackend<'a> {
     text_builder_new_id: FuncId,
     text_builder_append_id: FuncId,
     text_builder_append_codepoint_id: FuncId,
+    text_builder_append_ascii_id: FuncId,
+    text_builder_append_slice_id: FuncId,
     text_builder_append_i32_id: FuncId,
     text_builder_finish_id: FuncId,
     stdout_write_builder_id: FuncId,
@@ -74,8 +78,13 @@ struct ObjectBackend<'a> {
     list_sort_by_text_field_id: FuncId,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
+    bytes_slice_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
+    text_line_end_id: FuncId,
+    text_next_line_id: FuncId,
+    text_field_end_id: FuncId,
+    text_next_field_id: FuncId,
     text_from_f64_fixed_id: FuncId,
     parse_i32_id: FuncId,
     parse_i32_range_id: FuncId,
@@ -93,9 +102,11 @@ struct ObjectBackend<'a> {
 impl<'a> ObjectBackend<'a> {
     fn new(program: &'a Program, module_name: &str) -> Result<Self, ObjectError> {
         let mut flag_builder = settings::builder();
-        flag_builder.set("opt_level", "speed").map_err(|error| {
-            ObjectError::new(format!("failed to set cranelift opt_level: {error}"))
-        })?;
+        flag_builder
+            .set("opt_level", "speed_and_size")
+            .map_err(|error| {
+                ObjectError::new(format!("failed to set cranelift opt_level: {error}"))
+            })?;
         flag_builder
             .set("regalloc_algorithm", "backtracking")
             .map_err(|error| {
@@ -126,6 +137,10 @@ impl<'a> ObjectBackend<'a> {
         let text_builder_append_codepoint_id =
             declare_text_builder_append_codepoint(&mut module, "object")
                 .map_err(ObjectError::new)?;
+        let text_builder_append_ascii_id =
+            declare_text_builder_append_ascii(&mut module, "object").map_err(ObjectError::new)?;
+        let text_builder_append_slice_id =
+            declare_text_builder_append_slice(&mut module, "object").map_err(ObjectError::new)?;
         let text_builder_append_i32_id =
             declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)?;
         let text_builder_finish_id =
@@ -147,10 +162,20 @@ impl<'a> ObjectBackend<'a> {
         let text_concat_id =
             declare_text_concat(&mut module, "object").map_err(ObjectError::new)?;
         let text_slice_id = declare_text_slice(&mut module, "object").map_err(ObjectError::new)?;
+        let bytes_slice_id =
+            declare_bytes_slice(&mut module, "object").map_err(ObjectError::new)?;
         let text_eq_range_id =
             declare_text_eq_range(&mut module, "object").map_err(ObjectError::new)?;
         let text_find_byte_range_id =
             declare_text_find_byte_range(&mut module, "object").map_err(ObjectError::new)?;
+        let text_line_end_id =
+            declare_text_line_end(&mut module, "object").map_err(ObjectError::new)?;
+        let text_next_line_id =
+            declare_text_next_line(&mut module, "object").map_err(ObjectError::new)?;
+        let text_field_end_id =
+            declare_text_field_end(&mut module, "object").map_err(ObjectError::new)?;
+        let text_next_field_id =
+            declare_text_next_field(&mut module, "object").map_err(ObjectError::new)?;
         let text_from_f64_fixed_id =
             declare_text_from_f64_fixed(&mut module, "object").map_err(ObjectError::new)?;
         let parse_i32_id = declare_parse_i32(&mut module, "object").map_err(ObjectError::new)?;
@@ -176,6 +201,8 @@ impl<'a> ObjectBackend<'a> {
             text_builder_new_id,
             text_builder_append_id,
             text_builder_append_codepoint_id,
+            text_builder_append_ascii_id,
+            text_builder_append_slice_id,
             text_builder_append_i32_id,
             text_builder_finish_id,
             stdout_write_builder_id,
@@ -188,8 +215,13 @@ impl<'a> ObjectBackend<'a> {
             list_sort_by_text_field_id,
             text_concat_id,
             text_slice_id,
+            bytes_slice_id,
             text_eq_range_id,
             text_find_byte_range_id,
+            text_line_end_id,
+            text_next_line_id,
+            text_field_end_id,
+            text_next_field_id,
             text_from_f64_fixed_id,
             parse_i32_id,
             parse_i32_range_id,
@@ -200,6 +232,7 @@ impl<'a> ObjectBackend<'a> {
             stdout_write_id,
             text_eq_id,
             text_cmp_id,
+            function_signatures: BTreeMap::new(),
             records: collect_native_records(program).map_err(ObjectError::new)?,
             native_enums: collect_native_enums(program),
         })
@@ -259,30 +292,30 @@ impl<'a> ObjectBackend<'a> {
             let signature = self.signature_for(function)?;
             let module = self.module.as_mut().expect("module available");
             let id = module
-                .declare_function(symbol_name, Linkage::Export, &signature)
+                .declare_function(symbol_name, function_linkage(&function.name), &signature)
                 .map_err(|error| {
                     ObjectError::new(format!(
                         "failed to declare `{symbol_name}` for object emission: {error}",
                     ))
                 })?;
             self.function_ids.insert(function.name.clone(), id);
+            self.function_signatures
+                .insert(function.name.clone(), signature);
         }
         Ok(())
     }
 
     fn define_functions(&mut self) -> Result<(), ObjectError> {
+        let mut builder_context = FunctionBuilderContext::new();
         for function in &self.program.functions {
-            let signature = self.signature_for(function)?;
             let mut context = self
                 .module
                 .as_ref()
                 .expect("module available")
                 .make_context();
-            context.func.signature = signature;
+            context.func.signature = self.function_signatures[&function.name].clone();
             context.func.name = UserFuncName::user(0, self.function_ids[&function.name].as_u32());
-            let mut builder_context = FunctionBuilderContext::new();
 
-            // Lower function logic moved out of the module borrow scope
             self.lower_into_context(function, &mut context, &mut builder_context)?;
 
             let id = self.function_ids[&function.name];
@@ -372,6 +405,8 @@ impl<'a> ObjectBackend<'a> {
             self.text_builder_new_id,
             self.text_builder_append_id,
             self.text_builder_append_codepoint_id,
+            self.text_builder_append_ascii_id,
+            self.text_builder_append_slice_id,
             self.text_builder_append_i32_id,
             self.text_builder_finish_id,
             self.stdout_write_builder_id,
@@ -384,8 +419,13 @@ impl<'a> ObjectBackend<'a> {
             self.list_sort_by_text_field_id,
             self.text_concat_id,
             self.text_slice_id,
+            self.bytes_slice_id,
             self.text_eq_range_id,
             self.text_find_byte_range_id,
+            self.text_line_end_id,
+            self.text_next_line_id,
+            self.text_field_end_id,
+            self.text_next_field_id,
             self.text_from_f64_fixed_id,
             self.parse_i32_id,
             self.parse_i32_range_id,
@@ -449,14 +489,24 @@ fn value_repr(
     shared_value_repr(values, value, function, context, "object").map_err(ObjectError::new)
 }
 
+fn function_linkage(name: &str) -> Linkage {
+    if name == "main" {
+        Linkage::Export
+    } else {
+        Linkage::Local
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use cranelift_module::Linkage;
     use sarif_frontend::hir::lower as lower_hir;
     use sarif_syntax::ast::lower as lower_ast;
     use sarif_syntax::lexer::lex;
     use sarif_syntax::parser::parse;
 
     use crate::emit_object;
+    use crate::object::function_linkage;
 
     #[test]
     fn emits_object_for_integer_programs() {
@@ -557,5 +607,11 @@ mod tests {
         let bytes = emit_object(&mir.program, "sarif_payload_enum_test")
             .expect("object emission should work");
         assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn object_backend_only_exports_entrypoint_symbol() {
+        assert_eq!(function_linkage("main"), Linkage::Export);
+        assert_eq!(function_linkage("helper"), Linkage::Local);
     }
 }

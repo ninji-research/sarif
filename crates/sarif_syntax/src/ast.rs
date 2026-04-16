@@ -343,6 +343,12 @@ impl MatchPattern {
             Self::Integer { value, .. } => value.to_string(),
             Self::String { literal, .. } => literal.clone(),
             Self::Bool { value, .. } => value.to_string(),
+            Self::IntegerRange { start, end, .. } => format!("{start}..{end}"),
+            Self::Or { patterns, .. } => patterns
+                .iter()
+                .map(Self::pretty)
+                .collect::<Vec<_>>()
+                .join(" | "),
             Self::Wildcard { .. } => "_".to_owned(),
         }
     }
@@ -354,6 +360,8 @@ impl MatchPattern {
             | Self::Integer { span, .. }
             | Self::String { span, .. }
             | Self::Bool { span, .. }
+            | Self::IntegerRange { span, .. }
+            | Self::Or { span, .. }
             | Self::Wildcard { span } => *span,
         }
     }
@@ -589,6 +597,7 @@ pub struct CallExpr {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArrayExpr {
     pub elements: Vec<Expr>,
+    pub repeat_len: Option<ArrayLen>,
     pub span: Span,
 }
 
@@ -646,6 +655,15 @@ pub enum MatchPattern {
     },
     Bool {
         value: bool,
+        span: Span,
+    },
+    IntegerRange {
+        start: i64,
+        end: i64,
+        span: Span,
+    },
+    Or {
+        patterns: Vec<Self>,
         span: Span,
     },
     Wildcard {
@@ -707,12 +725,17 @@ pub struct GroupExpr {
 pub enum BinaryOp {
     And,
     Or,
+    BitOr,
+    BitXor,
+    BitAnd,
     Eq,
     Ne,
     Lt,
     Le,
     Gt,
     Ge,
+    Shl,
+    Shr,
     Add,
     Sub,
     Mul,
@@ -739,12 +762,17 @@ impl BinaryOp {
         match self {
             Self::And => "and",
             Self::Or => "or",
+            Self::BitOr => "|",
+            Self::BitXor => "^",
+            Self::BitAnd => "&",
             Self::Eq => "==",
             Self::Ne => "!=",
             Self::Lt => "<",
             Self::Le => "<=",
             Self::Gt => ">",
             Self::Ge => ">=",
+            Self::Shl => "<<",
+            Self::Shr => ">>",
             Self::Add => "+",
             Self::Sub => "-",
             Self::Mul => "*",
@@ -884,12 +912,15 @@ impl Lowerer {
                 if matches!(
                     expr.kind,
                     NodeKind::ExprInteger
+                        | NodeKind::ExprFloat
                         | NodeKind::ExprString
                         | NodeKind::ExprBool
                         | NodeKind::ExprName
                         | NodeKind::ExprContractResult
                         | NodeKind::ExprCall
+                        | NodeKind::ExprArray
                         | NodeKind::ExprField
+                        | NodeKind::ExprIndex
                         | NodeKind::ExprIf
                         | NodeKind::ExprMatch
                         | NodeKind::ExprRepeat
@@ -898,6 +929,7 @@ impl Lowerer {
                         | NodeKind::ExprUnary
                         | NodeKind::ExprBinary
                         | NodeKind::ExprGroup
+                        | NodeKind::ExprComptime
                 ) =>
             {
                 self.lower_expr(expr)
@@ -1624,15 +1656,32 @@ impl Lowerer {
     }
 
     fn lower_array_expr(&mut self, node: &Node) -> ArrayExpr {
+        let mut after_semicolon = false;
+        let mut repeat_len = None;
         ArrayExpr {
             elements: node
                 .children
                 .iter()
                 .filter_map(|child| match child {
-                    Element::Node(child) => self.lower_expr(child),
-                    Element::Token(_) => None,
+                    Element::Node(child) if !after_semicolon => self.lower_expr(child),
+                    Element::Node(_) => None,
+                    Element::Token(token) => {
+                        if token.kind == TokenKind::Semicolon {
+                            after_semicolon = true;
+                        } else if after_semicolon && repeat_len.is_none() {
+                            repeat_len = match token.kind {
+                                TokenKind::Integer => {
+                                    token.lexeme.parse::<usize>().ok().map(ArrayLen::Literal)
+                                }
+                                TokenKind::Ident => Some(ArrayLen::Name(token.lexeme.clone())),
+                                _ => None,
+                            };
+                        }
+                        None
+                    }
                 })
                 .collect(),
+            repeat_len,
             span: node.span,
         }
     }
@@ -1743,6 +1792,27 @@ impl Lowerer {
     }
 
     fn lower_match_pattern(&mut self, node: &Node) -> Option<MatchPattern> {
+        let nested_patterns = node
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                Element::Node(child) if child.kind == NodeKind::MatchPattern => {
+                    self.lower_match_pattern(child)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if !nested_patterns.is_empty() {
+            return Some(if nested_patterns.len() == 1 {
+                nested_patterns.into_iter().next()?
+            } else {
+                MatchPattern::Or {
+                    patterns: nested_patterns,
+                    span: node.span,
+                }
+            });
+        }
+
         if let Some(path) = node.children.iter().find_map(|child| match child {
             Element::Node(child) if child.kind == NodeKind::TypePath => self.lower_type_path(child),
             _ => None,
@@ -1760,10 +1830,28 @@ impl Lowerer {
             });
         }
 
-        let token = node.children.iter().find_map(|child| match child {
-            Element::Token(token) => Some(token),
-            Element::Node(_) => None,
-        })?;
+        let tokens = node
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                Element::Token(token) => Some(token),
+                Element::Node(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if tokens.len() == 4
+            && tokens[0].kind == TokenKind::Integer
+            && tokens[1].kind == TokenKind::Dot
+            && tokens[2].kind == TokenKind::Dot
+            && tokens[3].kind == TokenKind::Integer
+        {
+            return Some(MatchPattern::IntegerRange {
+                start: tokens[0].lexeme.parse::<i64>().ok()?,
+                end: tokens[3].lexeme.parse::<i64>().ok()?,
+                span: node.span,
+            });
+        }
+
+        let token = *tokens.first()?;
         match token.kind {
             TokenKind::Integer => Some(MatchPattern::Integer {
                 value: token.lexeme.parse::<i64>().ok()?,
@@ -1869,12 +1957,17 @@ impl Lowerer {
             Element::Token(token) => match token.kind {
                 TokenKind::KwAnd => Some(BinaryOp::And),
                 TokenKind::KwOr => Some(BinaryOp::Or),
+                TokenKind::Pipe => Some(BinaryOp::BitOr),
+                TokenKind::Caret => Some(BinaryOp::BitXor),
+                TokenKind::Amp => Some(BinaryOp::BitAnd),
                 TokenKind::EqEq => Some(BinaryOp::Eq),
                 TokenKind::NotEq => Some(BinaryOp::Ne),
                 TokenKind::Lt => Some(BinaryOp::Lt),
                 TokenKind::Le => Some(BinaryOp::Le),
                 TokenKind::Gt => Some(BinaryOp::Gt),
                 TokenKind::Ge => Some(BinaryOp::Ge),
+                TokenKind::Shl => Some(BinaryOp::Shl),
+                TokenKind::Shr => Some(BinaryOp::Shr),
                 TokenKind::Plus => Some(BinaryOp::Add),
                 TokenKind::Minus => Some(BinaryOp::Sub),
                 TokenKind::Star => Some(BinaryOp::Mul),
@@ -1983,7 +2076,7 @@ const fn compound_assign_op(kind: TokenKind) -> Option<BinaryOp> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{BinaryOp, Expr, Item, Stmt, UnaryOp, lower};
+    use crate::ast::{ArrayLen, BinaryOp, Expr, Item, MatchPattern, Stmt, UnaryOp, lower};
     use crate::lexer::lex;
     use crate::parser::parse;
 
@@ -2048,6 +2141,28 @@ mod tests {
             panic!("expected unary expression");
         };
         assert_eq!(left.op, UnaryOp::Not);
+        assert!(ast.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_not_call_expressions() {
+        let lexed = lex("fn flag() -> Bool { false }\nfn main() -> Bool { not flag() }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.last().expect("function item") else {
+            panic!("expected function");
+        };
+
+        let Expr::Unary(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected unary expression");
+        };
+        assert_eq!(expr.op, UnaryOp::Not);
+        assert!(matches!(expr.inner.as_ref(), Expr::Call(_)));
         assert!(ast.diagnostics.is_empty());
     }
 
@@ -2172,8 +2287,9 @@ mod tests {
 
     #[test]
     fn lowers_record_field_punning_to_name_exprs() {
-        let lexed =
-            lex("struct Pair { left: I32, right: I32 }\nfn main() -> Pair { let left = 7; let right = 9; Pair { left, right } }");
+        let lexed = lex(
+            "struct Pair { left: I32, right: I32 }\nfn main() -> Pair { let left = 7; let right = 9; Pair { left, right } }",
+        );
         let parsed = parse(&lexed.tokens);
         let ast = lower(&parsed.root);
         let Item::Function(function) = ast.file.items.last().expect("function item") else {
@@ -2267,6 +2383,64 @@ mod tests {
     }
 
     #[test]
+    fn lowers_or_and_range_match_patterns() {
+        let lexed = lex(
+            "fn main(byte: I32) -> I32 { match byte { 65 | 97 => { 1 }, 100..200 => { 2 }, _ => { 3 }, } }",
+        );
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.first().expect("function item") else {
+            panic!("expected function");
+        };
+
+        let Expr::Match(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected match expression");
+        };
+        assert_eq!(expr.arms[0].pattern.pretty(), "65 | 97");
+        assert_eq!(expr.arms[1].pattern.pretty(), "100..200");
+        assert!(matches!(expr.arms[0].pattern, MatchPattern::Or { .. }));
+        assert!(matches!(
+            expr.arms[1].pattern,
+            MatchPattern::IntegerRange {
+                start: 100,
+                end: 200,
+                ..
+            }
+        ));
+        assert!(ast.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_else_if_expression_chains() {
+        let lexed = lex("fn main() -> I32 { if false { 0 } else if true { 42 } else { 7 } }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.first().expect("function item") else {
+            panic!("expected function");
+        };
+
+        let Expr::If(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected if expression");
+        };
+        let Expr::If(nested) = expr.else_body.tail.as_ref().expect("nested else-if tail") else {
+            panic!("expected nested if expression");
+        };
+        assert!(matches!(nested.then_body.tail, Some(Expr::Integer(_))));
+        assert!(matches!(nested.else_body.tail, Some(Expr::Integer(_))));
+        assert!(ast.diagnostics.is_empty());
+    }
+
+    #[test]
     fn lowers_array_types_in_declarations() {
         let lexed =
             lex("struct Grid { rows: [[I32; 2]; 2], }\nfn sum(xs: [I32; 2]) -> [I32; 2] { xs }");
@@ -2290,6 +2464,28 @@ mod tests {
                 .to_string(),
             "[I32; 2]"
         );
+        assert!(ast.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_repeat_array_literals() {
+        let lexed = lex("fn main[N]() -> [I32; N] { [42; N] }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+
+        let Item::Function(function) = ast.file.items.first().expect("function item") else {
+            panic!("expected function");
+        };
+        let Expr::Array(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected array expression");
+        };
+        assert_eq!(expr.elements.len(), 1);
+        assert!(matches!(expr.repeat_len, Some(ArrayLen::Name(ref name)) if name == "N"));
         assert!(ast.diagnostics.is_empty());
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::hir::{Body, ConstExpr, Effect, Expr, Module};
 use crate::ownership::{
@@ -37,6 +37,7 @@ pub enum Type {
     F64,
     Bool,
     Text,
+    Bytes,
     TextIndex,
     TextBuilder,
     Unit,
@@ -56,6 +57,7 @@ impl Type {
             Self::F64 => "F64".to_owned(),
             Self::Bool => "Bool".to_owned(),
             Self::Text => "Text".to_owned(),
+            Self::Bytes => "Bytes".to_owned(),
             Self::TextIndex => "TextIndex".to_owned(),
             Self::TextBuilder => "TextBuilder".to_owned(),
             Self::Unit => "Unit".to_owned(),
@@ -82,6 +84,7 @@ impl Type {
 
 #[derive(Clone, Debug)]
 pub struct FunctionSignature {
+    pub const_params: BTreeSet<String>,
     pub params: Vec<(String, Type, Span)>,
     pub param_usages: Vec<ParamUsage>,
     pub return_type: Type,
@@ -239,6 +242,9 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
             crate::hir::Item::Function(function) => {
                 let signature = functions.get(&function.name).expect("function signature");
                 let mut locals = HashMap::new();
+                for name in &signature.const_params {
+                    locals.insert(name.clone(), Type::I32);
+                }
                 for (name, ty, _) in &signature.params {
                     locals.insert(name.clone(), ty.clone());
                 }

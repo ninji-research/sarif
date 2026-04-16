@@ -190,6 +190,34 @@ fn format_stmt_expr_with_indent(expr: &Expr, indent: usize) -> String {
         .unwrap_or_else(|| format_expr_with_indent(expr, indent))
 }
 
+fn format_array_expr(expr: &sarif_syntax::ast::ArrayExpr, indent: usize) -> String {
+    expr.repeat_len.as_ref().map_or_else(
+        || {
+            format!(
+                "[{}]",
+                expr.elements
+                    .iter()
+                    .map(|element| format_expr_with_indent(element, indent))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        },
+        |repeat_len| {
+            format!(
+                "[{}; {}]",
+                format_expr_with_indent(
+                    expr.elements.first().expect("repeat array has one element"),
+                    indent
+                ),
+                match repeat_len {
+                    sarif_syntax::ast::ArrayLen::Literal(len) => len.to_string(),
+                    sarif_syntax::ast::ArrayLen::Name(name) => name.clone(),
+                }
+            )
+        },
+    )
+}
+
 fn format_expr_with_indent(expr: &Expr, indent: usize) -> String {
     match expr {
         Expr::Integer(expr) => expr.value.to_string(),
@@ -207,14 +235,7 @@ fn format_expr_with_indent(expr: &Expr, indent: usize) -> String {
                 .collect::<Vec<_>>()
                 .join(", "),
         ),
-        Expr::Array(expr) => format!(
-            "[{}]",
-            expr.elements
-                .iter()
-                .map(|element| format_expr_with_indent(element, indent))
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
+        Expr::Array(expr) => format_array_expr(expr, indent),
         Expr::Field(expr) => format!(
             "{}.{}",
             format_expr_with_indent(&expr.base, indent),
@@ -448,6 +469,8 @@ const fn needs_parens(parent: BinaryOp, child: BinaryOp, is_right_child: bool) -
                 parent,
                 BinaryOp::Sub
                     | BinaryOp::Div
+                    | BinaryOp::Shl
+                    | BinaryOp::Shr
                     | BinaryOp::Eq
                     | BinaryOp::Ne
                     | BinaryOp::Lt
@@ -461,11 +484,15 @@ const fn precedence(op: BinaryOp) -> u8 {
     match op {
         BinaryOp::Or => 1,
         BinaryOp::And => 2,
+        BinaryOp::BitOr => 3,
+        BinaryOp::BitXor => 4,
+        BinaryOp::BitAnd => 5,
         BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => {
-            3
+            6
         }
-        BinaryOp::Add | BinaryOp::Sub => 4,
-        BinaryOp::Mul | BinaryOp::Div => 5,
+        BinaryOp::Shl | BinaryOp::Shr => 7,
+        BinaryOp::Add | BinaryOp::Sub => 8,
+        BinaryOp::Mul | BinaryOp::Div => 9,
     }
 }
 

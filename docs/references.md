@@ -24,3 +24,12 @@ This document records the external references that inform the current v1 archite
 
 - CompCert
 - Crocus and related lowering-rule verification work
+
+## Reactive Runtime And Data Plane
+
+These references inform the runtime direction only. They do not automatically become language commitments:
+
+- Salsa and related incremental-query systems
+- Apache Arrow columnar memory model
+- Polars engine design
+- Arrow Flight transport model

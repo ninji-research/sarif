@@ -76,6 +76,15 @@ pub fn run_sarif(args: &[&str]) -> Output {
         .expect("sarifc should run")
 }
 
+pub fn run_sarif_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
+    let mut command = Command::new(bin());
+    command.args(args);
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    command.output().expect("sarifc should run")
+}
+
 pub fn run_profiled(command: &str, path: &Path) -> Output {
     run_path_profiled(command, path, "core")
 }

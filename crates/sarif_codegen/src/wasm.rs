@@ -72,6 +72,7 @@ pub use runtime::{run_function_wasm, run_main_wasm};
 
 pub fn emit_wat(program: &Program) -> Result<String, WasmError> {
     reject_text_builder_program(program)?;
+    reject_runtime_input_program(program)?;
     let emitter = WasmEmitter::new(program)?;
     emitter.emit()
 }
@@ -111,6 +112,29 @@ fn reject_text_builder_program(program: &Program) -> Result<(), WasmError> {
         });
         if has_text_builder_inst {
             return Err(WasmError::new(TEXT_BUILDER_UNSUPPORTED_MESSAGE));
+        }
+    }
+    Ok(())
+}
+
+fn reject_runtime_input_program(program: &Program) -> Result<(), WasmError> {
+    const RUNTIME_INPUT_UNSUPPORTED_MESSAGE: &str =
+        "wasm backend does not yet support runtime input builtins in stage-0";
+    for function in &program.functions {
+        let mut has_runtime_input_inst = false;
+        for_each_inst_recursive(&function.instructions, &mut |inst| {
+            if matches!(
+                inst,
+                Inst::ArgCount { .. }
+                    | Inst::ArgText { .. }
+                    | Inst::StdinText { .. }
+                    | Inst::StdinBytes { .. }
+            ) {
+                has_runtime_input_inst = true;
+            }
+        });
+        if has_runtime_input_inst {
+            return Err(WasmError::new(RUNTIME_INPUT_UNSUPPORTED_MESSAGE));
         }
     }
     Ok(())
@@ -340,6 +364,89 @@ impl<'a> WasmEmitter<'a> {
     end
     local.get $equal
   )
+  (func $__sarif_text_cmp (param $left i64) (param $right i64) (result i64)
+    (local $left_ptr i32)
+    (local $right_ptr i32)
+    (local $left_len i32)
+    (local $right_len i32)
+    (local $limit i32)
+    (local $index i32)
+    (local $left_byte i32)
+    (local $right_byte i32)
+    local.get $left
+    call $__sarif_text_len_i32
+    local.set $left_len
+    local.get $right
+    call $__sarif_text_len_i32
+    local.set $right_len
+    local.get $left
+    i32.wrap_i64
+    local.set $left_ptr
+    local.get $right
+    i32.wrap_i64
+    local.set $right_ptr
+    local.get $left_len
+    local.get $right_len
+    i32.lt_u
+    if (result i32)
+      local.get $left_len
+    else
+      local.get $right_len
+    end
+    local.set $limit
+    i32.const 0
+    local.set $index
+    block $done
+      loop $loop
+        local.get $index
+        local.get $limit
+        i32.ge_u
+        br_if $done
+        local.get $left_ptr
+        local.get $index
+        i32.add
+        i32.load8_u
+        local.tee $left_byte
+        local.get $right_ptr
+        local.get $index
+        i32.add
+        i32.load8_u
+        local.tee $right_byte
+        i32.ne
+        if
+          local.get $left_byte
+          local.get $right_byte
+          i32.lt_u
+          if
+            i64.const -1
+            return
+          end
+          i64.const 1
+          return
+        end
+        local.get $index
+        i32.const 1
+        i32.add
+        local.set $index
+        br $loop
+      end
+    end
+    local.get $left_len
+    local.get $right_len
+    i32.lt_u
+    if
+      i64.const -1
+      return
+    end
+    local.get $left_len
+    local.get $right_len
+    i32.gt_u
+    if
+      i64.const 1
+      return
+    end
+    i64.const 0
+  )
   (func $__sarif_text_byte (param $text i64) (param $index i64) (result i64)
     (local $ptr i32)
     (local $len i32)
@@ -373,6 +480,112 @@ impl<'a> WasmEmitter<'a> {
     i32.add
     i32.load8_u
     i64.extend_i32_u
+  )
+  (func $__sarif_bytes_slice (param $bytes i64) (param $start_raw i64) (param $end_raw i64) (result i64)
+    (local $ptr i32)
+    (local $len i32)
+    (local $start i32)
+    (local $end i32)
+    (local $dest_ptr i32)
+    (local $dest_len i32)
+    (local $index i32)
+    local.get $bytes
+    i32.wrap_i64
+    local.set $ptr
+    local.get $bytes
+    call $__sarif_text_len_i32
+    local.set $len
+    local.get $start_raw
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 0
+      local.set $start
+    else
+      local.get $start_raw
+      local.get $len
+      i64.extend_i32_u
+      i64.gt_u
+      if
+        local.get $len
+        local.set $start
+      else
+        local.get $start_raw
+        i32.wrap_i64
+        local.set $start
+      end
+    end
+    local.get $end_raw
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 0
+      local.set $end
+    else
+      local.get $end_raw
+      local.get $len
+      i64.extend_i32_u
+      i64.gt_u
+      if
+        local.get $len
+        local.set $end
+      else
+        local.get $end_raw
+        i32.wrap_i64
+        local.set $end
+      end
+    end
+    local.get $end
+    local.get $start
+    i32.le_u
+    if
+      i64.const 0
+      return
+    end
+    local.get $start
+    i32.eqz
+    local.get $end
+    local.get $len
+    i32.eq
+    i32.and
+    if
+      local.get $bytes
+      return
+    end
+    local.get $end
+    local.get $start
+    i32.sub
+    local.tee $dest_len
+    call $alloc
+    local.set $dest_ptr
+    i32.const 0
+    local.set $index
+    block $copy_done
+      loop $copy
+        local.get $index
+        local.get $dest_len
+        i32.ge_u
+        br_if $copy_done
+        local.get $dest_ptr
+        local.get $index
+        i32.add
+        local.get $ptr
+        local.get $start
+        i32.add
+        local.get $index
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $index
+        i32.const 1
+        i32.add
+        local.set $index
+        br $copy
+      end
+    end
+    local.get $dest_ptr
+    local.get $dest_len
+    call $__sarif_pack_text
   )
   (func $__sarif_text_concat (param $left i64) (param $right i64) (result i64)
     (local $left_ptr i32)
@@ -642,6 +855,236 @@ impl<'a> WasmEmitter<'a> {
     local.get $dest_len
     call $__sarif_pack_text
   )
+  (func $__sarif_text_eq_range (param $text i64) (param $start i64) (param $end i64) (param $expected i64) (result i64)
+    local.get $text
+    local.get $start
+    local.get $end
+    call $__sarif_text_slice
+    local.get $expected
+    call $__sarif_text_eq
+  )
+  (func $__sarif_text_find_byte_range (param $text i64) (param $start_raw i64) (param $end_raw i64) (param $byte_raw i64) (result i64)
+    (local $ptr i32)
+    (local $len i32)
+    (local $start i32)
+    (local $end i32)
+    (local $byte i32)
+    (local $index i32)
+    local.get $text
+    i32.wrap_i64
+    local.set $ptr
+    local.get $text
+    call $__sarif_text_len_i32
+    local.set $len
+    local.get $text
+    local.get $start_raw
+    call $__sarif_clamp_text_slice_start
+    local.set $start
+    local.get $text
+    local.get $end_raw
+    call $__sarif_clamp_text_slice_end
+    local.set $end
+    local.get $byte_raw
+    i32.wrap_i64
+    local.set $byte
+    local.get $start
+    local.set $index
+    block $done
+      loop $loop
+        local.get $index
+        local.get $end
+        i32.ge_u
+        br_if $done
+        local.get $ptr
+        local.get $index
+        i32.add
+        i32.load8_u
+        local.get $byte
+        i32.eq
+        if
+          local.get $index
+          i64.extend_i32_u
+          return
+        end
+        local.get $index
+        i32.const 1
+        i32.add
+        local.set $index
+        br $loop
+      end
+    end
+    local.get $end
+    i64.extend_i32_u
+  )
+  (func $__sarif_bytes_find_byte_range (param $bytes i64) (param $start_raw i64) (param $end_raw i64) (param $byte_raw i64) (result i64)
+    (local $ptr i32)
+    (local $len i32)
+    (local $start i32)
+    (local $end i32)
+    (local $byte i32)
+    (local $index i32)
+    local.get $bytes
+    i32.wrap_i64
+    local.set $ptr
+    local.get $bytes
+    call $__sarif_text_len_i32
+    local.set $len
+    local.get $start_raw
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 0
+      local.set $start
+    else
+      local.get $start_raw
+      local.get $len
+      i64.extend_i32_u
+      i64.gt_u
+      if
+        local.get $len
+        local.set $start
+      else
+        local.get $start_raw
+        i32.wrap_i64
+        local.set $start
+      end
+    end
+    local.get $end_raw
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 0
+      local.set $end
+    else
+      local.get $end_raw
+      local.get $len
+      i64.extend_i32_u
+      i64.gt_u
+      if
+        local.get $len
+        local.set $end
+      else
+        local.get $end_raw
+        i32.wrap_i64
+        local.set $end
+      end
+    end
+    local.get $byte_raw
+    i32.wrap_i64
+    local.set $byte
+    local.get $start
+    local.set $index
+    block $done
+      loop $loop
+        local.get $index
+        local.get $end
+        i32.ge_u
+        br_if $done
+        local.get $ptr
+        local.get $index
+        i32.add
+        i32.load8_u
+        local.get $byte
+        i32.eq
+        if
+          local.get $index
+          i64.extend_i32_u
+          return
+        end
+        local.get $index
+        i32.const 1
+        i32.add
+        local.set $index
+        br $loop
+      end
+    end
+    local.get $end
+    i64.extend_i32_u
+  )
+  (func $__sarif_text_line_end (param $text i64) (param $start i64) (result i64)
+    (local $ptr i32)
+    (local $line_end i64)
+    local.get $text
+    i32.wrap_i64
+    local.set $ptr
+    local.get $text
+    local.get $start
+    local.get $text
+    call $__sarif_text_len_i32
+    i64.extend_i32_u
+    i64.const 10
+    call $__sarif_text_find_byte_range
+    local.set $line_end
+    local.get $line_end
+    i64.const 0
+    i64.gt_u
+    if
+      local.get $ptr
+      local.get $line_end
+      i32.wrap_i64
+      i32.const 1
+      i32.sub
+      i32.add
+      i32.load8_u
+      i32.const 13
+      i32.eq
+      if
+        local.get $line_end
+        i64.const 1
+        i64.sub
+        return
+      end
+    end
+    local.get $line_end
+  )
+  (func $__sarif_text_next_line (param $text i64) (param $start i64) (result i64)
+    (local $len i64)
+    (local $end i64)
+    local.get $text
+    call $__sarif_text_len_i32
+    i64.extend_i32_u
+    local.set $len
+    local.get $text
+    local.get $start
+    call $__sarif_text_line_end
+    local.set $end
+    local.get $end
+    local.get $len
+    i64.lt_u
+    if
+      local.get $end
+      i64.const 1
+      i64.add
+      return
+    end
+    local.get $end
+  )
+  (func $__sarif_text_field_end (param $text i64) (param $start i64) (param $end i64) (param $byte i64) (result i64)
+    local.get $text
+    local.get $start
+    local.get $end
+    local.get $byte
+    call $__sarif_text_find_byte_range
+  )
+  (func $__sarif_text_next_field (param $text i64) (param $start i64) (param $end i64) (param $byte i64) (result i64)
+    (local $field_end i64)
+    local.get $text
+    local.get $start
+    local.get $end
+    local.get $byte
+    call $__sarif_text_field_end
+    local.set $field_end
+    local.get $field_end
+    local.get $end
+    i64.lt_u
+    if
+      local.get $field_end
+      i64.const 1
+      i64.add
+      return
+    end
+    local.get $field_end
+  )
   (func $__sarif_parse_i32 (param $text i64) (result i64)
     (local $ptr i32)
     (local $start i32)
@@ -788,6 +1231,13 @@ impl<'a> WasmEmitter<'a> {
       return
     end
     local.get $result
+  )
+  (func $__sarif_parse_i32_range (param $text i64) (param $start i64) (param $end i64) (result i64)
+    local.get $text
+    local.get $start
+    local.get $end
+    call $__sarif_text_slice
+    call $__sarif_parse_i32
   )
   (func $__sarif_parse_f64 (param $text i64) (result f64)
     (local $ptr i32)
@@ -1106,6 +1556,12 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    call $__sarif_text_eq")
                     .expect("writing to a string cannot fail");
             }
+            WasmValueKind::Bytes => {
+                self.emit_memory_load(output, left_base, offset, WasmType::I64);
+                self.emit_memory_load(output, right_base, offset, WasmType::I64);
+                writeln!(output, "    call $__sarif_text_eq")
+                    .expect("writing to a string cannot fail");
+            }
             WasmValueKind::Record(name) => {
                 self.emit_memory_load(output, left_base, offset, WasmType::I64);
                 self.emit_memory_load(output, right_base, offset, WasmType::I64);
@@ -1170,9 +1626,7 @@ impl<'a> WasmEmitter<'a> {
         };
 
         write!(output, "  (func ${}", function.name).expect("writing to a string cannot fail");
-        if function.name == "main" {
-            write!(output, " (export \"main\")").expect("writing to a string cannot fail");
-        }
+        write!(output, " (export \"{}\")", function.name).expect("writing to a string cannot fail");
 
         for (i, param) in function.params.iter().enumerate() {
             let kind =
@@ -1254,16 +1708,26 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::ConstBool { dest, .. }
                 | Inst::ConstText { dest, .. }
                 | Inst::TextLen { dest, .. }
+                | Inst::BytesLen { dest, .. }
                 | Inst::TextByte { dest, .. }
+                | Inst::BytesByte { dest, .. }
                 | Inst::TextCmp { dest, .. }
                 | Inst::TextEqRange { dest, .. }
                 | Inst::TextFindByteRange { dest, .. }
+                | Inst::BytesFindByteRange { dest, .. }
+                | Inst::TextLineEnd { dest, .. }
+                | Inst::TextNextLine { dest, .. }
+                | Inst::TextFieldEnd { dest, .. }
+                | Inst::TextNextField { dest, .. }
                 | Inst::TextConcat { dest, .. }
                 | Inst::TextSlice { dest, .. }
+                | Inst::BytesSlice { dest, .. }
                 | Inst::TextBuilderNew { dest }
                 | Inst::TextIndexNew { dest }
                 | Inst::TextBuilderAppend { dest, .. }
                 | Inst::TextBuilderAppendCodepoint { dest, .. }
+                | Inst::TextBuilderAppendAscii { dest, .. }
+                | Inst::TextBuilderAppendSlice { dest, .. }
                 | Inst::TextBuilderAppendI32 { dest, .. }
                 | Inst::TextBuilderFinish { dest, .. }
                 | Inst::StdoutWriteBuilder { dest, .. }
@@ -1273,6 +1737,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::ArgCount { dest, .. }
                 | Inst::ArgText { dest, .. }
                 | Inst::StdinText { dest }
+                | Inst::StdinBytes { dest }
                 | Inst::ParseI32 { dest, .. }
                 | Inst::ParseI32Range { dest, .. }
                 | Inst::ParseF64 { dest, .. }
@@ -1292,6 +1757,11 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::Sub { dest, .. }
                 | Inst::Mul { dest, .. }
                 | Inst::Div { dest, .. }
+                | Inst::BitAnd { dest, .. }
+                | Inst::BitOr { dest, .. }
+                | Inst::BitXor { dest, .. }
+                | Inst::Shl { dest, .. }
+                | Inst::Shr { dest, .. }
                 | Inst::Eq { dest, .. }
                 | Inst::Ne { dest, .. }
                 | Inst::Lt { dest, .. }
@@ -1427,6 +1897,67 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
+            Inst::StdinBytes { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not yet support runtime input builtins in stage-0",
+                ));
+            }
+            Inst::BytesLen { dest, bytes } => {
+                writeln!(output, "    local.get ${}", wasm_id(*bytes))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_len_i32")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::BytesByte { dest, bytes, index } => {
+                writeln!(output, "    local.get ${}", wasm_id(*bytes))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*index))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_byte")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::BytesSlice {
+                dest,
+                bytes,
+                start,
+                end,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*bytes))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_bytes_slice")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::BytesFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*byte))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_bytes_find_byte_range")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
             Inst::TextByte { dest, text, index } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
                     .expect("writing to a string cannot fail");
@@ -1468,6 +1999,8 @@ impl<'a> WasmEmitter<'a> {
             | Inst::TextIndexNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderAppendCodepoint { .. }
+            | Inst::TextBuilderAppendAscii { .. }
+            | Inst::TextBuilderAppendSlice { .. }
             | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::StdoutWriteBuilder { .. }
@@ -1638,6 +2171,21 @@ impl<'a> WasmEmitter<'a> {
             Inst::Div { dest, left, right } => {
                 self.emit_binary(output, "div", *dest, *left, *right, kinds)?;
             }
+            Inst::BitAnd { dest, left, right } => {
+                self.emit_binary(output, "and", *dest, *left, *right, kinds)?;
+            }
+            Inst::BitOr { dest, left, right } => {
+                self.emit_binary(output, "or", *dest, *left, *right, kinds)?;
+            }
+            Inst::BitXor { dest, left, right } => {
+                self.emit_binary(output, "xor", *dest, *left, *right, kinds)?;
+            }
+            Inst::Shl { dest, left, right } => {
+                self.emit_binary(output, "shl", *dest, *left, *right, kinds)?;
+            }
+            Inst::Shr { dest, left, right } => {
+                self.emit_binary(output, "shr_s", *dest, *left, *right, kinds)?;
+            }
             Inst::Eq { dest, left, right } => {
                 self.emit_comparison(output, "eq", *dest, *left, *right, kinds)?;
             }
@@ -1802,25 +2350,140 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "      unreachable").expect("writing to a string cannot fail");
                 writeln!(output, "    end").expect("writing to a string cannot fail");
             }
-            Inst::TextCmp { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support text_cmp in stage-0",
-                ));
+            Inst::TextCmp { dest, left, right } => {
+                writeln!(output, "    local.get ${}", wasm_id(*left))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*right))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_cmp")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
-            Inst::TextEqRange { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support text_eq_range in stage-0",
-                ));
+            Inst::TextEqRange {
+                dest,
+                source,
+                start,
+                end,
+                expected,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*expected))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_eq_range")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
-            Inst::TextFindByteRange { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support text_find_byte_range in stage-0",
-                ));
+            Inst::TextFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*byte))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_find_byte_range")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
-            Inst::ParseI32Range { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support parse_i32_range in stage-0",
-                ));
+            Inst::TextLineEnd {
+                dest,
+                source,
+                start,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_line_end")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::TextNextLine {
+                dest,
+                source,
+                start,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_next_line")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::TextFieldEnd {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*byte))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_field_end")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::TextNextField {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*source))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*byte))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_next_field")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ParseI32Range {
+                dest,
+                text,
+                start,
+                end,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*text))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*start))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*end))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_parse_i32_range")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
             Inst::Perform { .. } | Inst::Handle { .. } => {
                 return Err(WasmError::new(
@@ -2033,6 +2696,7 @@ fn wasm_value_kind_from_name(
         "F64" => Ok(WasmValueKind::F64),
         "Bool" => Ok(WasmValueKind::Bool),
         "Text" => Ok(WasmValueKind::Text),
+        "Bytes" => Ok(WasmValueKind::Bytes),
         "Unit" => Ok(WasmValueKind::Unit),
         other => {
             if enums.iter().any(|e| e.name == other) {
@@ -2093,10 +2757,17 @@ fn collect_inst_kinds(
             }
             Inst::ConstInt { dest, .. }
             | Inst::TextLen { dest, .. }
+            | Inst::BytesLen { dest, .. }
             | Inst::TextByte { dest, .. }
+            | Inst::BytesByte { dest, .. }
             | Inst::TextCmp { dest, .. }
             | Inst::TextEqRange { dest, .. }
             | Inst::TextFindByteRange { dest, .. }
+            | Inst::BytesFindByteRange { dest, .. }
+            | Inst::TextLineEnd { dest, .. }
+            | Inst::TextNextLine { dest, .. }
+            | Inst::TextFieldEnd { dest, .. }
+            | Inst::TextNextField { dest, .. }
             | Inst::ArgCount { dest, .. }
             | Inst::ListLen { dest, .. }
             | Inst::ParseI32 { dest, .. }
@@ -2131,10 +2802,20 @@ fn collect_inst_kinds(
             | Inst::StdinText { dest } => {
                 kinds.insert(*dest, WasmValueKind::Text);
             }
+            Inst::BytesSlice { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::Bytes);
+            }
+            Inst::StdinBytes { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not yet support runtime input builtins in stage-0",
+                ));
+            }
             Inst::TextBuilderNew { .. }
             | Inst::TextIndexNew { .. }
             | Inst::TextBuilderAppend { .. }
             | Inst::TextBuilderAppendCodepoint { .. }
+            | Inst::TextBuilderAppendAscii { .. }
+            | Inst::TextBuilderAppendSlice { .. }
             | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::StdoutWriteBuilder { .. }
@@ -2209,6 +2890,13 @@ fn collect_inst_kinds(
             | Inst::Mul { dest, left, .. }
             | Inst::Div { dest, left, .. } => {
                 kinds.insert(*dest, kinds[left].clone());
+            }
+            Inst::BitAnd { dest, .. }
+            | Inst::BitOr { dest, .. }
+            | Inst::BitXor { dest, .. }
+            | Inst::Shl { dest, .. }
+            | Inst::Shr { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::I32);
             }
             Inst::Eq { dest, .. }
             | Inst::Ne { dest, .. }

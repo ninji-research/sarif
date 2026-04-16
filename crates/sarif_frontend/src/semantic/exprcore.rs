@@ -6,7 +6,9 @@ use sarif_syntax::{Diagnostic, Span};
 use super::{
     ConstSignature, EnumVariantInfo, FunctionSignature, Type, best_match, enum_variant_info,
     expect_type, matching_numeric_type, split_enum_variant_path, suggestion_help,
-    support::{enum_literal_type_name, field_names_for_type, field_type},
+    support::{
+        enum_literal_type_name, field_names_for_type, field_type, type_contains_affine_values,
+    },
     types_compatible,
 };
 
@@ -190,6 +192,50 @@ pub(super) fn infer_call_expr(
         };
     }
 
+    if expr.callee == "bytes_len" && !functions.contains_key("bytes_len") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_len-arity",
+                format!(
+                    "builtin `bytes_len` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `bytes_len(bytes)` with exactly one Bytes argument.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let arg = &args[0];
+        return match &arg.ty {
+            Type::Bytes => ExprInfo {
+                ty: Type::I32,
+                calls,
+            },
+            Type::Error => ExprInfo {
+                ty: Type::Error,
+                calls,
+            },
+            _ => {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.bytes_len-type",
+                    format!(
+                        "builtin `bytes_len` expects a Bytes argument, found `{}`",
+                        arg.ty.render()
+                    ),
+                    expr.span,
+                    Some("Pass a Bytes argument.".to_owned()),
+                ));
+                ExprInfo {
+                    ty: Type::Error,
+                    calls,
+                }
+            }
+        };
+    }
+
     if expr.callee == "text_byte" && !functions.contains_key("text_byte") {
         if args.len() != 2 {
             diagnostics.push(Diagnostic::new(
@@ -224,6 +270,52 @@ pub(super) fn infer_call_expr(
                 "semantic.text_byte-type",
                 format!(
                     "builtin `text_byte` second argument must be I32, found `{}`",
+                    second_arg.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 index.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "bytes_byte" && !functions.contains_key("bytes_byte") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_byte-arity",
+                format!(
+                    "builtin `bytes_byte` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `bytes_byte(bytes, index)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let first_arg = &args[0];
+        let second_arg = &args[1];
+        if first_arg.ty != Type::Bytes && first_arg.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_byte-type",
+                format!(
+                    "builtin `bytes_byte` first argument must be Bytes, found `{}`",
+                    first_arg.ty.render()
+                ),
+                expr.span,
+                Some("Pass a Bytes argument.".to_owned()),
+            ));
+        }
+        if second_arg.ty != Type::I32 && second_arg.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_byte-type",
+                format!(
+                    "builtin `bytes_byte` second argument must be I32, found `{}`",
                     second_arg.ty.render()
                 ),
                 expr.span,
@@ -336,6 +428,64 @@ pub(super) fn infer_call_expr(
         }
         return ExprInfo {
             ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "bytes_slice" && !functions.contains_key("bytes_slice") {
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_slice-arity",
+                format!(
+                    "builtin `bytes_slice` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `bytes_slice(bytes, start, end)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let bytes = &args[0];
+        let start = &args[1];
+        let end = &args[2];
+        if bytes.ty != Type::Bytes && bytes.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_slice-type",
+                format!(
+                    "builtin `bytes_slice` first argument must be Bytes, found `{}`",
+                    bytes.ty.render()
+                ),
+                expr.span,
+                Some("Pass a Bytes argument.".to_owned()),
+            ));
+        }
+        if start.ty != Type::I32 && start.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_slice-type",
+                format!(
+                    "builtin `bytes_slice` second argument must be I32, found `{}`",
+                    start.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 start offset.".to_owned()),
+            ));
+        }
+        if end.ty != Type::I32 && end.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_slice-type",
+                format!(
+                    "builtin `bytes_slice` third argument must be I32, found `{}`",
+                    end.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 end offset.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Bytes,
             calls,
         };
     }
@@ -473,6 +623,134 @@ pub(super) fn infer_call_expr(
                 ),
                 expr.span,
                 Some("Pass a Unicode scalar value as an I32.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_builder_append_ascii"
+        && !functions.contains_key("text_builder_append_ascii")
+    {
+        require_runtime_builtin_context(
+            "semantic.text_builder_append_ascii-runtime-context",
+            "text_builder_append_ascii",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_ascii-arity",
+                format!(
+                    "builtin `text_builder_append_ascii` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_append_ascii(builder, byte)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_ascii-type",
+                format!(
+                    "builtin `text_builder_append_ascii` first argument must be TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder accumulator.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_ascii-type",
+                format!(
+                    "builtin `text_builder_append_ascii` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an ASCII byte value as an I32.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::TextBuilder,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_builder_append_slice"
+        && !functions.contains_key("text_builder_append_slice")
+    {
+        require_runtime_builtin_context(
+            "semantic.text_builder_append_slice-runtime-context",
+            "text_builder_append_slice",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 4 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_slice-arity",
+                format!(
+                    "builtin `text_builder_append_slice` expects 4 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_builder_append_slice(builder, text, start, end)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_slice-type",
+                format!(
+                    "builtin `text_builder_append_slice` first argument must be TextBuilder, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a TextBuilder accumulator.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::Text && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_slice-type",
+                format!(
+                    "builtin `text_builder_append_slice` second argument must be Text, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text source value.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_slice-type",
+                format!(
+                    "builtin `text_builder_append_slice` third argument must be I32, found `{}`",
+                    args[2].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an I32 start index.".to_owned()),
+            ));
+        }
+        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_builder_append_slice-type",
+                format!(
+                    "builtin `text_builder_append_slice` fourth argument must be I32, found `{}`",
+                    args[3].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an I32 end index.".to_owned()),
             ));
         }
         return ExprInfo {
@@ -930,7 +1208,8 @@ pub(super) fn infer_call_expr(
         };
     }
 
-    if expr.callee == "list_sort_by_text_field" && !functions.contains_key("list_sort_by_text_field")
+    if expr.callee == "list_sort_by_text_field"
+        && !functions.contains_key("list_sort_by_text_field")
     {
         require_runtime_builtin_context(
             "semantic.list-runtime-context",
@@ -1045,7 +1324,11 @@ must have type `Text`, found `{}`",
             ));
         }
         return ExprInfo {
-            ty: if list_ok { args[0].ty.clone() } else { Type::Error },
+            ty: if list_ok {
+                args[0].ty.clone()
+            } else {
+                Type::Error
+            },
             calls,
         };
     }
@@ -1571,6 +1854,292 @@ must have type `Text`, found `{}`",
         };
     }
 
+    if expr.callee == "bytes_find_byte_range" && !functions.contains_key("bytes_find_byte_range") {
+        if args.len() != 4 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_find_byte_range-arity",
+                format!(
+                    "builtin `bytes_find_byte_range` expects 4 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `bytes_find_byte_range(bytes, start, end, byte)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Bytes && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_find_byte_range-type",
+                format!(
+                    "builtin `bytes_find_byte_range` first argument must be Bytes, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Bytes value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_find_byte_range-type",
+                format!(
+                    "builtin `bytes_find_byte_range` second argument must be I32, found `{}`",
+                    args[1].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer start offset.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_find_byte_range-type",
+                format!(
+                    "builtin `bytes_find_byte_range` third argument must be I32, found `{}`",
+                    args[2].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer end offset.".to_owned()),
+            ));
+        }
+        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.bytes_find_byte_range-type",
+                format!(
+                    "builtin `bytes_find_byte_range` fourth argument must be I32, found `{}`",
+                    args[3].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer byte value.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_line_end" && !functions.contains_key("text_line_end") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_line_end-arity",
+                format!(
+                    "builtin `text_line_end` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_line_end(text, start)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_line_end-type",
+                format!(
+                    "builtin `text_line_end` first argument must be Text, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_line_end-type",
+                format!(
+                    "builtin `text_line_end` second argument must be I32, found `{}`",
+                    args[1].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer start offset.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_next_line" && !functions.contains_key("text_next_line") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_line-arity",
+                format!(
+                    "builtin `text_next_line` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_next_line(text, start)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_line-type",
+                format!(
+                    "builtin `text_next_line` first argument must be Text, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_line-type",
+                format!(
+                    "builtin `text_next_line` second argument must be I32, found `{}`",
+                    args[1].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer start offset.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_field_end" && !functions.contains_key("text_field_end") {
+        if args.len() != 4 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_field_end-arity",
+                format!(
+                    "builtin `text_field_end` expects 4 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_field_end(text, start, end, byte)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_field_end-type",
+                format!(
+                    "builtin `text_field_end` first argument must be Text, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_field_end-type",
+                format!(
+                    "builtin `text_field_end` second argument must be I32, found `{}`",
+                    args[1].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer start offset.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_field_end-type",
+                format!(
+                    "builtin `text_field_end` third argument must be I32, found `{}`",
+                    args[2].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer end offset.".to_owned()),
+            ));
+        }
+        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_field_end-type",
+                format!(
+                    "builtin `text_field_end` fourth argument must be I32, found `{}`",
+                    args[3].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer delimiter byte.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "text_next_field" && !functions.contains_key("text_next_field") {
+        if args.len() != 4 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_field-arity",
+                format!(
+                    "builtin `text_next_field` expects 4 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_next_field(text, start, end, byte)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_field-type",
+                format!(
+                    "builtin `text_next_field` first argument must be Text, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Text value.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_field-type",
+                format!(
+                    "builtin `text_next_field` second argument must be I32, found `{}`",
+                    args[1].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer start offset.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_field-type",
+                format!(
+                    "builtin `text_next_field` third argument must be I32, found `{}`",
+                    args[2].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer end offset.".to_owned()),
+            ));
+        }
+        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_next_field-type",
+                format!(
+                    "builtin `text_next_field` fourth argument must be I32, found `{}`",
+                    args[3].ty.render()
+                ),
+                expr.span,
+                Some("Pass an integer delimiter byte.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
     if expr.callee == "arg_count" && !functions.contains_key("arg_count") {
         if !args.is_empty() {
             diagnostics.push(Diagnostic::new(
@@ -1688,6 +2257,50 @@ must have type `Text`, found `{}`",
         }
         return ExprInfo {
             ty: Type::Text,
+            calls,
+        };
+    }
+
+    if expr.callee == "stdin_bytes" && !functions.contains_key("stdin_bytes") {
+        if !args.is_empty() {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdin_bytes-arity",
+                format!(
+                    "builtin `stdin_bytes` expects 0 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `stdin_bytes()` with no arguments.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Bytes,
+            calls,
+        };
+    }
+
+    if expr.callee == "stdin_bytes" && !functions.contains_key("stdin_bytes") {
+        if !args.is_empty() {
+            diagnostics.push(Diagnostic::new(
+                "semantic.stdin_bytes-arity",
+                format!(
+                    "builtin `stdin_bytes` expects 0 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `stdin_bytes()` with no arguments.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Bytes,
             calls,
         };
     }
@@ -1849,7 +2462,11 @@ must have type `Text`, found `{}`",
         }
     }
 
-    if !matches!(context, ExprContext::Body | ExprContext::BodyTail) && !callee.effects.is_empty() {
+    if !matches!(
+        context,
+        ExprContext::Body | ExprContext::BodyTail | ExprContext::Statement
+    ) && !callee.effects.is_empty()
+    {
         diagnostics.push(Diagnostic::new(
             "semantic.contract-effect",
             format!(
@@ -1985,6 +2602,31 @@ pub(super) fn infer_binary_expr(
                 }
                 Type::Error
             }
+        }
+        crate::hir::BinaryOp::BitAnd
+        | crate::hir::BinaryOp::BitOr
+        | crate::hir::BinaryOp::BitXor
+        | crate::hir::BinaryOp::Shl
+        | crate::hir::BinaryOp::Shr => {
+            expect_type(
+                diagnostics,
+                &expr.left,
+                &left.ty,
+                &Type::I32,
+                expr.op.symbol(),
+                "left",
+                "Use `I32` operands with integer bitwise operators.",
+            );
+            expect_type(
+                diagnostics,
+                &expr.right,
+                &right.ty,
+                &Type::I32,
+                expr.op.symbol(),
+                "right",
+                "Use `I32` operands with integer bitwise operators.",
+            );
+            Type::I32
         }
         crate::hir::BinaryOp::Lt
         | crate::hir::BinaryOp::Le
@@ -2413,6 +3055,8 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "text_builder_new"
                     | "text_builder_append"
                     | "text_builder_append_codepoint"
+                    | "text_builder_append_ascii"
+                    | "text_builder_append_slice"
                     | "text_builder_append_i32"
                     | "text_builder_finish"
                     | "stdout_write_builder"
@@ -2422,6 +3066,11 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "text_index_new"
                     | "text_index_get"
                     | "text_index_set"
+                    | "text_line_end"
+                    | "text_next_line"
+                    | "text_field_end"
+                    | "text_next_field"
+                    | "stdin_bytes"
             ) || call.args.iter().any(contains_forbidden_comptime_effect)
         }
         Expr::Array(array) => array
@@ -2575,11 +3224,59 @@ pub(super) fn infer_array_expr(
         }
     }
 
+    if expr.repeat_len.is_some() && expr.elements.len() != 1 {
+        diagnostics.push(Diagnostic::new(
+            "semantic.array-repeat-shape",
+            format!("repeat array literal in `{fn_name}` must use exactly one element expression"),
+            expr.span,
+            Some(
+                "Use `[value; N]` for repeated arrays or `[a, b, c]` for explicit elements."
+                    .to_owned(),
+            ),
+        ));
+        ok = false;
+    }
+
+    if expr.repeat_len.as_ref() == Some(&ConstExpr::Literal(0)) {
+        diagnostics.push(Diagnostic::new(
+            "semantic.array-repeat-empty",
+            format!("repeat array literal in `{fn_name}` must have positive length"),
+            expr.span,
+            Some("Use a positive fixed array length in `[value; N]`.".to_owned()),
+        ));
+        ok = false;
+    }
+
+    if expr.repeat_len.is_some()
+        && element_type
+            .as_ref()
+            .is_some_and(|ty| type_contains_affine_values(ty, struct_layouts, enum_variants))
+    {
+        diagnostics.push(Diagnostic::new(
+            "semantic.array-repeat-affine",
+            format!(
+                "repeat array literal in `{fn_name}` cannot duplicate affine element type `{}`",
+                element_type
+                    .as_ref()
+                    .expect("repeat array element type should be present")
+                    .render()
+            ),
+            expr.span,
+            Some(
+                "Use explicit elements for affine values, or keep `[value; N]` on duplicate-safe scalar/plain values."
+                    .to_owned(),
+            ),
+        ));
+        ok = false;
+    }
+
     ExprInfo {
         ty: if ok {
             Type::Array(
                 Box::new(element_type.unwrap_or(Type::Error)),
-                ConstExpr::Literal(u32::try_from(expr.elements.len()).unwrap_or(0)),
+                expr.repeat_len.clone().unwrap_or_else(|| {
+                    ConstExpr::Literal(u32::try_from(expr.elements.len()).unwrap_or(0))
+                }),
             )
         } else {
             Type::Error
@@ -2841,7 +3538,10 @@ pub(super) fn infer_repeat_expr(
     caller_effects: &HashSet<Effect>,
     context: &ExprContext,
 ) -> ExprInfo {
-    if !matches!(context, ExprContext::BodyTail | ExprContext::Statement) {
+    if !matches!(
+        context,
+        ExprContext::Body | ExprContext::BodyTail | ExprContext::Statement
+    ) {
         diagnostics.push(Diagnostic::new(
             "semantic.repeat-position",
             format!(
@@ -2928,7 +3628,10 @@ pub(super) fn infer_while_expr(
     caller_effects: &HashSet<Effect>,
     context: &ExprContext,
 ) -> ExprInfo {
-    if !matches!(context, ExprContext::BodyTail | ExprContext::Statement) {
+    if !matches!(
+        context,
+        ExprContext::Body | ExprContext::BodyTail | ExprContext::Statement
+    ) {
         diagnostics.push(Diagnostic::new(
             "semantic.while-position",
             format!(
@@ -3040,6 +3743,7 @@ pub(super) fn infer_match_expr(
 
     let mut seen_enum_variants = BTreeSet::<String>::new();
     let mut seen_int_patterns = BTreeSet::<i64>::new();
+    let mut seen_int_ranges = Vec::<(i64, i64, Span)>::new();
     let mut seen_text_patterns = BTreeSet::<String>::new();
     let mut seen_true = false;
     let mut seen_false = false;
@@ -3073,147 +3777,46 @@ pub(super) fn infer_match_expr(
                 }
                 has_wildcard = true;
             }
-            (
-                Type::Named(expected_enum),
-                crate::hir::MatchPattern::Variant {
-                    path,
-                    binding,
-                    span,
-                },
-            ) if enum_name.is_some() => {
-                let Some((pattern_enum, variant_name)) = split_enum_variant_path(&path.path) else {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "match arm in `{fn_name}` must use `Enum.variant`, found `{}`",
-                            path.path,
-                        ),
-                        *span,
-                        Some("Rewrite the arm pattern as `Enum.variant`.".to_owned()),
-                    ));
-                    ok = false;
-                    continue;
-                };
-                if pattern_enum != expected_enum {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "match arm `{}` does not belong to enum `{expected_enum}`",
-                            arm.pattern.pretty(),
-                        ),
-                        *span,
-                        Some("Use variants from the scrutinee's enum only.".to_owned()),
-                    ));
-                    ok = false;
-                } else if !declared_variants
-                    .iter()
-                    .any(|variant| variant.name == variant_name)
-                {
-                    let suggestion = best_match(
-                        variant_name,
-                        declared_variants
-                            .iter()
-                            .map(|variant| variant.name.as_str()),
-                    );
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!("enum `{expected_enum}` has no variant `{variant_name}`"),
-                        *span,
-                        Some(suggestion_help(suggestion, || {
-                            "Use one of the declared enum variants.".to_owned()
-                        })),
-                    ));
-                    ok = false;
-                } else if !seen_enum_variants.insert(variant_name.to_owned()) {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "match arm `{}` appears more than once in `{fn_name}`",
-                            arm.pattern.pretty(),
-                        ),
-                        *span,
-                        Some("Keep one arm per enum variant.".to_owned()),
-                    ));
-                    ok = false;
-                }
-
-                variant_payload = declared_variants
-                    .iter()
-                    .find(|variant| variant.name == variant_name)
-                    .and_then(|variant| variant.payload.clone());
-
-                if variant_payload.is_none() && binding.is_some() {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "payload binding `{}` is only valid for payload-carrying variants",
-                            binding.as_deref().unwrap_or("_"),
-                        ),
-                        *span,
-                        Some(
-                            "Remove the binding, or match a variant that carries a payload."
-                                .to_owned(),
-                        ),
-                    ));
-                    ok = false;
-                }
+            (Type::Named(expected_enum), _) if enum_name.is_some() => {
+                let (arm_ok, payload) = check_enum_match_pattern(
+                    &arm.pattern,
+                    expected_enum,
+                    &declared_variants,
+                    &mut seen_enum_variants,
+                    diagnostics,
+                    fn_name,
+                );
+                ok &= arm_ok;
+                variant_payload = payload;
             }
-            (Type::Bool, crate::hir::MatchPattern::Bool { value, span }) => {
-                let seen = if *value {
-                    &mut seen_true
-                } else {
-                    &mut seen_false
-                };
-                if *seen {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "match arm `{}` appears more than once in `{fn_name}`",
-                            arm.pattern.pretty(),
-                        ),
-                        *span,
-                        Some("Keep one arm per boolean value.".to_owned()),
-                    ));
-                    ok = false;
-                }
-                *seen = true;
+            (Type::Bool, _) => {
+                ok &= check_bool_match_pattern(
+                    &arm.pattern,
+                    &mut seen_true,
+                    &mut seen_false,
+                    diagnostics,
+                    fn_name,
+                );
             }
-            (Type::I32, crate::hir::MatchPattern::Integer { value, span }) => {
-                if !seen_int_patterns.insert(*value) {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "match arm `{}` appears more than once in `{fn_name}`",
-                            arm.pattern.pretty(),
-                        ),
-                        *span,
-                        Some("Keep one arm per integer literal.".to_owned()),
-                    ));
-                    ok = false;
-                }
+            (Type::I32, _) => {
+                ok &= check_i32_match_pattern(
+                    &arm.pattern,
+                    &mut seen_int_patterns,
+                    &mut seen_int_ranges,
+                    diagnostics,
+                    fn_name,
+                );
             }
-            (Type::Text, crate::hir::MatchPattern::String { value, span, .. }) => {
-                if !seen_text_patterns.insert(value.clone()) {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.match-pattern",
-                        format!(
-                            "match arm `{}` appears more than once in `{fn_name}`",
-                            arm.pattern.pretty(),
-                        ),
-                        *span,
-                        Some("Keep one arm per text literal.".to_owned()),
-                    ));
-                    ok = false;
-                }
+            (Type::Text, _) => {
+                ok &= check_text_match_pattern(
+                    &arm.pattern,
+                    &mut seen_text_patterns,
+                    diagnostics,
+                    fn_name,
+                );
             }
             (Type::Error, _) => {}
-            (
-                _,
-                crate::hir::MatchPattern::Variant { span, .. }
-                | crate::hir::MatchPattern::Integer { span, .. }
-                | crate::hir::MatchPattern::String { span, .. }
-                | crate::hir::MatchPattern::Bool { span, .. },
-            ) => {
+            (_, _) => {
                 diagnostics.push(Diagnostic::new(
                     "semantic.match-pattern",
                     format!(
@@ -3221,8 +3824,11 @@ pub(super) fn infer_match_expr(
                         arm.pattern.pretty(),
                         scrutinee.ty.render(),
                     ),
-                    *span,
-                    Some("Use enum variants, matching literal kinds, or `_`.".to_owned()),
+                    arm.pattern.span(),
+                    Some(
+                        "Use enum variants, matching literal kinds, integer ranges, or `_`."
+                            .to_owned(),
+                    ),
                 ));
                 ok = false;
             }
@@ -3323,6 +3929,299 @@ pub(super) fn infer_match_expr(
             Type::Error
         },
         calls,
+    }
+}
+
+fn check_enum_match_pattern(
+    pattern: &crate::hir::MatchPattern,
+    expected_enum: &str,
+    declared_variants: &[EnumVariantInfo],
+    seen_enum_variants: &mut BTreeSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+) -> (bool, Option<Type>) {
+    let crate::hir::MatchPattern::Variant {
+        path,
+        binding,
+        span,
+    } = pattern
+    else {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-pattern",
+            format!(
+                "match arm `{}` is not compatible with scrutinee type `{expected_enum}`",
+                pattern.pretty(),
+            ),
+            pattern.span(),
+            Some("Use variants from the scrutinee's enum only.".to_owned()),
+        ));
+        return (false, None);
+    };
+
+    let Some((pattern_enum, variant_name)) = split_enum_variant_path(&path.path) else {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-pattern",
+            format!(
+                "match arm in `{fn_name}` must use `Enum.variant`, found `{}`",
+                path.path,
+            ),
+            *span,
+            Some("Rewrite the arm pattern as `Enum.variant`.".to_owned()),
+        ));
+        return (false, None);
+    };
+    if pattern_enum != expected_enum {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-pattern",
+            format!(
+                "match arm `{}` does not belong to enum `{expected_enum}`",
+                pattern.pretty(),
+            ),
+            *span,
+            Some("Use variants from the scrutinee's enum only.".to_owned()),
+        ));
+        return (false, None);
+    }
+
+    let Some(variant_info) = declared_variants
+        .iter()
+        .find(|variant| variant.name == variant_name)
+    else {
+        let suggestion = best_match(
+            variant_name,
+            declared_variants
+                .iter()
+                .map(|variant| variant.name.as_str()),
+        );
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-pattern",
+            format!("enum `{expected_enum}` has no variant `{variant_name}`"),
+            *span,
+            Some(suggestion_help(suggestion, || {
+                "Use one of the declared enum variants.".to_owned()
+            })),
+        ));
+        return (false, None);
+    };
+
+    let mut ok = true;
+    if !seen_enum_variants.insert(variant_name.to_owned()) {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-pattern",
+            format!(
+                "match arm `{}` appears more than once in `{fn_name}`",
+                pattern.pretty()
+            ),
+            *span,
+            Some("Keep one arm per enum variant.".to_owned()),
+        ));
+        ok = false;
+    }
+    let payload = variant_info.payload.clone();
+    if payload.is_none() && binding.is_some() {
+        diagnostics.push(Diagnostic::new(
+            "semantic.match-pattern",
+            format!(
+                "payload binding `{}` is only valid for payload-carrying variants",
+                binding.as_deref().unwrap_or("_"),
+            ),
+            *span,
+            Some("Remove the binding, or match a variant that carries a payload.".to_owned()),
+        ));
+        ok = false;
+    }
+    (ok, payload)
+}
+
+#[allow(clippy::unnecessary_fold)]
+fn check_bool_match_pattern(
+    pattern: &crate::hir::MatchPattern,
+    seen_true: &mut bool,
+    seen_false: &mut bool,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+) -> bool {
+    match pattern {
+        crate::hir::MatchPattern::Bool { value, span } => {
+            let seen = if *value { seen_true } else { seen_false };
+            if *seen {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "match arm `{}` appears more than once in `{fn_name}`",
+                        pattern.pretty()
+                    ),
+                    *span,
+                    Some("Keep one arm per boolean value.".to_owned()),
+                ));
+                return false;
+            }
+            *seen = true;
+            true
+        }
+        crate::hir::MatchPattern::Or { patterns, .. } => patterns.iter().fold(true, |ok, part| {
+            check_bool_match_pattern(part, seen_true, seen_false, diagnostics, fn_name) && ok
+        }),
+        _ => {
+            diagnostics.push(Diagnostic::new(
+                "semantic.match-pattern",
+                format!(
+                    "match arm `{}` is not compatible with scrutinee type `Bool`",
+                    pattern.pretty()
+                ),
+                pattern.span(),
+                Some("Use `true`, `false`, `true | false`, or `_`.".to_owned()),
+            ));
+            false
+        }
+    }
+}
+
+#[allow(clippy::unnecessary_fold)]
+fn check_i32_match_pattern(
+    pattern: &crate::hir::MatchPattern,
+    seen_int_patterns: &mut BTreeSet<i64>,
+    seen_int_ranges: &mut Vec<(i64, i64, Span)>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+) -> bool {
+    match pattern {
+        crate::hir::MatchPattern::Integer { value, span } => {
+            let mut ok = true;
+            if !seen_int_patterns.insert(*value) {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "match arm `{}` appears more than once in `{fn_name}`",
+                        pattern.pretty()
+                    ),
+                    *span,
+                    Some("Keep one arm per integer literal.".to_owned()),
+                ));
+                ok = false;
+            }
+            if let Some((start, end, _)) = seen_int_ranges
+                .iter()
+                .copied()
+                .find(|(start, end, _)| *start <= *value && *value < *end)
+            {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "integer pattern `{value}` overlaps prior range `{start}..{end}` in `{fn_name}`"
+                    ),
+                    *span,
+                    Some("Keep integer match arms disjoint.".to_owned()),
+                ));
+                ok = false;
+            }
+            ok
+        }
+        crate::hir::MatchPattern::IntegerRange { start, end, span } => {
+            let mut ok = true;
+            if start >= end {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!("integer range `{start}..{end}` must have `start < end`"),
+                    *span,
+                    Some("Use a non-empty half-open range such as `65..91`.".to_owned()),
+                ));
+                ok = false;
+            }
+            if seen_int_patterns
+                .iter()
+                .copied()
+                .any(|value| *start <= value && value < *end)
+            {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "integer range `{start}..{end}` overlaps a prior integer arm in `{fn_name}`"
+                    ),
+                    *span,
+                    Some("Keep integer match arms disjoint.".to_owned()),
+                ));
+                ok = false;
+            }
+            if seen_int_ranges
+                .iter()
+                .any(|(other_start, other_end, _)| *start < *other_end && *other_start < *end)
+            {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "integer range `{start}..{end}` overlaps a prior range arm in `{fn_name}`"
+                    ),
+                    *span,
+                    Some("Keep integer match arms disjoint.".to_owned()),
+                ));
+                ok = false;
+            }
+            seen_int_ranges.push((*start, *end, *span));
+            ok
+        }
+        crate::hir::MatchPattern::Or { patterns, .. } => patterns.iter().fold(true, |ok, part| {
+            check_i32_match_pattern(
+                part,
+                seen_int_patterns,
+                seen_int_ranges,
+                diagnostics,
+                fn_name,
+            ) && ok
+        }),
+        _ => {
+            diagnostics.push(Diagnostic::new(
+                "semantic.match-pattern",
+                format!(
+                    "match arm `{}` is not compatible with scrutinee type `I32`",
+                    pattern.pretty()
+                ),
+                pattern.span(),
+                Some("Use integer literals, integer ranges, `|`, or `_`.".to_owned()),
+            ));
+            false
+        }
+    }
+}
+
+#[allow(clippy::unnecessary_fold)]
+fn check_text_match_pattern(
+    pattern: &crate::hir::MatchPattern,
+    seen_text_patterns: &mut BTreeSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+) -> bool {
+    match pattern {
+        crate::hir::MatchPattern::String { value, span, .. } => {
+            if !seen_text_patterns.insert(value.clone()) {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.match-pattern",
+                    format!(
+                        "match arm `{}` appears more than once in `{fn_name}`",
+                        pattern.pretty()
+                    ),
+                    *span,
+                    Some("Keep one arm per text literal.".to_owned()),
+                ));
+                return false;
+            }
+            true
+        }
+        crate::hir::MatchPattern::Or { patterns, .. } => patterns.iter().fold(true, |ok, part| {
+            check_text_match_pattern(part, seen_text_patterns, diagnostics, fn_name) && ok
+        }),
+        _ => {
+            diagnostics.push(Diagnostic::new(
+                "semantic.match-pattern",
+                format!(
+                    "match arm `{}` is not compatible with scrutinee type `Text`",
+                    pattern.pretty()
+                ),
+                pattern.span(),
+                Some("Use text literals, `|`, or `_`.".to_owned()),
+            ));
+            false
+        }
     }
 }
 

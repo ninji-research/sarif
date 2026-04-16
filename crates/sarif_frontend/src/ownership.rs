@@ -480,14 +480,24 @@ impl AffineUseChecker<'_> {
                     }
                 } else if expr.callee == "len"
                     || expr.callee == "text_len"
+                    || expr.callee == "bytes_len"
                     || expr.callee == "text_slice"
+                    || expr.callee == "bytes_slice"
                     || expr.callee == "text_byte"
+                    || expr.callee == "bytes_byte"
                     || expr.callee == "text_cmp"
                     || expr.callee == "text_eq_range"
                     || expr.callee == "text_find_byte_range"
+                    || expr.callee == "bytes_find_byte_range"
+                    || expr.callee == "text_line_end"
+                    || expr.callee == "text_next_line"
+                    || expr.callee == "text_field_end"
+                    || expr.callee == "text_next_field"
                     || expr.callee == "text_builder_append_i32"
                     || expr.callee == "parse_i32_range"
                     || expr.callee == "text_builder_append_codepoint"
+                    || expr.callee == "text_builder_append_ascii"
+                    || expr.callee == "text_builder_append_slice"
                     || expr.callee == "text_index_get"
                     || expr.callee == "text_index_set"
                     || expr.callee == "list_len"
@@ -1062,14 +1072,24 @@ fn collect_param_modes(
                 }
             } else if expr.callee == "len"
                 || expr.callee == "text_len"
+                || expr.callee == "bytes_len"
                 || expr.callee == "text_slice"
+                || expr.callee == "bytes_slice"
                 || expr.callee == "text_byte"
+                || expr.callee == "bytes_byte"
                 || expr.callee == "text_cmp"
                 || expr.callee == "text_eq_range"
                 || expr.callee == "text_find_byte_range"
+                || expr.callee == "bytes_find_byte_range"
+                || expr.callee == "text_line_end"
+                || expr.callee == "text_next_line"
+                || expr.callee == "text_field_end"
+                || expr.callee == "text_next_field"
                 || expr.callee == "text_builder_append_i32"
                 || expr.callee == "parse_i32_range"
                 || expr.callee == "text_builder_append_codepoint"
+                || expr.callee == "text_builder_append_ascii"
+                || expr.callee == "text_builder_append_slice"
                 || expr.callee == "text_index_get"
                 || expr.callee == "text_index_set"
                 || expr.callee == "list_len"
@@ -1323,14 +1343,16 @@ fn expr_type_for_ownership(
             }
             Some(Type::Array(
                 Box::new(first),
-                crate::hir::ConstExpr::Literal(u32::try_from(expr.elements.len()).unwrap_or(0)),
+                expr.repeat_len.clone().unwrap_or_else(|| {
+                    crate::hir::ConstExpr::Literal(u32::try_from(expr.elements.len()).unwrap_or(0))
+                }),
             ))
         }
         Expr::Index(expr) => {
             let base = expr_type_for_ownership(&expr.base, locals, struct_layouts, result_type)?;
             match base {
                 Type::Array(element, _) | Type::List(element) => Some(*element),
-                Type::Text => Some(Type::I32),
+                Type::Text | Type::Bytes => Some(Type::I32),
                 _ => None,
             }
         }
@@ -1343,7 +1365,10 @@ fn expr_type_for_ownership(
             }
             let base = expr_type_for_ownership(&expr.base, locals, struct_layouts, result_type)?;
             if expr.field == "len"
-                && matches!(base, Type::Array(_, _) | Type::List(_) | Type::Text)
+                && matches!(
+                    base,
+                    Type::Array(_, _) | Type::List(_) | Type::Text | Type::Bytes
+                )
             {
                 Some(Type::I32)
             } else {
@@ -1352,14 +1377,17 @@ fn expr_type_for_ownership(
         }
         Expr::Record(expr) => Some(Type::Named(expr.name.clone())),
         Expr::Call(expr) => match expr.callee.as_str() {
-            "text_builder_new" | "text_builder_append"
+            "text_builder_new"
+            | "text_builder_append"
             | "text_builder_append_codepoint"
+            | "text_builder_append_ascii"
+            | "text_builder_append_slice"
             | "text_builder_append_i32"
-            | "stdout_write_builder" => {
-                Some(Type::TextBuilder)
-            }
+            | "stdout_write_builder" => Some(Type::TextBuilder),
             "text_index_new" => Some(Type::TextIndex),
             "text_builder_finish" => Some(Type::Text),
+            "stdin_bytes" => Some(Type::Bytes),
+            "bytes_slice" => Some(Type::Bytes),
             "list_new" => expr
                 .args
                 .get(1)
@@ -1389,7 +1417,14 @@ fn expr_type_for_ownership(
             }),
             "text_index_get" => Some(Type::I32),
             "text_index_set" => Some(Type::TextIndex),
+            "bytes_len" => Some(Type::I32),
+            "bytes_byte" => Some(Type::I32),
+            "bytes_find_byte_range" => Some(Type::I32),
             "text_eq_range" => Some(Type::Bool),
+            "text_line_end" => Some(Type::I32),
+            "text_next_line" => Some(Type::I32),
+            "text_field_end" => Some(Type::I32),
+            "text_next_field" => Some(Type::I32),
             "parse_i32_range" => Some(Type::I32),
             _ => None,
         },
@@ -1469,7 +1504,7 @@ fn is_affine_type_inner(
     visiting: &mut BTreeSet<String>,
 ) -> bool {
     match ty {
-        Type::Text | Type::TextIndex | Type::TextBuilder => true,
+        Type::Text | Type::Bytes | Type::TextIndex | Type::TextBuilder => true,
         Type::List(_) => true,
         Type::Pair(left, right) => {
             is_affine_type_inner(left, struct_fields, enum_variants, visiting)

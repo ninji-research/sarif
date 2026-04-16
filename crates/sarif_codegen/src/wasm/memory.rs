@@ -95,6 +95,12 @@ pub(super) fn runtime_value_to_wasm_arg(
                 .map_err(|_| WasmError::new("wasm text argument exceeds 32-bit limits"))?;
             Ok(pack_text_value(ptr, len))
         }
+        (RuntimeValue::Bytes(value), "Bytes") => {
+            let ptr = alloc_wasm_bytes(memory, store, host_heap, value)?;
+            let len = u32::try_from(value.len())
+                .map_err(|_| WasmError::new("wasm bytes argument exceeds 32-bit limits"))?;
+            Ok(pack_text_value(ptr, len))
+        }
         (RuntimeValue::Enum(value), expected) if enums.contains_key(expected) => {
             let enum_ty = enums.get(expected).ok_or_else(|| {
                 WasmError::new(format!("missing wasm enum metadata for `{expected}`"))
@@ -144,6 +150,15 @@ pub(super) fn read_text_from_memory(
     Ok(bytes)
 }
 
+pub(super) fn read_bytes_from_memory(
+    memory: &Memory,
+    store: &mut Store<()>,
+    ptr: usize,
+    len: usize,
+) -> Result<Vec<u8>, WasmError> {
+    read_text_from_memory(memory, store, ptr, len)
+}
+
 pub(super) fn decode_record_from_memory(
     memory: &Memory,
     store: &mut Store<()>,
@@ -190,6 +205,10 @@ pub(super) fn decode_record_from_memory(
                     WasmError::new(format!("wasm record text is not utf-8: {error}"))
                 })?;
                 RuntimeValue::Text(text)
+            }
+            WasmValueKind::Bytes => {
+                let (bytes_ptr, bytes_len) = unpack_text_value(raw)?;
+                RuntimeValue::Bytes(read_bytes_from_memory(memory, store, bytes_ptr, bytes_len)?)
             }
             WasmValueKind::Enum(name) => {
                 let enum_ty = enums.get(name).ok_or_else(|| {
@@ -267,6 +286,12 @@ pub(super) fn decode_enum_from_memory(
                         WasmError::new(format!("wasm enum text is not utf-8: {error}"))
                     })?;
                     RuntimeValue::Text(text)
+                }
+                WasmValueKind::Bytes => {
+                    let (bytes_ptr, bytes_len) = unpack_text_value(raw)?;
+                    RuntimeValue::Bytes(read_bytes_from_memory(
+                        memory, store, bytes_ptr, bytes_len,
+                    )?)
                 }
                 WasmValueKind::Enum(child) => {
                     let child_ty = enums.get(child).ok_or_else(|| {
@@ -355,6 +380,12 @@ fn write_record_to_memory(
                     .map_err(|_| WasmError::new("wasm text argument exceeds 32-bit limits"))?;
                 pack_text_value(text_ptr, len)
             }
+            (WasmValueKind::Bytes, RuntimeValue::Bytes(value)) => {
+                let bytes_ptr = alloc_wasm_bytes(memory, store, host_heap, value)?;
+                let len = u32::try_from(value.len())
+                    .map_err(|_| WasmError::new("wasm bytes argument exceeds 32-bit limits"))?;
+                pack_text_value(bytes_ptr, len)
+            }
             (WasmValueKind::Enum(name), RuntimeValue::Enum(value)) => {
                 let child = enums.get(name).ok_or_else(|| {
                     WasmError::new(format!("missing wasm enum metadata for `{name}`"))
@@ -436,6 +467,12 @@ fn write_enum_to_memory(
                 let len = u32::try_from(value.len())
                     .map_err(|_| WasmError::new("wasm text argument exceeds 32-bit limits"))?;
                 pack_text_value(text_ptr, len)
+            }
+            (WasmValueKind::Bytes, RuntimeValue::Bytes(value)) => {
+                let bytes_ptr = alloc_wasm_bytes(memory, store, host_heap, value)?;
+                let len = u32::try_from(value.len())
+                    .map_err(|_| WasmError::new("wasm bytes argument exceeds 32-bit limits"))?;
+                pack_text_value(bytes_ptr, len)
             }
             (WasmValueKind::Enum(name), RuntimeValue::Enum(value)) => {
                 let child = enums.get(name).ok_or_else(|| {

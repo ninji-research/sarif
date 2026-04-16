@@ -50,7 +50,7 @@ fn type_is_rt_safe_inner(
     visiting: &mut BTreeSet<String>,
 ) -> bool {
     match ty {
-        Type::Text => false,
+        Type::Text | Type::Bytes => false,
         Type::Named(name) => {
             let Some(fields) = struct_fields.get(name) else {
                 return true;
