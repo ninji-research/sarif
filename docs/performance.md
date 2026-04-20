@@ -39,7 +39,7 @@ Current native policy:
 - linker preference: `mold`, then `lld`, then system default
 - cached runtime objects so unchanged native runtime code is not recompiled on every build
 
-For same-ABI portability instead of host-specific tuning, set `SARIF_NATIVE_CPU=baseline`. That removes `-march=native` and `-mtune=native`, but it still does not turn the native path into maintained cross-compilation. See [platforms.md](/home/user/sarif/docs/platforms.md).
+For same-ABI portability instead of host-specific tuning, set `SARIF_NATIVE_CPU=baseline`. That removes `-march=native` and `-mtune=native`, but it still does not turn the native path into maintained cross-compilation. See [platforms.md](platforms.md).
 
 These are current implementation facts, not an abstract wish list.
 

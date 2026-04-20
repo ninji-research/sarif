@@ -89,4 +89,4 @@ Sarif does not yet ship:
 - a maintained reactive DAG runtime
 - self-hosted release authority for `format`, `check`, or `doc`
 
-Platform reality is tracked separately in [platforms.md](/home/user/sarif/docs/platforms.md): Linux native is the maintained host target, macOS native is feasible but less exercised, wasm is maintained with explicit exclusions, and Windows/mobile/cross-compilation remain future work rather than implied support.
+Platform reality is tracked separately in [platforms.md](platforms.md): Linux native is the maintained host target, macOS native is feasible but less exercised, wasm is maintained with explicit exclusions, and Windows/mobile/cross-compilation remain future work rather than implied support.

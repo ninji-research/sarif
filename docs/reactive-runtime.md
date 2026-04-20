@@ -62,7 +62,7 @@ The best next actions are:
 4. define a maintained runtime interface for incremental execution around pure Sarif functions
 5. design a deterministic scheduler boundary for independent pure-node execution
 
-The tracked implementation checklist for those steps lives in [reactive-runtime-checklist.md](/home/user/sarif/docs/reactive-runtime-checklist.md).
+The tracked implementation checklist for those steps lives in [reactive-runtime-checklist.md](reactive-runtime-checklist.md).
 
 ## Proposed Runtime Shape
 

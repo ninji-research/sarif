@@ -8,16 +8,15 @@ Sarif is a minimal, single-style, memory-safe systems language and stage-0 self-
 
 The maintained stage-0 surface now accepts compact expression-bodied functions (`fn add(a: I32, b: I32) -> I32 = a + b;`), record-field punning (`Pair { left, right }`), compound assignments (`+=`, `-=`, `*=`, `/=`), integer bitwise operators (`&`, `|`, `^`, `<<`, `>>`), richer `match` patterns through literal alternatives (`65 | 97`) and half-open integer ranges (`0..37792`), maintained line and field scanning through `text_line_end(...)`, `text_next_line(...)`, `text_field_end(...)`, and `text_next_field(...)`, direct list-growth through `list_push(...)`, integer text emission through `text_builder_append_i32(...)`, and a raw `Bytes` substrate through `stdin_bytes(...)`, `bytes_len(...)`, `bytes_byte(...)`, `bytes_slice(...)`, and `bytes_find_byte_range(...)` so byte-heavy code does not need to pretend it is UTF-8 text.
 
-The maintained direction for notebook-like and reactive systems is runtime-first: Sarif may host a zero-copy reactive DAG environment, but dependency tracking, recomputation, transport, and UI integration belong in a runtime/platform layer rather than in the core language surface. See [docs/reactive-runtime.md](/home/user/sarif/docs/reactive-runtime.md), [docs/reactive-runtime-checklist.md](/home/user/sarif/docs/reactive-runtime-checklist.md), and [docs/execution-checklist.md](/home/user/sarif/docs/execution-checklist.md).
+The maintained direction for notebook-like and reactive systems is runtime-first: Sarif may host a zero-copy reactive DAG environment, but dependency tracking, recomputation, transport, and UI integration belong in a runtime/platform layer rather than in the core language surface. See `docs/reactive-runtime.md`, `docs/reactive-runtime-checklist.md`, and `docs/execution-checklist.md`.
 
-Platform support is documented explicitly in [docs/platforms.md](/home/user/sarif/docs/platforms.md). The short version is: Linux native is the maintained host path, macOS native is feasible but less exercised, wasm is maintained with explicit builtin exclusions, and native builds are host-native rather than cross-targeted.
+Platform support is documented explicitly in `docs/platforms.md`. The short version is: Linux native is the maintained host path, macOS native is feasible but less exercised, wasm is maintained with explicit builtin exclusions, and native builds are host-native rather than cross-targeted.
 
 ## Current State
 
 Sarif is still in Stage 0.
 
 What is real today:
-
 - `sarifc format`, `check`, `run`, `build`, and `doc` are the maintained CLI surface
 - the MIR interpreter is the normative semantic oracle
 - native build output is the primary deployment target
@@ -26,7 +25,6 @@ What is real today:
 - `~/bnch` carries a full main-track Sarif lane across all 10 retained benchmarks
 
 What is not complete today:
-
 - self-hosted release authority for `format`, `check`, or `doc`
 - self-hosted HIR lowering, MIR generation, or backend ownership
 - a full standard library
@@ -44,7 +42,6 @@ The workspace keeps multiple build profiles so the repo can support both fast it
 - `profiling`: release-like build that keeps debug info for profile collection
 
 Cargo aliases are defined in `.cargo/config.toml`:
-
 ```bash
 cargo xfmt
 cargo xtest
@@ -89,6 +86,10 @@ sarifc bootstrap-check bootstrap/sarif_syntax/Sarif.toml
 - `examples/`: shipped example programs
 - `docs/`: maintained project-level docs
 
-## License
+## Legal
 
-Sarif is licensed under the [Mozilla Public License 2.0 (MPL-2.0)](LICENSE.md).
+Source code, including but not limited to implementation files, scripts, and configurations, is licensed under the [MPL-2.0](LICENSE.md) license. Documentation and informational content, such as but not limited to specifications, guides, and reports, are licensed under the [CC-BY-4.0](LICENSE-CONTENT.md) license.
+
+Brand identity, including but not limited to the NINJI name, logos, graphics, and visual assets, is strictly proprietary. All rights are reserved. Usage, modification, or distribution of these assets is prohibited without prior written consent.
+
+See [NOTICE.md](NOTICE.md) for full attribution details.
