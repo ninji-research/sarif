@@ -66,6 +66,7 @@ Sarif keeps one declaration order:
 - `text_builder_finish(builder: TextBuilder) -> Text`
 - `text_index_new() -> TextIndex`
 - `text_index_get(index: TextIndex, key: Text) -> I32`
+- `text_index_get_or_insert(index: TextIndex, key: Text, next: I32) -> I32`
 - `text_index_set(index: TextIndex, key: Text, value: I32) -> TextIndex`
 - `list_new(len: I32, value: T) -> List[T]`
 - `list_len(vec: List[T]) -> I32`
@@ -91,7 +92,7 @@ Sarif keeps one declaration order:
 - `sqrt(value: F64) -> F64`
 - `text_from_f64_fixed(value: F64, digits: I32) -> Text`
 
-`TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. Misses return `-1`, and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
+`TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. Misses return `-1`; `text_index_get_or_insert(...)` returns the existing slot or inserts `next`; and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
 
 ## Profiles
 

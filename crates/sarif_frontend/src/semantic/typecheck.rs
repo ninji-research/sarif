@@ -131,6 +131,7 @@ pub(super) fn type_from_ref(ty: &TypeRef, generic_params: &BTreeSet<String>) -> 
 }
 
 pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> Option<Type> {
+    let name = name.trim();
     if generic_params.contains(name) {
         return Some(Type::Param(name.to_owned()));
     }
@@ -154,7 +155,7 @@ pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> 
 }
 
 pub(super) fn parse_array_type_name(name: &str, generic_params: &BTreeSet<String>) -> Option<Type> {
-    let inner = name.strip_prefix('[')?.strip_suffix(']')?;
+    let inner = name.trim().strip_prefix('[')?.strip_suffix(']')?;
     let mut depth = 0usize;
     let mut split = None::<usize>;
     for (index, ch) in inner.char_indices() {
@@ -235,4 +236,26 @@ pub(super) fn render_signature(function: &Function) -> String {
         "fn {}{type_params}({params}){return_type}{effects}{requires}{ensures}",
         function.name
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use crate::hir::ConstExpr;
+
+    use super::{Type, parse_type_name};
+
+    #[test]
+    fn parse_type_name_accepts_surrounding_whitespace() {
+        let generic_params = BTreeSet::new();
+        assert_eq!(
+            parse_type_name("  List[Text]  ", &generic_params),
+            Some(Type::List(Box::new(Type::Text)))
+        );
+        assert_eq!(
+            parse_type_name(" [ Text ; 4 ] ", &generic_params),
+            Some(Type::Array(Box::new(Type::Text), ConstExpr::Literal(4)))
+        );
+    }
 }

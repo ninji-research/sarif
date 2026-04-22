@@ -4,25 +4,26 @@
 
 # Sarif
 
-Sarif is a minimal, single-style, memory-safe systems language and stage-0 self-hosting-oriented compiler/toolchain. The maintained implementation is still Rust-hosted, but the repository is organized around one stable workflow, one semantic core, and one compiler pipeline: syntax -> HIR -> MIR.
+Sarif is a minimal, single-style, memory-safe systems language and compiler/toolchain oriented toward readable code, auditable semantics, predictable performance, and eventual self-hosting.
 
-The maintained stage-0 surface now accepts compact expression-bodied functions (`fn add(a: I32, b: I32) -> I32 = a + b;`), record-field punning (`Pair { left, right }`), compound assignments (`+=`, `-=`, `*=`, `/=`), integer bitwise operators (`&`, `|`, `^`, `<<`, `>>`), richer `match` patterns through literal alternatives (`65 | 97`) and half-open integer ranges (`0..37792`), maintained line and field scanning through `text_line_end(...)`, `text_next_line(...)`, `text_field_end(...)`, and `text_next_field(...)`, direct list-growth through `list_push(...)`, integer text emission through `text_builder_append_i32(...)`, and a raw `Bytes` substrate through `stdin_bytes(...)`, `bytes_len(...)`, `bytes_byte(...)`, `bytes_slice(...)`, and `bytes_find_byte_range(...)` so byte-heavy code does not need to pretend it is UTF-8 text.
+The repository is organized around one compiler pipeline and one maintained semantic authority:
 
-The maintained direction for notebook-like and reactive systems is runtime-first: Sarif may host a zero-copy reactive DAG environment, but dependency tracking, recomputation, transport, and UI integration belong in a runtime/platform layer rather than in the core language surface. See `docs/reactive-runtime.md`, `docs/reactive-runtime-checklist.md`, and `docs/execution-checklist.md`.
-
-Platform support is documented explicitly in `docs/platforms.md`. The short version is: Linux native is the maintained host path, macOS native is feasible but less exercised, wasm is maintained with explicit builtin exclusions, and native builds are host-native rather than cross-targeted.
+- one syntax and one canonical formatting style
+- one semantic oracle: the MIR interpreter
+- one maintained stage-0 CLI: `sarifc`
+- one benchmark discipline: clean results in `~/bnch`
 
 ## Current State
 
-Sarif is still in Stage 0.
+Sarif is still in Stage 0. The maintained implementation is Rust-hosted.
 
 What is real today:
 - `sarifc format`, `check`, `run`, `build`, and `doc` are the maintained CLI surface
-- the MIR interpreter is the normative semantic oracle
-- native build output is the primary deployment target
-- Wasm build output exists with an explicitly smaller supported builtin surface
-- `bootstrap-format`, `bootstrap-check`, and `bootstrap-doc` remain retained bootstrap bridge commands
-- `~/bnch` carries a full main-track Sarif lane across all 10 retained benchmarks
+- the stage-0 language includes expression-bodied functions, record-field punning, compound assignments, fixed arrays, bitwise operators, richer `match` patterns, `Bytes`, and maintained text/list helpers
+- the MIR interpreter is the normative semantic oracle for backend correctness
+- native Linux builds are the primary deployment path
+- Wasm output exists with explicit builtin exclusions
+- `~/bnch` carries a full main-track Sarif lane across the retained benchmark suite
 
 What is not complete today:
 - self-hosted release authority for `format`, `check`, or `doc`
@@ -30,18 +31,60 @@ What is not complete today:
 - a full standard library
 - a maintained async, multithreaded, or parallel runtime model
 
-## Build Profiles
+For exact status, recent benchmark results, and hard boundaries, see:
+- [docs/status.md](docs/status.md)
+- [docs/roadmap.md](docs/roadmap.md)
+- [docs/platforms.md](docs/platforms.md)
+- [docs/language-spec.md](docs/language-spec.md)
 
-The workspace keeps multiple build profiles so the repo can support both fast iteration and aggressive release optimization.
+## Quick Start
 
-- `dev`: fast local iteration
-- `test`: fast local test iteration
-- `release`: shipping build with `opt-level=3`, thin LTO, one codegen unit, and stripped symbols
-- `release-fast`: cheaper release-like build for iteration on optimized binaries
-- `release-max`: higher-cost release build with fat LTO
-- `profiling`: release-like build that keeps debug info for profile collection
+Build the maintained CLI:
 
-Cargo aliases are defined in `.cargo/config.toml`:
+```bash
+cargo build --release -p sarifc
+```
+
+Typical workflow:
+
+```bash
+sarifc format main.sarif
+sarifc check main.sarif
+sarifc run main.sarif
+sarifc build main.sarif -o my_app
+sarifc build main.sarif --target wasm -o my_app.wasm
+sarifc doc main.sarif
+```
+
+Useful debug workflow:
+
+```bash
+sarifc check main.sarif --dump-ir=resolve
+sarifc check main.sarif --dump-ir=typecheck
+sarifc build main.sarif --dump-ir=lower -o my_app
+sarifc build main.sarif --target wasm --dump-ir=codegen -o my_app.wasm
+```
+
+Retained bootstrap bridge commands:
+
+```bash
+sarifc bootstrap-format bootstrap/sarif_syntax/Sarif.toml
+sarifc bootstrap-check bootstrap/sarif_syntax/Sarif.toml
+sarifc bootstrap-doc bootstrap/sarif_syntax/Sarif.toml
+```
+
+## Verification
+
+Treat a change as incomplete until the maintained baseline passes:
+
+```bash
+cargo test
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo build --release -p sarifc
+```
+
+The workspace also ships cargo aliases for common local workflows:
+
 ```bash
 cargo xfmt
 cargo xtest
@@ -51,40 +94,46 @@ cargo xbuild-fast
 cargo xbuild-max
 ```
 
-## Verification Baseline
+Build profiles are intentionally explicit:
+- `dev`: fast local iteration
+- `test`: fast local test iteration
+- `release`: maintained shipping build
+- `release-fast`: cheaper optimized iteration
+- `release-max`: higher-cost fat-LTO build
+- `profiling`: release-like build with debug info
 
-```bash
-cargo test
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo build --release -p sarifc
-```
-
-## Workflow
-
-```bash
-sarifc format main.sarif
-sarifc check main.sarif
-sarifc run main.sarif
-sarifc build main.sarif -o my_app
-sarifc build main.sarif --target wasm -o my_app.wasm
-sarifc check main.sarif --dump-ir=resolve
-sarifc check main.sarif --dump-ir=typecheck
-sarifc build main.sarif --dump-ir=lower -o my_app
-sarifc build main.sarif --target wasm --dump-ir=codegen -o my_app.wasm
-sarifc doc main.sarif
-sarifc bootstrap-format bootstrap/sarif_syntax/Sarif.toml
-sarifc bootstrap-doc bootstrap/sarif_syntax/Sarif.toml
-sarifc bootstrap-check bootstrap/sarif_syntax/Sarif.toml
-```
+For verification discipline and retained-corpus policy, see [docs/engineering-practices.md](docs/engineering-practices.md).
 
 ## Repository Layout
 
-- `apps/`: executable entrypoints
-- `crates/`: compiler and tooling layers
-- `runtime/`: small native C runtime
+- `apps/sarifc/`: maintained CLI surface
+- `crates/sarif_syntax/`: lexing, parsing, formatting, retained syntax corpora
+- `crates/sarif_frontend/`: HIR lowering, semantic analysis, ownership rules
+- `crates/sarif_codegen/`: MIR, interpreter, native backend, Wasm backend
+- `crates/sarif_tools/`: formatter/docs/report tooling support
+- `runtime/`: small native C runtime linked into native artifacts
 - `bootstrap/`: retained bootstrap corpora
-- `examples/`: shipped example programs
-- `docs/`: maintained project-level docs
+- `examples/`: shipped examples
+- `docs/`: status, roadmap, architecture, performance, platforms, and references
+- `spec/`: grammar-level specification artifacts
+
+The crate split exists to keep one-directional boundaries rigid, not to create alternate compiler pipelines.
+
+## Design Direction
+
+Sarif’s maintained direction is narrow and explicit:
+
+- keep one right way instead of multiple competing idioms
+- prefer smaller surfaces and stronger semantics over broad feature sprawl
+- push reactive, notebook-like, and platform-specific concerns into runtime layers rather than core syntax
+- keep benchmark, documentation, tooling, and implementation authority aligned
+
+Relevant design docs:
+- [docs/compiler-architecture.md](docs/compiler-architecture.md)
+- [docs/directives.md](docs/directives.md)
+- [docs/performance.md](docs/performance.md)
+- [docs/reactive-runtime.md](docs/reactive-runtime.md)
+- [docs/stdlib-roadmap.md](docs/stdlib-roadmap.md)
 
 ## Legal
 

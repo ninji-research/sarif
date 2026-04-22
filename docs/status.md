@@ -62,6 +62,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - the stage-0 object backend now emits with Cranelift `speed_and_size` tuning instead of a pure `speed` bias, which restored first place on build time and slightly reduced native artifact size without giving back first place on speed or memory
 - Sarif still materially trails Nim and Go on retained benchmark source concision
 - the maintained `TextIndex` primitive is now promoted as the dense text-keyed aggregation/indexing path used by the strongest retained Sarif benchmark lanes
+- the maintained `TextIndex` surface now includes `text_index_get_or_insert(...)`, which removes the repeated stage-0 `get`/`set` upsert boilerplate from retained aggregation workloads without introducing a second indexing abstraction
 - the native stage-0 backend now correctly lowers fixed array value types such as `[I32; 4]` and `[F64; 5]`, with regression coverage in the CLI build tests
 - signature-only stage-0 fixed arrays are now registered before native/object ABI emission, with regression coverage for array-typed function parameters that do not rely on body literals
 - inferred const-generic fixed-array helpers now build cleanly on the native backend, and their array length parameters are now available as immutable `I32` values inside the same generic function body and contracts

@@ -181,6 +181,14 @@ fn run_executes_text_builder_consistently() {
 }
 
 #[test]
+fn run_executes_text_index_get_or_insert_consistently() {
+    assert_run_parity(
+        "fn main() -> I32 effects [alloc] { let index = text_index_new(); let a = text_index_get_or_insert(index, \"alpha\", 7); let b = text_index_get_or_insert(index, \"alpha\", 9); a * 10 + b }",
+        "77",
+    );
+}
+
+#[test]
 fn run_executes_record_field_punning_consistently() {
     assert_run_parity(
         "struct Pair { left: I32, right: I32 }\nfn main() -> I32 { let left = 7; let right = 9; let pair = Pair { left, right }; pair.left + pair.right }",
@@ -736,6 +744,32 @@ fn stable_build_executes_text_builder_programs() {
 
 #[cfg(feature = "native-build")]
 #[test]
+fn stable_build_executes_text_index_get_or_insert_programs() {
+    let path = temp_source(
+        "fn main() -> I32 effects [alloc] { let index = text_index_new(); let a = text_index_get_or_insert(index, \"alpha\", 7); let b = text_index_get_or_insert(index, \"alpha\", 9); a * 10 + b }",
+    );
+    let binary_path = super::support::temp_artifact("text_index_get_or_insert_build", "bin");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--print-main",
+        "-o",
+        binary_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "text index get-or-insert program should build on the native target"
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "77\n");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
 fn stable_build_executes_list_f64_programs() {
     let path = temp_source(
         "fn main() -> Text effects [alloc] { let mut xs = list_new(3, 0.0); xs = list_set(xs, 0, 1.5); xs = list_set(xs, 1, 2.25); xs = list_set(xs, 2, list_get(xs, 0) + list_get(xs, 1)); text_from_f64_fixed(list_get(xs, 2), 2) }",
@@ -1044,6 +1078,33 @@ fn wasm_build_rejects_text_builder_modules() {
     assert!(
         String::from_utf8_lossy(&build.stderr)
             .contains("wasm backend does not yet support text builder builtins"),
+        "wasm rejection should explain the current stage-0 backend limitation"
+    );
+}
+
+#[cfg(feature = "wasm")]
+#[test]
+fn wasm_build_rejects_text_index_get_or_insert_modules() {
+    let path = temp_source(
+        "fn main() -> I32 effects [alloc] { let index = text_index_new(); text_index_get_or_insert(index, \"alpha\", 7) }",
+    );
+    let wasm_path = temp_output("text_index_get_or_insert_build", "wasm");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "wasm",
+        "-o",
+        wasm_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        !build.status.success(),
+        "text index builtins should be rejected on the wasm backend for now"
+    );
+    assert!(
+        String::from_utf8_lossy(&build.stderr)
+            .contains("wasm backend does not yet support text builder/index builtins"),
         "wasm rejection should explain the current stage-0 backend limitation"
     );
 }

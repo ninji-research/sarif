@@ -327,6 +327,12 @@ pub enum Inst {
         index: ValueId,
         key: ValueId,
     },
+    TextIndexGetOrInsert {
+        dest: ValueId,
+        index: ValueId,
+        key: ValueId,
+        next: ValueId,
+    },
     TextIndexSet {
         dest: ValueId,
         index: ValueId,
@@ -775,6 +781,18 @@ impl Inst {
                 dest.render(),
                 index.render(),
                 key.render()
+            ),
+            Self::TextIndexGetOrInsert {
+                dest,
+                index,
+                key,
+                next,
+            } => format!(
+                "{} = text-index-get-or-insert {}, {}, {}",
+                dest.render(),
+                index.render(),
+                key.render(),
+                next.render()
             ),
             Self::TextIndexSet {
                 dest,
@@ -3100,6 +3118,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::TextIndexGet { .. }
+            | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. }
             | Inst::ListNew { .. }
             | Inst::ListLen { .. }
@@ -3425,6 +3444,282 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         }
     }
 
+    fn builtin_is_available(&self, name: &str) -> bool {
+        !self.function_returns.contains_key(name)
+    }
+
+    fn try_lower_builtin_call_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> Option<ValueId> {
+        let lowered = match expr.callee.as_str() {
+            "len" if self.builtin_is_available("len") => self.lower_array_len_expr(expr),
+            "text_len" if self.builtin_is_available("text_len") => self.lower_text_len_expr(expr),
+            "text_builder_new" if self.builtin_is_available("text_builder_new") => {
+                self.lower_text_builder_new_expr(expr)
+            }
+            "text_index_new" if self.builtin_is_available("text_index_new") => {
+                self.lower_text_index_new_expr(expr)
+            }
+            "text_builder_append" if self.builtin_is_available("text_builder_append") => {
+                self.lower_text_builder_append_expr(expr)
+            }
+            "text_builder_append_codepoint"
+                if self.builtin_is_available("text_builder_append_codepoint") =>
+            {
+                self.lower_text_builder_append_codepoint_expr(expr)
+            }
+            "text_builder_append_ascii"
+                if self.builtin_is_available("text_builder_append_ascii") =>
+            {
+                self.lower_text_builder_append_ascii_expr(expr)
+            }
+            "text_builder_append_slice"
+                if self.builtin_is_available("text_builder_append_slice") =>
+            {
+                self.lower_text_builder_append_slice_expr(expr)
+            }
+            "text_builder_append_i32"
+                if self.builtin_is_available("text_builder_append_i32") =>
+            {
+                self.lower_text_builder_append_i32_expr(expr)
+            }
+            "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
+                self.lower_text_builder_finish_expr(expr)
+            }
+            "text_index_get" if self.builtin_is_available("text_index_get") => {
+                self.lower_text_index_get_expr(expr)
+            }
+            "text_index_get_or_insert"
+                if self.builtin_is_available("text_index_get_or_insert") =>
+            {
+                self.lower_text_index_get_or_insert_expr(expr)
+            }
+            "text_index_set" if self.builtin_is_available("text_index_set") => {
+                self.lower_text_index_set_expr(expr)
+            }
+            "list_new" if self.builtin_is_available("list_new") => self.lower_list_new_expr(expr),
+            "list_len" if self.builtin_is_available("list_len") => self.lower_list_len_expr(expr),
+            "list_get" if self.builtin_is_available("list_get") => self.lower_list_get_expr(expr),
+            "list_set" if self.builtin_is_available("list_set") => self.lower_list_set_expr(expr),
+            "list_push" if self.builtin_is_available("list_push") => {
+                self.lower_list_push_expr(expr)
+            }
+            "list_sort_text" if self.builtin_is_available("list_sort_text") => {
+                self.lower_list_sort_text_expr(expr)
+            }
+            "list_sort_by_text_field"
+                if self.builtin_is_available("list_sort_by_text_field") =>
+            {
+                self.lower_list_sort_by_text_field_expr(expr)
+            }
+            "f64_from_i32" if self.builtin_is_available("f64_from_i32") => {
+                self.lower_f64_from_i32_expr(expr)
+            }
+            "bytes_len" if self.builtin_is_available("bytes_len") => {
+                self.lower_bytes_len_expr(expr)
+            }
+            "text_concat" if self.builtin_is_available("text_concat") => {
+                self.lower_text_concat_expr(expr)
+            }
+            "text_slice" if self.builtin_is_available("text_slice") => {
+                self.lower_text_slice_expr(expr)
+            }
+            "bytes_slice" if self.builtin_is_available("bytes_slice") => {
+                self.lower_bytes_slice_expr(expr)
+            }
+            "text_byte" if self.builtin_is_available("text_byte") => {
+                self.lower_text_byte_expr(expr)
+            }
+            "bytes_byte" if self.builtin_is_available("bytes_byte") => {
+                self.lower_bytes_byte_expr(expr)
+            }
+            "text_cmp" if self.builtin_is_available("text_cmp") => self.lower_text_cmp_expr(expr),
+            "text_eq_range" if self.builtin_is_available("text_eq_range") => {
+                self.lower_text_eq_range_expr(expr)
+            }
+            "text_find_byte_range" if self.builtin_is_available("text_find_byte_range") => {
+                self.lower_text_find_byte_range_expr(expr)
+            }
+            "bytes_find_byte_range" if self.builtin_is_available("bytes_find_byte_range") => {
+                self.lower_bytes_find_byte_range_expr(expr)
+            }
+            "text_line_end" if self.builtin_is_available("text_line_end") => {
+                self.lower_text_line_end_expr(expr)
+            }
+            "text_next_line" if self.builtin_is_available("text_next_line") => {
+                self.lower_text_next_line_expr(expr)
+            }
+            "text_field_end" if self.builtin_is_available("text_field_end") => {
+                self.lower_text_field_end_expr(expr)
+            }
+            "text_next_field" if self.builtin_is_available("text_next_field") => {
+                self.lower_text_next_field_expr(expr)
+            }
+            "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
+                self.lower_text_from_f64_fixed_expr(expr)
+            }
+            "sqrt" if self.builtin_is_available("sqrt") => self.lower_sqrt_expr(expr),
+            "parse_i32" if self.builtin_is_available("parse_i32") => {
+                self.lower_parse_i32_expr(expr)
+            }
+            "parse_i32_range" if self.builtin_is_available("parse_i32_range") => {
+                self.lower_parse_i32_range_expr(expr)
+            }
+            "parse_f64" if self.builtin_is_available("parse_f64") => {
+                self.lower_parse_f64_expr(expr)
+            }
+            "arg_count" if self.builtin_is_available("arg_count") => {
+                self.lower_arg_count_expr(expr)
+            }
+            "alloc_push" if self.builtin_is_available("alloc_push") => {
+                self.lower_alloc_push_expr(expr)
+            }
+            "alloc_pop" if self.builtin_is_available("alloc_pop") => {
+                self.lower_alloc_pop_expr(expr)
+            }
+            "arg_text" if self.builtin_is_available("arg_text") => self.lower_arg_text_expr(expr),
+            "stdin_text" if self.builtin_is_available("stdin_text") => {
+                self.lower_stdin_text_expr(expr)
+            }
+            "stdin_bytes" if self.builtin_is_available("stdin_bytes") => {
+                self.lower_stdin_bytes_expr(expr)
+            }
+            "stdout_write" if self.builtin_is_available("stdout_write") => {
+                self.lower_stdout_write_expr(expr)
+            }
+            "stdout_write_builder" if self.builtin_is_available("stdout_write_builder") => {
+                self.lower_stdout_write_builder_expr(expr)
+            }
+            _ => return None,
+        };
+        Some(lowered)
+    }
+
+    fn builtin_call_lower_type(&self, expr: &sarif_frontend::hir::CallExpr) -> Option<LowerType> {
+        let ty = match expr.callee.as_str() {
+            "len" if self.builtin_is_available("len") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::Array(_, _)) => LowerType::I32,
+                    _ => LowerType::Error,
+                }
+            }
+            "text_len" if self.builtin_is_available("text_len") => LowerType::I32,
+            "bytes_len" if self.builtin_is_available("bytes_len") => LowerType::I32,
+            "text_byte" if self.builtin_is_available("text_byte") => LowerType::I32,
+            "bytes_byte" if self.builtin_is_available("bytes_byte") => LowerType::I32,
+            "text_cmp" if self.builtin_is_available("text_cmp") => LowerType::I32,
+            "text_eq_range" if self.builtin_is_available("text_eq_range") => LowerType::Bool,
+            "text_find_byte_range" if self.builtin_is_available("text_find_byte_range") => {
+                LowerType::I32
+            }
+            "bytes_find_byte_range" if self.builtin_is_available("bytes_find_byte_range") => {
+                LowerType::I32
+            }
+            "text_line_end" if self.builtin_is_available("text_line_end") => LowerType::I32,
+            "text_next_line" if self.builtin_is_available("text_next_line") => LowerType::I32,
+            "text_field_end" if self.builtin_is_available("text_field_end") => LowerType::I32,
+            "text_next_field" if self.builtin_is_available("text_next_field") => LowerType::I32,
+            "text_builder_new" if self.builtin_is_available("text_builder_new") => {
+                LowerType::TextBuilder
+            }
+            "text_index_new" if self.builtin_is_available("text_index_new") => {
+                LowerType::TextIndex
+            }
+            "text_builder_append" if self.builtin_is_available("text_builder_append") => {
+                LowerType::TextBuilder
+            }
+            "text_builder_append_codepoint"
+                if self.builtin_is_available("text_builder_append_codepoint") =>
+            {
+                LowerType::TextBuilder
+            }
+            "text_builder_append_ascii"
+                if self.builtin_is_available("text_builder_append_ascii") =>
+            {
+                LowerType::TextBuilder
+            }
+            "text_builder_append_slice"
+                if self.builtin_is_available("text_builder_append_slice") =>
+            {
+                LowerType::TextBuilder
+            }
+            "text_builder_append_i32"
+                if self.builtin_is_available("text_builder_append_i32") =>
+            {
+                LowerType::TextBuilder
+            }
+            "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
+                LowerType::Text
+            }
+            "text_index_get" if self.builtin_is_available("text_index_get") => LowerType::I32,
+            "text_index_get_or_insert"
+                if self.builtin_is_available("text_index_get_or_insert") =>
+            {
+                LowerType::I32
+            }
+            "text_index_set" if self.builtin_is_available("text_index_set") => {
+                LowerType::TextIndex
+            }
+            "list_new" if self.builtin_is_available("list_new") => {
+                match expr.args.get(1).map(|arg| self.infer_expr_type(arg)) {
+                    Some(element) => LowerType::List(Box::new(element)),
+                    None => LowerType::Error,
+                }
+            }
+            "list_len" if self.builtin_is_available("list_len") => LowerType::I32,
+            "list_get" if self.builtin_is_available("list_get") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::List(element)) => *element,
+                    _ => LowerType::Error,
+                }
+            }
+            "list_set" if self.builtin_is_available("list_set") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::List(element)) => LowerType::List(element),
+                    _ => LowerType::Error,
+                }
+            }
+            "list_push" if self.builtin_is_available("list_push") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::List(element)) => LowerType::List(element),
+                    _ => LowerType::Error,
+                }
+            }
+            "list_sort_text" if self.builtin_is_available("list_sort_text") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::List(element)) => LowerType::List(element),
+                    _ => LowerType::Error,
+                }
+            }
+            "list_sort_by_text_field"
+                if self.builtin_is_available("list_sort_by_text_field") =>
+            {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::List(element)) => LowerType::List(element),
+                    _ => LowerType::Error,
+                }
+            }
+            "f64_from_i32" if self.builtin_is_available("f64_from_i32") => LowerType::F64,
+            "text_concat" if self.builtin_is_available("text_concat") => LowerType::Text,
+            "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
+            "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
+            "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
+                LowerType::Text
+            }
+            "alloc_push" if self.builtin_is_available("alloc_push") => LowerType::Unit,
+            "alloc_pop" if self.builtin_is_available("alloc_pop") => LowerType::Unit,
+            "stdin_text" if self.builtin_is_available("stdin_text") => LowerType::Text,
+            "stdin_bytes" if self.builtin_is_available("stdin_bytes") => LowerType::Bytes,
+            "sqrt" if self.builtin_is_available("sqrt") => LowerType::F64,
+            "parse_i32" if self.builtin_is_available("parse_i32") => LowerType::I32,
+            "parse_i32_range" if self.builtin_is_available("parse_i32_range") => LowerType::I32,
+            "parse_f64" if self.builtin_is_available("parse_f64") => LowerType::F64,
+            _ => return None,
+        };
+        Some(ty)
+    }
+
     fn lower_body(&mut self, body: &sarif_frontend::hir::Body, _top_level: bool) -> BodyLowering {
         for statement in &body.statements {
             match statement {
@@ -3703,224 +3998,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 dest
             }
             Expr::Call(expr) => {
-                if expr.callee == "len" && !self.function_returns.contains_key("len") {
-                    return self.lower_array_len_expr(expr);
-                }
-                if expr.callee == "text_len" && !self.function_returns.contains_key("text_len") {
-                    return self.lower_text_len_expr(expr);
-                }
-                if expr.callee == "text_builder_new"
-                    && !self.function_returns.contains_key("text_builder_new")
-                {
-                    return self.lower_text_builder_new_expr(expr);
-                }
-                if expr.callee == "text_index_new"
-                    && !self.function_returns.contains_key("text_index_new")
-                {
-                    return self.lower_text_index_new_expr(expr);
-                }
-                if expr.callee == "text_builder_append"
-                    && !self.function_returns.contains_key("text_builder_append")
-                {
-                    return self.lower_text_builder_append_expr(expr);
-                }
-                if expr.callee == "text_builder_append_codepoint"
-                    && !self
-                        .function_returns
-                        .contains_key("text_builder_append_codepoint")
-                {
-                    return self.lower_text_builder_append_codepoint_expr(expr);
-                }
-                if expr.callee == "text_builder_append_ascii"
-                    && !self.function_returns.contains_key("text_builder_append_ascii")
-                {
-                    return self.lower_text_builder_append_ascii_expr(expr);
-                }
-                if expr.callee == "text_builder_append_slice"
-                    && !self.function_returns.contains_key("text_builder_append_slice")
-                {
-                    return self.lower_text_builder_append_slice_expr(expr);
-                }
-                if expr.callee == "text_builder_append_i32"
-                    && !self.function_returns.contains_key("text_builder_append_i32")
-                {
-                    return self.lower_text_builder_append_i32_expr(expr);
-                }
-                if expr.callee == "text_builder_finish"
-                    && !self.function_returns.contains_key("text_builder_finish")
-                {
-                    return self.lower_text_builder_finish_expr(expr);
-                }
-                if expr.callee == "text_index_get"
-                    && !self.function_returns.contains_key("text_index_get")
-                {
-                    return self.lower_text_index_get_expr(expr);
-                }
-                if expr.callee == "text_index_set"
-                    && !self.function_returns.contains_key("text_index_set")
-                {
-                    return self.lower_text_index_set_expr(expr);
-                }
-                if expr.callee == "list_new"
-                    && !self.function_returns.contains_key("list_new")
-                {
-                    return self.lower_list_new_expr(expr);
-                }
-                if expr.callee == "list_len"
-                    && !self.function_returns.contains_key("list_len")
-                {
-                    return self.lower_list_len_expr(expr);
-                }
-                if expr.callee == "list_get"
-                    && !self.function_returns.contains_key("list_get")
-                {
-                    return self.lower_list_get_expr(expr);
-                }
-                if expr.callee == "list_set"
-                    && !self.function_returns.contains_key("list_set")
-                {
-                    return self.lower_list_set_expr(expr);
-                }
-                if expr.callee == "list_push"
-                    && !self.function_returns.contains_key("list_push")
-                {
-                    return self.lower_list_push_expr(expr);
-                }
-                if expr.callee == "list_sort_text"
-                    && !self.function_returns.contains_key("list_sort_text")
-                {
-                    return self.lower_list_sort_text_expr(expr);
-                }
-                if expr.callee == "list_sort_by_text_field"
-                    && !self.function_returns.contains_key("list_sort_by_text_field")
-                {
-                    return self.lower_list_sort_by_text_field_expr(expr);
-                }
-                if expr.callee == "f64_from_i32"
-                    && !self.function_returns.contains_key("f64_from_i32")
-                {
-                    return self.lower_f64_from_i32_expr(expr);
-                }
-                if expr.callee == "bytes_len"
-                    && !self.function_returns.contains_key("bytes_len")
-                {
-                    return self.lower_bytes_len_expr(expr);
-                }
-                if expr.callee == "text_concat"
-                    && !self.function_returns.contains_key("text_concat")
-                {
-                    return self.lower_text_concat_expr(expr);
-                }
-                if expr.callee == "text_slice" && !self.function_returns.contains_key("text_slice")
-                {
-                    return self.lower_text_slice_expr(expr);
-                }
-                if expr.callee == "bytes_slice"
-                    && !self.function_returns.contains_key("bytes_slice")
-                {
-                    return self.lower_bytes_slice_expr(expr);
-                }
-                if expr.callee == "text_byte" && !self.function_returns.contains_key("text_byte") {
-                    return self.lower_text_byte_expr(expr);
-                }
-                if expr.callee == "bytes_byte"
-                    && !self.function_returns.contains_key("bytes_byte")
-                {
-                    return self.lower_bytes_byte_expr(expr);
-                }
-                if expr.callee == "text_cmp" && !self.function_returns.contains_key("text_cmp") {
-                    return self.lower_text_cmp_expr(expr);
-                }
-                if expr.callee == "text_eq_range"
-                    && !self.function_returns.contains_key("text_eq_range")
-                {
-                    return self.lower_text_eq_range_expr(expr);
-                }
-                if expr.callee == "text_find_byte_range"
-                    && !self.function_returns.contains_key("text_find_byte_range")
-                {
-                    return self.lower_text_find_byte_range_expr(expr);
-                }
-                if expr.callee == "bytes_find_byte_range"
-                    && !self.function_returns.contains_key("bytes_find_byte_range")
-                {
-                    return self.lower_bytes_find_byte_range_expr(expr);
-                }
-                if expr.callee == "text_line_end"
-                    && !self.function_returns.contains_key("text_line_end")
-                {
-                    return self.lower_text_line_end_expr(expr);
-                }
-                if expr.callee == "text_next_line"
-                    && !self.function_returns.contains_key("text_next_line")
-                {
-                    return self.lower_text_next_line_expr(expr);
-                }
-                if expr.callee == "text_field_end"
-                    && !self.function_returns.contains_key("text_field_end")
-                {
-                    return self.lower_text_field_end_expr(expr);
-                }
-                if expr.callee == "text_next_field"
-                    && !self.function_returns.contains_key("text_next_field")
-                {
-                    return self.lower_text_next_field_expr(expr);
-                }
-                if expr.callee == "text_from_f64_fixed"
-                    && !self.function_returns.contains_key("text_from_f64_fixed")
-                {
-                    return self.lower_text_from_f64_fixed_expr(expr);
-                }
-                if expr.callee == "sqrt" && !self.function_returns.contains_key("sqrt") {
-                    return self.lower_sqrt_expr(expr);
-                }
-                if expr.callee == "parse_i32" && !self.function_returns.contains_key("parse_i32") {
-                    return self.lower_parse_i32_expr(expr);
-                }
-                if expr.callee == "parse_i32_range"
-                    && !self.function_returns.contains_key("parse_i32_range")
-                {
-                    return self.lower_parse_i32_range_expr(expr);
-                }
-                if expr.callee == "parse_f64" && !self.function_returns.contains_key("parse_f64") {
-                    return self.lower_parse_f64_expr(expr);
-                }
-                if expr.callee == "arg_count" && !self.function_returns.contains_key("arg_count")
-                {
-                    return self.lower_arg_count_expr(expr);
-                }
-                if expr.callee == "alloc_push"
-                    && !self.function_returns.contains_key("alloc_push")
-                {
-                    return self.lower_alloc_push_expr(expr);
-                }
-                if expr.callee == "alloc_pop"
-                    && !self.function_returns.contains_key("alloc_pop")
-                {
-                    return self.lower_alloc_pop_expr(expr);
-                }
-                if expr.callee == "arg_text" && !self.function_returns.contains_key("arg_text") {
-                    return self.lower_arg_text_expr(expr);
-                }
-                if expr.callee == "stdin_text"
-                    && !self.function_returns.contains_key("stdin_text")
-                {
-                    return self.lower_stdin_text_expr(expr);
-                }
-                if expr.callee == "stdin_bytes"
-                    && !self.function_returns.contains_key("stdin_bytes")
-                {
-                    return self.lower_stdin_bytes_expr(expr);
-                }
-                if expr.callee == "stdout_write"
-                    && !self.function_returns.contains_key("stdout_write")
-                {
-                    return self.lower_stdout_write_expr(expr);
-                }
-                if expr.callee == "stdout_write_builder"
-                    && !self.function_returns.contains_key("stdout_write_builder")
-                {
-                    return self.lower_stdout_write_builder_expr(expr);
+                if let Some(value) = self.try_lower_builtin_call_expr(expr) {
+                    return value;
                 }
                 if let Some((enum_name, variant_name, payload_type)) =
                     self.enum_constructor_for_call(&expr.callee)
@@ -4577,179 +4656,20 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 .map_or(LowerType::Unit, |ty| {
                     LowerType::from_type_name(&ty.path, &self.substitutions)
                 }),
-            Expr::Call(expr) => match expr.callee.as_str() {
-                "len" if !self.function_returns.contains_key("len") => {
-                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
-                        Some(LowerType::Array(_, _)) => LowerType::I32,
-                        _ => LowerType::Error,
-                    }
-                }
-                "text_len" if !self.function_returns.contains_key("text_len") => LowerType::I32,
-                "bytes_len" if !self.function_returns.contains_key("bytes_len") => LowerType::I32,
-                "text_byte" if !self.function_returns.contains_key("text_byte") => LowerType::I32,
-                "bytes_byte" if !self.function_returns.contains_key("bytes_byte") => LowerType::I32,
-                "text_cmp" if !self.function_returns.contains_key("text_cmp") => LowerType::I32,
-                "text_eq_range" if !self.function_returns.contains_key("text_eq_range") => {
-                    LowerType::Bool
-                }
-                "text_find_byte_range"
-                    if !self.function_returns.contains_key("text_find_byte_range") =>
+            Expr::Call(expr) => {
+                if let Some(ty) = self.builtin_call_lower_type(expr) {
+                    ty
+                } else if let Some((enum_name, _, _)) = self.enum_constructor_for_call(&expr.callee)
                 {
-                    LowerType::I32
+                    LowerType::Named(enum_name)
+                } else {
+                    self.function_returns
+                        .get(&expr.callee)
+                        .map_or(LowerType::Error, |ty| {
+                            LowerType::from_type_name(ty, &self.substitutions)
+                        })
                 }
-                "bytes_find_byte_range"
-                    if !self.function_returns.contains_key("bytes_find_byte_range") =>
-                {
-                    LowerType::I32
-                }
-                "text_line_end" if !self.function_returns.contains_key("text_line_end") => {
-                    LowerType::I32
-                }
-                "text_next_line" if !self.function_returns.contains_key("text_next_line") => {
-                    LowerType::I32
-                }
-                "text_field_end" if !self.function_returns.contains_key("text_field_end") => {
-                    LowerType::I32
-                }
-                "text_next_field" if !self.function_returns.contains_key("text_next_field") => {
-                    LowerType::I32
-                }
-                "text_builder_new" if !self.function_returns.contains_key("text_builder_new") => {
-                    LowerType::TextBuilder
-                }
-                "text_index_new" if !self.function_returns.contains_key("text_index_new") => {
-                    LowerType::TextIndex
-                }
-                "text_builder_append"
-                    if !self.function_returns.contains_key("text_builder_append") =>
-                {
-                    LowerType::TextBuilder
-                }
-                "text_builder_append_codepoint"
-                    if !self
-                        .function_returns
-                        .contains_key("text_builder_append_codepoint") =>
-                {
-                    LowerType::TextBuilder
-                }
-                "text_builder_append_ascii"
-                    if !self
-                        .function_returns
-                        .contains_key("text_builder_append_ascii") =>
-                {
-                    LowerType::TextBuilder
-                }
-                "text_builder_append_slice"
-                    if !self
-                        .function_returns
-                        .contains_key("text_builder_append_slice") =>
-                {
-                    LowerType::TextBuilder
-                }
-                "text_builder_append_i32"
-                    if !self
-                        .function_returns
-                        .contains_key("text_builder_append_i32") =>
-                {
-                    LowerType::TextBuilder
-                }
-                "text_builder_finish"
-                    if !self.function_returns.contains_key("text_builder_finish") =>
-                {
-                    LowerType::Text
-                }
-                "text_index_get" if !self.function_returns.contains_key("text_index_get") => {
-                    LowerType::I32
-                }
-                "text_index_set" if !self.function_returns.contains_key("text_index_set") => {
-                    LowerType::TextIndex
-                }
-                "list_new" if !self.function_returns.contains_key("list_new") => {
-                    match expr.args.get(1).map(|arg| self.infer_expr_type(arg)) {
-                        Some(element) => LowerType::List(Box::new(element)),
-                        None => LowerType::Error,
-                    }
-                }
-                "list_len" if !self.function_returns.contains_key("list_len") => LowerType::I32,
-                "list_get" if !self.function_returns.contains_key("list_get") => {
-                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
-                        Some(LowerType::List(element)) => *element,
-                        _ => LowerType::Error,
-                    }
-                }
-                "list_set" if !self.function_returns.contains_key("list_set") => {
-                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
-                        Some(LowerType::List(element)) => LowerType::List(element),
-                        _ => LowerType::Error,
-                    }
-                }
-                "list_push" if !self.function_returns.contains_key("list_push") => {
-                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
-                        Some(LowerType::List(element)) => LowerType::List(element),
-                        _ => LowerType::Error,
-                    }
-                }
-                "list_sort_text" if !self.function_returns.contains_key("list_sort_text") => {
-                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
-                        Some(LowerType::List(element)) => LowerType::List(element),
-                        _ => LowerType::Error,
-                    }
-                }
-                "list_sort_by_text_field"
-                    if !self
-                        .function_returns
-                        .contains_key("list_sort_by_text_field") =>
-                {
-                    match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
-                        Some(LowerType::List(element)) => LowerType::List(element),
-                        _ => LowerType::Error,
-                    }
-                }
-                "f64_from_i32" if !self.function_returns.contains_key("f64_from_i32") => {
-                    LowerType::F64
-                }
-                "text_concat" if !self.function_returns.contains_key("text_concat") => {
-                    LowerType::Text
-                }
-                "text_slice" if !self.function_returns.contains_key("text_slice") => {
-                    LowerType::Text
-                }
-                "bytes_slice" if !self.function_returns.contains_key("bytes_slice") => {
-                    LowerType::Bytes
-                }
-                "text_from_f64_fixed"
-                    if !self.function_returns.contains_key("text_from_f64_fixed") =>
-                {
-                    LowerType::Text
-                }
-                "alloc_push" if !self.function_returns.contains_key("alloc_push") => {
-                    LowerType::Unit
-                }
-                "alloc_pop" if !self.function_returns.contains_key("alloc_pop") => LowerType::Unit,
-                "stdin_text" if !self.function_returns.contains_key("stdin_text") => {
-                    LowerType::Text
-                }
-                "stdin_bytes" if !self.function_returns.contains_key("stdin_bytes") => {
-                    LowerType::Bytes
-                }
-                "sqrt" if !self.function_returns.contains_key("sqrt") => LowerType::F64,
-                "parse_i32" if !self.function_returns.contains_key("parse_i32") => LowerType::I32,
-                "parse_i32_range" if !self.function_returns.contains_key("parse_i32_range") => {
-                    LowerType::I32
-                }
-                "parse_f64" if !self.function_returns.contains_key("parse_f64") => LowerType::F64,
-                _ => {
-                    if let Some((enum_name, _, _)) = self.enum_constructor_for_call(&expr.callee) {
-                        LowerType::Named(enum_name)
-                    } else {
-                        self.function_returns
-                            .get(&expr.callee)
-                            .map_or(LowerType::Error, |ty| {
-                                LowerType::from_type_name(ty, &self.substitutions)
-                            })
-                    }
-                }
-            },
+            }
             Expr::Array(expr) => expr.elements.first().map_or(LowerType::Error, |first| {
                 let len = expr
                     .repeat_len
@@ -6362,6 +6282,20 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_index_get_or_insert_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        self.lower_ternary_builtin_expr(expr, |dest, index, key, next| {
+            Inst::TextIndexGetOrInsert {
+                dest,
+                index,
+                key,
+                next,
+            }
+        })
+    }
+
     fn lower_text_index_set_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
@@ -7489,6 +7423,32 @@ impl<'a> Interpreter<'a> {
                         .copied()
                         .unwrap_or(-1);
                     values.insert(*dest, RuntimeValue::Int(value));
+                }
+                Inst::TextIndexGetOrInsert {
+                    dest,
+                    index,
+                    key,
+                    next,
+                } => {
+                    let index_val = extract_value(values, *index)?;
+                    let key_val = extract_value(values, *key)?;
+                    let next_val = extract_value(values, *next)?;
+                    let RuntimeValue::TextIndex(id) = index_val else {
+                        return Err(RuntimeError::new("expected TextIndex"));
+                    };
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Int(next) = next_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let value = self
+                        .text_indices
+                        .get_mut(&id)
+                        .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
+                        .entry(key)
+                        .or_insert(next);
+                    values.insert(*dest, RuntimeValue::Int(*value));
                 }
                 Inst::TextIndexSet {
                     dest,

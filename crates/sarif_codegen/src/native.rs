@@ -316,6 +316,9 @@ fn infer_inst_kinds(
             Inst::TextIndexGet { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
             }
+            Inst::TextIndexGetOrInsert { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::I32);
+            }
             Inst::TextIndexSet { dest, index, .. } => {
                 let Some(kind) = kinds.get(index).cloned() else {
                     return Err(format!(
@@ -1010,6 +1013,14 @@ pub fn lower_enum_tag_eq(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+pub struct TextIndexHelperIds {
+    pub new_id: FuncId,
+    pub get_id: FuncId,
+    pub get_or_insert_id: FuncId,
+    pub set_id: FuncId,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn lower_insts<M: Module>(
     function_ids: &BTreeMap<String, FuncId>,
@@ -1025,9 +1036,7 @@ pub fn lower_insts<M: Module>(
     text_builder_append_i32_id: FuncId,
     text_builder_finish_id: FuncId,
     stdout_write_builder_id: FuncId,
-    text_index_new_id: FuncId,
-    text_index_get_id: FuncId,
-    text_index_set_id: FuncId,
+    text_index_helpers: &TextIndexHelperIds,
     list_new_id: FuncId,
     list_push_id: FuncId,
     list_sort_text_id: FuncId,
@@ -1081,9 +1090,7 @@ pub fn lower_insts<M: Module>(
             text_builder_append_i32_id,
             text_builder_finish_id,
             stdout_write_builder_id,
-            text_index_new_id,
-            text_index_get_id,
-            text_index_set_id,
+            text_index_helpers,
             list_new_id,
             list_push_id,
             list_sort_text_id,
@@ -1143,9 +1150,7 @@ pub fn lower_inst<M: Module>(
     text_builder_append_i32_id: FuncId,
     text_builder_finish_id: FuncId,
     stdout_write_builder_id: FuncId,
-    text_index_new_id: FuncId,
-    text_index_get_id: FuncId,
-    text_index_set_id: FuncId,
+    text_index_helpers: &TextIndexHelperIds,
     list_new_id: FuncId,
     list_push_id: FuncId,
     list_sort_text_id: FuncId,
@@ -1505,7 +1510,7 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::TextIndexNew { dest } => {
-            let helper = module.declare_func_in_func(text_index_new_id, builder.func);
+            let helper = module.declare_func_in_func(text_index_helpers.new_id, builder.func);
             let call = builder.ins().call(helper, &[]);
             let ptr = match builder.inst_results(call) {
                 [ptr] => *ptr,
@@ -1526,13 +1531,55 @@ pub fn lower_inst<M: Module>(
             let index_val =
                 native_value(values, *index, function, "text_index_get index", backend)?;
             let key_val = native_value(values, *key, function, "text_index_get key", backend)?;
-            let helper = module.declare_func_in_func(text_index_get_id, builder.func);
+            let helper = module.declare_func_in_func(text_index_helpers.get_id, builder.func);
             let call = builder.ins().call(helper, &[index_val, key_val]);
             let value = match builder.inst_results(call) {
                 [value] => *value,
                 _ => {
                     return Err(format!(
                         "{backend} text index get helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextIndexGetOrInsert {
+            dest,
+            index,
+            key,
+            next,
+        } => {
+            let index_val = native_value(
+                values,
+                *index,
+                function,
+                "text_index_get_or_insert index",
+                backend,
+            )?;
+            let key_val = native_value(
+                values,
+                *key,
+                function,
+                "text_index_get_or_insert key",
+                backend,
+            )?;
+            let next_val = native_value(
+                values,
+                *next,
+                function,
+                "text_index_get_or_insert next",
+                backend,
+            )?;
+            let helper =
+                module.declare_func_in_func(text_index_helpers.get_or_insert_id, builder.func);
+            let call = builder.ins().call(helper, &[index_val, key_val, next_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} text index get-or-insert helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
                 }
@@ -1551,7 +1598,7 @@ pub fn lower_inst<M: Module>(
             let key_val = native_value(values, *key, function, "text_index_set key", backend)?;
             let value_val =
                 native_value(values, *value, function, "text_index_set value", backend)?;
-            let helper = module.declare_func_in_func(text_index_set_id, builder.func);
+            let helper = module.declare_func_in_func(text_index_helpers.set_id, builder.func);
             let call = builder.ins().call(helper, &[index_val, key_val, value_val]);
             let ptr = match builder.inst_results(call) {
                 [ptr] => *ptr,
@@ -2820,9 +2867,7 @@ pub fn lower_inst<M: Module>(
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
-                text_index_new_id,
-                text_index_get_id,
-                text_index_set_id,
+                text_index_helpers,
                 list_new_id,
                 list_push_id,
                 list_sort_text_id,
@@ -2890,9 +2935,7 @@ pub fn lower_inst<M: Module>(
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
-                text_index_new_id,
-                text_index_get_id,
-                text_index_set_id,
+                text_index_helpers,
                 list_new_id,
                 list_push_id,
                 list_sort_text_id,
@@ -3062,9 +3105,7 @@ pub fn lower_inst<M: Module>(
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
-                text_index_new_id,
-                text_index_get_id,
-                text_index_set_id,
+                text_index_helpers,
                 list_new_id,
                 list_push_id,
                 list_sort_text_id,
@@ -3147,9 +3188,7 @@ pub fn lower_inst<M: Module>(
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
-                text_index_new_id,
-                text_index_get_id,
-                text_index_set_id,
+                text_index_helpers,
                 list_new_id,
                 list_push_id,
                 list_sort_text_id,
@@ -3223,9 +3262,7 @@ pub fn lower_inst<M: Module>(
                 text_builder_append_i32_id,
                 text_builder_finish_id,
                 stdout_write_builder_id,
-                text_index_new_id,
-                text_index_get_id,
-                text_index_set_id,
+                text_index_helpers,
                 list_new_id,
                 list_push_id,
                 list_sort_text_id,
@@ -3405,6 +3442,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
             | Inst::TextIndexGet { dest, .. }
+            | Inst::TextIndexGetOrInsert { dest, .. }
             | Inst::TextIndexSet { dest, .. }
             | Inst::ListSet { dest, .. }
             | Inst::ListPush { dest, .. }
@@ -3844,6 +3882,27 @@ pub fn declare_text_index_get<M: Module>(module: &mut M, backend: &str) -> Resul
     module
         .declare_function("sarif_text_index_get", Linkage::Import, &signature)
         .map_err(|error| format!("failed to declare {backend} text index get helper: {error}"))
+}
+
+pub fn declare_text_index_get_or_insert<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.params.push(AbiParam::new(types::I64));
+    signature.returns.push(AbiParam::new(types::I64));
+    module
+        .declare_function(
+            "sarif_text_index_get_or_insert",
+            Linkage::Import,
+            &signature,
+        )
+        .map_err(|error| {
+            format!("failed to declare {backend} text index get-or-insert helper: {error}")
+        })
 }
 
 pub fn declare_text_index_set<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {

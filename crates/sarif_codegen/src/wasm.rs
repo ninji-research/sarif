@@ -1732,6 +1732,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextBuilderFinish { dest, .. }
                 | Inst::StdoutWriteBuilder { dest, .. }
                 | Inst::TextIndexGet { dest, .. }
+                | Inst::TextIndexGetOrInsert { dest, .. }
                 | Inst::TextIndexSet { dest, .. }
                 | Inst::TextFromF64Fixed { dest, .. }
                 | Inst::ArgCount { dest, .. }
@@ -2005,6 +2006,7 @@ impl<'a> WasmEmitter<'a> {
             | Inst::TextBuilderFinish { .. }
             | Inst::StdoutWriteBuilder { .. }
             | Inst::TextIndexGet { .. }
+            | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. } => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support text builder/index builtins in stage-0",
@@ -2820,6 +2822,7 @@ fn collect_inst_kinds(
             | Inst::TextBuilderFinish { .. }
             | Inst::StdoutWriteBuilder { .. }
             | Inst::TextIndexGet { .. }
+            | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. } => {
                 return Err(WasmError::new(
                     "wasm backend does not yet support text builder/index builtins in stage-0",

@@ -8,6 +8,43 @@ use sarif_syntax::{Diagnostic, Span};
 
 const MATCH_PAYLOAD_SEGMENT: &str = "$payload";
 
+fn is_text_scan_builtin(callee: &str) -> bool {
+    matches!(
+        callee,
+        "text_find_byte_range"
+            | "bytes_find_byte_range"
+            | "text_line_end"
+            | "text_next_line"
+            | "text_field_end"
+            | "text_next_field"
+    )
+}
+
+fn is_borrow_only_builtin(callee: &str) -> bool {
+    matches!(
+        callee,
+        "len"
+            | "text_len"
+            | "bytes_len"
+            | "text_slice"
+            | "bytes_slice"
+            | "text_byte"
+            | "bytes_byte"
+            | "text_cmp"
+            | "text_eq_range"
+            | "text_builder_append_i32"
+            | "parse_i32_range"
+            | "text_builder_append_codepoint"
+            | "text_builder_append_ascii"
+            | "text_builder_append_slice"
+            | "text_index_get"
+            | "text_index_set"
+            | "text_index_get_or_insert"
+            | "list_len"
+            | "list_get"
+    ) || is_text_scan_builtin(callee)
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ParamUsage {
     pub(crate) move_whole: bool,
@@ -478,31 +515,7 @@ impl AffineUseChecker<'_> {
                             self.collect(arg, false);
                         }
                     }
-                } else if expr.callee == "len"
-                    || expr.callee == "text_len"
-                    || expr.callee == "bytes_len"
-                    || expr.callee == "text_slice"
-                    || expr.callee == "bytes_slice"
-                    || expr.callee == "text_byte"
-                    || expr.callee == "bytes_byte"
-                    || expr.callee == "text_cmp"
-                    || expr.callee == "text_eq_range"
-                    || expr.callee == "text_find_byte_range"
-                    || expr.callee == "bytes_find_byte_range"
-                    || expr.callee == "text_line_end"
-                    || expr.callee == "text_next_line"
-                    || expr.callee == "text_field_end"
-                    || expr.callee == "text_next_field"
-                    || expr.callee == "text_builder_append_i32"
-                    || expr.callee == "parse_i32_range"
-                    || expr.callee == "text_builder_append_codepoint"
-                    || expr.callee == "text_builder_append_ascii"
-                    || expr.callee == "text_builder_append_slice"
-                    || expr.callee == "text_index_get"
-                    || expr.callee == "text_index_set"
-                    || expr.callee == "list_len"
-                    || expr.callee == "list_get"
-                {
+                } else if is_borrow_only_builtin(&expr.callee) {
                     for arg in &expr.args {
                         self.collect(arg, true);
                     }
@@ -1070,31 +1083,7 @@ fn collect_param_modes(
                         usages,
                     );
                 }
-            } else if expr.callee == "len"
-                || expr.callee == "text_len"
-                || expr.callee == "bytes_len"
-                || expr.callee == "text_slice"
-                || expr.callee == "bytes_slice"
-                || expr.callee == "text_byte"
-                || expr.callee == "bytes_byte"
-                || expr.callee == "text_cmp"
-                || expr.callee == "text_eq_range"
-                || expr.callee == "text_find_byte_range"
-                || expr.callee == "bytes_find_byte_range"
-                || expr.callee == "text_line_end"
-                || expr.callee == "text_next_line"
-                || expr.callee == "text_field_end"
-                || expr.callee == "text_next_field"
-                || expr.callee == "text_builder_append_i32"
-                || expr.callee == "parse_i32_range"
-                || expr.callee == "text_builder_append_codepoint"
-                || expr.callee == "text_builder_append_ascii"
-                || expr.callee == "text_builder_append_slice"
-                || expr.callee == "text_index_get"
-                || expr.callee == "text_index_set"
-                || expr.callee == "list_len"
-                || expr.callee == "list_get"
-            {
+            } else if is_borrow_only_builtin(&expr.callee) {
                 for arg in &expr.args {
                     collect_param_modes(
                         arg,
@@ -1415,16 +1404,12 @@ fn expr_type_for_ownership(
             "list_sort_by_text_field" => expr.args.first().and_then(|list| {
                 expr_type_for_ownership(list, locals, struct_layouts, result_type)
             }),
-            "text_index_get" => Some(Type::I32),
+            "text_index_get" | "text_index_get_or_insert" => Some(Type::I32),
             "text_index_set" => Some(Type::TextIndex),
             "bytes_len" => Some(Type::I32),
             "bytes_byte" => Some(Type::I32),
-            "bytes_find_byte_range" => Some(Type::I32),
+            callee if is_text_scan_builtin(callee) => Some(Type::I32),
             "text_eq_range" => Some(Type::Bool),
-            "text_line_end" => Some(Type::I32),
-            "text_next_line" => Some(Type::I32),
-            "text_field_end" => Some(Type::I32),
-            "text_next_field" => Some(Type::I32),
             "parse_i32_range" => Some(Type::I32),
             _ => None,
         },

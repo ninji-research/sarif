@@ -66,6 +66,303 @@ pub fn require_runtime_builtin_context(
     ));
 }
 
+const fn ordinal_name(index: usize) -> &'static str {
+    match index {
+        0 => "first",
+        1 => "second",
+        2 => "third",
+        3 => "fourth",
+        _ => "later",
+    }
+}
+
+struct BuiltinArgSpec<'a> {
+    ty: &'a Type,
+    help: &'a str,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn infer_fixed_builtin_expr(
+    expr: &crate::hir::CallExpr,
+    args: &[ExprInfo],
+    diagnostics: &mut Vec<Diagnostic>,
+    calls: Vec<CallSite>,
+    context: Option<(&ExprContext, &'static str)>,
+    builtin: &str,
+    arity_code: &'static str,
+    type_code: &'static str,
+    result_ty: Type,
+    call_hint: String,
+    specs: &[BuiltinArgSpec<'_>],
+) -> ExprInfo {
+    if let Some((context, runtime_code)) = context {
+        require_runtime_builtin_context(runtime_code, builtin, expr.span, diagnostics, context);
+    }
+    if args.len() != specs.len() {
+        diagnostics.push(Diagnostic::new(
+            arity_code,
+            format!(
+                "builtin `{builtin}` expects {} arguments but got {}",
+                specs.len(),
+                args.len()
+            ),
+            expr.span,
+            Some(call_hint),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    }
+    for (index, spec) in specs.iter().enumerate() {
+        if args[index].ty != *spec.ty && args[index].ty != Type::Error {
+            let position = ordinal_name(index);
+            let message = if specs.len() == 1 {
+                format!(
+                    "builtin `{builtin}` expects {}, found `{}`",
+                    spec.ty.render(),
+                    args[index].ty.render()
+                )
+            } else {
+                format!(
+                    "builtin `{builtin}` {position} argument must be {}, found `{}`",
+                    spec.ty.render(),
+                    args[index].ty.render()
+                )
+            };
+            diagnostics.push(Diagnostic::new(
+                type_code,
+                message,
+                expr.span,
+                Some(spec.help.to_owned()),
+            ));
+        }
+    }
+    ExprInfo {
+        ty: result_ty,
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn infer_text_index_builtin_expr(
+    expr: &crate::hir::CallExpr,
+    args: &[ExprInfo],
+    diagnostics: &mut Vec<Diagnostic>,
+    calls: Vec<CallSite>,
+    context: &ExprContext,
+    builtin: &str,
+    arity_code: &'static str,
+    type_code: &'static str,
+    result_ty: Type,
+    third_arg_help: Option<&str>,
+) -> ExprInfo {
+    require_runtime_builtin_context(
+        "semantic.text_index-runtime-context",
+        builtin,
+        expr.span,
+        diagnostics,
+        context,
+    );
+    let expected_arity = if third_arg_help.is_some() { 3 } else { 2 };
+    if args.len() != expected_arity {
+        let call_hint = if third_arg_help.is_some() {
+            format!("Call `{builtin}(index, key, value)`.")
+        } else {
+            format!("Call `{builtin}(index, key)`.")
+        };
+        diagnostics.push(Diagnostic::new(
+            arity_code,
+            format!(
+                "builtin `{builtin}` expects {expected_arity} arguments but got {}",
+                args.len()
+            ),
+            expr.span,
+            Some(call_hint),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    }
+    if args[0].ty != Type::TextIndex && args[0].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` first argument must be TextIndex, found `{}`",
+                args[0].ty.render(),
+            ),
+            expr.span,
+            Some("Pass a TextIndex handle.".to_owned()),
+        ));
+    }
+    if args[1].ty != Type::Text && args[1].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` second argument must be Text, found `{}`",
+                args[1].ty.render(),
+            ),
+            expr.span,
+            Some("Pass a Text lookup key.".to_owned()),
+        ));
+    }
+    if let Some(help) = third_arg_help
+        && args[2].ty != Type::I32
+        && args[2].ty != Type::Error
+    {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` third argument must be I32, found `{}`",
+                args[2].ty.render(),
+            ),
+            expr.span,
+            Some(help.to_owned()),
+        ));
+    }
+    ExprInfo {
+        ty: result_ty,
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn infer_range_scan_builtin_expr(
+    expr: &crate::hir::CallExpr,
+    args: &[ExprInfo],
+    diagnostics: &mut Vec<Diagnostic>,
+    calls: Vec<CallSite>,
+    builtin: &str,
+    first_ty: &Type,
+    arity_code: &'static str,
+    type_code: &'static str,
+) -> ExprInfo {
+    if args.len() != 4 {
+        diagnostics.push(Diagnostic::new(
+            arity_code,
+            format!(
+                "builtin `{builtin}` expects 4 arguments but got {}",
+                args.len()
+            ),
+            expr.span,
+            Some(format!(
+                "Call `{builtin}({}, start, end, byte)`.",
+                if *first_ty == Type::Bytes {
+                    "bytes"
+                } else {
+                    "text"
+                }
+            )),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    }
+    if args[0].ty != *first_ty && args[0].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` first argument must be {}, found `{}`",
+                first_ty.render(),
+                args[0].ty.render()
+            ),
+            expr.span,
+            Some(format!("Pass a {} value.", first_ty.render())),
+        ));
+    }
+    if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` second argument must be I32, found `{}`",
+                args[1].ty.render()
+            ),
+            expr.span,
+            Some("Pass an integer start offset.".to_owned()),
+        ));
+    }
+    if args[2].ty != Type::I32 && args[2].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` third argument must be I32, found `{}`",
+                args[2].ty.render()
+            ),
+            expr.span,
+            Some("Pass an integer end offset.".to_owned()),
+        ));
+    }
+    if args[3].ty != Type::I32 && args[3].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` fourth argument must be I32, found `{}`",
+                args[3].ty.render()
+            ),
+            expr.span,
+            Some("Pass an integer byte value.".to_owned()),
+        ));
+    }
+    ExprInfo {
+        ty: Type::I32,
+        calls,
+    }
+}
+
+fn infer_line_scan_builtin_expr(
+    expr: &crate::hir::CallExpr,
+    args: &[ExprInfo],
+    diagnostics: &mut Vec<Diagnostic>,
+    calls: Vec<CallSite>,
+    builtin: &str,
+    arity_code: &'static str,
+    type_code: &'static str,
+) -> ExprInfo {
+    if args.len() != 2 {
+        diagnostics.push(Diagnostic::new(
+            arity_code,
+            format!(
+                "builtin `{builtin}` expects 2 arguments but got {}",
+                args.len()
+            ),
+            expr.span,
+            Some(format!("Call `{builtin}(text, start)`.")),
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    }
+    if args[0].ty != Type::Text && args[0].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` first argument must be Text, found `{}`",
+                args[0].ty.render()
+            ),
+            expr.span,
+            Some("Pass a Text value.".to_owned()),
+        ));
+    }
+    if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+        diagnostics.push(Diagnostic::new(
+            type_code,
+            format!(
+                "builtin `{builtin}` second argument must be I32, found `{}`",
+                args[1].ty.render()
+            ),
+            expr.span,
+            Some("Pass an integer start offset.".to_owned()),
+        ));
+    }
+    ExprInfo {
+        ty: Type::I32,
+        calls,
+    }
+}
+
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(super) fn infer_call_expr(
     expr: &crate::hir::CallExpr,
@@ -149,345 +446,174 @@ pub(super) fn infer_call_expr(
     }
 
     if expr.callee == "text_len" && !functions.contains_key("text_len") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_len-arity",
-                format!(
-                    "builtin `text_len` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_len(text)` with exactly one Text argument.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let arg = &args[0];
-        return match &arg.ty {
-            Type::Text => ExprInfo {
-                ty: Type::I32,
-                calls,
-            },
-            Type::Error => ExprInfo {
-                ty: Type::Error,
-                calls,
-            },
-            _ => {
-                diagnostics.push(Diagnostic::new(
-                    "semantic.text_len-type",
-                    format!(
-                        "builtin `text_len` expects a Text argument, found `{}`",
-                        arg.ty.render()
-                    ),
-                    expr.span,
-                    Some("Pass a Text argument.".to_owned()),
-                ));
-                ExprInfo {
-                    ty: Type::Error,
-                    calls,
-                }
-            }
-        };
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "text_len",
+            "semantic.text_len-arity",
+            "semantic.text_len-type",
+            Type::I32,
+            "Call `text_len(text)` with exactly one Text argument.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::Text,
+                help: "Pass a Text argument.",
+            }],
+        );
     }
 
     if expr.callee == "bytes_len" && !functions.contains_key("bytes_len") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_len-arity",
-                format!(
-                    "builtin `bytes_len` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `bytes_len(bytes)` with exactly one Bytes argument.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let arg = &args[0];
-        return match &arg.ty {
-            Type::Bytes => ExprInfo {
-                ty: Type::I32,
-                calls,
-            },
-            Type::Error => ExprInfo {
-                ty: Type::Error,
-                calls,
-            },
-            _ => {
-                diagnostics.push(Diagnostic::new(
-                    "semantic.bytes_len-type",
-                    format!(
-                        "builtin `bytes_len` expects a Bytes argument, found `{}`",
-                        arg.ty.render()
-                    ),
-                    expr.span,
-                    Some("Pass a Bytes argument.".to_owned()),
-                ));
-                ExprInfo {
-                    ty: Type::Error,
-                    calls,
-                }
-            }
-        };
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "bytes_len",
+            "semantic.bytes_len-arity",
+            "semantic.bytes_len-type",
+            Type::I32,
+            "Call `bytes_len(bytes)` with exactly one Bytes argument.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::Bytes,
+                help: "Pass a Bytes argument.",
+            }],
+        );
     }
 
     if expr.callee == "text_byte" && !functions.contains_key("text_byte") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_byte-arity",
-                format!(
-                    "builtin `text_byte` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_byte(text, index)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let first_arg = &args[0];
-        let second_arg = &args[1];
-        if first_arg.ty != Type::Text && first_arg.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_byte-type",
-                format!(
-                    "builtin `text_byte` first argument must be Text, found `{}`",
-                    first_arg.ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text argument.".to_owned()),
-            ));
-        }
-        if second_arg.ty != Type::I32 && second_arg.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_byte-type",
-                format!(
-                    "builtin `text_byte` second argument must be I32, found `{}`",
-                    second_arg.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 index.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            None,
+            "text_byte",
+            "semantic.text_byte-arity",
+            "semantic.text_byte-type",
+            Type::I32,
+            "Call `text_byte(text, index)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a Text argument.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 index.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "bytes_byte" && !functions.contains_key("bytes_byte") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_byte-arity",
-                format!(
-                    "builtin `bytes_byte` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `bytes_byte(bytes, index)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let first_arg = &args[0];
-        let second_arg = &args[1];
-        if first_arg.ty != Type::Bytes && first_arg.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_byte-type",
-                format!(
-                    "builtin `bytes_byte` first argument must be Bytes, found `{}`",
-                    first_arg.ty.render()
-                ),
-                expr.span,
-                Some("Pass a Bytes argument.".to_owned()),
-            ));
-        }
-        if second_arg.ty != Type::I32 && second_arg.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_byte-type",
-                format!(
-                    "builtin `bytes_byte` second argument must be I32, found `{}`",
-                    second_arg.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 index.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            None,
+            "bytes_byte",
+            "semantic.bytes_byte-arity",
+            "semantic.bytes_byte-type",
+            Type::I32,
+            "Call `bytes_byte(bytes, index)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::Bytes,
+                    help: "Pass a Bytes argument.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 index.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_concat" && !functions.contains_key("text_concat") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_concat-arity",
-                format!(
-                    "builtin `text_concat` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_concat(left, right)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let left = &args[0];
-        let right = &args[1];
-        if left.ty != Type::Text && left.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_concat-type",
-                format!(
-                    "builtin `text_concat` first argument must be Text, found `{}`",
-                    left.ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text argument.".to_owned()),
-            ));
-        }
-        if right.ty != Type::Text && right.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_concat-type",
-                format!(
-                    "builtin `text_concat` second argument must be Text, found `{}`",
-                    right.ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text argument.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Text,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            None,
+            "text_concat",
+            "semantic.text_concat-arity",
+            "semantic.text_concat-type",
+            Type::Text,
+            "Call `text_concat(left, right)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a Text argument.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a Text argument.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_slice" && !functions.contains_key("text_slice") {
-        if args.len() != 3 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_slice-arity",
-                format!(
-                    "builtin `text_slice` expects 3 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_slice(text, start, end)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let text = &args[0];
-        let start = &args[1];
-        let end = &args[2];
-        if text.ty != Type::Text && text.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_slice-type",
-                format!(
-                    "builtin `text_slice` first argument must be Text, found `{}`",
-                    text.ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text argument.".to_owned()),
-            ));
-        }
-        if start.ty != Type::I32 && start.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_slice-type",
-                format!(
-                    "builtin `text_slice` second argument must be I32, found `{}`",
-                    start.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 start offset.".to_owned()),
-            ));
-        }
-        if end.ty != Type::I32 && end.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_slice-type",
-                format!(
-                    "builtin `text_slice` third argument must be I32, found `{}`",
-                    end.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 end offset.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Text,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            None,
+            "text_slice",
+            "semantic.text_slice-arity",
+            "semantic.text_slice-type",
+            Type::Text,
+            "Call `text_slice(text, start, end)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a Text argument.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 start offset.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 end offset.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "bytes_slice" && !functions.contains_key("bytes_slice") {
-        if args.len() != 3 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_slice-arity",
-                format!(
-                    "builtin `bytes_slice` expects 3 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `bytes_slice(bytes, start, end)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let bytes = &args[0];
-        let start = &args[1];
-        let end = &args[2];
-        if bytes.ty != Type::Bytes && bytes.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_slice-type",
-                format!(
-                    "builtin `bytes_slice` first argument must be Bytes, found `{}`",
-                    bytes.ty.render()
-                ),
-                expr.span,
-                Some("Pass a Bytes argument.".to_owned()),
-            ));
-        }
-        if start.ty != Type::I32 && start.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_slice-type",
-                format!(
-                    "builtin `bytes_slice` second argument must be I32, found `{}`",
-                    start.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 start offset.".to_owned()),
-            ));
-        }
-        if end.ty != Type::I32 && end.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_slice-type",
-                format!(
-                    "builtin `bytes_slice` third argument must be I32, found `{}`",
-                    end.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 end offset.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Bytes,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            None,
+            "bytes_slice",
+            "semantic.bytes_slice-arity",
+            "semantic.bytes_slice-type",
+            Type::Bytes,
+            "Call `bytes_slice(bytes, start, end)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::Bytes,
+                    help: "Pass a Bytes argument.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 start offset.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 end offset.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_builder_new" && !functions.contains_key("text_builder_new") {
@@ -528,328 +654,163 @@ pub(super) fn infer_call_expr(
     }
 
     if expr.callee == "text_builder_append" && !functions.contains_key("text_builder_append") {
-        require_runtime_builtin_context(
-            "semantic.text_builder_append-runtime-context",
-            "text_builder_append",
-            expr.span,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append-arity",
-                format!(
-                    "builtin `text_builder_append` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_builder_append(builder, text)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append-type",
-                format!(
-                    "builtin `text_builder_append` first argument must be TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder accumulator.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::Text && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append-type",
-                format!(
-                    "builtin `text_builder_append` second argument must be Text, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Text value to append.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextBuilder,
             calls,
-        };
+            Some((context, "semantic.text_builder_append-runtime-context")),
+            "text_builder_append",
+            "semantic.text_builder_append-arity",
+            "semantic.text_builder_append-type",
+            Type::TextBuilder,
+            "Call `text_builder_append(builder, text)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::TextBuilder,
+                    help: "Pass a TextBuilder accumulator.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a Text value to append.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_builder_append_codepoint"
         && !functions.contains_key("text_builder_append_codepoint")
     {
-        require_runtime_builtin_context(
-            "semantic.text_builder_append_codepoint-runtime-context",
-            "text_builder_append_codepoint",
-            expr.span,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_codepoint-arity",
-                format!(
-                    "builtin `text_builder_append_codepoint` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_builder_append_codepoint(builder, codepoint)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_codepoint-type",
-                format!(
-                    "builtin `text_builder_append_codepoint` first argument must be TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder accumulator.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_codepoint-type",
-                format!(
-                    "builtin `text_builder_append_codepoint` second argument must be I32, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Unicode scalar value as an I32.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextBuilder,
             calls,
-        };
+            Some((context, "semantic.text_builder_append_codepoint-runtime-context")),
+            "text_builder_append_codepoint",
+            "semantic.text_builder_append_codepoint-arity",
+            "semantic.text_builder_append_codepoint-type",
+            Type::TextBuilder,
+            "Call `text_builder_append_codepoint(builder, codepoint)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::TextBuilder,
+                    help: "Pass a TextBuilder accumulator.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass a Unicode scalar value as an I32.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_builder_append_ascii"
         && !functions.contains_key("text_builder_append_ascii")
     {
-        require_runtime_builtin_context(
-            "semantic.text_builder_append_ascii-runtime-context",
-            "text_builder_append_ascii",
-            expr.span,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_ascii-arity",
-                format!(
-                    "builtin `text_builder_append_ascii` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_builder_append_ascii(builder, byte)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_ascii-type",
-                format!(
-                    "builtin `text_builder_append_ascii` first argument must be TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder accumulator.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_ascii-type",
-                format!(
-                    "builtin `text_builder_append_ascii` second argument must be I32, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an ASCII byte value as an I32.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextBuilder,
             calls,
-        };
+            Some((context, "semantic.text_builder_append_ascii-runtime-context")),
+            "text_builder_append_ascii",
+            "semantic.text_builder_append_ascii-arity",
+            "semantic.text_builder_append_ascii-type",
+            Type::TextBuilder,
+            "Call `text_builder_append_ascii(builder, byte)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::TextBuilder,
+                    help: "Pass a TextBuilder accumulator.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an ASCII byte value as an I32.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_builder_append_slice"
         && !functions.contains_key("text_builder_append_slice")
     {
-        require_runtime_builtin_context(
-            "semantic.text_builder_append_slice-runtime-context",
-            "text_builder_append_slice",
-            expr.span,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 4 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_slice-arity",
-                format!(
-                    "builtin `text_builder_append_slice` expects 4 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_builder_append_slice(builder, text, start, end)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_slice-type",
-                format!(
-                    "builtin `text_builder_append_slice` first argument must be TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder accumulator.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::Text && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_slice-type",
-                format!(
-                    "builtin `text_builder_append_slice` second argument must be Text, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Text source value.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_slice-type",
-                format!(
-                    "builtin `text_builder_append_slice` third argument must be I32, found `{}`",
-                    args[2].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an I32 start index.".to_owned()),
-            ));
-        }
-        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_slice-type",
-                format!(
-                    "builtin `text_builder_append_slice` fourth argument must be I32, found `{}`",
-                    args[3].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an I32 end index.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextBuilder,
             calls,
-        };
+            Some((context, "semantic.text_builder_append_slice-runtime-context")),
+            "text_builder_append_slice",
+            "semantic.text_builder_append_slice-arity",
+            "semantic.text_builder_append_slice-type",
+            Type::TextBuilder,
+            "Call `text_builder_append_slice(builder, text, start, end)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::TextBuilder,
+                    help: "Pass a TextBuilder accumulator.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a Text source value.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 start index.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an I32 end index.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_builder_append_i32"
         && !functions.contains_key("text_builder_append_i32")
     {
-        require_runtime_builtin_context(
-            "semantic.text_builder_append_i32-runtime-context",
-            "text_builder_append_i32",
-            expr.span,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_i32-arity",
-                format!(
-                    "builtin `text_builder_append_i32` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_builder_append_i32(builder, value)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_i32-type",
-                format!(
-                    "builtin `text_builder_append_i32` first argument must be TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder accumulator.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_append_i32-type",
-                format!(
-                    "builtin `text_builder_append_i32` second argument must be I32, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an integer value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextBuilder,
             calls,
-        };
+            Some((context, "semantic.text_builder_append_i32-runtime-context")),
+            "text_builder_append_i32",
+            "semantic.text_builder_append_i32-arity",
+            "semantic.text_builder_append_i32-type",
+            Type::TextBuilder,
+            "Call `text_builder_append_i32(builder, value)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::TextBuilder,
+                    help: "Pass a TextBuilder accumulator.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass an integer value.",
+                },
+            ],
+        );
     }
 
     if expr.callee == "text_builder_finish" && !functions.contains_key("text_builder_finish") {
-        require_runtime_builtin_context(
-            "semantic.text_builder_finish-runtime-context",
-            "text_builder_finish",
-            expr.span,
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_finish-arity",
-                format!(
-                    "builtin `text_builder_finish` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_builder_finish(builder)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_builder_finish-type",
-                format!(
-                    "builtin `text_builder_finish` expects TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Text,
             calls,
-        };
+            Some((context, "semantic.text_builder_finish-runtime-context")),
+            "text_builder_finish",
+            "semantic.text_builder_finish-arity",
+            "semantic.text_builder_finish-type",
+            Type::Text,
+            "Call `text_builder_finish(builder)`.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::TextBuilder,
+                help: "Pass a TextBuilder value.",
+            }],
+        );
     }
 
     if expr.callee == "list_new" && !functions.contains_key("list_new") {
@@ -1371,116 +1332,50 @@ must have type `Text`, found `{}`",
     }
 
     if expr.callee == "text_index_get" && !functions.contains_key("text_index_get") {
-        require_runtime_builtin_context(
-            "semantic.text_index-runtime-context",
-            "text_index_get",
-            expr.span,
+        return infer_text_index_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_get-arity",
-                format!(
-                    "builtin `text_index_get` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_index_get(index, key)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextIndex && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_get-type",
-                format!(
-                    "builtin `text_index_get` first argument must be TextIndex, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextIndex handle.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::Text && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_get-type",
-                format!(
-                    "builtin `text_index_get` second argument must be Text, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Text lookup key.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
             calls,
-        };
+            context,
+            "text_index_get",
+            "semantic.text_index_get-arity",
+            "semantic.text_index_get-type",
+            Type::I32,
+            None,
+        );
     }
 
     if expr.callee == "text_index_set" && !functions.contains_key("text_index_set") {
-        require_runtime_builtin_context(
-            "semantic.text_index-runtime-context",
-            "text_index_set",
-            expr.span,
+        return infer_text_index_builtin_expr(
+            expr,
+            &args,
             diagnostics,
-            context,
-        );
-        if args.len() != 3 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_set-arity",
-                format!(
-                    "builtin `text_index_set` expects 3 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_index_set(index, key, value)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextIndex && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_set-type",
-                format!(
-                    "builtin `text_index_set` first argument must be TextIndex, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextIndex handle.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::Text && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_set-type",
-                format!(
-                    "builtin `text_index_set` second argument must be Text, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Text lookup key.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_index_set-type",
-                format!(
-                    "builtin `text_index_set` third argument must be I32, found `{}`",
-                    args[2].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an I32 slot value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextIndex,
             calls,
-        };
+            context,
+            "text_index_set",
+            "semantic.text_index_set-arity",
+            "semantic.text_index_set-type",
+            Type::TextIndex,
+            Some("Pass an I32 slot value."),
+        );
+    }
+
+    if expr.callee == "text_index_get_or_insert"
+        && !functions.contains_key("text_index_get_or_insert")
+    {
+        return infer_text_index_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            context,
+            "text_index_get_or_insert",
+            "semantic.text_index_get_or_insert-arity",
+            "semantic.text_index_get_or_insert-type",
+            Type::I32,
+            Some("Pass the next available I32 slot value."),
+        );
     }
 
     if expr.callee == "f64_from_i32" && !functions.contains_key("f64_from_i32") {
@@ -1789,355 +1684,79 @@ must have type `Text`, found `{}`",
     }
 
     if expr.callee == "text_find_byte_range" && !functions.contains_key("text_find_byte_range") {
-        if args.len() != 4 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_find_byte_range-arity",
-                format!(
-                    "builtin `text_find_byte_range` expects 4 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_find_byte_range(text, start, end, byte)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_find_byte_range-type",
-                format!(
-                    "builtin `text_find_byte_range` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_find_byte_range-type",
-                format!(
-                    "builtin `text_find_byte_range` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_find_byte_range-type",
-                format!(
-                    "builtin `text_find_byte_range` third argument must be I32, found `{}`",
-                    args[2].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer end offset.".to_owned()),
-            ));
-        }
-        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_find_byte_range-type",
-                format!(
-                    "builtin `text_find_byte_range` fourth argument must be I32, found `{}`",
-                    args[3].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer byte value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_range_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            "text_find_byte_range",
+            &Type::Text,
+            "semantic.text_find_byte_range-arity",
+            "semantic.text_find_byte_range-type",
+        );
     }
 
     if expr.callee == "bytes_find_byte_range" && !functions.contains_key("bytes_find_byte_range") {
-        if args.len() != 4 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_find_byte_range-arity",
-                format!(
-                    "builtin `bytes_find_byte_range` expects 4 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `bytes_find_byte_range(bytes, start, end, byte)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Bytes && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_find_byte_range-type",
-                format!(
-                    "builtin `bytes_find_byte_range` first argument must be Bytes, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Bytes value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_find_byte_range-type",
-                format!(
-                    "builtin `bytes_find_byte_range` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_find_byte_range-type",
-                format!(
-                    "builtin `bytes_find_byte_range` third argument must be I32, found `{}`",
-                    args[2].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer end offset.".to_owned()),
-            ));
-        }
-        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.bytes_find_byte_range-type",
-                format!(
-                    "builtin `bytes_find_byte_range` fourth argument must be I32, found `{}`",
-                    args[3].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer byte value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_range_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            "bytes_find_byte_range",
+            &Type::Bytes,
+            "semantic.bytes_find_byte_range-arity",
+            "semantic.bytes_find_byte_range-type",
+        );
     }
 
     if expr.callee == "text_line_end" && !functions.contains_key("text_line_end") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_line_end-arity",
-                format!(
-                    "builtin `text_line_end` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_line_end(text, start)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_line_end-type",
-                format!(
-                    "builtin `text_line_end` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_line_end-type",
-                format!(
-                    "builtin `text_line_end` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_line_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            "text_line_end",
+            "semantic.text_line_end-arity",
+            "semantic.text_line_end-type",
+        );
     }
 
     if expr.callee == "text_next_line" && !functions.contains_key("text_next_line") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_line-arity",
-                format!(
-                    "builtin `text_next_line` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_next_line(text, start)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_line-type",
-                format!(
-                    "builtin `text_next_line` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_line-type",
-                format!(
-                    "builtin `text_next_line` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_line_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            "text_next_line",
+            "semantic.text_next_line-arity",
+            "semantic.text_next_line-type",
+        );
     }
 
     if expr.callee == "text_field_end" && !functions.contains_key("text_field_end") {
-        if args.len() != 4 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_field_end-arity",
-                format!(
-                    "builtin `text_field_end` expects 4 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_field_end(text, start, end, byte)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_field_end-type",
-                format!(
-                    "builtin `text_field_end` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_field_end-type",
-                format!(
-                    "builtin `text_field_end` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_field_end-type",
-                format!(
-                    "builtin `text_field_end` third argument must be I32, found `{}`",
-                    args[2].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer end offset.".to_owned()),
-            ));
-        }
-        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_field_end-type",
-                format!(
-                    "builtin `text_field_end` fourth argument must be I32, found `{}`",
-                    args[3].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer delimiter byte.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_range_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            "text_field_end",
+            &Type::Text,
+            "semantic.text_field_end-arity",
+            "semantic.text_field_end-type",
+        );
     }
 
     if expr.callee == "text_next_field" && !functions.contains_key("text_next_field") {
-        if args.len() != 4 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_field-arity",
-                format!(
-                    "builtin `text_next_field` expects 4 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_next_field(text, start, end, byte)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_field-type",
-                format!(
-                    "builtin `text_next_field` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_field-type",
-                format!(
-                    "builtin `text_next_field` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_field-type",
-                format!(
-                    "builtin `text_next_field` third argument must be I32, found `{}`",
-                    args[2].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer end offset.".to_owned()),
-            ));
-        }
-        if args[3].ty != Type::I32 && args[3].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_next_field-type",
-                format!(
-                    "builtin `text_next_field` fourth argument must be I32, found `{}`",
-                    args[3].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer delimiter byte.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
+        return infer_range_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
             calls,
-        };
+            "text_next_field",
+            &Type::Text,
+            "semantic.text_next_field-arity",
+            "semantic.text_next_field-type",
+        );
     }
 
     if expr.callee == "arg_count" && !functions.contains_key("arg_count") {
@@ -3065,6 +2684,7 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "list_sort_by_text_field"
                     | "text_index_new"
                     | "text_index_get"
+                    | "text_index_get_or_insert"
                     | "text_index_set"
                     | "text_line_end"
                     | "text_next_line"

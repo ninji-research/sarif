@@ -617,6 +617,69 @@ typedef struct SarifTextIndex {
     SarifTextIndexEntry* entries;
 } SarifTextIndex;
 
+static int sarif_text_handle_eq(uint64_t left, uint64_t right);
+
+static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
+    if (index == NULL || index->entries == NULL) {
+        return 0;
+    }
+    if (index->len * 4 < index->cap * 3) {
+        return 1;
+    }
+    uint64_t new_cap = index->cap * 2;
+    SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
+    if (new_entries == NULL) {
+        return 0;
+    }
+    for (uint64_t i = 0; i < index->cap; i += 1) {
+        if (index->entries[i].occupied) {
+            uint64_t idx = index->entries[i].hash % new_cap;
+            while (new_entries[idx].occupied) {
+                idx = (idx + 1) % new_cap;
+            }
+            new_entries[idx] = index->entries[i];
+        }
+    }
+    free(index->entries);
+    index->entries = new_entries;
+    index->cap = new_cap;
+    return 1;
+}
+
+static SarifTextIndexEntry* sarif_text_index_find_entry(
+    SarifTextIndex* index,
+    uint64_t key,
+    uint32_t hash,
+    int* found
+) {
+    uint64_t idx = 0;
+    uint64_t start = 0;
+    if (found != NULL) {
+        *found = 0;
+    }
+    if (index == NULL || index->entries == NULL) {
+        return NULL;
+    }
+    idx = hash % index->cap;
+    start = idx;
+    while (index->entries[idx].occupied) {
+        if (
+            index->entries[idx].hash == hash &&
+            sarif_text_handle_eq(index->entries[idx].key, key)
+        ) {
+            if (found != NULL) {
+                *found = 1;
+            }
+            return &index->entries[idx];
+        }
+        idx = (idx + 1) % index->cap;
+        if (idx == start) {
+            return NULL;
+        }
+    }
+    return &index->entries[idx];
+}
+
 static uint32_t sarif_text_hash_handle(uint64_t key) {
     const unsigned char* text = (const unsigned char*)key;
     uint64_t len = 0;
@@ -672,69 +735,70 @@ void* sarif_text_index_new(void) {
 
 void* sarif_text_index_set(void* index_ptr, uint64_t key, int64_t value) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    uint32_t hash = 0;
+    int found = 0;
+    SarifTextIndexEntry* entry = NULL;
     if (index == NULL || index->entries == NULL) {
         return NULL;
     }
-    if (index->len * 4 >= index->cap * 3) {
-        uint64_t new_cap = index->cap * 2;
-        SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
-        if (new_entries == NULL) {
-            return NULL;
-        }
-        for (uint64_t i = 0; i < index->cap; i += 1) {
-            if (index->entries[i].occupied) {
-                uint64_t idx = index->entries[i].hash % new_cap;
-                while (new_entries[idx].occupied) {
-                    idx = (idx + 1) % new_cap;
-                }
-                new_entries[idx] = index->entries[i];
-            }
-        }
-        free(index->entries);
-        index->entries = new_entries;
-        index->cap = new_cap;
+    if (!sarif_text_index_ensure_capacity(index)) {
+        return NULL;
     }
-    uint32_t hash = sarif_text_hash_handle(key);
-    uint64_t idx = hash % index->cap;
-    while (index->entries[idx].occupied) {
-        if (
-            index->entries[idx].hash == hash &&
-            sarif_text_handle_eq(index->entries[idx].key, key)
-        ) {
-            index->entries[idx].value = value;
-            return index;
-        }
-        idx = (idx + 1) % index->cap;
+    hash = sarif_text_hash_handle(key);
+    entry = sarif_text_index_find_entry(index, key, hash, &found);
+    if (entry == NULL) {
+        return NULL;
     }
-    index->entries[idx].key = key;
-    index->entries[idx].value = value;
-    index->entries[idx].hash = hash;
-    index->entries[idx].occupied = 1;
-    index->len += 1;
+    entry->key = key;
+    entry->value = value;
+    entry->hash = hash;
+    if (!found) {
+        entry->occupied = 1;
+        index->len += 1;
+    }
     return index;
 }
 
 int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    int found = 0;
+    SarifTextIndexEntry* entry = sarif_text_index_find_entry(
+        index,
+        key,
+        sarif_text_hash_handle(key),
+        &found
+    );
+    if (entry != NULL && found) {
+        return entry->value;
+    }
+    return -1;
+}
+
+int64_t sarif_text_index_get_or_insert(void* index_ptr, uint64_t key, int64_t next) {
+    SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    int found = 0;
+    uint32_t hash = 0;
+    SarifTextIndexEntry* entry = NULL;
     if (index == NULL || index->entries == NULL) {
         return -1;
     }
-    uint32_t hash = sarif_text_hash_handle(key);
-    uint64_t idx = hash % index->cap;
-    uint64_t start = idx;
-    while (index->entries[idx].occupied) {
-        if (
-            index->entries[idx].hash == hash &&
-            sarif_text_handle_eq(index->entries[idx].key, key)
-        ) {
-            return index->entries[idx].value;
-        }
-        idx = (idx + 1) % index->cap;
-        if (idx == start) {
-            break;
-        }
+    if (!sarif_text_index_ensure_capacity(index)) {
+        return -1;
     }
-    return -1;
+    hash = sarif_text_hash_handle(key);
+    entry = sarif_text_index_find_entry(index, key, hash, &found);
+    if (entry == NULL) {
+        return -1;
+    }
+    if (found) {
+        return entry->value;
+    }
+    entry->key = key;
+    entry->value = next;
+    entry->hash = hash;
+    entry->occupied = 1;
+    index->len += 1;
+    return next;
 }
 
 void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
