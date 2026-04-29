@@ -9140,12 +9140,12 @@ fn main() -> I32 {
     #[test]
     fn runs_text_builder_compound_append() {
         let mir = lower_source(
-            "fn main() -> Text { let mut builder = text_builder_new(); builder += \"A\"; builder += 42; builder += \"\\n\"; text_builder_finish(builder) }",
+            "fn main() -> Text { let mut builder = text_builder_new(); builder += \"A\"; builder += 42; builder += \" \"; builder += -7; builder += \" \"; builder += 0; builder += \"\\n\"; text_builder_finish(builder) }",
         );
 
         assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
         let result = run_main(&mir.program).expect("program should run");
-        assert_eq!(result, RuntimeValue::Text("A42\n".to_owned()));
+        assert_eq!(result, RuntimeValue::Text("A42 -7 0\n".to_owned()));
     }
 
     #[test]

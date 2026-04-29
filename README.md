@@ -83,26 +83,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo build --release -p sarifc
 ```
 
-The workspace also ships cargo aliases for common local workflows:
-
-```bash
-cargo xfmt
-cargo xtest
-cargo xlint
-cargo xbuild
-cargo xbuild-fast
-cargo xbuild-max
-```
-
-Build profiles are intentionally explicit:
-- `dev`: fast local iteration
-- `test`: fast local test iteration
-- `release`: maintained shipping build
-- `release-fast`: cheaper optimized iteration
-- `release-max`: higher-cost fat-LTO build
-- `profiling`: release-like build with debug info
-
-For verification discipline and retained-corpus policy, see [docs/engineering-practices.md](docs/engineering-practices.md).
+For cargo aliases, build profiles, verification discipline, and retained-corpus policy, see [docs/engineering-practices.md](docs/engineering-practices.md) and [docs/performance.md](docs/performance.md).
 
 ## Repository Layout
 
@@ -119,7 +100,7 @@ For verification discipline and retained-corpus policy, see [docs/engineering-pr
 
 The crate split exists to keep one-directional boundaries rigid, not to create alternate compiler pipelines.
 
-## Design Direction
+## Design Docs
 
 Sarif’s maintained direction is narrow and explicit:
 
