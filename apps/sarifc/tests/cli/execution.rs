@@ -726,7 +726,7 @@ fn stable_build_streams_stdout_write() {
 #[test]
 fn stable_build_executes_text_builder_programs() {
     let path = temp_source(
-        "fn main() -> Text effects [alloc] { let mut builder = text_builder_new(); builder = text_builder_append(builder, \"sa\"); builder = text_builder_append(builder, text_slice(\"sarif\", 2, 5)); text_builder_finish(builder) }",
+        "fn main() -> Text effects [alloc] { let mut builder = text_builder_new(); builder = text_builder_append(builder, \"sa\"); builder = text_builder_append(builder, text_slice(\"sarif\", 2, 5)); builder = text_builder_append_i32(builder, -7); builder = text_builder_append_i32(builder, 0); text_builder_finish(builder) }",
     );
     let binary_path = super::support::temp_artifact("text_builder_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
@@ -739,7 +739,7 @@ fn stable_build_executes_text_builder_programs() {
         .output()
         .expect("built binary should run");
     assert!(native.status.success());
-    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarif");
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarif-70");
 }
 
 #[cfg(feature = "native-build")]
