@@ -1843,22 +1843,13 @@ impl<'a> WasmEmitter<'a> {
                     .expect("writing to a string cannot fail");
             }
             Inst::ConstInt { dest, value } => {
-                writeln!(output, "    i64.const {}", value)
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_const(output, *dest, &format!("i64.const {}", value));
             }
             Inst::ConstF64 { dest, bits } => {
-                writeln!(output, "    f64.const {}", f64::from_bits(*bits))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_const(output, *dest, &format!("f64.const {}", f64::from_bits(*bits)));
             }
             Inst::ConstBool { dest, value } => {
-                writeln!(output, "    i64.const {}", if *value { 1 } else { 0 })
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_const(output, *dest, &format!("i64.const {}", if *value { 1 } else { 0 }));
             }
             Inst::ConstText { dest, value } => {
                 let bytes = value.as_bytes();
@@ -1889,7 +1880,7 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::TextLen { dest, text } => {
+            Inst::TextLen { dest, text } | Inst::BytesLen { dest, bytes: text } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
                     .expect("writing to a string cannot fail");
                 writeln!(output, "    call $__sarif_text_len_i32")
@@ -1902,15 +1893,6 @@ impl<'a> WasmEmitter<'a> {
                 return Err(WasmError::new(
                     "wasm backend does not yet support runtime input builtins in stage-0",
                 ));
-            }
-            Inst::BytesLen { dest, bytes } => {
-                writeln!(output, "    local.get ${}", wasm_id(*bytes))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_text_len_i32")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    i64.extend_i32_u").expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
             }
             Inst::BytesByte { dest, bytes, index } => {
                 writeln!(output, "    local.get ${}", wasm_id(*bytes))
@@ -2213,18 +2195,10 @@ impl<'a> WasmEmitter<'a> {
                 self.emit_binary(output, "or", *dest, *left, *right, kinds)?;
             }
             Inst::F64FromI32 { dest, value } => {
-                writeln!(output, "    local.get ${}", wasm_id(*value))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    f64.convert_i64_s").expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_unary(output, *dest, *value, "f64.convert_i64_s");
             }
             Inst::Sqrt { dest, value } => {
-                writeln!(output, "    local.get ${}", wasm_id(*value))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    f64.sqrt").expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_unary(output, *dest, *value, "f64.sqrt");
             }
             Inst::Call { dest, callee, args } => {
                 for arg in args {
@@ -2672,6 +2646,21 @@ fn wasm_id(id: ValueId) -> String {
 
 fn wasm_slot(id: LocalSlotId) -> String {
     id.render().replace('#', "")
+}
+
+fn w(out: &mut String, line: &str) {
+    writeln!(out, "    {line}").expect("writing to a string cannot fail");
+}
+
+fn w_unary(out: &mut String, dest: ValueId, src: ValueId, op: &str) {
+    writeln!(out, "    local.get ${}", wasm_id(src)).expect("writing to a string cannot fail");
+    writeln!(out, "    {op}").expect("writing to a string cannot fail");
+    writeln!(out, "    local.set ${}", wasm_id(dest)).expect("writing to a string cannot fail");
+}
+
+fn w_const(out: &mut String, dest: ValueId, op: &str) {
+    writeln!(out, "    {op}").expect("writing to a string cannot fail");
+    writeln!(out, "    local.set ${}", wasm_id(dest)).expect("writing to a string cannot fail");
 }
 
 fn wasm_helper_suffix(name: &str) -> String {

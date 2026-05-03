@@ -411,14 +411,9 @@ void* sarif_text_builder_append_slice(
     return builder;
 }
 
-void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
-    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
-    char scratch[21];
+static int sarif_format_i64(char* scratch, int64_t value) {
     int index = 20;
-    uint64_t magnitude = 0;
-    if (builder == NULL) {
-        return NULL;
-    }
+    uint64_t magnitude;
     if (value < 0) {
         scratch[--index] = (char)('0' + (-(value % 10)));
         magnitude = (uint64_t)(-(value / 10));
@@ -434,12 +429,23 @@ void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
             magnitude /= 10;
         } while (magnitude != 0);
     }
-    builder = sarif_text_builder_reserve(builder, (uint64_t)(20 - index));
+    return 20 - index;
+}
+
+void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
+    SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
+    char scratch[21];
+    int len;
     if (builder == NULL) {
         return NULL;
     }
-    memcpy(builder->bytes + builder->len, scratch + index, (size_t)(20 - index));
-    builder->len += (uint64_t)(20 - index);
+    len = sarif_format_i64(scratch, value);
+    builder = sarif_text_builder_reserve(builder, (uint64_t)len);
+    if (builder == NULL) {
+        return NULL;
+    }
+    memcpy(builder->bytes + builder->len, scratch + (20 - len), (size_t)len);
+    builder->len += (uint64_t)len;
     return builder;
 }
 
@@ -862,23 +868,7 @@ void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
 }
 
 uint64_t sarif_text_eq(const unsigned char* left, const unsigned char* right) {
-    uint64_t left_len = 0;
-    uint64_t right_len = 0;
-    if (left == right) {
-        return 1;
-    }
-    if (left == NULL || right == NULL) {
-        return 0;
-    }
-    left_len = sarif_load_u64(left, 0);
-    right_len = sarif_load_u64(right, 0);
-    if (left_len != right_len) {
-        return 0;
-    }
-    if (left_len == 0) {
-        return 1;
-    }
-    return memcmp(left + 8, right + 8, (size_t)left_len) == 0 ? 1 : 0;
+    return sarif_text_cmp(left, right) == 0 ? 1 : 0;
 }
 
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right) {
@@ -1356,24 +1346,8 @@ static int sarif_write_value(
 
 static int sarif_write_i64(int64_t value, int newline) {
     char scratch[21];
-    int index = 20;
-    uint64_t magnitude = 0;
-    if (value < 0) {
-        scratch[--index] = (char)('0' + (-(value % 10)));
-        magnitude = (uint64_t)(-(value / 10));
-        while (magnitude != 0) {
-            scratch[--index] = (char)('0' + (magnitude % 10));
-            magnitude /= 10;
-        }
-        scratch[--index] = '-';
-    } else {
-        magnitude = (uint64_t)value;
-        do {
-            scratch[--index] = (char)('0' + (magnitude % 10));
-            magnitude /= 10;
-        } while (magnitude != 0);
-    }
-    if (sarif_write_all((const unsigned char*)(scratch + index), (uint64_t)(20 - index)) != 0) {
+    int len = sarif_format_i64(scratch, value);
+    if (sarif_write_all((const unsigned char*)(scratch + (20 - len)), (uint64_t)len) != 0) {
         return 1;
     }
     if (newline && sarif_write_byte('\n') != 0) {
