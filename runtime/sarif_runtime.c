@@ -242,6 +242,28 @@ static int sarif_is_utf8_continuation(unsigned char byte) {
     return (byte & 0xc0u) == 0x80u;
 }
 
+static void sarif_clamp_text_range(const unsigned char* source, uint64_t len, int64_t* start, int64_t* end) {
+    if (*start <= 0) {
+        *start = 0;
+    } else if ((uint64_t)*start > len) {
+        *start = (int64_t)len;
+    }
+    if (*end <= 0) {
+        *end = 0;
+    } else if ((uint64_t)*end > len) {
+        *end = (int64_t)len;
+    }
+    while (*start < (int64_t)len && sarif_is_utf8_continuation(source[8 + *start])) {
+        (*start)++;
+    }
+    while (*end < (int64_t)len && sarif_is_utf8_continuation(source[8 + *end])) {
+        (*end)--;
+    }
+    if (*end < *start) {
+        *end = *start;
+    }
+}
+
 void* sarif_text_builder_new(void) {
     SarifTextBuilder* builder = malloc(sizeof(SarifTextBuilder));
     if (builder == NULL) {
@@ -346,7 +368,7 @@ void* sarif_text_builder_append_codepoint(void* raw_builder, int64_t codepoint) 
     return builder;
 }
 
-inline __attribute__((always_inline)) void* sarif_text_builder_append_ascii(void* raw_builder, int64_t byte) {
+__attribute__((always_inline)) void* sarif_text_builder_append_ascii(void* raw_builder, int64_t byte) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
     if (builder == NULL || byte < 0 || byte > 0x7f) {
         return NULL;
@@ -902,45 +924,19 @@ uint64_t sarif_text_eq_range(
 ) {
     uint64_t source_len = 0;
     uint64_t expected_len = 0;
-    uint64_t clamped_start = 0;
-    uint64_t clamped_end = 0;
     if (source == NULL || expected == NULL) {
         return 0;
     }
     source_len = sarif_load_u64(source, 0);
     expected_len = sarif_load_u64(expected, 0);
-    if (start <= 0) {
-        clamped_start = 0;
-    } else {
-        clamped_start = (uint64_t)start;
-        if (clamped_start > source_len) {
-            clamped_start = source_len;
-        }
-    }
-    if (end <= 0) {
-        clamped_end = 0;
-    } else {
-        clamped_end = (uint64_t)end;
-        if (clamped_end > source_len) {
-            clamped_end = source_len;
-        }
-    }
-    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
-        clamped_start += 1;
-    }
-    while (clamped_end < source_len && sarif_is_utf8_continuation(source[8 + clamped_end])) {
-        clamped_end -= 1;
-    }
-    if (clamped_end < clamped_start) {
-        clamped_end = clamped_start;
-    }
-    if (clamped_end - clamped_start != expected_len) {
+    sarif_clamp_text_range(source, source_len, &start, &end);
+    if ((uint64_t)(end - start) != expected_len) {
         return 0;
     }
     if (expected_len == 0) {
         return 1;
     }
-    return memcmp(source + 8 + clamped_start, expected + 8, (size_t)expected_len) == 0 ? 1 : 0;
+    return memcmp(source + 8 + start, expected + 8, (size_t)expected_len) == 0 ? 1 : 0;
 }
 
 int64_t sarif_text_find_byte_range(
@@ -950,53 +946,26 @@ int64_t sarif_text_find_byte_range(
     int64_t byte
 ) {
     uint64_t source_len = 0;
-    uint64_t clamped_start = 0;
-    uint64_t clamped_end = 0;
     const unsigned char* found = NULL;
     unsigned char needle = 0;
     if (source == NULL) {
         return end;
     }
     source_len = sarif_load_u64(source, 0);
-    if (start <= 0) {
-        clamped_start = 0;
-    } else {
-        clamped_start = (uint64_t)start;
-        if (clamped_start > source_len) {
-            clamped_start = source_len;
-        }
-    }
-    if (end <= 0) {
-        clamped_end = 0;
-    } else {
-        clamped_end = (uint64_t)end;
-        if (clamped_end > source_len) {
-            clamped_end = source_len;
-        }
-    }
-    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
-        clamped_start += 1;
-    }
-    while (clamped_end < source_len && sarif_is_utf8_continuation(source[8 + clamped_end])) {
-        clamped_end -= 1;
-    }
-    if (clamped_end < clamped_start) {
-        clamped_end = clamped_start;
-    }
+    sarif_clamp_text_range(source, source_len, &start, &end);
     needle = (unsigned char)((uint64_t)byte & 0xffu);
-    if (clamped_end == clamped_start) {
-        return (int64_t)clamped_end;
+    if (end == start) {
+        return end;
     }
-    found = memchr(source + 8 + clamped_start, needle, (size_t)(clamped_end - clamped_start));
+    found = memchr(source + 8 + start, needle, (size_t)(end - start));
     if (found != NULL) {
         return (int64_t)(found - (source + 8));
     }
-    return (int64_t)clamped_end;
+    return end;
 }
 
 int64_t sarif_text_line_end(const unsigned char* source, int64_t start) {
     uint64_t source_len = 0;
-    uint64_t clamped_start = 0;
     const unsigned char* found = NULL;
     uint64_t line_end = 0;
     if (source == NULL) {
@@ -1004,19 +973,16 @@ int64_t sarif_text_line_end(const unsigned char* source, int64_t start) {
     }
     source_len = sarif_load_u64(source, 0);
     if (start <= 0) {
-        clamped_start = 0;
-    } else {
-        clamped_start = (uint64_t)start;
-        if (clamped_start > source_len) {
-            clamped_start = source_len;
-        }
+        start = 0;
+    } else if ((uint64_t)start > source_len) {
+        start = (int64_t)source_len;
     }
-    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
-        clamped_start += 1;
+    while (start < (int64_t)source_len && sarif_is_utf8_continuation(source[8 + start])) {
+        start++;
     }
-    found = memchr(source + 8 + clamped_start, '\n', (size_t)(source_len - clamped_start));
+    found = memchr(source + 8 + start, '\n', (size_t)(source_len - start));
     line_end = found == NULL ? source_len : (uint64_t)(found - (source + 8));
-    if (line_end > clamped_start && source[8 + line_end - 1] == '\r') {
+    if (line_end > (uint64_t)start && source[8 + line_end - 1] == '\r') {
         return (int64_t)(line_end - 1);
     }
     return (int64_t)line_end;
@@ -1024,38 +990,28 @@ int64_t sarif_text_line_end(const unsigned char* source, int64_t start) {
 
 int64_t sarif_text_next_line(const unsigned char* source, int64_t start) {
     uint64_t source_len = 0;
-    uint64_t clamped_start = 0;
     const unsigned char* found = NULL;
     if (source == NULL) {
         return 0;
     }
     source_len = sarif_load_u64(source, 0);
     if (start <= 0) {
-        clamped_start = 0;
-    } else {
-        clamped_start = (uint64_t)start;
-        if (clamped_start > source_len) {
-            clamped_start = source_len;
-        }
+        start = 0;
+    } else if ((uint64_t)start > source_len) {
+        start = (int64_t)source_len;
     }
-    while (clamped_start < source_len && sarif_is_utf8_continuation(source[8 + clamped_start])) {
-        clamped_start += 1;
+    while (start < (int64_t)source_len && sarif_is_utf8_continuation(source[8 + start])) {
+        start++;
     }
-    found = memchr(source + 8 + clamped_start, '\n', (size_t)(source_len - clamped_start));
+    found = memchr(source + 8 + start, '\n', (size_t)(source_len - start));
     if (found != NULL) {
         return (int64_t)(found - (source + 8)) + 1;
     }
     return (int64_t)source_len;
 }
 
-int64_t sarif_text_field_end(
-    const unsigned char* source,
-    int64_t start,
-    int64_t end,
-    int64_t byte
-) {
-    return sarif_text_find_byte_range(source, start, end, byte);
-}
+#define sarif_text_field_end(source, start, end, byte) \
+    sarif_text_find_byte_range(source, start, end, byte)
 
 int64_t sarif_text_next_field(
     const unsigned char* source,
@@ -1064,77 +1020,44 @@ int64_t sarif_text_next_field(
     int64_t byte
 ) {
     int64_t field_end = sarif_text_find_byte_range(source, start, end, byte);
-    uint64_t source_len = 0;
-    if (source == NULL) {
-        return 0;
-    }
-    source_len = sarif_load_u64(source, 0);
+    uint64_t source_len = source ? sarif_load_u64(source, 0) : 0;
     if (field_end < end && field_end < (int64_t)source_len) {
         return field_end + 1;
     }
     return field_end;
 }
 
-void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) {
+static void* sarif_slice_blob(const unsigned char* blob, uint64_t start, uint64_t end, int utf8_aware) {
     uint64_t len = 0;
-    uint64_t clamped_start = 0;
-    uint64_t clamped_end = 0;
-    size_t slice_len = 0;
+    uint64_t cs = 0, ce = 0;
+    size_t slen = 0;
     unsigned char* result = NULL;
-    if (text == NULL) {
-        return NULL;
+    if (blob == NULL) return NULL;
+    len = sarif_load_u64(blob, 0);
+    cs = start < len ? start : len;
+    ce = end < len ? end : len;
+    if (utf8_aware) {
+        while (cs < len && sarif_is_utf8_continuation(blob[8 + cs])) cs++;
+        while (ce < len && sarif_is_utf8_continuation(blob[8 + ce])) ce--;
+        if (ce <= cs) return sarif_empty_text;
+    } else {
+        if (ce <= cs) return sarif_empty_text;
     }
-    len = sarif_load_u64(text, 0);
-    clamped_start = start < len ? start : len;
-    clamped_end = end < len ? end : len;
-    while (clamped_start < len && sarif_is_utf8_continuation(text[8 + clamped_start])) {
-        clamped_start += 1;
-    }
-    while (clamped_end < len && sarif_is_utf8_continuation(text[8 + clamped_end])) {
-        clamped_end -= 1;
-    }
-    if (clamped_end <= clamped_start) {
-        return sarif_empty_text;
-    }
-    if (clamped_start == 0 && clamped_end == len) {
-        return (void*)text;
-    }
-    slice_len = (size_t)(clamped_end - clamped_start);
-    result = malloc(8u + slice_len);
-    if (result == NULL) {
-        return NULL;
-    }
-    sarif_store_u64(result, 0, (uint64_t)slice_len);
-    memcpy(result + 8, text + 8 + clamped_start, slice_len);
+    if (cs == 0 && ce == len) return (void*)blob;
+    slen = (size_t)(ce - cs);
+    result = malloc(8u + slen);
+    if (!result) return NULL;
+    sarif_store_u64(result, 0, (uint64_t)slen);
+    memcpy(result + 8, blob + 8 + cs, slen);
     return result;
 }
 
+void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) {
+    return sarif_slice_blob(text, start, end, 1);
+}
+
 void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end) {
-    uint64_t len = 0;
-    uint64_t clamped_start = 0;
-    uint64_t clamped_end = 0;
-    size_t slice_len = 0;
-    unsigned char* result = NULL;
-    if (bytes == NULL) {
-        return NULL;
-    }
-    len = sarif_load_u64(bytes, 0);
-    clamped_start = start < len ? start : len;
-    clamped_end = end < len ? end : len;
-    if (clamped_end <= clamped_start) {
-        return sarif_empty_text;
-    }
-    if (clamped_start == 0 && clamped_end == len) {
-        return (void*)bytes;
-    }
-    slice_len = (size_t)(clamped_end - clamped_start);
-    result = malloc(8u + slice_len);
-    if (result == NULL) {
-        return NULL;
-    }
-    sarif_store_u64(result, 0, (uint64_t)slice_len);
-    memcpy(result + 8, bytes + 8 + clamped_start, slice_len);
-    return result;
+    return sarif_slice_blob(bytes, start, end, 0);
 }
 
 void* sarif_text_from_f64_fixed(double value, int64_t digits) {

@@ -7112,6 +7112,43 @@ struct Interpreter<'a> {
     handlers: Vec<Vec<HandleArm>>,
 }
 
+macro_rules! run_arithmetic {
+    ($values:expr, $dest:expr, $left:expr, $right:expr, $int_op:expr, $f64_op:expr, $kind:expr) => {{
+        let left = $values[$left.0 as usize].clone();
+        let right = $values[$right.0 as usize].clone();
+        $values[$dest.0 as usize] = match (left, right) {
+            (RuntimeValue::Int(l), RuntimeValue::Int(r)) => RuntimeValue::Int($int_op(l, r)),
+            (RuntimeValue::F64(l), RuntimeValue::F64(r)) => RuntimeValue::F64($f64_op(l, r)),
+            _ => {
+                return Err(RuntimeError::new(format!(
+                    "expected matching numeric operands for {}",
+                    $kind
+                )));
+            }
+        };
+        Ok::<_, RuntimeError>(())
+    }};
+}
+
+macro_rules! run_comparison {
+    ($values:expr, $dest:expr, $left:expr, $right:expr, $int_op:expr, $f64_op:expr, $kind:expr) => {{
+        let left = $values[$left.0 as usize].clone();
+        let right = $values[$right.0 as usize].clone();
+        let result = match (left, right) {
+            (RuntimeValue::Int(l), RuntimeValue::Int(r)) => $int_op(l, r),
+            (RuntimeValue::F64(l), RuntimeValue::F64(r)) => $f64_op(l, r),
+            _ => {
+                return Err(RuntimeError::new(format!(
+                    "expected matching numeric operands for {}",
+                    $kind
+                )));
+            }
+        };
+        $values[$dest.0 as usize] = RuntimeValue::Bool(result);
+        Ok::<_, RuntimeError>(())
+    }};
+}
+
 impl<'a> Interpreter<'a> {
     fn new(program: &'a Program, program_args: &'a [String], stdin_text: String) -> Self {
         Self {
@@ -8381,107 +8418,31 @@ impl<'a> Interpreter<'a> {
                     values[dest.0 as usize] = RuntimeValue::Unit;
                 }
                 Inst::Add { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let value = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => {
-                            RuntimeValue::Int(left + right)
-                        }
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            RuntimeValue::F64(left + right)
-                        }
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for add",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = value;
+                    run_arithmetic!(values, *dest, *left, *right, |l, r| l + r, |l, r| l + r, "add")?;
                 }
                 Inst::Sub { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let value = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => {
-                            RuntimeValue::Int(left - right)
-                        }
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            RuntimeValue::F64(left - right)
-                        }
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for sub",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = value;
+                    run_arithmetic!(values, *dest, *left, *right, |l, r| l - r, |l, r| l - r, "sub")?;
                 }
                 Inst::Mul { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let value = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => {
-                            RuntimeValue::Int(left * right)
-                        }
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            RuntimeValue::F64(left * right)
-                        }
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for mul",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = value;
+                    run_arithmetic!(values, *dest, *left, *right, |l, r| l * r, |l, r| l * r, "mul")?;
                 }
                 Inst::Div { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let value = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => {
-                            if right == 0 {
-                                return Err(RuntimeError::new("division by zero"));
-                            }
-                            RuntimeValue::Int(left / right)
-                        }
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
-                            if right == 0.0 {
-                                return Err(RuntimeError::new("division by zero"));
-                            }
-                            RuntimeValue::F64(left / right)
-                        }
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for div",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = value;
+                    run_div(values, *dest, *left, *right)?;
                 }
                 Inst::BitAnd { dest, left, right } => {
-                    let left = extract_int(values, *left)? as i32;
-                    let right = extract_int(values, *right)? as i32;
-                    values[dest.0 as usize] = RuntimeValue::Int((left & right) as i64);
+                    run_bitwise(values, *dest, *left, *right, |l, r| l & r)?;
                 }
                 Inst::BitOr { dest, left, right } => {
-                    let left = extract_int(values, *left)? as i32;
-                    let right = extract_int(values, *right)? as i32;
-                    values[dest.0 as usize] = RuntimeValue::Int((left | right) as i64);
+                    run_bitwise(values, *dest, *left, *right, |l, r| l | r)?;
                 }
                 Inst::BitXor { dest, left, right } => {
-                    let left = extract_int(values, *left)? as i32;
-                    let right = extract_int(values, *right)? as i32;
-                    values[dest.0 as usize] = RuntimeValue::Int((left ^ right) as i64);
+                    run_bitwise(values, *dest, *left, *right, |l, r| l ^ r)?;
                 }
                 Inst::Shl { dest, left, right } => {
-                    let left = extract_int(values, *left)? as i32;
-                    let right = (extract_int(values, *right)? as u32) & 31;
-                    values[dest.0 as usize] = RuntimeValue::Int(left.wrapping_shl(right) as i64);
+                    run_shift(values, *dest, *left, *right, |l, r| l.wrapping_shl(r) as i64)?;
                 }
                 Inst::Shr { dest, left, right } => {
-                    let left = extract_int(values, *left)? as i32;
-                    let right = (extract_int(values, *right)? as u32) & 31;
-                    values[dest.0 as usize] = RuntimeValue::Int((left >> right) as i64);
+                    run_shift(values, *dest, *left, *right, |l, r| (l >> r) as i64)?;
                 }
                 Inst::And { dest, left, right } => {
                     let left = extract_bool(values, *left)?;
@@ -8494,70 +8455,22 @@ impl<'a> Interpreter<'a> {
                     values[dest.0 as usize] = RuntimeValue::Bool(left || right);
                 }
                 Inst::Eq { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    values[dest.0 as usize] = RuntimeValue::Bool(left == right);
+                    run_equality(values, *dest, *left, *right, true)?;
                 }
                 Inst::Ne { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    values[dest.0 as usize] = RuntimeValue::Bool(left != right);
+                    run_equality(values, *dest, *left, *right, false)?;
                 }
                 Inst::Lt { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let result = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left < right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left < right,
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for lt",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = RuntimeValue::Bool(result);
+                    run_comparison!(values, *dest, *left, *right, |l, r| l < r, |l, r| l < r, "lt")?;
                 }
                 Inst::Le { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let result = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left <= right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left <= right,
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for le",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = RuntimeValue::Bool(result);
+                    run_comparison!(values, *dest, *left, *right, |l, r| l <= r, |l, r| l <= r, "le")?;
                 }
                 Inst::Gt { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let result = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left > right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left > right,
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for gt",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = RuntimeValue::Bool(result);
+                    run_comparison!(values, *dest, *left, *right, |l, r| l > r, |l, r| l > r, "gt")?;
                 }
                 Inst::Ge { dest, left, right } => {
-                    let left = extract_value(values, *left)?;
-                    let right = extract_value(values, *right)?;
-                    let result = match (left, right) {
-                        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left >= right,
-                        (RuntimeValue::F64(left), RuntimeValue::F64(right)) => left >= right,
-                        _ => {
-                            return Err(RuntimeError::new(
-                                "expected matching numeric operands for ge",
-                            ));
-                        }
-                    };
-                    values[dest.0 as usize] = RuntimeValue::Bool(result);
+                    run_comparison!(values, *dest, *left, *right, |l, r| l >= r, |l, r| l >= r, "ge")?;
                 }
                 Inst::Call { dest, callee, args } => {
                     let callee_fn = *self
@@ -8856,6 +8769,7 @@ enum ExecFlow {
     Return(RuntimeValue),
 }
 
+#[inline(always)]
 fn extract_int(
     values: &[RuntimeValue],
     value: ValueId,
@@ -8873,6 +8787,7 @@ fn extract_int(
     }
 }
 
+#[inline(always)]
 fn extract_bool(
     values: &[RuntimeValue],
     value: ValueId,
@@ -8890,6 +8805,7 @@ fn extract_bool(
     }
 }
 
+#[inline(always)]
 fn extract_value(
     values: &[RuntimeValue],
     value: ValueId,
@@ -8898,6 +8814,80 @@ fn extract_value(
         .get(value.0 as usize)
         .cloned()
         .ok_or_else(|| RuntimeError::new(format!("unknown value {}", value.render())))
+}
+
+#[inline(always)]
+fn run_div(
+    values: &mut [RuntimeValue],
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+) -> Result<(), RuntimeError> {
+    let left = values[left.0 as usize].clone();
+    let right = values[right.0 as usize].clone();
+    values[dest.0 as usize] = match (left, right) {
+        (RuntimeValue::Int(l), RuntimeValue::Int(r)) => {
+            if r == 0 {
+                return Err(RuntimeError::new("division by zero"));
+            }
+            RuntimeValue::Int(l / r)
+        }
+        (RuntimeValue::F64(l), RuntimeValue::F64(r)) => {
+            if r == 0.0 {
+                return Err(RuntimeError::new("division by zero"));
+            }
+            RuntimeValue::F64(l / r)
+        }
+        _ => {
+            return Err(RuntimeError::new(
+                "expected matching numeric operands for div"
+            ));
+        }
+    };
+    Ok(())
+}
+
+#[inline(always)]
+fn run_bitwise(
+    values: &mut [RuntimeValue],
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+    op: impl FnOnce(i32, i32) -> i32,
+) -> Result<(), RuntimeError> {
+    let left = extract_int(values, left)? as i32;
+    let right = extract_int(values, right)? as i32;
+    values[dest.0 as usize] = RuntimeValue::Int(op(left, right) as i64);
+    Ok(())
+}
+
+#[inline(always)]
+fn run_shift(
+    values: &mut [RuntimeValue],
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+    op: impl FnOnce(i32, u32) -> i64,
+) -> Result<(), RuntimeError> {
+    let left = extract_int(values, left)? as i32;
+    let right = (extract_int(values, right)? as u32) & 31;
+    values[dest.0 as usize] = RuntimeValue::Int(op(left, right));
+    Ok(())
+}
+
+#[inline(always)]
+fn run_equality(
+    values: &mut [RuntimeValue],
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+    eq: bool,
+) -> Result<(), RuntimeError> {
+    let left = extract_value(values, left)?;
+    let right = extract_value(values, right)?;
+    values[dest.0 as usize] =
+        RuntimeValue::Bool(if eq { left == right } else { left != right });
+    Ok(())
 }
 
 fn format_f64_fixed(value: f64, digits: i64) -> String {
