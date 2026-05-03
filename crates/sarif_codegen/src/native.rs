@@ -645,6 +645,7 @@ where
 
 fn lower_binary_int<F>(
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
+    value_kinds: &BTreeMap<ValueId, NativeValueKind>,
     function: &Function,
     builder: &mut FunctionBuilder<'_>,
     backend: &str,
@@ -655,15 +656,9 @@ fn lower_binary_int<F>(
     op: F,
 ) -> Result<bool, String>
 where
-    F: FnOnce(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value,
+    F: Fn(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value + Copy,
 {
-    let native = op(
-        builder,
-        native_value(values, left, function, &format!("{op_name} left operand"), backend)?,
-        native_value(values, right, function, &format!("{op_name} right operand"), backend)?,
-    );
-    values.insert(dest, NativeValueRepr::Native(native));
-    Ok(true)
+    lower_arithmetic(values, value_kinds, function, builder, backend, dest, left, right, op_name, op, op)
 }
 
 fn lower_comparison<M: Module>(
@@ -2363,13 +2358,13 @@ pub fn lower_inst<M: Module>(
         Inst::Sub { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "sub", |b, l, r| b.ins().fsub(l, r), |b, l, r| b.ins().isub(l, r)),
         Inst::Mul { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "mul", |b, l, r| b.ins().fmul(l, r), |b, l, r| b.ins().imul(l, r)),
         Inst::Div { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "div", |b, l, r| b.ins().fdiv(l, r), |b, l, r| b.ins().sdiv(l, r)),
-        Inst::BitAnd { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "bitand", |b, l, r| b.ins().band(l, r)),
-        Inst::BitOr { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "bitor", |b, l, r| b.ins().bor(l, r)),
-        Inst::BitXor { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "bitxor", |b, l, r| b.ins().bxor(l, r)),
-        Inst::Shl { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "shl", |b, l, r| b.ins().ishl(l, r)),
-        Inst::Shr { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "shr", |b, l, r| b.ins().sshr(l, r)),
-        Inst::And { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "and", |b, l, r| b.ins().band(l, r)),
-        Inst::Or { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "or", |b, l, r| b.ins().bor(l, r)),
+        Inst::BitAnd { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "bitand", |b, l, r| b.ins().band(l, r)),
+        Inst::BitOr { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "bitor", |b, l, r| b.ins().bor(l, r)),
+        Inst::BitXor { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "bitxor", |b, l, r| b.ins().bxor(l, r)),
+        Inst::Shl { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "shl", |b, l, r| b.ins().ishl(l, r)),
+        Inst::Shr { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "shr", |b, l, r| b.ins().sshr(l, r)),
+        Inst::And { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "and", |b, l, r| b.ins().band(l, r)),
+        Inst::Or { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "or", |b, l, r| b.ins().bor(l, r)),
         Inst::Eq { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::Equal, backend),
         Inst::Ne { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::NotEqual, backend),
         Inst::Lt { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedLessThan, backend),
