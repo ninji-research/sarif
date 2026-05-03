@@ -643,6 +643,7 @@ where
     Ok(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn lower_binary_int<F>(
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
     value_kinds: &BTreeMap<ValueId, NativeValueKind>,
@@ -661,6 +662,7 @@ where
     lower_arithmetic(values, value_kinds, function, builder, backend, dest, left, right, op_name, op, op)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn lower_comparison<M: Module>(
     values: &mut BTreeMap<ValueId, NativeValueRepr>,
     value_kinds: &BTreeMap<ValueId, NativeValueKind>,

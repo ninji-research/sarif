@@ -7241,6 +7241,7 @@ impl<'a> Interpreter<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::ptr_arg)]
     fn execute_insts(
         &mut self,
         function: &Function,
