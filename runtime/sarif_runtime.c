@@ -1121,42 +1121,19 @@ int64_t sarif_parse_i32(const unsigned char* text) {
 }
 
 int64_t sarif_parse_i32_range(const unsigned char* text, int64_t start, int64_t end) {
-    uint64_t len = 0;
-    uint64_t index = 0;
-    uint64_t limit = 0;
+    uint64_t len, index;
+    uint64_t limit;
     int negative = 0;
     int64_t value = 0;
-    const unsigned char* bytes = NULL;
-    if (text == NULL) {
-        return 0;
-    }
+    const unsigned char* bytes;
+    if (text == NULL) return 0;
     len = sarif_load_u64(text, 0);
-    if (start <= 0) {
-        index = 0;
-    } else {
-        index = (uint64_t)start;
-        if (index > len) {
-            index = len;
-        }
-    }
-    if (end <= 0) {
-        len = 0;
-    } else {
-        uint64_t clamped_end = (uint64_t)end;
-        if (clamped_end < len) {
-            len = clamped_end;
-        }
-    }
+    index = start > 0 ? (uint64_t)start < len ? (uint64_t)start : len : 0;
+    len = end > 0 ? (uint64_t)end < len ? (uint64_t)end : len : 0;
     bytes = text + 8;
-    while (index < len && bytes[index] == ' ') {
-        index += 1;
-    }
-    while (len > index && bytes[len - 1] == ' ') {
-        len -= 1;
-    }
-    if (index == len) {
-        return 0;
-    }
+    while (index < len && bytes[index] == ' ') index += 1;
+    while (len > index && bytes[len - 1] == ' ') len -= 1;
+    if (index == len) return 0;
     if (bytes[index] == '-') {
         negative = 1;
         index += 1;
@@ -1164,30 +1141,18 @@ int64_t sarif_parse_i32_range(const unsigned char* text, int64_t start, int64_t 
     } else {
         limit = (uint64_t)INT32_MAX;
     }
-    if (index == len) {
-        return 0;
-    }
+    if (index == len) return 0;
     while (index < len) {
-        uint64_t digit = 0;
-        uint64_t next = 0;
-        if (bytes[index] < '0' || bytes[index] > '9') {
-            return 0;
-        }
+        uint64_t digit, next;
+        if (bytes[index] < '0' || bytes[index] > '9') return 0;
         digit = (uint64_t)(bytes[index] - '0');
-        if ((uint64_t)value > limit / 10u) {
-            return 0;
-        }
+        if ((uint64_t)value > limit / 10u) return 0;
         next = (uint64_t)value * 10u + digit;
-        if (next > limit) {
-            return 0;
-        }
+        if (next > limit) return 0;
         value = (int64_t)next;
         index += 1;
     }
-    if (negative) {
-        return -value;
-    }
-    return value;
+    return negative ? -value : value;
 }
 
 double sarif_parse_f64(const unsigned char* text) {
