@@ -1895,14 +1895,7 @@ impl<'a> WasmEmitter<'a> {
                 ));
             }
             Inst::BytesByte { dest, bytes, index } => {
-                writeln!(output, "    local.get ${}", wasm_id(*bytes))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*index))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_text_byte")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_call(output, *dest, &[*bytes, *index], "$__sarif_text_byte");
             }
             Inst::BytesSlice {
                 dest,
@@ -1910,16 +1903,7 @@ impl<'a> WasmEmitter<'a> {
                 start,
                 end,
             } => {
-                writeln!(output, "    local.get ${}", wasm_id(*bytes))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*start))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*end))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_bytes_slice")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_call(output, *dest, &[*bytes, *start, *end], "$__sarif_bytes_slice");
             }
             Inst::BytesFindByteRange {
                 dest,
@@ -1928,38 +1912,13 @@ impl<'a> WasmEmitter<'a> {
                 end,
                 byte,
             } => {
-                writeln!(output, "    local.get ${}", wasm_id(*source))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*start))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*end))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*byte))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_bytes_find_byte_range")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_call(output, *dest, &[*source, *start, *end, *byte], "$__sarif_bytes_find_byte_range");
             }
             Inst::TextByte { dest, text, index } => {
-                writeln!(output, "    local.get ${}", wasm_id(*text))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*index))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_text_byte")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_call(output, *dest, &[*text, *index], "$__sarif_text_byte");
             }
             Inst::TextConcat { dest, left, right } => {
-                writeln!(output, "    local.get ${}", wasm_id(*left))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*right))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_text_concat")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_call(output, *dest, &[*left, *right], "$__sarif_text_concat");
             }
             Inst::TextSlice {
                 dest,
@@ -2656,6 +2615,14 @@ fn w_unary(out: &mut String, dest: ValueId, src: ValueId, op: &str) {
 
 fn w_const(out: &mut String, dest: ValueId, op: &str) {
     writeln!(out, "    {op}").expect("writing to a string cannot fail");
+    writeln!(out, "    local.set ${}", wasm_id(dest)).expect("writing to a string cannot fail");
+}
+
+fn w_call(out: &mut String, dest: ValueId, args: &[ValueId], func: &str) {
+    for arg in args {
+        writeln!(out, "    local.get ${}", wasm_id(*arg)).expect("writing to a string cannot fail");
+    }
+    writeln!(out, "    call {func}").expect("writing to a string cannot fail");
     writeln!(out, "    local.set ${}", wasm_id(dest)).expect("writing to a string cannot fail");
 }
 
