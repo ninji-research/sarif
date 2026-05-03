@@ -16,7 +16,7 @@ This document records the external references that inform the current v1 archite
 - rustc query model
 - logos
 - ariadne
-- Rust 1.94.1 release line
+- Rust 1.95.0 release line
 - Cranelift settings documentation
 - cranelift-isle documentation
 

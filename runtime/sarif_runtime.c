@@ -20,7 +20,6 @@ static unsigned char* sarif_stdin_cache = NULL;
 static unsigned char sarif_empty_text[8] = {0};
 static int sarif_write_text_blob(const unsigned char* text, int newline);
 static int sarif_write_i64(int64_t value, int newline);
-static uint64_t sarif_format_i64(char* buffer, int64_t value);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
 static int sarif_write_all(const unsigned char* bytes, uint64_t len) {
@@ -404,18 +403,33 @@ void* sarif_text_builder_append_slice(
 
 void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
-    uint64_t len = 0;
-    char digits[21];
+    char scratch[21];
+    int index = 20;
+    uint64_t magnitude = 0;
     if (builder == NULL) {
         return NULL;
     }
-    len = sarif_format_i64(digits, value);
-    builder = sarif_text_builder_reserve(builder, (uint64_t)len);
+    if (value < 0) {
+        scratch[--index] = (char)('0' + (-(value % 10)));
+        magnitude = (uint64_t)(-(value / 10));
+        while (magnitude != 0) {
+            scratch[--index] = (char)('0' + (magnitude % 10));
+            magnitude /= 10;
+        }
+        scratch[--index] = '-';
+    } else {
+        magnitude = (uint64_t)value;
+        do {
+            scratch[--index] = (char)('0' + (magnitude % 10));
+            magnitude /= 10;
+        } while (magnitude != 0);
+    }
+    builder = sarif_text_builder_reserve(builder, (uint64_t)(20 - index));
     if (builder == NULL) {
         return NULL;
     }
-    memcpy(builder->bytes + builder->len, digits, len);
-    builder->len += len;
+    memcpy(builder->bytes + builder->len, scratch + index, (size_t)(20 - index));
+    builder->len += (uint64_t)(20 - index);
     return builder;
 }
 
@@ -1429,10 +1443,10 @@ static int sarif_write_value(
 );
 #endif
 
-static uint64_t sarif_format_i64(char* buffer, int64_t value) {
+static int sarif_write_i64(int64_t value, int newline) {
     char scratch[21];
-    uint64_t magnitude = 0;
     int index = 20;
+    uint64_t magnitude = 0;
     if (value < 0) {
         scratch[--index] = (char)('0' + (-(value % 10)));
         magnitude = (uint64_t)(-(value / 10));
@@ -1448,14 +1462,7 @@ static uint64_t sarif_format_i64(char* buffer, int64_t value) {
             magnitude /= 10;
         } while (magnitude != 0);
     }
-    memcpy(buffer, scratch + index, (size_t)(20 - index));
-    return (uint64_t)(20 - index);
-}
-
-static int sarif_write_i64(int64_t value, int newline) {
-    char buffer[21];
-    uint64_t len = sarif_format_i64(buffer, value);
-    if (sarif_write_all((const unsigned char*)buffer, len) != 0) {
+    if (sarif_write_all((const unsigned char*)(scratch + index), (uint64_t)(20 - index)) != 0) {
         return 1;
     }
     if (newline && sarif_write_byte('\n') != 0) {
