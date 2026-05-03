@@ -160,6 +160,8 @@ pub struct Function {
     pub instructions: Vec<Inst>,
     pub result: Option<ValueId>,
     pub span: Span,
+    pub value_count: u32,
+    pub slot_count: u32,
 }
 
 impl Function {
@@ -3249,6 +3251,8 @@ fn lower_function_monomorphized<'a>(
         instructions: lowerer.instructions,
         result,
         span: function.span,
+        value_count: lowerer.next_value,
+        slot_count: lowerer.next_slot,
     }
 }
 
@@ -7102,12 +7106,9 @@ struct Interpreter<'a> {
     program_args: &'a [String],
     stdin_text: String,
     stdout_text: String,
-    next_text_builder_id: u64,
-    text_builders: BTreeMap<u64, Vec<u8>>,
-    next_text_index_id: u64,
-    text_indices: BTreeMap<u64, BTreeMap<String, i64>>,
-    next_list_id: u64,
-    lists: BTreeMap<u64, Vec<RuntimeValue>>,
+    text_builders: Vec<Vec<u8>>,
+    text_indices: Vec<HashMap<String, i64>>,
+    lists: Vec<Vec<RuntimeValue>>,
     handlers: Vec<Vec<HandleArm>>,
 }
 
@@ -7132,12 +7133,9 @@ impl<'a> Interpreter<'a> {
             program_args,
             stdin_text,
             stdout_text: String::new(),
-            next_text_builder_id: 0,
-            text_builders: BTreeMap::new(),
-            next_text_index_id: 0,
-            text_indices: BTreeMap::new(),
-            next_list_id: 0,
-            lists: BTreeMap::new(),
+            text_builders: Vec::new(),
+            text_indices: Vec::new(),
+            lists: Vec::new(),
             handlers: Vec::new(),
         }
     }
@@ -7185,8 +7183,8 @@ impl<'a> Interpreter<'a> {
         function: &Function,
         args: &[RuntimeValue],
     ) -> Result<RuntimeValue, RuntimeError> {
-        let mut values = BTreeMap::<ValueId, RuntimeValue>::new();
-        let mut slots = BTreeMap::<LocalSlotId, RuntimeValue>::new();
+        let mut values = vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
+        let mut slots = vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
         if let ExecFlow::Return(value) = self.execute_insts(
             function,
             &function.instructions,
@@ -7199,7 +7197,7 @@ impl<'a> Interpreter<'a> {
 
         function.result.map_or(Ok(RuntimeValue::Unit), |result| {
             values
-                .get(&result)
+                .get(result.0 as usize)
                 .cloned()
                 .ok_or_else(|| RuntimeError::new("missing function result"))
         })
@@ -7210,8 +7208,8 @@ impl<'a> Interpreter<'a> {
         &mut self,
         function: &Function,
         instructions: &[Inst],
-        values: &mut BTreeMap<ValueId, RuntimeValue>,
-        slots: &mut BTreeMap<LocalSlotId, RuntimeValue>,
+        values: &mut Vec<RuntimeValue>,
+        slots: &mut Vec<RuntimeValue>,
         args: &[RuntimeValue],
     ) -> Result<ExecFlow, RuntimeError> {
         for inst in instructions {
@@ -7220,45 +7218,43 @@ impl<'a> Interpreter<'a> {
                     let value = args
                         .get(*index)
                         .ok_or_else(|| RuntimeError::new("parameter load out of bounds"))?;
-                    values.insert(*dest, value.clone());
+                    values[dest.0 as usize] = value.clone();
                 }
                 Inst::LoadLocal { dest, slot } => {
-                    let value = slots.get(slot).cloned().ok_or_else(|| {
+                    let value = slots.get(slot.0 as usize).cloned().ok_or_else(|| {
                         RuntimeError::new(format!(
                             "mutable local {} is unavailable in `{}`",
                             slot.render(),
                             function.name
                         ))
                     })?;
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::StoreLocal { slot, src } => {
                     let value = extract_value(values, *src)?;
-                    slots.insert(*slot, value);
+                    slots[slot.0 as usize] = value;
                 }
                 Inst::ConstInt { dest, value } => {
-                    values.insert(*dest, RuntimeValue::Int(*value));
+                    values[dest.0 as usize] = RuntimeValue::Int(*value);
                 }
                 Inst::ConstF64 { dest, bits } => {
-                    values.insert(*dest, RuntimeValue::F64(f64::from_bits(*bits)));
+                    values[dest.0 as usize] = RuntimeValue::F64(f64::from_bits(*bits));
                 }
                 Inst::ConstBool { dest, value } => {
-                    values.insert(*dest, RuntimeValue::Bool(*value));
+                    values[dest.0 as usize] = RuntimeValue::Bool(*value);
                 }
                 Inst::ConstText { dest, value } => {
-                    values.insert(*dest, RuntimeValue::Text(value.clone()));
+                    values[dest.0 as usize] = RuntimeValue::Text(value.clone());
                 }
                 Inst::TextBuilderNew { dest } => {
-                    let id = self.next_text_builder_id;
-                    self.next_text_builder_id += 1;
-                    self.text_builders.insert(id, Vec::new());
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    let id = self.text_builders.len();
+                    self.text_builders.push(Vec::new());
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id as u64);
                 }
                 Inst::TextIndexNew { dest } => {
-                    let id = self.next_text_index_id;
-                    self.next_text_index_id += 1;
-                    self.text_indices.insert(id, BTreeMap::new());
-                    values.insert(*dest, RuntimeValue::TextIndex(id));
+                    let id = self.text_indices.len();
+                    self.text_indices.push(HashMap::new());
+                    values[dest.0 as usize] = RuntimeValue::TextIndex(id as u64);
                 }
                 Inst::TextBuilderAppend {
                     dest,
@@ -7275,10 +7271,10 @@ impl<'a> Interpreter<'a> {
                     };
                     let bytes = self
                         .text_builders
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     bytes.extend_from_slice(text.as_bytes());
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
                 Inst::TextBuilderAppendCodepoint {
                     dest,
@@ -7301,12 +7297,12 @@ impl<'a> Interpreter<'a> {
                     })?;
                     let bytes = self
                         .text_builders
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     let mut encoded = [0u8; 4];
                     let encoded = scalar.encode_utf8(&mut encoded);
                     bytes.extend_from_slice(encoded.as_bytes());
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
                 Inst::TextBuilderAppendAscii {
                     dest,
@@ -7328,10 +7324,10 @@ impl<'a> Interpreter<'a> {
                     }
                     let bytes = self
                         .text_builders
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     bytes.push(byte);
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
                 Inst::TextBuilderAppendSlice {
                     dest,
@@ -7368,10 +7364,10 @@ impl<'a> Interpreter<'a> {
                     }
                     let bytes = self
                         .text_builders
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     bytes.extend_from_slice(&text_bytes[start..end]);
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
                 Inst::TextBuilderAppendI32 {
                     dest,
@@ -7388,10 +7384,10 @@ impl<'a> Interpreter<'a> {
                     };
                     let bytes = self
                         .text_builders
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     bytes.extend_from_slice(value.to_string().as_bytes());
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
                 Inst::TextBuilderFinish { dest, builder } => {
                     let builder_val = extract_value(values, *builder)?;
@@ -7400,11 +7396,12 @@ impl<'a> Interpreter<'a> {
                     };
                     let bytes = self
                         .text_builders
-                        .remove(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    let bytes = std::mem::take(bytes);
                     let text = String::from_utf8(bytes)
                         .map_err(|_| RuntimeError::new("text builder produced invalid UTF-8"))?;
-                    values.insert(*dest, RuntimeValue::Text(text));
+                    values[dest.0 as usize] = RuntimeValue::Text(text);
                 }
                 Inst::TextIndexGet { dest, index, key } => {
                     let index_val = extract_value(values, *index)?;
@@ -7417,12 +7414,12 @@ impl<'a> Interpreter<'a> {
                     };
                     let value = self
                         .text_indices
-                        .get(&id)
+                        .get(id as usize)
                         .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
                         .get(&key)
                         .copied()
                         .unwrap_or(-1);
-                    values.insert(*dest, RuntimeValue::Int(value));
+                    values[dest.0 as usize] = RuntimeValue::Int(value);
                 }
                 Inst::TextIndexGetOrInsert {
                     dest,
@@ -7444,11 +7441,11 @@ impl<'a> Interpreter<'a> {
                     };
                     let value = self
                         .text_indices
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
                         .entry(key)
                         .or_insert(next);
-                    values.insert(*dest, RuntimeValue::Int(*value));
+                    values[dest.0 as usize] = RuntimeValue::Int(*value);
                 }
                 Inst::TextIndexSet {
                     dest,
@@ -7469,10 +7466,10 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     self.text_indices
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
                         .insert(key, value);
-                    values.insert(*dest, RuntimeValue::TextIndex(id));
+                    values[dest.0 as usize] = RuntimeValue::TextIndex(id);
                 }
                 Inst::ListNew { dest, len, value } => {
                     let len_val = extract_value(values, *len)?;
@@ -7485,10 +7482,9 @@ impl<'a> Interpreter<'a> {
                     }
                     let len = usize::try_from(len)
                         .map_err(|_| RuntimeError::new("list_new length exceeds limits"))?;
-                    let id = self.next_list_id;
-                    self.next_list_id += 1;
-                    self.lists.insert(id, vec![value_val; len]);
-                    values.insert(*dest, RuntimeValue::List(id));
+                    let id = self.lists.len();
+                    self.lists.push(vec![value_val; len]);
+                    values[dest.0 as usize] = RuntimeValue::List(id as u64);
                 }
                 Inst::ListLen { dest, list } => {
                     let list_val = extract_value(values, *list)?;
@@ -7497,11 +7493,11 @@ impl<'a> Interpreter<'a> {
                     };
                     let list_ref = self
                         .lists
-                        .get(&id)
+                        .get(id as usize)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     let len = i64::try_from(list_ref.len())
                         .map_err(|_| RuntimeError::new("list length exceeds I32 limits"))?;
-                    values.insert(*dest, RuntimeValue::Int(len));
+                    values[dest.0 as usize] = RuntimeValue::Int(len);
                 }
                 Inst::ListGet { dest, list, index } => {
                     let list_val = extract_value(values, *list)?;
@@ -7517,14 +7513,14 @@ impl<'a> Interpreter<'a> {
                     }
                     let list_ref = self
                         .lists
-                        .get(&id)
+                        .get(id as usize)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     let index = usize::try_from(index)
                         .map_err(|_| RuntimeError::new("bounds assertion failed in `list_get`"))?;
                     let value = list_ref.get(index).cloned().ok_or_else(|| {
                         RuntimeError::new("bounds assertion failed in `list_get`")
                     })?;
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::ListSet {
                     dest,
@@ -7546,7 +7542,7 @@ impl<'a> Interpreter<'a> {
                     }
                     let list_ref = self
                         .lists
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     let index = usize::try_from(index)
                         .map_err(|_| RuntimeError::new("bounds assertion failed in `list_set`"))?;
@@ -7554,7 +7550,7 @@ impl<'a> Interpreter<'a> {
                         RuntimeError::new("bounds assertion failed in `list_set`")
                     })?;
                     *slot = value_val;
-                    values.insert(*dest, RuntimeValue::List(id));
+                    values[dest.0 as usize] = RuntimeValue::List(id);
                 }
                 Inst::ListPush {
                     dest,
@@ -7578,7 +7574,7 @@ impl<'a> Interpreter<'a> {
                         .map_err(|_| RuntimeError::new("list_push length exceeds limits"))?;
                     let list_ref = self
                         .lists
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     if used < list_ref.len() {
                         list_ref[used] = value_val;
@@ -7591,7 +7587,7 @@ impl<'a> Interpreter<'a> {
                     } else {
                         return Err(RuntimeError::new("bounds assertion failed in `list_push`"));
                     }
-                    values.insert(*dest, RuntimeValue::List(id));
+                    values[dest.0 as usize] = RuntimeValue::List(id);
                 }
                 Inst::ListSortText { dest, list, len } => {
                     let list_val = extract_value(values, *list)?;
@@ -7611,7 +7607,7 @@ impl<'a> Interpreter<'a> {
                         .map_err(|_| RuntimeError::new("list_sort_text length exceeds limits"))?;
                     let list_ref = self
                         .lists
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     if used > list_ref.len() {
                         return Err(RuntimeError::new(
@@ -7622,7 +7618,7 @@ impl<'a> Interpreter<'a> {
                         (RuntimeValue::Text(left), RuntimeValue::Text(right)) => left.cmp(right),
                         _ => std::cmp::Ordering::Equal,
                     });
-                    values.insert(*dest, RuntimeValue::List(id));
+                    values[dest.0 as usize] = RuntimeValue::List(id);
                 }
                 Inst::ListSortRecordTextField {
                     dest,
@@ -7648,7 +7644,7 @@ impl<'a> Interpreter<'a> {
                     })?;
                     let list_ref = self
                         .lists
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
                     if used > list_ref.len() {
                         return Err(RuntimeError::new(
@@ -7679,14 +7675,14 @@ impl<'a> Interpreter<'a> {
                             _ => std::cmp::Ordering::Equal,
                         }
                     });
-                    values.insert(*dest, RuntimeValue::List(id));
+                    values[dest.0 as usize] = RuntimeValue::List(id);
                 }
                 Inst::F64FromI32 { dest, value } => {
                     let value_val = extract_value(values, *value)?;
                     let RuntimeValue::Int(value) = value_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    values.insert(*dest, RuntimeValue::F64(value as f64));
+                    values[dest.0 as usize] = RuntimeValue::F64(value as f64);
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
@@ -7695,14 +7691,14 @@ impl<'a> Interpreter<'a> {
                         RuntimeValue::Bytes(bytes) => bytes.len(),
                         _ => return Err(RuntimeError::new("expected Text or Bytes")),
                     };
-                    values.insert(*dest, RuntimeValue::Int(len as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(len as i64);
                 }
                 Inst::BytesLen { dest, bytes } => {
                     let bytes_val = extract_value(values, *bytes)?;
                     let RuntimeValue::Bytes(bytes) = bytes_val else {
                         return Err(RuntimeError::new("expected Bytes"));
                     };
-                    values.insert(*dest, RuntimeValue::Int(bytes.len() as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(bytes.len() as i64);
                 }
                 Inst::TextConcat { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
@@ -7714,16 +7710,16 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Text"));
                     };
                     if left_text.is_empty() {
-                        values.insert(*dest, RuntimeValue::Text(right_text));
+                        values[dest.0 as usize] = RuntimeValue::Text(right_text);
                         continue;
                     }
                     if right_text.is_empty() {
-                        values.insert(*dest, RuntimeValue::Text(left_text));
+                        values[dest.0 as usize] = RuntimeValue::Text(left_text);
                         continue;
                     }
                     let mut value = left_text;
                     value.push_str(&right_text);
-                    values.insert(*dest, RuntimeValue::Text(value));
+                    values[dest.0 as usize] = RuntimeValue::Text(value);
                 }
                 Inst::TextSlice {
                     dest,
@@ -7755,7 +7751,7 @@ impl<'a> Interpreter<'a> {
                         unsafe { std::str::from_utf8_unchecked(&bytes[clamped_start..clamped_end]) }
                             .to_owned()
                     };
-                    values.insert(*dest, RuntimeValue::Text(sliced));
+                    values[dest.0 as usize] = RuntimeValue::Text(sliced);
                 }
                 Inst::BytesSlice {
                     dest,
@@ -7783,7 +7779,7 @@ impl<'a> Interpreter<'a> {
                     } else {
                         (start, end)
                     };
-                    values.insert(*dest, RuntimeValue::Bytes(bytes[start..end].to_vec()));
+                    values[dest.0 as usize] = RuntimeValue::Bytes(bytes[start..end].to_vec());
                 }
                 Inst::TextByte { dest, text, index } => {
                     let text_val = extract_value(values, *text)?;
@@ -7797,7 +7793,7 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     let byte = bytes.get(idx as usize).copied().unwrap_or(0);
-                    values.insert(*dest, RuntimeValue::Int(byte as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
                 }
                 Inst::BytesByte { dest, bytes, index } => {
                     let bytes_val = extract_value(values, *bytes)?;
@@ -7809,7 +7805,7 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     let byte = bytes.get(idx as usize).copied().unwrap_or(0);
-                    values.insert(*dest, RuntimeValue::Int(byte as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
                 }
                 Inst::TextCmp { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
@@ -7826,7 +7822,7 @@ impl<'a> Interpreter<'a> {
                         std::cmp::Ordering::Equal => 0,
                         std::cmp::Ordering::Greater => 1,
                     };
-                    values.insert(*dest, RuntimeValue::Int(value));
+                    values[dest.0 as usize] = RuntimeValue::Int(value);
                 }
                 Inst::TextEqRange {
                     dest,
@@ -7860,7 +7856,7 @@ impl<'a> Interpreter<'a> {
                         raw_end
                     };
                     let matches = &bytes[clamped_start..clamped_end] == expected_text.as_bytes();
-                    values.insert(*dest, RuntimeValue::Bool(matches));
+                    values[dest.0 as usize] = RuntimeValue::Bool(matches);
                 }
                 Inst::TextFindByteRange {
                     dest,
@@ -7899,7 +7895,7 @@ impl<'a> Interpreter<'a> {
                         }
                         index += 1;
                     }
-                    values.insert(*dest, RuntimeValue::Int(found));
+                    values[dest.0 as usize] = RuntimeValue::Int(found);
                 }
                 Inst::BytesFindByteRange {
                     dest,
@@ -7936,7 +7932,7 @@ impl<'a> Interpreter<'a> {
                         }
                         index += 1;
                     }
-                    values.insert(*dest, RuntimeValue::Int(found));
+                    values[dest.0 as usize] = RuntimeValue::Int(found);
                 }
                 Inst::TextLineEnd {
                     dest,
@@ -7965,7 +7961,7 @@ impl<'a> Interpreter<'a> {
                     if line_end > start && bytes[line_end - 1] == b'\r' {
                         line_end -= 1;
                     }
-                    values.insert(*dest, RuntimeValue::Int(line_end as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(line_end as i64);
                 }
                 Inst::TextNextLine {
                     dest,
@@ -7996,7 +7992,7 @@ impl<'a> Interpreter<'a> {
                     } else {
                         line_end
                     };
-                    values.insert(*dest, RuntimeValue::Int(next as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(next as i64);
                 }
                 Inst::TextFieldEnd {
                     dest,
@@ -8034,7 +8030,7 @@ impl<'a> Interpreter<'a> {
                         }
                         index += 1;
                     }
-                    values.insert(*dest, RuntimeValue::Int(found as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(found as i64);
                 }
                 Inst::TextNextField {
                     dest,
@@ -8072,7 +8068,7 @@ impl<'a> Interpreter<'a> {
                         }
                         index += 1;
                     }
-                    values.insert(*dest, RuntimeValue::Int(next as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(next as i64);
                 }
                 Inst::ParseI32 { dest, text } => {
                     let text_val = extract_value(values, *text)?;
@@ -8083,7 +8079,7 @@ impl<'a> Interpreter<'a> {
                         .trim()
                         .parse::<i64>()
                         .map_err(|_| RuntimeError::new("expected base-10 integer text"))?;
-                    values.insert(*dest, RuntimeValue::Int(parsed));
+                    values[dest.0 as usize] = RuntimeValue::Int(parsed);
                 }
                 Inst::ParseI32Range {
                     dest,
@@ -8112,7 +8108,7 @@ impl<'a> Interpreter<'a> {
                         .trim()
                         .parse::<i64>()
                         .map_err(|_| RuntimeError::new("expected base-10 integer text"))?;
-                    values.insert(*dest, RuntimeValue::Int(parsed));
+                    values[dest.0 as usize] = RuntimeValue::Int(parsed);
                 }
                 Inst::ParseF64 { dest, text } => {
                     let text_val = extract_value(values, *text)?;
@@ -8123,7 +8119,7 @@ impl<'a> Interpreter<'a> {
                         .trim()
                         .parse::<f64>()
                         .map_err(|_| RuntimeError::new("expected float text"))?;
-                    values.insert(*dest, RuntimeValue::F64(parsed));
+                    values[dest.0 as usize] = RuntimeValue::F64(parsed);
                 }
                 Inst::TextFromF64Fixed {
                     dest,
@@ -8138,17 +8134,17 @@ impl<'a> Interpreter<'a> {
                     let RuntimeValue::Int(digits) = digits else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    values.insert(*dest, RuntimeValue::Text(format_f64_fixed(value, digits)));
+                    values[dest.0 as usize] = RuntimeValue::Text(format_f64_fixed(value, digits));
                 }
                 Inst::Sqrt { dest, value } => {
                     let value = extract_value(values, *value)?;
                     let RuntimeValue::F64(value) = value else {
                         return Err(RuntimeError::new("expected F64"));
                     };
-                    values.insert(*dest, RuntimeValue::F64(value.sqrt()));
+                    values[dest.0 as usize] = RuntimeValue::F64(value.sqrt());
                 }
                 Inst::ArgCount { dest } => {
-                    values.insert(*dest, RuntimeValue::Int(self.program_args.len() as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(self.program_args.len() as i64);
                 }
                 Inst::AllocPush => {
                     self.alloc_push();
@@ -8169,16 +8165,13 @@ impl<'a> Interpreter<'a> {
                             .cloned()
                             .unwrap_or_default()
                     };
-                    values.insert(*dest, RuntimeValue::Text(text));
+                    values[dest.0 as usize] = RuntimeValue::Text(text);
                 }
                 Inst::StdinText { dest } => {
-                    values.insert(*dest, RuntimeValue::Text(self.stdin_text.clone()));
+                    values[dest.0 as usize] = RuntimeValue::Text(self.stdin_text.clone());
                 }
                 Inst::StdinBytes { dest } => {
-                    values.insert(
-                        *dest,
-                        RuntimeValue::Bytes(self.stdin_text.as_bytes().to_vec()),
-                    );
+                    values[dest.0 as usize] = RuntimeValue::Bytes(self.stdin_text.as_bytes().to_vec());
                 }
                 Inst::StdoutWrite { text } => {
                     let text_val = extract_value(values, *text)?;
@@ -8194,13 +8187,13 @@ impl<'a> Interpreter<'a> {
                     };
                     let bytes = self
                         .text_builders
-                        .get_mut(&id)
+                        .get_mut(id as usize)
                         .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
                     let text = String::from_utf8(bytes.clone())
                         .map_err(|_| RuntimeError::new("text builder produced invalid UTF-8"))?;
                     self.stdout_text.push_str(&text);
                     bytes.clear();
-                    values.insert(*dest, RuntimeValue::TextBuilder(id));
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
                 Inst::MakeEnum {
                     dest,
@@ -8212,14 +8205,11 @@ impl<'a> Interpreter<'a> {
                         .map(|value| extract_value(values, value))
                         .transpose()?
                         .map(Box::new);
-                    values.insert(
-                        *dest,
-                        RuntimeValue::Enum(RuntimeEnum {
+                    values[dest.0 as usize] = RuntimeValue::Enum(RuntimeEnum {
                             name: name.clone(),
                             variant: variant.clone(),
                             payload,
-                        }),
-                    );
+                        });
                 }
                 Inst::MakeRecord { dest, name, fields } => {
                     let mut runtime_fields = Vec::with_capacity(fields.len());
@@ -8227,13 +8217,10 @@ impl<'a> Interpreter<'a> {
                         let field_value = extract_value(values, *value)?;
                         runtime_fields.push((field_name.clone(), field_value));
                     }
-                    values.insert(
-                        *dest,
-                        RuntimeValue::Record(RuntimeRecord {
+                    values[dest.0 as usize] = RuntimeValue::Record(RuntimeRecord {
                             name: name.clone(),
                             fields: runtime_fields,
-                        }),
-                    );
+                        });
                 }
                 Inst::Field { dest, base, name } => {
                     let base = extract_value(values, *base)?;
@@ -8252,7 +8239,7 @@ impl<'a> Interpreter<'a> {
                                 record.name
                             ))
                         })?;
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::EnumTagEq { dest, value, tag } => {
                     let value = extract_value(values, *value)?;
@@ -8265,7 +8252,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, RuntimeValue::Bool(actual == *tag));
+                    values[dest.0 as usize] = RuntimeValue::Bool(actual == *tag);
                 }
                 Inst::EnumPayload { dest, value, .. } => {
                     let value = extract_value(values, *value)?;
@@ -8276,7 +8263,7 @@ impl<'a> Interpreter<'a> {
                         .payload
                         .map(|payload| *payload)
                         .ok_or_else(|| RuntimeError::new("enum variant has no payload"))?;
-                    values.insert(*dest, payload);
+                    values[dest.0 as usize] = payload;
                 }
                 Inst::If {
                     dest,
@@ -8305,7 +8292,7 @@ impl<'a> Interpreter<'a> {
                     }
                     *slots = branch_slots;
                     let result = branch_result.map_or(Ok(RuntimeValue::Unit), |result| {
-                        branch_values.get(&result).cloned().ok_or_else(|| {
+                        branch_values.get(result.0 as usize).cloned().ok_or_else(|| {
                             RuntimeError::new(format!(
                                 "missing conditional branch result in `{}` for {}",
                                 function.name,
@@ -8313,7 +8300,7 @@ impl<'a> Interpreter<'a> {
                             ))
                         })
                     })?;
-                    values.insert(*dest, result);
+                    values[dest.0 as usize] = result;
                 }
                 Inst::Repeat {
                     dest,
@@ -8327,7 +8314,7 @@ impl<'a> Interpreter<'a> {
                             let mut body_values = values.clone();
                             let mut body_slots = slots.clone();
                             if let Some(slot) = index_slot {
-                                body_slots.insert(*slot, RuntimeValue::Int(index));
+                                body_slots[slot.0 as usize] = RuntimeValue::Int(index);
                             }
                             if let ExecFlow::Return(value) = self.execute_insts(
                                 function,
@@ -8341,7 +8328,7 @@ impl<'a> Interpreter<'a> {
                             *slots = body_slots;
                         }
                     }
-                    values.insert(*dest, RuntimeValue::Unit);
+                    values[dest.0 as usize] = RuntimeValue::Unit;
                 }
                 Inst::While {
                     dest,
@@ -8362,7 +8349,7 @@ impl<'a> Interpreter<'a> {
                             return Ok(ExecFlow::Return(value));
                         }
                         let RuntimeValue::Bool(keep_going) =
-                            condition_values.get(condition).cloned().ok_or_else(|| {
+                            condition_values.get(condition.0 as usize).cloned().ok_or_else(|| {
                                 RuntimeError::new(format!(
                                     "missing while condition result in `{}` for {}",
                                     function.name,
@@ -8391,7 +8378,7 @@ impl<'a> Interpreter<'a> {
                         }
                         *slots = body_slots;
                     }
-                    values.insert(*dest, RuntimeValue::Unit);
+                    values[dest.0 as usize] = RuntimeValue::Unit;
                 }
                 Inst::Add { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8409,7 +8396,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::Sub { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8427,7 +8414,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::Mul { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8445,7 +8432,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::Div { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8469,52 +8456,52 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, value);
+                    values[dest.0 as usize] = value;
                 }
                 Inst::BitAnd { dest, left, right } => {
                     let left = extract_int(values, *left)? as i32;
                     let right = extract_int(values, *right)? as i32;
-                    values.insert(*dest, RuntimeValue::Int((left & right) as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int((left & right) as i64);
                 }
                 Inst::BitOr { dest, left, right } => {
                     let left = extract_int(values, *left)? as i32;
                     let right = extract_int(values, *right)? as i32;
-                    values.insert(*dest, RuntimeValue::Int((left | right) as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int((left | right) as i64);
                 }
                 Inst::BitXor { dest, left, right } => {
                     let left = extract_int(values, *left)? as i32;
                     let right = extract_int(values, *right)? as i32;
-                    values.insert(*dest, RuntimeValue::Int((left ^ right) as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int((left ^ right) as i64);
                 }
                 Inst::Shl { dest, left, right } => {
                     let left = extract_int(values, *left)? as i32;
                     let right = (extract_int(values, *right)? as u32) & 31;
-                    values.insert(*dest, RuntimeValue::Int(left.wrapping_shl(right) as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int(left.wrapping_shl(right) as i64);
                 }
                 Inst::Shr { dest, left, right } => {
                     let left = extract_int(values, *left)? as i32;
                     let right = (extract_int(values, *right)? as u32) & 31;
-                    values.insert(*dest, RuntimeValue::Int((left >> right) as i64));
+                    values[dest.0 as usize] = RuntimeValue::Int((left >> right) as i64);
                 }
                 Inst::And { dest, left, right } => {
                     let left = extract_bool(values, *left)?;
                     let right = extract_bool(values, *right)?;
-                    values.insert(*dest, RuntimeValue::Bool(left && right));
+                    values[dest.0 as usize] = RuntimeValue::Bool(left && right);
                 }
                 Inst::Or { dest, left, right } => {
                     let left = extract_bool(values, *left)?;
                     let right = extract_bool(values, *right)?;
-                    values.insert(*dest, RuntimeValue::Bool(left || right));
+                    values[dest.0 as usize] = RuntimeValue::Bool(left || right);
                 }
                 Inst::Eq { dest, left, right } => {
                     let left = extract_value(values, *left)?;
                     let right = extract_value(values, *right)?;
-                    values.insert(*dest, RuntimeValue::Bool(left == right));
+                    values[dest.0 as usize] = RuntimeValue::Bool(left == right);
                 }
                 Inst::Ne { dest, left, right } => {
                     let left = extract_value(values, *left)?;
                     let right = extract_value(values, *right)?;
-                    values.insert(*dest, RuntimeValue::Bool(left != right));
+                    values[dest.0 as usize] = RuntimeValue::Bool(left != right);
                 }
                 Inst::Lt { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8528,7 +8515,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, RuntimeValue::Bool(result));
+                    values[dest.0 as usize] = RuntimeValue::Bool(result);
                 }
                 Inst::Le { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8542,7 +8529,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, RuntimeValue::Bool(result));
+                    values[dest.0 as usize] = RuntimeValue::Bool(result);
                 }
                 Inst::Gt { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8556,7 +8543,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, RuntimeValue::Bool(result));
+                    values[dest.0 as usize] = RuntimeValue::Bool(result);
                 }
                 Inst::Ge { dest, left, right } => {
                     let left = extract_value(values, *left)?;
@@ -8570,7 +8557,7 @@ impl<'a> Interpreter<'a> {
                             ));
                         }
                     };
-                    values.insert(*dest, RuntimeValue::Bool(result));
+                    values[dest.0 as usize] = RuntimeValue::Bool(result);
                 }
                 Inst::Call { dest, callee, args } => {
                     let callee_fn = *self
@@ -8580,13 +8567,13 @@ impl<'a> Interpreter<'a> {
                     let arg_values = args
                         .iter()
                         .map(|value| {
-                            values.get(value).cloned().ok_or_else(|| {
+                            values.get(value.0 as usize).cloned().ok_or_else(|| {
                                 RuntimeError::new(format!("unknown value {}", value.render()))
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     let result = self.execute_function(callee_fn, &arg_values)?;
-                    values.insert(*dest, result);
+                    values[dest.0 as usize] = result;
                 }
                 Inst::Assert { condition, kind } => {
                     let condition = extract_bool(values, *condition)?;
@@ -8611,7 +8598,7 @@ impl<'a> Interpreter<'a> {
                     let arg_values = args
                         .iter()
                         .map(|id| {
-                            values.get(id).cloned().ok_or_else(|| {
+                            values.get(id.0 as usize).cloned().ok_or_else(|| {
                                 RuntimeError::new(format!("unknown value {}", id.render()))
                             })
                         })
@@ -8624,8 +8611,8 @@ impl<'a> Interpreter<'a> {
                     });
                     if let Some(arm) = matched_arm {
                         // For non-resumable handlers, we just run the instructions and take the result.
-                        let mut local_values = BTreeMap::new();
-                        let mut local_slots = BTreeMap::new();
+                        let mut local_values = values.clone();
+                        let mut local_slots = slots.clone();
                         if let ExecFlow::Return(value) = self.execute_insts(
                             function,
                             &arm.body_insts,
@@ -8633,15 +8620,15 @@ impl<'a> Interpreter<'a> {
                             &mut local_slots,
                             &arg_values,
                         )? {
-                            values.insert(*dest, value);
+                            values[dest.0 as usize] = value;
                         } else if let Some(result_id) = arm.body_result {
                             let value = local_values
-                                .get(&result_id)
+                                .get(result_id.0 as usize)
                                 .cloned()
                                 .ok_or_else(|| RuntimeError::new("missing handler arm result"))?;
-                            values.insert(*dest, value);
+                            values[dest.0 as usize] = value;
                         } else {
-                            values.insert(*dest, RuntimeValue::Unit);
+                            values[dest.0 as usize] = RuntimeValue::Unit;
                         }
                     } else {
                         return Err(RuntimeError::EffectUnwind {
@@ -8658,8 +8645,8 @@ impl<'a> Interpreter<'a> {
                     arms,
                 } => {
                     self.handlers.push(arms.clone());
-                    let mut local_values = BTreeMap::new();
-                    let mut local_slots = BTreeMap::new();
+                    let mut local_values = vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
+                    let mut local_slots = vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
                     let flow = self.execute_insts(
                         function,
                         body_insts,
@@ -8673,12 +8660,12 @@ impl<'a> Interpreter<'a> {
                         ExecFlow::Continue => {
                             if let Some(result_id) = body_result {
                                 let value =
-                                    local_values.get(result_id).cloned().ok_or_else(|| {
+                                    local_values.get(result_id.0 as usize).cloned().ok_or_else(|| {
                                         RuntimeError::new("missing handle body result")
                                     })?;
-                                values.insert(*dest, value);
+                                values[dest.0 as usize] = value;
                             } else {
-                                values.insert(*dest, RuntimeValue::Unit);
+                                values[dest.0 as usize] = RuntimeValue::Unit;
                             }
                         }
                     }
@@ -8870,10 +8857,10 @@ enum ExecFlow {
 }
 
 fn extract_int(
-    values: &BTreeMap<ValueId, RuntimeValue>,
+    values: &[RuntimeValue],
     value: ValueId,
 ) -> Result<i64, RuntimeError> {
-    match values.get(&value) {
+    match values.get(value.0 as usize) {
         Some(RuntimeValue::Int(value)) => Ok(*value),
         Some(other) => Err(RuntimeError::new(format!(
             "expected integer value, found {}",
@@ -8887,10 +8874,10 @@ fn extract_int(
 }
 
 fn extract_bool(
-    values: &BTreeMap<ValueId, RuntimeValue>,
+    values: &[RuntimeValue],
     value: ValueId,
 ) -> Result<bool, RuntimeError> {
-    match values.get(&value) {
+    match values.get(value.0 as usize) {
         Some(RuntimeValue::Bool(value)) => Ok(*value),
         Some(other) => Err(RuntimeError::new(format!(
             "expected boolean value, found {}",
@@ -8904,11 +8891,11 @@ fn extract_bool(
 }
 
 fn extract_value(
-    values: &BTreeMap<ValueId, RuntimeValue>,
+    values: &[RuntimeValue],
     value: ValueId,
 ) -> Result<RuntimeValue, RuntimeError> {
     values
-        .get(&value)
+        .get(value.0 as usize)
         .cloned()
         .ok_or_else(|| RuntimeError::new(format!("unknown value {}", value.render())))
 }
