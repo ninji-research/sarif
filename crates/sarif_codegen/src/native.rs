@@ -66,6 +66,30 @@ impl TrustedListAccesses {
 
 const PAYLOAD_ENUM_SIZE: u32 = 16;
 
+fn call_helper(
+    builder: &mut FunctionBuilder<'_>,
+    helper: cranelift_codegen::ir::FuncRef,
+    args: &[Value],
+    error_context: &str,
+    function: &Function,
+    backend: &str,
+) -> Result<Value, String> {
+    let call = builder.ins().call(helper, args);
+    let ptr = match builder.inst_results(call) {
+        [ptr] => *ptr,
+        _ => {
+            return Err(format!(
+                "{backend} {error_context} helper returned an unexpected result shape in `{}`",
+                function.name
+            ));
+        }
+    };
+    let null = builder.ins().iconst(types::I64, 0);
+    let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
+    builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+    Ok(ptr)
+}
+
 fn native_kind_type(kind: &NativeValueKind) -> cranelift_codegen::ir::types::Type {
     match kind {
         NativeValueKind::Unit => types::I64, // Represented as 0 handle
@@ -1329,19 +1353,7 @@ pub fn lower_inst<M: Module>(
         }
         Inst::TextBuilderNew { dest } => {
             let helper = module.declare_func_in_func(text_builder_new_id, builder.func);
-            let call = builder.ins().call(helper, &[]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder new helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[], "text builder new", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1360,19 +1372,7 @@ pub fn lower_inst<M: Module>(
             let text_val =
                 native_value(values, *text, function, "text_builder_append text", backend)?;
             let helper = module.declare_func_in_func(text_builder_append_id, builder.func);
-            let call = builder.ins().call(helper, &[builder_val, text_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder append helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val, text_val], "text builder append", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1397,19 +1397,7 @@ pub fn lower_inst<M: Module>(
             )?;
             let helper =
                 module.declare_func_in_func(text_builder_append_codepoint_id, builder.func);
-            let call = builder.ins().call(helper, &[builder_val, codepoint_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder append codepoint helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val, codepoint_val], "text builder append codepoint", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1433,19 +1421,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_append_ascii_id, builder.func);
-            let call = builder.ins().call(helper, &[builder_val, byte_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder append ascii helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val, byte_val], "text builder append ascii", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1485,21 +1461,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_append_slice_id, builder.func);
-            let call = builder
-                .ins()
-                .call(helper, &[builder_val, text_val, start_val, end_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder append slice helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val, text_val, start_val, end_val], "text builder append slice", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1523,19 +1485,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_append_i32_id, builder.func);
-            let call = builder.ins().call(helper, &[builder_val, value_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder append i32 helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val, value_val], "text builder append i32", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1551,37 +1501,13 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_finish_id, builder.func);
-            let call = builder.ins().call(helper, &[builder_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text builder finish helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val], "text builder finish", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
         Inst::TextIndexNew { dest } => {
             let helper = module.declare_func_in_func(text_index_helpers.new_id, builder.func);
-            let call = builder.ins().call(helper, &[]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text index new helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[], "text index new", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1657,19 +1583,7 @@ pub fn lower_inst<M: Module>(
             let value_val =
                 native_value(values, *value, function, "text_index_set value", backend)?;
             let helper = module.declare_func_in_func(text_index_helpers.set_id, builder.func);
-            let call = builder.ins().call(helper, &[index_val, key_val, value_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text index set helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[index_val, key_val, value_val], "text index set", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1685,19 +1599,7 @@ pub fn lower_inst<M: Module>(
                     .bitcast(types::I64, MemFlags::new(), value_val);
             }
             let helper = module.declare_func_in_func(list_new_id, builder.func);
-            let call = builder.ins().call(helper, &[len_val, value_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} list new helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[len_val, value_val], "list new", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1801,19 +1703,7 @@ pub fn lower_inst<M: Module>(
                     .bitcast(types::I64, MemFlags::new(), value_val);
             }
             let helper = module.declare_func_in_func(list_push_id, builder.func);
-            let call = builder.ins().call(helper, &[vec_val, len_val, value_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} list push helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[vec_val, len_val, value_val], "list push", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1821,19 +1711,7 @@ pub fn lower_inst<M: Module>(
             let vec_val = native_value(values, *list, function, "list_sort_text list", backend)?;
             let len_val = native_value(values, *len, function, "list_sort_text len", backend)?;
             let helper = module.declare_func_in_func(list_sort_text_id, builder.func);
-            let call = builder.ins().call(helper, &[vec_val, len_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} list sort text helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[vec_val, len_val], "list sort text", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1893,19 +1771,7 @@ pub fn lower_inst<M: Module>(
                 .ins()
                 .iconst(types::I64, i64::from(field_desc.offset));
             let helper = module.declare_func_in_func(list_sort_by_text_field_id, builder.func);
-            let call = builder.ins().call(helper, &[vec_val, len_val, offset]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} list sort by text field helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[vec_val, len_val, offset], "list sort by text field", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1941,19 +1807,7 @@ pub fn lower_inst<M: Module>(
             let left_val = native_value(values, *left, function, "text_concat left", backend)?;
             let right_val = native_value(values, *right, function, "text_concat right", backend)?;
             let helper = module.declare_func_in_func(text_concat_id, builder.func);
-            let call = builder.ins().call(helper, &[left_val, right_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text concat helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[left_val, right_val], "text concat", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1967,19 +1821,7 @@ pub fn lower_inst<M: Module>(
             let start_val = native_value(values, *start, function, "text_slice start", backend)?;
             let end_val = native_value(values, *end, function, "text_slice end", backend)?;
             let helper = module.declare_func_in_func(text_slice_id, builder.func);
-            let call = builder.ins().call(helper, &[text_val, start_val, end_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text slice helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[text_val, start_val, end_val], "text slice", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1993,19 +1835,7 @@ pub fn lower_inst<M: Module>(
             let start_val = native_value(values, *start, function, "bytes_slice start", backend)?;
             let end_val = native_value(values, *end, function, "bytes_slice end", backend)?;
             let helper = module.declare_func_in_func(bytes_slice_id, builder.func);
-            let call = builder.ins().call(helper, &[bytes_val, start_val, end_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} bytes slice helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[bytes_val, start_val, end_val], "bytes slice", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2305,19 +2135,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_from_f64_fixed_id, builder.func);
-            let call = builder.ins().call(helper, &[value_val, digits_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} text_from_f64_fixed helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[value_val, digits_val], "text_from_f64_fixed", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2395,55 +2213,19 @@ pub fn lower_inst<M: Module>(
         Inst::ArgText { dest, index } => {
             let index_val = native_value(values, *index, function, "arg_text index", backend)?;
             let helper = module.declare_func_in_func(arg_text_id, builder.func);
-            let call = builder.ins().call(helper, &[index_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} arg text helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[index_val], "arg text", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
         Inst::StdinText { dest } => {
             let helper = module.declare_func_in_func(stdin_text_id, builder.func);
-            let call = builder.ins().call(helper, &[]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} stdin text helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[], "stdin text", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
         Inst::StdinBytes { dest } => {
             let helper = module.declare_func_in_func(stdin_text_id, builder.func);
-            let call = builder.ins().call(helper, &[]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} stdin bytes helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[], "stdin bytes", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2465,19 +2247,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(stdout_write_builder_id, builder.func);
-            let call = builder.ins().call(helper, &[builder_val]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} stdout_write_builder helper returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, helper, &[builder_val], "stdout_write_builder", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2535,19 +2305,7 @@ pub fn lower_inst<M: Module>(
                 .ok_or_else(|| format!("missing native record metadata for `{name}`"))?;
             let allocator = module.declare_func_in_func(allocator_id, builder.func);
             let size = builder.ins().iconst(types::I64, i64::from(record.size));
-            let call = builder.ins().call(allocator, &[size]);
-            let ptr = match builder.inst_results(call) {
-                [ptr] => *ptr,
-                _ => {
-                    return Err(format!(
-                        "{backend} record allocator returned an unexpected result shape in `{}`",
-                        function.name
-                    ));
-                }
-            };
-            let null = builder.ins().iconst(types::I64, 0);
-            let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
-            builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
+            let ptr = call_helper(builder, allocator, &[size], "record allocator", function, backend)?;
             for field in &record.fields {
                 let source = fields
                     .iter()
