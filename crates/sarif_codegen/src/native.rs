@@ -589,53 +589,109 @@ pub fn record_offset(index: usize) -> Result<u32, String> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn lower_comparison<M: Module>(
+fn lower_arithmetic<F, I>(
+    values: &mut BTreeMap<ValueId, NativeValueRepr>,
+    value_kinds: &BTreeMap<ValueId, NativeValueKind>,
+    function: &Function,
+    builder: &mut FunctionBuilder<'_>,
+    backend: &str,
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+    op_name: &str,
+    float_op: F,
+    int_op: I,
+) -> Result<bool, String>
+where
+    F: FnOnce(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value,
+    I: FnOnce(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value,
+{
+    let left_kind = value_kinds.get(&left).ok_or_else(|| {
+        format!("{backend} could not resolve {op_name} left operand kind for `{}`", function.name)
+    })?;
+    let left_value = native_value(values, left, function, &format!("{op_name} left operand"), backend)?;
+    let right_value = native_value(values, right, function, &format!("{op_name} right operand"), backend)?;
+    let native = match left_kind {
+        NativeValueKind::F64 => float_op(builder, left_value, right_value),
+        _ => int_op(builder, left_value, right_value),
+    };
+    values.insert(dest, NativeValueRepr::Native(native));
+    Ok(true)
+}
+
+fn lower_binary_int<F>(
+    values: &mut BTreeMap<ValueId, NativeValueRepr>,
+    function: &Function,
+    builder: &mut FunctionBuilder<'_>,
+    backend: &str,
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+    op_name: &str,
+    op: F,
+) -> Result<bool, String>
+where
+    F: FnOnce(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value,
+{
+    let native = op(
+        builder,
+        native_value(values, left, function, &format!("{op_name} left operand"), backend)?,
+        native_value(values, right, function, &format!("{op_name} right operand"), backend)?,
+    );
+    values.insert(dest, NativeValueRepr::Native(native));
+    Ok(true)
+}
+
+fn lower_comparison<M: Module>(
+    values: &mut BTreeMap<ValueId, NativeValueRepr>,
+    value_kinds: &BTreeMap<ValueId, NativeValueKind>,
     module: &mut M,
     builder: &mut FunctionBuilder<'_>,
-    values: &BTreeMap<ValueId, NativeValueRepr>,
-    value_kinds: &BTreeMap<ValueId, NativeValueKind>,
     text_eq_id: FuncId,
     records: &BTreeMap<String, NativeRecord>,
     enums: &BTreeMap<String, NativeEnum>,
+    dest: ValueId,
     left: ValueId,
     right: ValueId,
     function: &Function,
     condition: IntCC,
     backend: &str,
-) -> Result<NativeValueRepr, String> {
+) -> Result<bool, String> {
     if let Some(kind) = value_kinds.get(&left)
         && matches!(
             kind,
             NativeValueKind::Text | NativeValueKind::Record(_) | NativeValueKind::Enum(_)
         )
     {
-        let left = native_value(values, left, function, "comparison left operand", backend)?;
-        let right = native_value(values, right, function, "comparison right operand", backend)?;
+        let left_val = native_value(values, left, function, "comparison left operand", backend)?;
+        let right_val = native_value(values, right, function, "comparison right operand", backend)?;
         let value = lower_native_kind_comparison(
-            module, builder, text_eq_id, records, enums, left, right, kind, condition, backend,
+            module, builder, text_eq_id, records, enums, left_val, right_val, kind, condition, backend,
             function,
         )?;
-        return Ok(NativeValueRepr::Native(value));
+        values.insert(dest, NativeValueRepr::Native(value));
+        return Ok(true);
     }
     if matches!(value_kinds.get(&left), Some(NativeValueKind::F64)) {
         let left_float = native_value(values, left, function, "comparison left operand", backend)?;
         let right_float =
             native_value(values, right, function, "comparison right operand", backend)?;
-        if matches!(condition, IntCC::NotEqual) {
+        let native = if matches!(condition, IntCC::NotEqual) {
             let eq = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
             let ne = builder.ins().bnot(eq);
-            let native = builder.ins().uextend(types::I64, ne);
-            return Ok(NativeValueRepr::Native(native));
-        }
-        let Some(float_condition) = float_cc(condition) else {
-            return Err(format!(
-                "{backend} cannot lower float comparison `{condition:?}` in `{}`",
-                function.name
-            ));
+            builder.ins().uextend(types::I64, ne)
+        } else {
+            let Some(float_condition) = float_cc(condition) else {
+                return Err(format!(
+                    "{backend} cannot lower float comparison `{condition:?}` in `{}`",
+                    function.name
+                ));
+            };
+            let compare = builder.ins().fcmp(float_condition, left_float, right_float);
+            builder.ins().uextend(types::I64, compare)
         };
-        let compare = builder.ins().fcmp(float_condition, left_float, right_float);
-        let native = builder.ins().uextend(types::I64, compare);
-        return Ok(NativeValueRepr::Native(native));
+        values.insert(dest, NativeValueRepr::Native(native));
+        return Ok(true);
     }
     match (
         value_repr(values, left, function, "comparison left operand", backend)?,
@@ -645,12 +701,14 @@ pub fn lower_comparison<M: Module>(
             let value = builder
                 .ins()
                 .iconst(types::I64, i64::from(matches!(condition, IntCC::Equal)));
-            Ok(NativeValueRepr::Native(value))
+            values.insert(dest, NativeValueRepr::Native(value));
+            Ok(true)
         }
-        (NativeValueRepr::Native(left), NativeValueRepr::Native(right)) => {
-            let compare = builder.ins().icmp(condition, left, right);
+        (NativeValueRepr::Native(left_val), NativeValueRepr::Native(right_val)) => {
+            let compare = builder.ins().icmp(condition, left_val, right_val);
             let native = builder.ins().uextend(types::I64, compare);
-            Ok(NativeValueRepr::Native(native))
+            values.insert(dest, NativeValueRepr::Native(native));
+            Ok(true)
         }
         _ => Err(format!(
             "{backend} cannot compare unit and non-unit values in `{}`",
@@ -2543,250 +2601,23 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(native));
             Ok(true)
         }
-        Inst::Add { dest, left, right } => {
-            let left_kind = value_kinds.get(left).ok_or_else(|| {
-                format!(
-                    "{backend} could not resolve add left operand kind for `{}`",
-                    function.name
-                )
-            })?;
-            let left_value = native_value(values, *left, function, "add left operand", backend)?;
-            let right_value = native_value(values, *right, function, "add right operand", backend)?;
-            let native = match left_kind {
-                NativeValueKind::F64 => {
-                    let left_float = left_value;
-                    let right_float = right_value;
-                    builder.ins().fadd(left_float, right_float)
-                }
-                _ => builder.ins().iadd(left_value, right_value),
-            };
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Sub { dest, left, right } => {
-            let left_kind = value_kinds.get(left).ok_or_else(|| {
-                format!(
-                    "{backend} could not resolve sub left operand kind for `{}`",
-                    function.name
-                )
-            })?;
-            let left_value = native_value(values, *left, function, "sub left operand", backend)?;
-            let right_value = native_value(values, *right, function, "sub right operand", backend)?;
-            let native = match left_kind {
-                NativeValueKind::F64 => {
-                    let left_float = left_value;
-                    let right_float = right_value;
-                    builder.ins().fsub(left_float, right_float)
-                }
-                _ => builder.ins().isub(left_value, right_value),
-            };
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Mul { dest, left, right } => {
-            let left_kind = value_kinds.get(left).ok_or_else(|| {
-                format!(
-                    "{backend} could not resolve mul left operand kind for `{}`",
-                    function.name
-                )
-            })?;
-            let left_value = native_value(values, *left, function, "mul left operand", backend)?;
-            let right_value = native_value(values, *right, function, "mul right operand", backend)?;
-            let native = match left_kind {
-                NativeValueKind::F64 => {
-                    let left_float = left_value;
-                    let right_float = right_value;
-                    builder.ins().fmul(left_float, right_float)
-                }
-                _ => builder.ins().imul(left_value, right_value),
-            };
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Div { dest, left, right } => {
-            let left_kind = value_kinds.get(left).ok_or_else(|| {
-                format!(
-                    "{backend} could not resolve div left operand kind for `{}`",
-                    function.name
-                )
-            })?;
-            let left_value = native_value(values, *left, function, "div left operand", backend)?;
-            let right_value = native_value(values, *right, function, "div right operand", backend)?;
-            let native = match left_kind {
-                NativeValueKind::F64 => {
-                    let left_float = left_value;
-                    let right_float = right_value;
-                    builder.ins().fdiv(left_float, right_float)
-                }
-                _ => builder.ins().sdiv(left_value, right_value),
-            };
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::BitAnd { dest, left, right } => {
-            let native = builder.ins().band(
-                native_value(values, *left, function, "bitand left operand", backend)?,
-                native_value(values, *right, function, "bitand right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::BitOr { dest, left, right } => {
-            let native = builder.ins().bor(
-                native_value(values, *left, function, "bitor left operand", backend)?,
-                native_value(values, *right, function, "bitor right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::BitXor { dest, left, right } => {
-            let native = builder.ins().bxor(
-                native_value(values, *left, function, "bitxor left operand", backend)?,
-                native_value(values, *right, function, "bitxor right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Shl { dest, left, right } => {
-            let native = builder.ins().ishl(
-                native_value(values, *left, function, "shl left operand", backend)?,
-                native_value(values, *right, function, "shl right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Shr { dest, left, right } => {
-            let native = builder.ins().sshr(
-                native_value(values, *left, function, "shr left operand", backend)?,
-                native_value(values, *right, function, "shr right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::And { dest, left, right } => {
-            let native = builder.ins().band(
-                native_value(values, *left, function, "and left operand", backend)?,
-                native_value(values, *right, function, "and right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Or { dest, left, right } => {
-            let native = builder.ins().bor(
-                native_value(values, *left, function, "or left operand", backend)?,
-                native_value(values, *right, function, "or right operand", backend)?,
-            );
-            values.insert(*dest, NativeValueRepr::Native(native));
-            Ok(true)
-        }
-        Inst::Eq { dest, left, right } => {
-            let native = lower_comparison(
-                module,
-                builder,
-                values,
-                value_kinds,
-                text_eq_id,
-                records,
-                enums,
-                *left,
-                *right,
-                function,
-                IntCC::Equal,
-                backend,
-            )?;
-            values.insert(*dest, native);
-            Ok(true)
-        }
-        Inst::Ne { dest, left, right } => {
-            let native = lower_comparison(
-                module,
-                builder,
-                values,
-                value_kinds,
-                text_eq_id,
-                records,
-                enums,
-                *left,
-                *right,
-                function,
-                IntCC::NotEqual,
-                backend,
-            )?;
-            values.insert(*dest, native);
-            Ok(true)
-        }
-        Inst::Lt { dest, left, right } => {
-            let native = lower_comparison(
-                module,
-                builder,
-                values,
-                value_kinds,
-                text_eq_id,
-                records,
-                enums,
-                *left,
-                *right,
-                function,
-                IntCC::SignedLessThan,
-                backend,
-            )?;
-            values.insert(*dest, native);
-            Ok(true)
-        }
-        Inst::Le { dest, left, right } => {
-            let native = lower_comparison(
-                module,
-                builder,
-                values,
-                value_kinds,
-                text_eq_id,
-                records,
-                enums,
-                *left,
-                *right,
-                function,
-                IntCC::SignedLessThanOrEqual,
-                backend,
-            )?;
-            values.insert(*dest, native);
-            Ok(true)
-        }
-        Inst::Gt { dest, left, right } => {
-            let native = lower_comparison(
-                module,
-                builder,
-                values,
-                value_kinds,
-                text_eq_id,
-                records,
-                enums,
-                *left,
-                *right,
-                function,
-                IntCC::SignedGreaterThan,
-                backend,
-            )?;
-            values.insert(*dest, native);
-            Ok(true)
-        }
-        Inst::Ge { dest, left, right } => {
-            let native = lower_comparison(
-                module,
-                builder,
-                values,
-                value_kinds,
-                text_eq_id,
-                records,
-                enums,
-                *left,
-                *right,
-                function,
-                IntCC::SignedGreaterThanOrEqual,
-                backend,
-            )?;
-            values.insert(*dest, native);
-            Ok(true)
-        }
+        Inst::Add { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "add", |b, l, r| b.ins().fadd(l, r), |b, l, r| b.ins().iadd(l, r)),
+        Inst::Sub { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "sub", |b, l, r| b.ins().fsub(l, r), |b, l, r| b.ins().isub(l, r)),
+        Inst::Mul { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "mul", |b, l, r| b.ins().fmul(l, r), |b, l, r| b.ins().imul(l, r)),
+        Inst::Div { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "div", |b, l, r| b.ins().fdiv(l, r), |b, l, r| b.ins().sdiv(l, r)),
+        Inst::BitAnd { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "bitand", |b, l, r| b.ins().band(l, r)),
+        Inst::BitOr { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "bitor", |b, l, r| b.ins().bor(l, r)),
+        Inst::BitXor { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "bitxor", |b, l, r| b.ins().bxor(l, r)),
+        Inst::Shl { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "shl", |b, l, r| b.ins().ishl(l, r)),
+        Inst::Shr { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "shr", |b, l, r| b.ins().sshr(l, r)),
+        Inst::And { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "and", |b, l, r| b.ins().band(l, r)),
+        Inst::Or { dest, left, right } => lower_binary_int(values, function, builder, backend, *dest, *left, *right, "or", |b, l, r| b.ins().bor(l, r)),
+        Inst::Eq { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::Equal, backend),
+        Inst::Ne { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::NotEqual, backend),
+        Inst::Lt { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedLessThan, backend),
+        Inst::Le { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedLessThanOrEqual, backend),
+        Inst::Gt { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedGreaterThan, backend),
+        Inst::Ge { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedGreaterThanOrEqual, backend),
         Inst::Sqrt { dest, value } => {
             let float = native_value(values, *value, function, "sqrt operand", backend)?;
             let sqrt = builder.ins().sqrt(float);
