@@ -2648,10 +2648,6 @@ fn wasm_slot(id: LocalSlotId) -> String {
     id.render().replace('#', "")
 }
 
-fn w(out: &mut String, line: &str) {
-    writeln!(out, "    {line}").expect("writing to a string cannot fail");
-}
-
 fn w_unary(out: &mut String, dest: ValueId, src: ValueId, op: &str) {
     writeln!(out, "    local.get ${}", wasm_id(src)).expect("writing to a string cannot fail");
     writeln!(out, "    {op}").expect("writing to a string cannot fail");
