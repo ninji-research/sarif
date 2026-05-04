@@ -1,0 +1,179 @@
+enum HirExprKind { Name, Integer, String, Bool, Binary, Call, If, While, Repeat, Match, Field, Index, Record, Array, Group, Unary, Float }
+struct HirExpr { kind: HirExprKind, a: I32, b: I32, t1: Text }
+struct HirExprId { index: I32 }
+struct HirBodyId { index: I32 }
+struct HirTypeRef { kind: HirTypeKind, t1: Text }
+enum HirTypeKind { I32, F64, Bool, Text, Unit, Array, Named, Optional, Result }
+struct OptionalHirTypeRef { present: Bool, ty: HirTypeRef }
+struct OptionalHirExprId { present: Bool, id: HirExprId }
+struct OptionalHirBodyId { present: Bool, id: HirBodyId }
+enum HirItemKind { Const, Fn, Enum, Struct, Effect }
+struct HirItem { kind: HirItemKind, name: Text, span: Span }
+struct HirItemList { len: I32, i1: OptionalHirItem, i2: OptionalHirItem, i3: OptionalHirItem, i4: OptionalHirItem, i5: OptionalHirItem }
+struct OptionalHirItem { present: Bool, item: HirItem }
+struct HirModule { items: HirItemList }
+struct HirConst { name: Text, ty: HirTypeRef, value: HirExprId, span: Span }
+struct HirParam { name: Text, ty: HirTypeRef }
+struct HirParamList { len: I32, p1: OptionalHirParam, p2: OptionalHirParam, p3: OptionalHirParam, p4: OptionalHirParam, p5: OptionalHirParam }
+struct OptionalHirParam { present: Bool, param: HirParam }
+struct HirFxList { len: I32, fx1: OptionalHirFx, fx2: OptionalHirFx, fx3: OptionalHirFx, fx4: OptionalHirFx, fx5: OptionalHirFx }
+struct OptionalHirFx { present: Bool, name: Text }
+struct HirBinding { name: Text, ty: OptionalHirTypeRef }
+struct OptionalHirBinding { present: Bool, binding: HirBinding }
+struct HirVariant { name: Text, payload: OptionalHirTypeRef, span: Span }
+struct HirVariantList { len: I32, v1: OptionalHirVariant, v2: OptionalHirVariant, v3: OptionalHirVariant, v4: OptionalHirVariant, v5: OptionalHirVariant }
+struct OptionalHirVariant { present: Bool, variant: HirVariant }
+struct HirEnum { name: Text, variants: HirVariantList, span: Span }
+struct HirField { name: Text, ty: HirTypeRef, span: Span }
+struct HirFieldList { len: I32, f1: OptionalHirField, f2: OptionalHirField, f3: OptionalHirField, f4: OptionalHirField, f5: OptionalHirField }
+struct OptionalHirField { present: Bool, field: HirField }
+struct HirStruct { name: Text, fields: HirFieldList, span: Span }
+struct HirConstList { len: I32, c1: OptionalHirConst, c2: OptionalHirConst, c3: OptionalHirConst, c4: OptionalHirConst, c5: OptionalHirConst }
+struct OptionalHirConst { present: Bool, c: HirConst }
+struct HirFnList2 { len: I32, f1: OptionalHirFn2, f2: OptionalHirFn2, f3: OptionalHirFn2, f4: OptionalHirFn2, f5: OptionalHirFn2 }
+struct OptionalHirFn2 { present: Bool, f: HirFn }
+struct HirEnumList { len: I32, e1: OptionalHirEnum, e2: OptionalHirEnum, e3: OptionalHirEnum, e4: OptionalHirEnum, e5: OptionalHirEnum }
+struct OptionalHirEnum { present: Bool, e: HirEnum }
+struct HirStructList { len: I32, s1: OptionalHirStruct, s2: OptionalHirStruct, s3: OptionalHirStruct, s4: OptionalHirStruct, s5: OptionalHirStruct }
+struct OptionalHirStruct { present: Bool, s: HirStruct }
+struct HirExprPool { len: I32 }
+struct HirBodyPool { len: I32 }
+struct HirBody { stmts: HirStmtList, tail: OptionalHirExprId, span: Span }
+struct HirStmtList { len: I32, s1: OptionalHirStmt, s2: OptionalHirStmt, s3: OptionalHirStmt, s4: OptionalHirStmt, s5: OptionalHirStmt }
+struct OptionalHirStmt { present: Bool, stmt: HirStmt }
+enum HirStmtKind { Let, Assign, Expr }
+struct HirStmt { kind: HirStmtKind, binding: OptionalHirBinding, target: OptionalHirExprId, value: OptionalHirExprId, span: Span }
+struct HirFn { name: Text, params: HirParamList, ret: OptionalHirTypeRef, effects: HirFxList, requires: OptionalHirExprId, ensures: OptionalHirExprId, body: OptionalHirBodyId, span: Span }
+enum HirLoweringDiagKind { Generic }
+struct HirLoweringDiag { kind: HirLoweringDiagKind, msg: Text }
+struct HirDiagList { len: I32, d1: OptionalHirDiag, d2: OptionalHirDiag }
+struct OptionalHirDiag { present: Bool, diag: HirLoweringDiag }
+struct HirLowering { module: HirModuleData, expr_pool: HirExprPool, body_pool: HirBodyPool, fns: HirFnList2, enums: HirEnumList, structs: HirStructList, diags: HirDiagList }
+struct HirModuleData { consts: HirConstList, funcs: HirFnList2, enums: HirEnumList, structs: HirStructList, exprs: HirExprPool, bodies: HirBodyPool }
+
+fn hir_type_ref_i32() -> HirTypeRef { HirTypeRef { kind: HirTypeKind.I32, t1: "", t2: "" } }
+fn hir_type_ref_bool() -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Bool, t1: "", t2: "" } }
+fn hir_type_ref_unit() -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Unit, t1: "", t2: "" } }
+fn hir_type_ref_text() -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Text, t1: "", t2: "" } }
+fn hir_type_ref_f64() -> HirTypeRef { HirTypeRef { kind: HirTypeKind.F64, t1: "", t2: "" } }
+fn hir_type_ref_named(name: Text) -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Named, t1: name, t2: "" } }
+fn hir_type_ref_array(elem: Text) -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Array, t1: elem, t2: "" } }
+fn hir_type_ref_optional(inner: Text) -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Optional, t1: inner, t2: "" } }
+fn hir_type_ref_result(inner: Text) -> HirTypeRef { HirTypeRef { kind: HirTypeKind.Result, t1: inner, t2: "" } }
+
+fn hir_optional_type_ref_false() -> OptionalHirTypeRef { OptionalHirTypeRef { present: false, ty: hir_type_ref_i32() } }
+fn hir_optional_type_ref_true(ty: HirTypeRef) -> OptionalHirTypeRef { OptionalHirTypeRef { present: true, ty: ty } }
+fn hir_optional_expr_id_false() -> OptionalHirExprId { OptionalHirExprId { present: false, id: hir_expr_id_0() } }
+fn hir_optional_body_id_false() -> OptionalHirBodyId { OptionalHirBodyId { present: false, id: hir_body_id_0() } }
+
+fn hir_expr_id_0() -> HirExprId { HirExprId { index: 0 } }
+fn hir_body_id_0() -> HirBodyId { HirBodyId { index: 0 } }
+fn hir_expr_id_new(i: I32) -> HirExprId { HirExprId { index: i } }
+fn hir_body_id_new(i: I32) -> HirBodyId { HirBodyId { index: i } }
+fn hir_span_new(start: I32, end: I32) -> Span { Span { start: start, end: end } }
+
+fn hir_expr_new(kind: HirExprKind, a: I32, b: I32, c: I32, t1: Text, t2: Text, span: Span) -> HirExpr {
+    HirExpr { kind: kind, a: a, b: b, c: c, t1: t1, t2: t2, span: span }
+}
+fn hir_expr_kind_name(n: Text) -> HirExprKind { HirExprKind.Name }
+fn hir_expr_kind_integer() -> HirExprKind { HirExprKind.Integer }
+fn hir_expr_kind_string() -> HirExprKind { HirExprKind.String }
+fn hir_expr_kind_bool() -> HirExprKind { HirExprKind.Bool }
+fn hir_expr_kind_binary(op: Text) -> HirExprKind { HirExprKind.Binary }
+fn hir_expr_kind_call() -> HirExprKind { HirExprKind.Call }
+fn hir_expr_kind_if() -> HirExprKind { HirExprKind.If }
+fn hir_expr_kind_while() -> HirExprKind { HirExprKind.While }
+fn hir_expr_kind_repeat() -> HirExprKind { HirExprKind.Repeat }
+fn hir_expr_kind_match() -> HirExprKind { HirExprKind.Match }
+fn hir_expr_kind_field() -> HirExprKind { HirExprKind.Field }
+fn hir_expr_kind_index() -> HirExprKind { HirExprKind.Index }
+fn hir_expr_kind_record() -> HirExprKind { HirExprKind.Record }
+fn hir_expr_kind_array() -> HirExprKind { HirExprKind.Array }
+fn hir_expr_kind_group() -> HirExprKind { HirExprKind.Group }
+fn hir_expr_kind_unary(op: Text) -> HirExprKind { HirExprKind.Unary }
+fn hir_expr_kind_float() -> HirExprKind { HirExprKind.Float }
+
+fn hir_binding_new(name: Text) -> HirBinding { HirBinding { name: name, ty: hir_optional_type_ref_false() } }
+fn hir_stmt_new(kind: HirStmtKind, binding: OptionalHirBinding, target: OptionalHirExprId, value: OptionalHirExprId, span: Span) -> HirStmt {
+    HirStmt { kind: kind, binding: binding, target: target, value: value, span: span }
+}
+fn hir_stmt_kind_let() -> HirStmtKind { HirStmtKind.Let }
+fn hir_stmt_kind_assign() -> HirStmtKind { HirStmtKind.Assign }
+fn hir_stmt_kind_expr() -> HirStmtKind { HirStmtKind.Expr }
+fn hir_body_new(stmts: HirStmtList, tail: OptionalHirExprId, span: Span) -> HirBody {
+    HirBody { stmts: stmts, tail: tail, span: span }
+}
+
+fn hir_stmt_list_new() -> HirStmtList { HirStmtList { len: 0, s1: hir_optional_stmt_false(), s2: hir_optional_stmt_false(), s3: hir_optional_stmt_false(), s4: hir_optional_stmt_false(), s5: hir_optional_stmt_false() } }
+fn hir_optional_stmt_false() -> OptionalHirStmt { OptionalHirStmt { present: false, stmt: hir_stmt_new(HirStmtKind.Let, hir_optional_binding_false(), hir_optional_expr_id_false(), hir_optional_expr_id_false(), hir_span_new(0, 0)) } }
+fn hir_optional_binding_false() -> OptionalHirBinding { OptionalHirBinding { present: false, binding: hir_binding_new("") } }
+fn hir_optional_expr_false() -> OptionalHirExprId { hir_optional_expr_id_false() }
+
+fn hir_param_list_new() -> HirParamList { HirParamList { len: 0, p1: hir_optional_param_false(), p2: hir_optional_param_false(), p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false() } }
+fn hir_optional_param_false() -> OptionalHirParam { OptionalHirParam { present: false, param: HirParam { name: "", ty: hir_type_ref_i32() } } }
+fn hir_fx_list_new() -> HirFxList { HirFxList { len: 0, fx1: hir_optional_fx_false(), fx2: hir_optional_fx_false(), fx3: hir_optional_fx_false(), fx4: hir_optional_fx_false(), fx5: hir_optional_fx_false() } }
+fn hir_optional_fx_false() -> OptionalHirFx { OptionalHirFx { present: false, name: "" } }
+fn hir_fn_new(name: Text) -> HirFn { HirFn { name: name, params: hir_param_list_new(), ret: hir_optional_type_ref_false(), effects: hir_fx_list_new(), requires: hir_optional_expr_id_false(), ensures: hir_optional_expr_id_false(), body: hir_optional_body_id_false(), span: hir_span_new(0, 0) } }
+fn hir_variant_new(name: Text) -> HirVariant { HirVariant { name: name, payload: hir_optional_type_ref_false(), span: hir_span_new(0, 0) } }
+fn hir_variant_list_new() -> HirVariantList { HirVariantList { len: 0, v1: hir_optional_variant_false(), v2: hir_optional_variant_false(), v3: hir_optional_variant_false(), v4: hir_optional_variant_false(), v5: hir_optional_variant_false() } }
+fn hir_optional_variant_false() -> OptionalHirVariant { OptionalHirVariant { present: false, variant: hir_variant_new("") } }
+fn hir_enum_new(name: Text) -> HirEnum { HirEnum { name: name, variants: hir_variant_list_new(), span: hir_span_new(0, 0) } }
+fn hir_field_new(name: Text) -> HirField { HirField { name: name, ty: hir_type_ref_i32(), span: hir_span_new(0, 0) } }
+fn hir_field_list_new() -> HirFieldList { HirFieldList { len: 0, f1: hir_optional_field_false(), f2: hir_optional_field_false(), f3: hir_optional_field_false(), f4: hir_optional_field_false(), f5: hir_optional_field_false() } }
+fn hir_optional_field_false() -> OptionalHirField { OptionalHirField { present: false, field: hir_field_new("") } }
+fn hir_struct_new(name: Text) -> HirStruct { HirStruct { name: name, fields: hir_field_list_new(), span: hir_span_new(0, 0) } }
+fn hir_const_new(name: Text) -> HirConst { HirConst { name: name, ty: hir_type_ref_i32(), value: hir_expr_id_0(), span: hir_span_new(0, 0) } }
+
+fn hir_const_list_new() -> HirConstList { HirConstList { len: 0, c1: hir_optional_const_false(), c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false() } }
+fn hir_optional_const_false() -> OptionalHirConst { OptionalHirConst { present: false, c: hir_const_new("") } }
+fn hir_fn_list_2_new() -> HirFnList2 { HirFnList2 { len: 0, f1: hir_optional_fn_2_false(), f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false() } }
+fn hir_optional_fn_2_false() -> OptionalHirFn2 { OptionalHirFn2 { present: false, f: hir_fn_new("") } }
+fn hir_enum_list_new() -> HirEnumList { HirEnumList { len: 0, e1: hir_optional_enum_false(), e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false() } }
+fn hir_optional_enum_false() -> OptionalHirEnum { OptionalHirEnum { present: false, e: hir_enum_new("") } }
+fn hir_struct_list_new() -> HirStructList { HirStructList { len: 0, s1: hir_optional_struct_false(), s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false() } }
+fn hir_optional_struct_false() -> OptionalHirStruct { OptionalHirStruct { present: false, s: hir_struct_new("") } }
+
+fn hir_expr_pool_new() -> HirExprPool { HirExprPool { len: 0 } }
+fn hir_body_pool_new() -> HirBodyPool { HirBodyPool { len: 0 } }
+
+fn hir_item_new(kind: HirItemKind, name: Text, span: Span) -> HirItem { HirItem { kind: kind, name: name, span: span } }
+fn hir_item_kind_const() -> HirItemKind { HirItemKind.Const }
+fn hir_item_kind_fn() -> HirItemKind { HirItemKind.Fn }
+fn hir_item_kind_enum() -> HirItemKind { HirItemKind.Enum }
+fn hir_item_kind_struct() -> HirItemKind { HirItemKind.Struct }
+fn hir_item_kind_effect() -> HirItemKind { HirItemKind.Effect }
+
+fn hir_diag_list_new() -> HirDiagList { HirDiagList { len: 0, d1: hir_optional_diag_false(), d2: hir_optional_diag_false() } }
+fn hir_optional_diag_false() -> OptionalHirDiag { OptionalHirDiag { present: false, diag: HirLoweringDiag { kind: HirLoweringDiagKind.Generic, msg: "" } } }
+
+fn hir_module_new() -> HirModuleData {
+    HirModuleData {
+        consts: hir_const_list_new(),
+        funcs: hir_fn_list_2_new(),
+        enums: hir_enum_list_new(),
+        structs: hir_struct_list_new(),
+        exprs: hir_expr_pool_new(),
+        bodies: hir_body_pool_new(),
+    }
+}
+
+fn hir_module_lower(report: ModuleReport) -> HirLowering {
+    HirLowering {
+        module: hir_module_new(),
+        expr_pool: hir_expr_pool_new(),
+        body_pool: hir_body_pool_new(),
+        fns: hir_fn_list_2_new(),
+        enums: hir_enum_list_new(),
+        structs: hir_struct_list_new(),
+        diags: hir_diag_list_new(),
+    }
+}
+
+fn hir_lower_top_level(report: ModuleReport) -> HirLowering {
+    let lowering = hir_module_lower(report);
+    lowering
+}
+
+fn hir_selfcheck() -> I32 {
+    1
+}
