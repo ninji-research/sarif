@@ -388,6 +388,34 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                         &mut diagnostics,
                         &function.name,
                     );
+
+                    // Warn if [alloc] function returns a type that could reference
+                    // arena-allocated memory. This is a Stage-0 PLACEHOLDER.
+                    // Stage-1 MUST implement proper Escape Analysis to make this a hard error.
+                    // This warning does NOT provide memory safety - it documents a MISSING SAFETY FEATURE.
+                    if signature.effects.contains(&Effect::Alloc) {
+                        let could_be_allocated = matches!(
+                            signature.return_type,
+                            Type::Named(_) | Type::List(_) | Type::Array(_, _) | Type::Text
+                        );
+                        if could_be_allocated
+                            && signature.return_type != Type::Unit
+                            && signature.return_type != Type::Error
+                        {
+                            diagnostics.push(Diagnostic::new(
+                                "semantic.alloc-escape",
+                                format!(
+                                    "function `{}` with `alloc` effect returns `{}`. This is UNSAFE in Stage-0: returned pointers become dangling after `alloc_pop()`.",
+                                    function.name,
+                                    signature.return_type.render(),
+                                ),
+                                function.span,
+                                Some(
+                                    "Stage-1 will implement Escape Analysis as a HARD ERROR. Stage-0 provides NO memory safety guarantee for returned allocations.".to_owned(),
+                                ),
+                            ));
+                        }
+                    }
                 }
 
                 call_graph.insert(function.name.clone(), body_calls);
@@ -995,9 +1023,28 @@ fn creates_list() -> List[F64] effects [alloc] {
 }
 ";
         let analysis = analyze_source(source);
+        // Stage-0: [alloc] functions that return pointer types trigger a warning
+        // because the compiler cannot verify the caller maintains proper scope.
+        // This warning is a Stage-0 placeholder; Stage-1 will add Escape Analysis
+        // to make this a hard error. The [alloc] effect itself is still satisfied.
+        let alloc_escape_count = analysis
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "semantic.alloc-escape")
+            .count();
+        let alloc_effect_errors: Vec<_> = analysis
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "semantic.alloc-effect")
+            .collect();
         assert!(
-            analysis.diagnostics.is_empty(),
-            "{:#?}",
+            alloc_effect_errors.is_empty(),
+            "should have no alloc-effect errors when [alloc] is declared, got: {:#?}",
+            alloc_effect_errors
+        );
+        assert!(
+            alloc_escape_count >= 1,
+            "should have at least one alloc-escape warning for returning List, got: {:#?}",
             analysis.diagnostics
         );
     }

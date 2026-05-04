@@ -23,6 +23,30 @@ Promote Sarif-hosted tooling to maintained authority:
 
 Rust remains required until those authority paths are actually replaced without reducing correctness or coverage.
 
+### Stage-1 Memory Model Requirements
+
+Before self-hosting can be achieved, the memory model must be fully sound:
+
+**Text Arena Integration (Technical Debt)**
+
+`Text` values currently use `malloc` for allocation instead of the scoped arena system. This causes memory leaks: every `text_builder_finish()` allocates via `malloc` with no corresponding `free()`. This is acceptable for Stage-0 benchmarks but will cause OOM crashes in long-running services.
+
+Required fix: Integrate `Text` into the arena system or implement a string interner so that:
+- Text allocation uses arena memory instead of `malloc`
+- `alloc_pop()` correctly reclaims all allocated text
+- No memory leaks occur during scoped allocation workflows
+
+**Escape Analysis for [alloc] (Stage-1 Hard Error)**
+
+Stage-0 emits a `semantic.alloc-escape` warning when `[alloc]` functions return types that could reference arena-allocated memory. This is a Stage-0 placeholder.
+
+Required implementation: Add MIR-level escape analysis in Stage-1 that:
+- Detects when a pointer to arena-allocated data would escape the scope where it was created
+- Emits a hard error (not just a warning) when allocations would escape their scope
+- Distinguishes between allocations created inside an `[alloc]` function (which cannot be safely returned) and parameters passed into the function (which can be returned)
+
+This eliminates the "trust the programmer" model and brings Sarif's memory safety guarantees in line with its performance goals.
+
 ## Stage 2
 
 Move compiler pipeline ownership into Sarif:

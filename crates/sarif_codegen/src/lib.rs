@@ -9062,6 +9062,76 @@ mod tests {
         });
     }
 
+    #[cfg(feature = "backend-wasm")]
+    #[test]
+    fn wasm_compilation_diagnostics() {
+        run_with_large_stack("wasm_compilation_diagnostics", || {
+            use crate::wasm::emit_wasm;
+
+            let source = bootstrap_syntax_source();
+            let mir = lower_source(&source);
+
+            eprintln!("=== WASM Compilation Diagnostics ===");
+            eprintln!("Source lines: {}", source.lines().count());
+            eprintln!("Functions: {}", mir.program.functions.len());
+            eprintln!("Structs: {}", mir.program.structs.len());
+            eprintln!("Enums: {}", mir.program.enums.len());
+            eprintln!("Instructions (total): {}", mir.program.functions.iter().map(|f| f.instructions.len()).sum::<usize>());
+
+            match emit_wasm(&mir.program) {
+                Ok(wasm_bytes) => {
+                    eprintln!("WASM compilation: OK");
+                    eprintln!("WASM size: {} bytes ({} KB)", wasm_bytes.len(), wasm_bytes.len() / 1024);
+                    eprintln!("=================================");
+                }
+                Err(e) => {
+                    eprintln!("WASM compilation: FAILED");
+                    eprintln!("Error: {:?}", e);
+                    eprintln!("=================================");
+                    panic!("WASM compilation failed: {:?}", e);
+                }
+            }
+        });
+    }
+
+    #[cfg(feature = "backend-wasm")]
+    #[test]
+    fn wasm_compilation_at_line_count() {
+        run_with_large_stack("wasm_compilation_at_line_count", || {
+            use crate::wasm::emit_wasm;
+
+            let max_lines: usize = std::env::var("SARIF_TEST_MAX_LINES")
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or(usize::MAX);
+
+            let source = bootstrap_syntax_source();
+            let truncated: String = source.lines().take(max_lines).collect::<Vec<_>>().join("\n");
+
+            eprintln!("=== WASM Compilation Test (max {} lines) ===", max_lines);
+            let mir = lower_source(&truncated);
+
+            eprintln!("Source lines: {}", truncated.lines().count());
+            eprintln!("Functions: {}", mir.program.functions.len());
+            eprintln!("Structs: {}", mir.program.structs.len());
+            eprintln!("Enums: {}", mir.program.enums.len());
+
+            match emit_wasm(&mir.program) {
+                Ok(wasm_bytes) => {
+                    eprintln!("WASM compilation: OK");
+                    eprintln!("WASM size: {} bytes ({} KB)", wasm_bytes.len(), wasm_bytes.len() / 1024);
+                    eprintln!("=================================");
+                }
+                Err(e) => {
+                    eprintln!("WASM compilation: FAILED");
+                    eprintln!("Error: {:?}", e);
+                    eprintln!("=================================");
+                    panic!("WASM compilation failed at {} lines: {:?}", max_lines, e);
+                }
+            }
+        });
+    }
+
     #[test]
     fn runs_scalar_match_wildcard_fallbacks() {
         let mir = lower_source(
