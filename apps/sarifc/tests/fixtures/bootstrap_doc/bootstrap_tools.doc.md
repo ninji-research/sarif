@@ -66,6 +66,108 @@
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
+### enum MirInst
+
+- variants: `53`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct MirInstData
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct ValueId
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct LocalSlotId
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### enum MirType
+
+- variants: `6`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct MirParam
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirLocal
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirFn
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalMirType
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct MirParamList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalMirParam
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirFxList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalMirFx
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirLocalList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalMirLocal
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirBlock
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalMirInst
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirProg
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct MirFnList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalMirFn
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
 ### struct BlockItemEntry
 
 - ownership: `plain value`
@@ -1104,6 +1206,162 @@
 - signature: `fn text_from_f64_fixed(value: F64, digits: I32) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
+
+### fn mir_prog_new
+
+- signature: `fn mir_prog_new() -> MirProg`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_fn_new
+
+- signature: `fn mir_fn_new(name: Text) -> MirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_data_new
+
+- signature: `fn mir_inst_data_new(tag: MirInst) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn value_id_0
+
+- signature: `fn value_id_0() -> ValueId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn value_id_new
+
+- signature: `fn value_id_new(i: I32) -> ValueId`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn slot_id_0
+
+- signature: `fn slot_id_0() -> LocalSlotId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn slot_id_new
+
+- signature: `fn slot_id_new(i: I32) -> LocalSlotId`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn mir_type_i32
+
+- signature: `fn mir_type_i32() -> MirType`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn mir_type_bool
+
+- signature: `fn mir_type_bool() -> MirType`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn mir_type_unit
+
+- signature: `fn mir_type_unit() -> MirType`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn mir_optional_type_false
+
+- signature: `fn mir_optional_type_false() -> OptionalMirType`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn mir_optional_param_false
+
+- signature: `fn mir_optional_param_false() -> OptionalMirParam`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_optional_local_false
+
+- signature: `fn mir_optional_local_false() -> OptionalMirLocal`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_optional_fx_false
+
+- signature: `fn mir_optional_fx_false() -> OptionalMirFx`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_optional_fn_false
+
+- signature: `fn mir_optional_fn_false() -> OptionalMirFn`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_optional_inst_false
+
+- signature: `fn mir_optional_inst_false() -> OptionalMirInst`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_param_list_new
+
+- signature: `fn mir_param_list_new() -> MirParamList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_fx_list_new
+
+- signature: `fn mir_fx_list_new() -> MirFxList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_local_list_new
+
+- signature: `fn mir_local_list_new() -> MirLocalList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_block_new
+
+- signature: `fn mir_block_new() -> MirBlock`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_fn_list_new
+
+- signature: `fn mir_fn_list_new() -> MirFnList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_inst_tag_is_alloc_push
+
+- signature: `fn mir_inst_tag_is_alloc_push(tag: MirInst) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn mir_inst_tag_name
+
+- signature: `fn mir_inst_tag_name(tag: MirInst) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_prog_check
+
+- signature: `fn mir_prog_check(prog: MirProg) -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_fn_check
+
+- signature: `fn mir_fn_check(func: MirFn) -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_selfcheck
+
+- signature: `fn mir_selfcheck() -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
 
 ## bootstrap/sarif_tools/src/main.sarif
 

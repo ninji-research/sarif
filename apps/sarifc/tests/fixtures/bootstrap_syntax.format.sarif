@@ -90,6 +90,189 @@ enum ExprKind {
     Binary,
 }
 
+enum MirInst {
+    LoadParam,
+    LoadLocal,
+    StoreLocal,
+    ConstInt,
+    ConstF64,
+    ConstBool,
+    ConstText,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+    Not,
+    Neg,
+    If,
+    While,
+    Repeat,
+    Call,
+    Return,
+    MakeRecord,
+    Field,
+    MakeEnum,
+    EnumTag,
+    EnumPayload,
+    TextConcat,
+    TextSlice,
+    TextLen,
+    TextByte,
+    ListNew,
+    ListGet,
+    ListSet,
+    ListLen,
+    AllocPush,
+    AllocPop,
+    PrintText,
+    PrintI32,
+    ParseI32,
+    ParseF64,
+    ArgCount,
+    ArgText,
+    Assert,
+}
+
+struct MirInstData {
+    tag: MirInst,
+    a: I32,
+    b: I32,
+    c: I32,
+    d: I32,
+    t1: Text,
+    t2: Text,
+}
+
+struct ValueId {
+    index: I32,
+}
+
+struct LocalSlotId {
+    index: I32,
+}
+
+enum MirType {
+    I32,
+    F64,
+    Bool,
+    Text,
+    Bytes,
+    Unit,
+}
+
+struct MirParam {
+    name: Text,
+    ty: MirType,
+}
+
+struct MirLocal {
+    slot: LocalSlotId,
+    name: Text,
+    ty: MirType,
+}
+
+struct MirFn {
+    name: Text,
+    params: MirParamList,
+    ret: OptionalMirType,
+    fx: MirFxList,
+    locals: MirLocalList,
+    code: MirBlock,
+    result: ValueId,
+}
+
+struct OptionalMirType {
+    present: Bool,
+    ty: MirType,
+}
+
+struct MirParamList {
+    len: I32,
+    p1: OptionalMirParam,
+    p2: OptionalMirParam,
+    p3: OptionalMirParam,
+    p4: OptionalMirParam,
+    p5: OptionalMirParam,
+}
+
+struct OptionalMirParam {
+    present: Bool,
+    param: MirParam,
+}
+
+struct MirFxList {
+    len: I32,
+    fx1: OptionalMirFx,
+    fx2: OptionalMirFx,
+    fx3: OptionalMirFx,
+    fx4: OptionalMirFx,
+    fx5: OptionalMirFx,
+}
+
+struct OptionalMirFx {
+    present: Bool,
+    name: Text,
+}
+
+struct MirLocalList {
+    len: I32,
+    l1: OptionalMirLocal,
+    l2: OptionalMirLocal,
+    l3: OptionalMirLocal,
+    l4: OptionalMirLocal,
+    l5: OptionalMirLocal,
+}
+
+struct OptionalMirLocal {
+    present: Bool,
+    local: MirLocal,
+}
+
+struct MirBlock {
+    len: I32,
+    i1: OptionalMirInst,
+    i2: OptionalMirInst,
+    i3: OptionalMirInst,
+    i4: OptionalMirInst,
+    i5: OptionalMirInst,
+}
+
+struct OptionalMirInst {
+    present: Bool,
+    data: MirInstData,
+}
+
+struct MirProg {
+    funcs: MirFnList,
+}
+
+struct MirFnList {
+    len: I32,
+    f1: OptionalMirFn,
+    f2: OptionalMirFn,
+    f3: OptionalMirFn,
+    f4: OptionalMirFn,
+    f5: OptionalMirFn,
+}
+
+struct OptionalMirFn {
+    present: Bool,
+    func: MirFn,
+}
+
 struct BlockItemEntry {
     kind: BlockItemKind,
     binding_span: OptionalSpan,
@@ -2367,6 +2550,446 @@ fn parse_f64(source: Text) -> F64 {
 
 fn text_from_f64_fixed(value: F64, digits: I32) -> Text {
     ""
+}
+
+fn mir_prog_new() -> MirProg {
+    MirProg { funcs: mir_fn_list_new() }
+}
+
+fn mir_fn_new(name: Text) -> MirFn {
+    MirFn { name: name, params: mir_param_list_new(), ret: mir_optional_type_false(), fx: mir_fx_list_new(), locals: mir_local_list_new(), code: mir_block_new(), result: value_id_0() }
+}
+
+fn mir_inst_data_new(tag: MirInst) -> MirInstData {
+    MirInstData { tag: tag, a: 0, b: 0, c: 0, d: 0, t1: "", t2: "" }
+}
+
+fn value_id_0() -> ValueId {
+    ValueId { index: 0 }
+}
+
+fn value_id_new(i: I32) -> ValueId {
+    ValueId { index: i }
+}
+
+fn slot_id_0() -> LocalSlotId {
+    LocalSlotId { index: 0 }
+}
+
+fn slot_id_new(i: I32) -> LocalSlotId {
+    LocalSlotId { index: i }
+}
+
+fn mir_type_i32() -> MirType {
+    MirType.I32
+}
+
+fn mir_type_bool() -> MirType {
+    MirType.Bool
+}
+
+fn mir_type_unit() -> MirType {
+    MirType.Unit
+}
+
+fn mir_optional_type_false() -> OptionalMirType {
+    OptionalMirType { present: false, ty: MirType.I32 }
+}
+
+fn mir_optional_param_false() -> OptionalMirParam {
+    OptionalMirParam { present: false, param: MirParam { name: "", ty: MirType.I32 } }
+}
+
+fn mir_optional_local_false() -> OptionalMirLocal {
+    OptionalMirLocal { present: false, local: MirLocal { slot: slot_id_0(), name: "", ty: MirType.I32 } }
+}
+
+fn mir_optional_fx_false() -> OptionalMirFx {
+    OptionalMirFx { present: false, name: "" }
+}
+
+fn mir_optional_fn_false() -> OptionalMirFn {
+    OptionalMirFn { present: false, func: mir_fn_new("") }
+}
+
+fn mir_optional_inst_false() -> OptionalMirInst {
+    OptionalMirInst { present: false, data: mir_inst_data_new(MirInst.AllocPush) }
+}
+
+fn mir_param_list_new() -> MirParamList {
+    MirParamList { len: 0, p1: mir_optional_param_false(), p2: mir_optional_param_false(), p3: mir_optional_param_false(), p4: mir_optional_param_false(), p5: mir_optional_param_false() }
+}
+
+fn mir_fx_list_new() -> MirFxList {
+    MirFxList { len: 0, fx1: mir_optional_fx_false(), fx2: mir_optional_fx_false(), fx3: mir_optional_fx_false(), fx4: mir_optional_fx_false(), fx5: mir_optional_fx_false() }
+}
+
+fn mir_local_list_new() -> MirLocalList {
+    MirLocalList { len: 0, l1: mir_optional_local_false(), l2: mir_optional_local_false(), l3: mir_optional_local_false(), l4: mir_optional_local_false(), l5: mir_optional_local_false() }
+}
+
+fn mir_block_new() -> MirBlock {
+    MirBlock { len: 0, i1: mir_optional_inst_false(), i2: mir_optional_inst_false(), i3: mir_optional_inst_false(), i4: mir_optional_inst_false(), i5: mir_optional_inst_false() }
+}
+
+fn mir_fn_list_new() -> MirFnList {
+    MirFnList { len: 0, f1: mir_optional_fn_false(), f2: mir_optional_fn_false(), f3: mir_optional_fn_false(), f4: mir_optional_fn_false(), f5: mir_optional_fn_false() }
+}
+
+fn mir_inst_tag_is_alloc_push(tag: MirInst) -> Bool {
+    match tag {
+        MirInst.AllocPush => {
+            true
+        },
+        MirInst.AllocPop => {
+            false
+        },
+        MirInst.LoadParam => {
+            false
+        },
+        MirInst.LoadLocal => {
+            false
+        },
+        MirInst.StoreLocal => {
+            false
+        },
+        MirInst.ConstInt => {
+            false
+        },
+        MirInst.ConstF64 => {
+            false
+        },
+        MirInst.ConstBool => {
+            false
+        },
+        MirInst.ConstText => {
+            false
+        },
+        MirInst.Add => {
+            false
+        },
+        MirInst.Sub => {
+            false
+        },
+        MirInst.Mul => {
+            false
+        },
+        MirInst.Div => {
+            false
+        },
+        MirInst.BitAnd => {
+            false
+        },
+        MirInst.BitOr => {
+            false
+        },
+        MirInst.BitXor => {
+            false
+        },
+        MirInst.Shl => {
+            false
+        },
+        MirInst.Shr => {
+            false
+        },
+        MirInst.Eq => {
+            false
+        },
+        MirInst.Ne => {
+            false
+        },
+        MirInst.Lt => {
+            false
+        },
+        MirInst.Le => {
+            false
+        },
+        MirInst.Gt => {
+            false
+        },
+        MirInst.Ge => {
+            false
+        },
+        MirInst.And => {
+            false
+        },
+        MirInst.Or => {
+            false
+        },
+        MirInst.Not => {
+            false
+        },
+        MirInst.Neg => {
+            false
+        },
+        MirInst.If => {
+            false
+        },
+        MirInst.While => {
+            false
+        },
+        MirInst.Repeat => {
+            false
+        },
+        MirInst.Call => {
+            false
+        },
+        MirInst.Return => {
+            false
+        },
+        MirInst.MakeRecord => {
+            false
+        },
+        MirInst.Field => {
+            false
+        },
+        MirInst.MakeEnum => {
+            false
+        },
+        MirInst.EnumTag => {
+            false
+        },
+        MirInst.EnumPayload => {
+            false
+        },
+        MirInst.TextConcat => {
+            false
+        },
+        MirInst.TextSlice => {
+            false
+        },
+        MirInst.TextLen => {
+            false
+        },
+        MirInst.TextByte => {
+            false
+        },
+        MirInst.ListNew => {
+            false
+        },
+        MirInst.ListGet => {
+            false
+        },
+        MirInst.ListSet => {
+            false
+        },
+        MirInst.ListLen => {
+            false
+        },
+        MirInst.PrintText => {
+            false
+        },
+        MirInst.PrintI32 => {
+            false
+        },
+        MirInst.ParseI32 => {
+            false
+        },
+        MirInst.ParseF64 => {
+            false
+        },
+        MirInst.ArgCount => {
+            false
+        },
+        MirInst.ArgText => {
+            false
+        },
+        MirInst.Assert => {
+            false
+        },
+    }
+}
+
+fn mir_inst_tag_name(tag: MirInst) -> Text {
+    match tag {
+        MirInst.AllocPush => {
+            "alloc-push"
+        },
+        MirInst.AllocPop => {
+            "alloc-pop"
+        },
+        MirInst.LoadParam => {
+            "load-param"
+        },
+        MirInst.LoadLocal => {
+            "load-local"
+        },
+        MirInst.StoreLocal => {
+            "store-local"
+        },
+        MirInst.ConstInt => {
+            "const-int"
+        },
+        MirInst.ConstF64 => {
+            "const-f64"
+        },
+        MirInst.ConstBool => {
+            "const-bool"
+        },
+        MirInst.ConstText => {
+            "const-text"
+        },
+        MirInst.Add => {
+            "add"
+        },
+        MirInst.Sub => {
+            "sub"
+        },
+        MirInst.Mul => {
+            "mul"
+        },
+        MirInst.Div => {
+            "div"
+        },
+        MirInst.BitAnd => {
+            "bit-and"
+        },
+        MirInst.BitOr => {
+            "bit-or"
+        },
+        MirInst.BitXor => {
+            "bit-xor"
+        },
+        MirInst.Shl => {
+            "shl"
+        },
+        MirInst.Shr => {
+            "shr"
+        },
+        MirInst.Eq => {
+            "eq"
+        },
+        MirInst.Ne => {
+            "ne"
+        },
+        MirInst.Lt => {
+            "lt"
+        },
+        MirInst.Le => {
+            "le"
+        },
+        MirInst.Gt => {
+            "gt"
+        },
+        MirInst.Ge => {
+            "ge"
+        },
+        MirInst.And => {
+            "and"
+        },
+        MirInst.Or => {
+            "or"
+        },
+        MirInst.Not => {
+            "not"
+        },
+        MirInst.Neg => {
+            "neg"
+        },
+        MirInst.If => {
+            "if"
+        },
+        MirInst.While => {
+            "while"
+        },
+        MirInst.Repeat => {
+            "repeat"
+        },
+        MirInst.Call => {
+            "call"
+        },
+        MirInst.Return => {
+            "return"
+        },
+        MirInst.MakeRecord => {
+            "make-record"
+        },
+        MirInst.Field => {
+            "field"
+        },
+        MirInst.MakeEnum => {
+            "make-enum"
+        },
+        MirInst.EnumTag => {
+            "enum-tag"
+        },
+        MirInst.EnumPayload => {
+            "enum-payload"
+        },
+        MirInst.TextConcat => {
+            "text-concat"
+        },
+        MirInst.TextSlice => {
+            "text-slice"
+        },
+        MirInst.TextLen => {
+            "text-len"
+        },
+        MirInst.TextByte => {
+            "text-byte"
+        },
+        MirInst.ListNew => {
+            "list-new"
+        },
+        MirInst.ListGet => {
+            "list-get"
+        },
+        MirInst.ListSet => {
+            "list-set"
+        },
+        MirInst.ListLen => {
+            "list-len"
+        },
+        MirInst.PrintText => {
+            "print-text"
+        },
+        MirInst.PrintI32 => {
+            "print-i32"
+        },
+        MirInst.ParseI32 => {
+            "parse-i32"
+        },
+        MirInst.ParseF64 => {
+            "parse-f64"
+        },
+        MirInst.ArgCount => {
+            "arg-count"
+        },
+        MirInst.ArgText => {
+            "arg-text"
+        },
+        MirInst.Assert => {
+            "assert"
+        },
+    }
+}
+
+fn mir_prog_check(prog: MirProg) -> I32 {
+    if prog.funcs.len == 0 {
+        1
+    } else {
+        if prog.funcs.f1.present == false {
+            0
+        } else {
+            mir_fn_check(prog.funcs.f1.func)
+        }
+    }
+}
+
+fn mir_fn_check(func: MirFn) -> I32 {
+    if func.name == "" {
+        0
+    } else {
+        if func.code.len < 1 {
+            0
+        } else {
+            1
+        }
+    }
+}
+
+fn mir_selfcheck() -> I32 {
+    mir_prog_check(mir_prog_new())
 }
 
 fn main() -> I32 {
