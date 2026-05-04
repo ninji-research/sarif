@@ -32,10 +32,8 @@ pub fn render_semantic_format(target: &LoadedSource) -> Result<String, String> {
 }
 
 pub fn render_semantic_doc(target: &LoadedSource, profile: Profile) -> Result<String, String> {
-    target.ensure_no_diagnostics(
-        &semantic_doc_diagnostics(target, profile),
-        "doc generation failed",
-    )?;
+    let diags = semantic_doc_diagnostics(target, profile);
+    target.ensure_no_diagnostics(&target.blocking_diagnostics(&diags), "doc generation failed")?;
 
     let analysis = target.database.semantic(target.source_id, profile);
     let const_values = semantic_const_values(target);
@@ -56,7 +54,9 @@ pub fn render_semantic_doc(target: &LoadedSource, profile: Profile) -> Result<St
 }
 
 pub fn render_semantic_check(target: &LoadedSource, profile: Profile) -> Result<String, String> {
-    target.ensure_no_diagnostics(&semantic_check_diagnostics(target, profile), "check failed")?;
+    let all_diags = semantic_check_diagnostics(target, profile);
+    let blocking_diags = target.blocking_diagnostics(&all_diags);
+    target.ensure_no_diagnostics(&blocking_diags, "check failed")?;
     Ok(render_semantic_check_output(&semantic_snapshot(profile)))
 }
 

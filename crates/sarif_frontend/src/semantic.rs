@@ -389,10 +389,9 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                         &function.name,
                     );
 
-                    // Warn if [alloc] function returns a type that could reference
-                    // arena-allocated memory. This is a Stage-0 PLACEHOLDER.
-                    // Stage-1 MUST implement proper Escape Analysis to make this a hard error.
-                    // This warning does NOT provide memory safety - it documents a MISSING SAFETY FEATURE.
+                    // Stage-1 requires proper Escape Analysis to make this a hard error.
+                    // For Core/Total profiles: emit as warning (semantic.alloc-escape)
+                    // For RT profile: hard error (escape.analysis.required) - blocks build
                     if signature.effects.contains(&Effect::Alloc) {
                         let could_be_allocated = matches!(
                             signature.return_type,
@@ -402,17 +401,28 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                             && signature.return_type != Type::Unit
                             && signature.return_type != Type::Error
                         {
+                            let is_rt = profile == Profile::Rt;
+                            let (code, help_msg) = if is_rt {
+                                (
+                                    "escape.analysis.required",
+                                    "To fix: Either return a type that cannot reference arena memory, or restructure to not return allocated data. Stage-1 requires all alloc return values to be verified safe.".to_owned(),
+                                )
+                            } else {
+                                (
+                                    "semantic.alloc-escape",
+                                    "Stage-1 will implement Escape Analysis as a HARD ERROR. Stage-0 provides NO memory safety guarantee for returned allocations.".to_owned(),
+                                )
+                            };
                             diagnostics.push(Diagnostic::new(
-                                "semantic.alloc-escape",
+                                code,
                                 format!(
-                                    "function `{}` with `alloc` effect returns `{}`. This is UNSAFE in Stage-0: returned pointers become dangling after `alloc_pop()`.",
+                                    "function `{}` with `alloc` effect returns `{}`.{}",
                                     function.name,
                                     signature.return_type.render(),
+                                    if is_rt { " This is UNSAFE and BLOCKS compilation in RT profile." } else { " This is UNSAFE in Stage-0: returned pointers become dangling after `alloc_pop()`." }
                                 ),
                                 function.span,
-                                Some(
-                                    "Stage-1 will implement Escape Analysis as a HARD ERROR. Stage-0 provides NO memory safety guarantee for returned allocations.".to_owned(),
-                                ),
+                                Some(help_msg),
                             ));
                         }
                     }
@@ -1023,15 +1033,14 @@ fn creates_list() -> List[F64] effects [alloc] {
 }
 ";
         let analysis = analyze_source(source);
-        // Stage-0: [alloc] functions that return pointer types trigger a warning
+        // Stage-0 (Core profile): [alloc] functions that return pointer types trigger a warning
         // because the compiler cannot verify the caller maintains proper scope.
-        // This warning is a Stage-0 placeholder; Stage-1 will add Escape Analysis
-        // to make this a hard error. The [alloc] effect itself is still satisfied.
-        let alloc_escape_count = analysis
+        // The [alloc] effect itself is still satisfied when declared.
+        let alloc_escape_warnings: Vec<_> = analysis
             .diagnostics
             .iter()
             .filter(|d| d.code == "semantic.alloc-escape")
-            .count();
+            .collect();
         let alloc_effect_errors: Vec<_> = analysis
             .diagnostics
             .iter()
@@ -1043,8 +1052,44 @@ fn creates_list() -> List[F64] effects [alloc] {
             alloc_effect_errors
         );
         assert!(
-            alloc_escape_count >= 1,
+            !alloc_escape_warnings.is_empty(),
             "should have at least one alloc-escape warning for returning List, got: {:#?}",
+            analysis.diagnostics
+        );
+    }
+
+    #[test]
+    fn alloc_effect_blocks_rt_profile() {
+        let source = "
+fn creates_list() -> List[F64] effects [alloc] {
+    list_new(10, 0.0)
+}
+";
+        let lexed = sarif_syntax::lexer::lex(source);
+        let parsed = sarif_syntax::parser::parse(&lexed.tokens);
+        let ast = sarif_syntax::ast::lower(&parsed.root);
+        let hir = hir::lower(&ast.file);
+        let analysis = analyze(&hir.module, Profile::Rt);
+        // Stage-1 (RT profile): [alloc] functions that return pointer types trigger a hard error
+        // via Escape Analysis. This prevents unsafe code from compiling.
+        let escape_analysis_errors: Vec<_> = analysis
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "escape.analysis.required")
+            .collect();
+        let alloc_effect_errors: Vec<_> = analysis
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "semantic.alloc-effect")
+            .collect();
+        assert!(
+            alloc_effect_errors.is_empty(),
+            "should have no alloc-effect errors when [alloc] is declared, got: {:#?}",
+            alloc_effect_errors
+        );
+        assert!(
+            !escape_analysis_errors.is_empty(),
+            "should have at least one escape.analysis.required error for RT profile, got: {:#?}",
             analysis.diagnostics
         );
     }

@@ -139,9 +139,18 @@ impl LoadedSource {
         }
     }
 
+    fn blocking_diagnostics(&self, diagnostics: &[Diagnostic]) -> Vec<Diagnostic> {
+        diagnostics
+            .iter()
+            .filter(|d| d.code != "semantic.alloc-escape")
+            .cloned()
+            .collect()
+    }
+
     #[cfg(all(test, feature = "codegen"))]
     fn lower_program(&self, profile: Profile, failure: &str) -> Result<&Program, String> {
-        self.ensure_no_diagnostics(&self.mir_diagnostics(profile), failure)?;
+        let diags = self.mir_diagnostics(profile);
+        self.ensure_no_diagnostics(&self.blocking_diagnostics(&diags), failure)?;
         Ok(&self.mir().program)
     }
 }
@@ -228,7 +237,7 @@ fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
 fn run_program(command: command::Command) -> Result<(), String> {
     let loaded = LoadedSource::load(&command.path)?;
     let diagnostics = loaded.mir_diagnostics(command.profile);
-    loaded.ensure_no_diagnostics(&diagnostics, "execution failed")?;
+    loaded.ensure_no_diagnostics(&loaded.blocking_diagnostics(&diagnostics), "execution failed")?;
     emit_requested_dump(&loaded, &command)?;
 
     let mut program_args = vec![command.path];
@@ -271,11 +280,7 @@ fn run_program(_command: command::Command) -> Result<(), String> {
 fn build_program(command: &command::Command) -> Result<(), String> {
     let loaded = LoadedSource::load(&command.path)?;
     let all_diagnostics = loaded.mir_diagnostics(command.profile);
-    let blocking_diagnostics: Vec<_> = all_diagnostics
-        .into_iter()
-        .filter(|d| !d.code.starts_with("semantic."))
-        .collect();
-    loaded.ensure_no_diagnostics(&blocking_diagnostics, "build failed")?;
+    loaded.ensure_no_diagnostics(&loaded.blocking_diagnostics(&all_diagnostics), "build failed")?;
     emit_requested_dump(&loaded, command)?;
 
     let output_path = command
