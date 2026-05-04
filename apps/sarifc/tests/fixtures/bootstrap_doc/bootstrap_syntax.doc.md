@@ -1363,6 +1363,276 @@
 - ownership: `affine-safe in stage-0`
 - rt status: `profile-compatible`
 
+### fn mir_inst_load_param
+
+- signature: `fn mir_inst_load_param(slot: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_load_local
+
+- signature: `fn mir_inst_load_local(slot: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_store_local
+
+- signature: `fn mir_inst_store_local(slot: I32, src: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_const_i32
+
+- signature: `fn mir_inst_const_i32(dest: I32, value: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_const_bool
+
+- signature: `fn mir_inst_const_bool(dest: I32, value: Bool) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_add
+
+- signature: `fn mir_inst_add(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_sub
+
+- signature: `fn mir_inst_sub(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_mul
+
+- signature: `fn mir_inst_mul(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_div
+
+- signature: `fn mir_inst_div(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_bitand
+
+- signature: `fn mir_inst_bitand(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_bitor
+
+- signature: `fn mir_inst_bitor(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_bitxor
+
+- signature: `fn mir_inst_bitxor(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_shl
+
+- signature: `fn mir_inst_shl(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_shr
+
+- signature: `fn mir_inst_shr(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_eq
+
+- signature: `fn mir_inst_eq(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_ne
+
+- signature: `fn mir_inst_ne(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_lt
+
+- signature: `fn mir_inst_lt(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_le
+
+- signature: `fn mir_inst_le(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_gt
+
+- signature: `fn mir_inst_gt(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_ge
+
+- signature: `fn mir_inst_ge(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_and
+
+- signature: `fn mir_inst_and(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_or
+
+- signature: `fn mir_inst_or(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_not
+
+- signature: `fn mir_inst_not(dest: I32, src: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_neg
+
+- signature: `fn mir_inst_neg(dest: I32, src: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_return
+
+- signature: `fn mir_inst_return(src: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_call
+
+- signature: `fn mir_inst_call(dest: I32, callee: Text, arg1: I32, arg2: I32, arg3: I32, arg4: I32, arg5: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_text_concat
+
+- signature: `fn mir_inst_text_concat(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_text_len
+
+- signature: `fn mir_inst_text_len(dest: I32, src: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_text_slice
+
+- signature: `fn mir_inst_text_slice(dest: I32, src: I32, start: I32, end: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_list_new
+
+- signature: `fn mir_inst_list_new(dest: I32, len: I32, val: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_list_get
+
+- signature: `fn mir_inst_list_get(dest: I32, list: I32, idx: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_list_set
+
+- signature: `fn mir_inst_list_set(list: I32, idx: I32, val: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_make_record
+
+- signature: `fn mir_inst_make_record(dest: I32, rec_name: Text) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_field
+
+- signature: `fn mir_inst_field(dest: I32, base: I32, field_name: Text) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_make_enum
+
+- signature: `fn mir_inst_make_enum(dest: I32, enum_name: Text, variant_name: Text) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_enum_tag
+
+- signature: `fn mir_inst_enum_tag(dest: I32, src: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_alloc_push
+
+- signature: `fn mir_inst_alloc_push() -> MirInstData`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_inst_alloc_pop
+
+- signature: `fn mir_inst_alloc_pop() -> MirInstData`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn mir_inst_print_i32
+
+- signature: `fn mir_inst_print_i32(val: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_print_text
+
+- signature: `fn mir_inst_print_text(val: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_parse_i32
+
+- signature: `fn mir_inst_parse_i32(dest: I32, text: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_parse_f64
+
+- signature: `fn mir_inst_parse_f64(dest: I32, text: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_arg_count
+
+- signature: `fn mir_inst_arg_count(dest: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_arg_text
+
+- signature: `fn mir_inst_arg_text(dest: I32, idx: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_assert
+
+- signature: `fn mir_inst_assert(cond: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ## bootstrap/sarif_syntax/src/selfcheck.sarif
 
 ### fn main
