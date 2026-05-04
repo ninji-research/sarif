@@ -12,8 +12,14 @@ pub fn render_diagnostics(file_name: &str, source: &str, diagnostics: &[Diagnost
     let mut output = Vec::new();
 
     for diagnostic in diagnostics {
+        let is_semantic_warning = diagnostic.code.starts_with("semantic.");
+        let report_kind = if is_semantic_warning {
+            ReportKind::Warning
+        } else {
+            ReportKind::Error
+        };
         let mut report = Report::build(
-            ReportKind::Error,
+            report_kind,
             (file_name, diagnostic.span.start..diagnostic.span.end),
         )
         .with_code(diagnostic.code)

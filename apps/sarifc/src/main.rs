@@ -270,8 +270,12 @@ fn run_program(_command: command::Command) -> Result<(), String> {
 #[cfg(feature = "codegen")]
 fn build_program(command: &command::Command) -> Result<(), String> {
     let loaded = LoadedSource::load(&command.path)?;
-    let diagnostics = loaded.mir_diagnostics(command.profile);
-    loaded.ensure_no_diagnostics(&diagnostics, "build failed")?;
+    let all_diagnostics = loaded.mir_diagnostics(command.profile);
+    let blocking_diagnostics: Vec<_> = all_diagnostics
+        .into_iter()
+        .filter(|d| !d.code.starts_with("semantic."))
+        .collect();
+    loaded.ensure_no_diagnostics(&blocking_diagnostics, "build failed")?;
     emit_requested_dump(&loaded, command)?;
 
     let output_path = command
