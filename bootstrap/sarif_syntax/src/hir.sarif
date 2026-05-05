@@ -125,12 +125,16 @@ fn hir_struct_new(name: Text) -> HirStruct { HirStruct { name: name, fields: hir
 fn hir_const_new(name: Text) -> HirConst { HirConst { name: name, ty: hir_type_ref_i32(), value: hir_expr_id_0(), span: hir_span_new(0, 0) } }
 
 fn hir_const_list_new() -> HirConstList { HirConstList { len: 0, c1: hir_optional_const_false(), c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false() } }
+fn hir_const_list_with(c: HirConst) -> HirConstList { HirConstList { len: 1, c1: OptionalHirConst { present: true, c: c }, c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false() } }
 fn hir_optional_const_false() -> OptionalHirConst { OptionalHirConst { present: false, c: hir_const_new("") } }
 fn hir_fn_list_2_new() -> HirFnList2 { HirFnList2 { len: 0, f1: hir_optional_fn_2_false(), f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false() } }
+fn hir_fn_list_2_with(f: HirFn) -> HirFnList2 { HirFnList2 { len: 1, f1: OptionalHirFn2 { present: true, f: f }, f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false() } }
 fn hir_optional_fn_2_false() -> OptionalHirFn2 { OptionalHirFn2 { present: false, f: hir_fn_new("") } }
 fn hir_enum_list_new() -> HirEnumList { HirEnumList { len: 0, e1: hir_optional_enum_false(), e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false() } }
+fn hir_enum_list_with(e: HirEnum) -> HirEnumList { HirEnumList { len: 1, e1: OptionalHirEnum { present: true, e: e }, e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false() } }
 fn hir_optional_enum_false() -> OptionalHirEnum { OptionalHirEnum { present: false, e: hir_enum_new("") } }
 fn hir_struct_list_new() -> HirStructList { HirStructList { len: 0, s1: hir_optional_struct_false(), s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false() } }
+fn hir_struct_list_with(s: HirStruct) -> HirStructList { HirStructList { len: 1, s1: OptionalHirStruct { present: true, s: s }, s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false() } }
 fn hir_optional_struct_false() -> OptionalHirStruct { OptionalHirStruct { present: false, s: hir_struct_new("") } }
 
 fn hir_expr_pool_new() -> HirExprPool { HirExprPool { len: 0 } }
@@ -188,33 +192,21 @@ fn hir_text_slice(source: Text, start: I32, end: I32) -> Text {
 }
 
 fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
-    let module = hir_module_new();
-    let mut idx = 0;
-    while idx < 17 {
-        let evt = syntax_event_at(events, idx);
-        if evt.present {
-            let name = hir_text_slice(source, evt.event.name_span.start, evt.event.name_span.end);
-            idx = idx + 1;
-        } else {
-            idx = 17
-        }
-    };
     if outline.first.present {
         let name = hir_text_slice(source, outline.first.entry.name_span.start, outline.first.entry.name_span.end);
-    } else { };
-    if outline.second.present {
-        let name = hir_text_slice(source, outline.second.entry.name_span.start, outline.second.entry.name_span.end);
-    } else { };
-    if outline.third.present {
-        let name = hir_text_slice(source, outline.third.entry.name_span.start, outline.third.entry.name_span.end);
-    } else { };
-    if outline.fourth.present {
-        let name = hir_text_slice(source, outline.fourth.entry.name_span.start, outline.fourth.entry.name_span.end);
-    } else { };
-    if outline.fifth.present {
-        let name = hir_text_slice(source, outline.fifth.entry.name_span.start, outline.fifth.entry.name_span.end);
-    } else { };
-    module
+        let fn_item = hir_fn_new(name);
+        let fns = hir_fn_list_2_with(fn_item);
+        HirModuleData {
+            consts: hir_const_list_new(),
+            funcs: fns,
+            enums: hir_enum_list_new(),
+            structs: hir_struct_list_new(),
+            exprs: hir_expr_pool_new(),
+            bodies: hir_body_pool_new(),
+        }
+    } else {
+        hir_module_new()
+    }
 }
 
 fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
