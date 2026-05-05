@@ -208,12 +208,33 @@ fn hir_selfcheck() -> I32 {
 fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
     match expr.kind {
         HirExprKind.Integer => mir_block_with_inst(mir_inst_const_i32(0, expr.a)),
+        HirExprKind.Float => mir_block_new(),
         HirExprKind.Bool => mir_block_with_inst(mir_inst_const_bool(0, if expr.a != 0 { true } else { false })),
         HirExprKind.Name => mir_block_with_inst(mir_inst_load_local(0, 0)),
         HirExprKind.String => mir_block_with_inst(mir_inst_const_text(0, expr.t1)),
         HirExprKind.Binary => hir_binary_to_mir(expr),
+        HirExprKind.Unary => hir_unary_to_mir(expr),
         HirExprKind.Call => mir_block_with_inst(mir_inst_call(0, expr.t1, expr.a, expr.b, expr.c, 0, 0)),
-        _ => mir_block_new(),
+        HirExprKind.If => mir_block_new(),
+        HirExprKind.While => mir_block_new(),
+        HirExprKind.Repeat => mir_block_new(),
+        HirExprKind.Match => mir_block_new(),
+        HirExprKind.Field => mir_block_new(),
+        HirExprKind.Index => mir_block_new(),
+        HirExprKind.Record => mir_block_new(),
+        HirExprKind.Array => mir_block_new(),
+        HirExprKind.Group => mir_block_new(),
+    }
+}
+
+fn hir_unary_to_mir(expr: HirExpr) -> MirBlock {
+    let op = expr.t1;
+    if op == "-" {
+        mir_block_with_inst(mir_inst_neg(0, expr.a))
+    } else if op == "not" {
+        mir_block_with_inst(mir_inst_not(0, expr.a))
+    } else {
+        mir_block_new()
     }
 }
 
@@ -252,7 +273,7 @@ fn hir_stmt_to_mir(stmt: HirStmt) -> MirBlock {
     match stmt.kind {
         HirStmtKind.Expr => hir_expr_to_mir(stmt.value),
         HirStmtKind.Let => hir_expr_to_mir(stmt.value),
-        _ => mir_block_new(),
+        HirStmtKind.Assign => hir_expr_to_mir(stmt.value),
     }
 }
 
