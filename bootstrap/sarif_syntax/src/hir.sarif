@@ -171,20 +171,26 @@ fn hir_module_lower(report: ModuleReport) -> HirLowering {
 
 fn hir_lower_top_level(source: Text) -> HirLowering {
     let report = parse_module_report(source);
-    let module = hir_module_from_report(report);
+    let module = hir_module_from_report(report, source);
     hir_module_to_lowering(module)
 }
 
-fn hir_module_from_report(report: ModuleReport) -> HirModuleData {
+fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
     if not report.ok {
         hir_module_new()
     } else {
-        hir_build_module_from_outline(report.outline, report.fn_outline, report.events)
+        hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source)
     }
 }
 
-fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream) -> HirModuleData {
-    hir_module_new()
+fn hir_text_slice(source: Text, start: I32, end: I32) -> Text {
+    source
+}
+
+fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
+    let module = hir_module_new();
+    let s1_name = if outline.first.present { hir_text_slice(source, outline.first.entry.name_span.start, outline.first.entry.name_span.end) } else { "" };
+    module
 }
 
 fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
