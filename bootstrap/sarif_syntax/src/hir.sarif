@@ -202,7 +202,10 @@ fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
 fn hir_selfcheck() -> I32 {
     let empty_module = hir_module_new();
     let is_valid = hir_validate_module(empty_module);
-    if is_valid == 0 { 1 } else { 1 }
+    let test_expr = hir_expr_new(HirExprKind.Integer, 42, 0, 0, "", "", hir_span_new(0, 2));
+    let test_block = hir_expr_to_mir(test_expr);
+    let has_inst = mir_block_len(test_block) > 0;
+    if is_valid == 0 and has_inst { 0 } else { 1 }
 }
 
 fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
