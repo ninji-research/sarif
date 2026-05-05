@@ -43,6 +43,7 @@ static int sarif_write_byte(unsigned char byte) {
 #define SARIF_RECORD_ARENA_CHUNK_MIN_SIZE (1u << 14)
 #define SARIF_RECORD_ARENA_CHUNK_MAX_SIZE (1u << 20)
 #define SARIF_STDIN_CHUNK_SIZE 16384u
+#define SARIF_TEXT_BUILDER_CHUNK 256u
 
 typedef struct SarifRecordDesc SarifRecordDesc;
 typedef struct SarifEnumDesc SarifEnumDesc;
@@ -265,13 +266,17 @@ static void sarif_clamp_text_range(const unsigned char* source, uint64_t len, in
 }
 
 void* sarif_text_builder_new(void) {
-    SarifTextBuilder* builder = malloc(sizeof(SarifTextBuilder));
+    SarifTextBuilder* builder = (SarifTextBuilder*)malloc(sizeof(SarifTextBuilder));
     if (builder == NULL) {
         return NULL;
     }
     builder->len = 0;
-    builder->cap = 0;
-    builder->bytes = NULL;
+    builder->cap = SARIF_TEXT_BUILDER_CHUNK;
+    builder->bytes = (unsigned char*)malloc(SARIF_TEXT_BUILDER_CHUNK);
+    if (builder->bytes == NULL) {
+        free(builder);
+        return NULL;
+    }
     return builder;
 }
 
@@ -303,7 +308,7 @@ static inline __attribute__((always_inline)) SarifTextBuilder* sarif_text_builde
     if (next_cap > (uint64_t)SIZE_MAX) {
         return NULL;
     }
-    grown = realloc(builder->bytes, (size_t)next_cap);
+    grown = (unsigned char*)realloc(builder->bytes, (size_t)next_cap);
     if (grown == NULL) {
         return NULL;
     }
