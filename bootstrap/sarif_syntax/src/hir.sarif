@@ -192,20 +192,39 @@ fn hir_text_slice(source: Text, start: I32, end: I32) -> Text {
 }
 
 fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
-    if outline.first.present {
-        let name = hir_text_slice(source, outline.first.entry.name_span.start, outline.first.entry.name_span.end);
-        let fn_item = hir_fn_new(name);
-        let fns = hir_fn_list_2_with(fn_item);
-        HirModuleData {
-            consts: hir_const_list_new(),
-            funcs: fns,
-            enums: hir_enum_list_new(),
-            structs: hir_struct_list_new(),
-            exprs: hir_expr_pool_new(),
-            bodies: hir_body_pool_new(),
-        }
-    } else {
-        hir_module_new()
+    let has_f1 = outline.first.present;
+    let f1_name = if has_f1 { hir_text_slice(source, outline.first.entry.name_span.start, outline.first.entry.name_span.end) } else { "" };
+    let has_f2 = outline.second.present;
+    let f2_name = if has_f2 { hir_text_slice(source, outline.second.entry.name_span.start, outline.second.entry.name_span.end) } else { "" };
+    let has_f3 = outline.third.present;
+    let f3_name = if has_f3 { hir_text_slice(source, outline.third.entry.name_span.start, outline.third.entry.name_span.end) } else { "" };
+    let has_f4 = outline.fourth.present;
+    let f4_name = if has_f4 { hir_text_slice(source, outline.fourth.entry.name_span.start, outline.fourth.entry.name_span.end) } else { "" };
+    let has_f5 = outline.fifth.present;
+    let f5_name = if has_f5 { hir_text_slice(source, outline.fifth.entry.name_span.start, outline.fifth.entry.name_span.end) } else { "" };
+    let f1_fn = hir_fn_new(f1_name);
+    let f2_fn = hir_fn_new(f2_name);
+    let f3_fn = hir_fn_new(f3_name);
+    let f4_fn = hir_fn_new(f4_name);
+    let f5_fn = hir_fn_new(f5_name);
+    let fns = if has_f1 {
+        if has_f2 {
+            if has_f3 {
+                if has_f4 {
+                    if has_f5 {
+                        hir_fn_list_2_with(f1_fn)
+                    } else { hir_fn_list_2_with(f1_fn) }
+                } else { hir_fn_list_2_with(f1_fn) }
+            } else { hir_fn_list_2_with(f1_fn) }
+        } else { hir_fn_list_2_with(f1_fn) }
+    } else { hir_fn_list_2_new() };
+    HirModuleData {
+        consts: hir_const_list_new(),
+        funcs: fns,
+        enums: hir_enum_list_new(),
+        structs: hir_struct_list_new(),
+        exprs: hir_expr_pool_new(),
+        bodies: hir_body_pool_new(),
     }
 }
 
