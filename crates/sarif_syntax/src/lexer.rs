@@ -1,5 +1,24 @@
 use crate::{Diagnostic, Span, Token, TokenKind};
 use logos::Logos;
+use std::collections::HashMap;
+use std::cell::RefCell;
+
+thread_local! {
+    static IDENT_CACHE: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}
+
+fn intern_ident(s: &str) -> String {
+    IDENT_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(interned) = cache.get(s) {
+            return interned.clone();
+        }
+        let owned = s.to_string();
+        let inserted = owned.clone();
+        cache.insert(owned, inserted.clone());
+        inserted
+    })
+}
 
 #[derive(Logos, Clone, Copy, Debug, PartialEq, Eq)]
 enum RawTokenKind {
@@ -152,9 +171,14 @@ pub fn lex(source: &str) -> LexOutput {
         let lexeme = &source[range];
 
         if let Ok(kind) = result {
+            let interned_lexeme = if kind == RawTokenKind::Ident {
+                intern_ident(lexeme)
+            } else {
+                lexeme.to_string()
+            };
             output
                 .tokens
-                .push(Token::new(map_token_kind(kind), lexeme, span));
+                .push(Token::new(map_token_kind(kind), interned_lexeme, span));
         } else {
             output
                 .tokens
