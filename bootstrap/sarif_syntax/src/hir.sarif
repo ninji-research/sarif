@@ -189,7 +189,31 @@ fn hir_text_slice(source: Text, start: I32, end: I32) -> Text {
 
 fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
     let module = hir_module_new();
-    let s1_name = if outline.first.present { hir_text_slice(source, outline.first.entry.name_span.start, outline.first.entry.name_span.end) } else { "" };
+    let mut idx = 0;
+    while idx < 17 {
+        let evt = syntax_event_at(events, idx);
+        if evt.present {
+            let name = hir_text_slice(source, evt.event.name_span.start, evt.event.name_span.end);
+            idx = idx + 1;
+        } else {
+            idx = 17
+        }
+    };
+    if outline.first.present {
+        let name = hir_text_slice(source, outline.first.entry.name_span.start, outline.first.entry.name_span.end);
+    } else { };
+    if outline.second.present {
+        let name = hir_text_slice(source, outline.second.entry.name_span.start, outline.second.entry.name_span.end);
+    } else { };
+    if outline.third.present {
+        let name = hir_text_slice(source, outline.third.entry.name_span.start, outline.third.entry.name_span.end);
+    } else { };
+    if outline.fourth.present {
+        let name = hir_text_slice(source, outline.fourth.entry.name_span.start, outline.fourth.entry.name_span.end);
+    } else { };
+    if outline.fifth.present {
+        let name = hir_text_slice(source, outline.fifth.entry.name_span.start, outline.fifth.entry.name_span.end);
+    } else { };
     module
 }
 
