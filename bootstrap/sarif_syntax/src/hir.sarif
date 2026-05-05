@@ -178,93 +178,82 @@ fn hir_selfcheck() -> I32 {
     1
 }
 
-fn hir_lower_expr_to_block(expr: HirExpr, env: HirEnv) -> MirBlock {
-    let result_slot = env.next_slot();
-    let inst = match expr.kind {
-        HirExprKind.Name => mir_inst_load_local(result_slot, env.lookup(expr.t1)),
-        HirExprKind.Integer => mir_inst_const_i32(result_slot, expr.a),
-        HirExprKind.Bool => mir_inst_const_bool(result_slot, if expr.a != 0 { true } else { false }),
-        HirExprKind.String => mir_inst_const_text(result_slot, expr.t1),
-        HirExprKind.Binary => hir_lower_binary(expr, result_slot, env),
-        HirExprKind.Call => mir_inst_call(result_slot, expr.t1, expr.a, expr.b, expr.c, 0, 0),
-        HirExprKind.If => hir_lower_if(expr, result_slot, env),
-        _ => mir_inst_data_new(MirInst.AllocPush),
-    };
-    mir_block_with_inst(inst)
-}
-
-fn hir_lower_binary(expr: HirExpr, dest: I32, env: HirEnv) -> MirInstData {
-    let left_slot = env.next_slot();
-    let right_slot = env.next_slot();
-    let op = expr.t1;
-    if op == "+" { mir_inst_add(dest, left_slot, right_slot) }
-    else if op == "-" { mir_inst_sub(dest, left_slot, right_slot) }
-    else if op == "*" { mir_inst_mul(dest, left_slot, right_slot) }
-    else if op == "/" { mir_inst_div(dest, left_slot, right_slot) }
-    else if op == "==" { mir_inst_eq(dest, left_slot, right_slot) }
-    else if op == "!=" { mir_inst_ne(dest, left_slot, right_slot) }
-    else if op == "<" { mir_inst_lt(dest, left_slot, right_slot) }
-    else if op == "<=" { mir_inst_le(dest, left_slot, right_slot) }
-    else if op == ">" { mir_inst_gt(dest, left_slot, right_slot) }
-    else if op == ">=" { mir_inst_ge(dest, left_slot, right_slot) }
-    else { mir_inst_data_new(MirInst.AllocPush) }
-}
-
-fn hir_lower_if(expr: HirExpr, dest: I32, env: HirEnv) -> MirInstData {
-    mir_inst_data_new(MirInst.If)
-}
-
-fn hir_stmt_lower_to_block(stmt: HirStmt, env: HirEnv) -> MirBlock {
-    match stmt.kind {
-        HirStmtKind.Let => hir_lower_let(stmt, env),
-        HirStmtKind.Assign => hir_lower_assign(stmt, env),
-        HirStmtKind.Expr => hir_lower_expr_to_block(stmt.value, env),
+fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
+    match expr.kind {
+        HirExprKind.Integer => mir_block_with_inst(mir_inst_const_i32(0, expr.a)),
+        HirExprKind.Bool => mir_block_with_inst(mir_inst_const_bool(0, if expr.a != 0 { true } else { false })),
+        HirExprKind.Name => mir_block_with_inst(mir_inst_load_local(0, 0)),
+        HirExprKind.String => mir_block_with_inst(mir_inst_const_text(0, expr.t1)),
+        HirExprKind.Binary => hir_binary_to_mir(expr),
+        HirExprKind.Call => mir_block_with_inst(mir_inst_call(0, expr.t1, expr.a, expr.b, expr.c, 0, 0)),
+        _ => mir_block_new(),
     }
 }
 
-fn hir_lower_let(stmt: HirStmt, env: HirEnv) -> MirBlock {
-    let value_block = if stmt.value.present { hir_lower_expr_to_block(stmt.value.id, env) } else { mir_block_new() };
-    let dest_slot = env.define(stmt.binding);
-    value_block
+fn hir_binary_to_mir(expr: HirExpr) -> MirBlock {
+    let op = expr.t1;
+    if op == "+" {
+        mir_block_with_inst(mir_inst_add(0, expr.a, expr.b))
+    } else if op == "-" {
+        mir_block_with_inst(mir_inst_sub(0, expr.a, expr.b))
+    } else if op == "*" {
+        mir_block_with_inst(mir_inst_mul(0, expr.a, expr.b))
+    } else if op == "/" {
+        mir_block_with_inst(mir_inst_div(0, expr.a, expr.b))
+    } else if op == "==" {
+        mir_block_with_inst(mir_inst_eq(0, expr.a, expr.b))
+    } else if op == "!=" {
+        mir_block_with_inst(mir_inst_ne(0, expr.a, expr.b))
+    } else if op == "<" {
+        mir_block_with_inst(mir_inst_lt(0, expr.a, expr.b))
+    } else if op == "<=" {
+        mir_block_with_inst(mir_inst_le(0, expr.a, expr.b))
+    } else if op == ">" {
+        mir_block_with_inst(mir_inst_gt(0, expr.a, expr.b))
+    } else if op == ">=" {
+        mir_block_with_inst(mir_inst_ge(0, expr.a, expr.b))
+    } else if op == "&&" {
+        mir_block_with_inst(mir_inst_and(0, expr.a, expr.b))
+    } else if op == "||" {
+        mir_block_with_inst(mir_inst_or(0, expr.a, expr.b))
+    } else {
+        mir_block_new()
+    }
 }
 
-fn hir_lower_assign(stmt: HirStmt, env: HirEnv) -> MirBlock {
-    hir_lower_expr_to_block(stmt.value, env)
+fn hir_stmt_to_mir(stmt: HirStmt) -> MirBlock {
+    match stmt.kind {
+        HirStmtKind.Expr => hir_expr_to_mir(stmt.value),
+        HirStmtKind.Let => hir_expr_to_mir(stmt.value),
+        _ => mir_block_new(),
+    }
 }
 
-fn hir_fn_lower(fn: HirFn, env: HirEnv) -> MirFn {
-    let lowered_params = hir_fn_params_lower(fn.params, env);
-    let lowered_body = if fn.body.present { hir_body_lower(fn.body.id, env) } else { mir_block_new() };
-    mir_fn_with_body(fn.name, lowered_params, lowered_body)
+fn hir_fn_to_mir(fn: HirFn) -> MirFn {
+    let body_block = if fn.body.present { hir_expr_to_mir(hir_expr_id_0()) } else { mir_block_new() };
+    MirFn {
+        name: fn.name,
+        params: hir_param_list_new(),
+        ret: mir_optional_type_false(),
+        fx: hir_fx_list_new(),
+        locals: mir_local_list_new(),
+        code: body_block,
+        result: value_id_0(),
+    }
 }
 
-fn hir_fn_params_lower(params: HirParamList, env: HirEnv) -> MirParamList {
-    MirParamList { len: params.len, p1: mir_optional_param_false(), p2: mir_optional_param_false(), p3: mir_optional_param_false(), p4: mir_optional_param_false(), p5: mir_optional_param_false() }
-}
-
-fn hir_body_lower(body_id: HirBodyId, env: HirEnv) -> MirBlock {
-    mir_block_new()
-}
-
-fn hir_module_lower_full(module: HirModuleData) -> MirProg {
+fn hir_module_to_mir(module: HirModuleData) -> MirProg {
     let funcs = mir_fn_list_new();
     MirProg { funcs: funcs }
 }
 
-fn hir_selfcheck_full(module: HirModuleData) -> I32 {
+fn hir_validate_module(module: HirModuleData) -> I32 {
+    let has_funcs = if module.funcs.len > 0 { 1 } else { 0 };
+    let has_enums = if module.enums.len > 0 { 1 } else { 0 };
+    let has_structs = if module.structs.len > 0 { 1 } else { 0 };
+    has_funcs + has_enums + has_structs
+}
+
+fn hir_module_selfcheck(module: HirModuleData) -> I32 {
     if module.funcs.len == 0 { 0 } else { 1 }
-}
-
-fn mir_inst_none() -> MirInstData { MirInstData { tag: MirInst.AllocPush, a: 0, b: 0, c: 0, d: 0, t1: "", t2: "" } }
-
-fn mir_block_with_inst(inst: MirInstData) -> MirBlock {
-    MirBlock { len: 1, i1: mir_optional_inst_with_data(inst), i2: mir_optional_inst_false(), i3: mir_optional_inst_false(), i4: mir_optional_inst_false(), i5: mir_optional_inst_false() }
-}
-
-fn mir_optional_inst_with_data(data: MirInstData) -> OptionalMirInst {
-    OptionalMirInst { present: true, data: data }
-}
-
-fn mir_fn_with_body(name: Text, params: MirParamList, body: MirBlock) -> MirFn {
-    MirFn { name: name, params: params, ret: mir_optional_type_false(), fx: mir_fx_list_new(), locals: mir_local_list_new(), code: body, result: value_id_0() }
 }
