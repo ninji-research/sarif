@@ -169,9 +169,34 @@ fn hir_module_lower(report: ModuleReport) -> HirLowering {
     }
 }
 
-fn hir_lower_top_level(report: ModuleReport) -> HirLowering {
-    let lowering = hir_module_lower(report);
-    lowering
+fn hir_lower_top_level(source: Text) -> HirLowering {
+    let report = parse_module_report(source);
+    let module = hir_module_from_report(report);
+    hir_module_to_lowering(module)
+}
+
+fn hir_module_from_report(report: ModuleReport) -> HirModuleData {
+    if not report.ok {
+        hir_module_new()
+    } else {
+        hir_build_module_from_outline(report.outline, report.fn_outline, report.events)
+    }
+}
+
+fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream) -> HirModuleData {
+    hir_module_new()
+}
+
+fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
+    HirLowering {
+        module: module,
+        expr_pool: hir_expr_pool_new(),
+        body_pool: hir_body_pool_new(),
+        fns: hir_fn_list_2_new(),
+        enums: hir_enum_list_new(),
+        structs: hir_struct_list_new(),
+        diags: hir_diag_list_new(),
+    }
 }
 
 fn hir_selfcheck() -> I32 {
