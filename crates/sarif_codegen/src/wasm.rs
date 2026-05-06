@@ -2837,7 +2837,16 @@ fn collect_inst_kinds(
                 let WasmValueKind::Record(record_name) = kinds[base].clone() else {
                     return Err(WasmError::new("expected record kind for field access"));
                 };
-                let struct_ty = structs.iter().find(|s| s.name == record_name).unwrap();
+                let struct_ty =
+                    structs
+                        .iter()
+                        .find(|s| s.name == record_name)
+                        .ok_or_else(|| {
+                            WasmError::new(format!(
+                                "unknown record `{record_name}` for field `{name}` in `{}`",
+                                function.name
+                            ))
+                        })?;
                 let field = struct_ty
                     .fields
                     .iter()
