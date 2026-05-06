@@ -39,7 +39,7 @@ Required remaining work:
 
 **Escape Analysis for [alloc] (Stage-1 Hard Error)**
 
-Stage-0 emits a `semantic.alloc-escape` warning when `[alloc]` functions return types that could reference arena-allocated memory. This is a Stage-0 placeholder.
+Stage-0 emits a `semantic.alloc-escape` warning when `[alloc]` functions return types that could reference arena-allocated memory and the function body actually allocates, including transitive calls to other `[alloc]` functions. Non-allocating compatibility declarations no longer produce escape warnings. This is still a Stage-0 approximation rather than full proof.
 
 Required implementation: Add MIR-level escape analysis in Stage-1 that:
 - Detects when a pointer to arena-allocated data would escape the scope where it was created

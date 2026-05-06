@@ -73,6 +73,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - repeat fixed-array literals `[value; N]` are now maintained stage-0 syntax for duplicate-safe fixed-array elements, reusing the same fixed-length array model instead of introducing a second dynamic array form
 - the `binarytrees` lane no longer exhibits the prior pathological temporary-tree retention
 - the maintained compiler is still Rust-hosted
+- alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings
 - full Stage-1 memory safety still requires remaining runtime text ownership audit work and MIR-level escape analysis
 - the native executable path is maintained on Linux, feasible but less exercised on macOS, and not yet maintained on Windows or mobile hosts; the current platform matrix is recorded in `docs/platforms.md`
 - self-hosted tooling authority is not complete

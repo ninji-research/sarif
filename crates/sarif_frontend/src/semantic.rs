@@ -392,7 +392,9 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                     // Stage-1 requires proper Escape Analysis to make this a hard error.
                     // For Core/Total profiles: emit as warning (semantic.alloc-escape)
                     // For RT profile: hard error (escape.analysis.required) - blocks build
-                    if signature.effects.contains(&Effect::Alloc) {
+                    if signature.effects.contains(&Effect::Alloc)
+                        && body_may_allocate(body, &functions)
+                    {
                         let could_be_allocated = matches!(
                             signature.return_type,
                             Type::Named(_) | Type::List(_) | Type::Array(_, _) | Type::Text
@@ -694,6 +696,87 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
     Analysis {
         reports,
         diagnostics,
+    }
+}
+
+fn body_may_allocate(body: &Body, functions: &BTreeMap<String, FunctionSignature>) -> bool {
+    body.statements.iter().any(|stmt| match stmt {
+        crate::hir::Stmt::Let(binding) => expr_may_allocate(&binding.value, functions),
+        crate::hir::Stmt::Assign(assign) => expr_may_allocate(&assign.value, functions),
+        crate::hir::Stmt::Expr(expr) => expr_may_allocate(&expr.expr, functions),
+    }) || body
+        .tail
+        .as_ref()
+        .is_some_and(|expr| expr_may_allocate(expr, functions))
+}
+
+fn expr_may_allocate(expr: &Expr, functions: &BTreeMap<String, FunctionSignature>) -> bool {
+    match expr {
+        Expr::Call(call) => {
+            matches!(
+                call.callee.as_str(),
+                "list_new" | "list_push" | "text_builder_new" | "text_index_new"
+            ) || functions
+                .get(&call.callee)
+                .is_some_and(|signature| signature.effects.contains(&Effect::Alloc))
+                || call
+                    .args
+                    .iter()
+                    .any(|arg| expr_may_allocate(arg, functions))
+        }
+        Expr::Array(array) => array
+            .elements
+            .iter()
+            .any(|expr| expr_may_allocate(expr, functions)),
+        Expr::Field(field) => expr_may_allocate(&field.base, functions),
+        Expr::Index(index) => {
+            expr_may_allocate(&index.base, functions) || expr_may_allocate(&index.index, functions)
+        }
+        Expr::If(if_expr) => {
+            expr_may_allocate(&if_expr.condition, functions)
+                || body_may_allocate(&if_expr.then_body, functions)
+                || body_may_allocate(&if_expr.else_body, functions)
+        }
+        Expr::Match(match_expr) => {
+            expr_may_allocate(&match_expr.scrutinee, functions)
+                || match_expr
+                    .arms
+                    .iter()
+                    .any(|arm| body_may_allocate(&arm.body, functions))
+        }
+        Expr::Repeat(repeat_expr) => {
+            expr_may_allocate(&repeat_expr.count, functions)
+                || body_may_allocate(&repeat_expr.body, functions)
+        }
+        Expr::While(while_expr) => {
+            expr_may_allocate(&while_expr.condition, functions)
+                || body_may_allocate(&while_expr.body, functions)
+        }
+        Expr::Record(record) => record
+            .fields
+            .iter()
+            .any(|field| expr_may_allocate(&field.value, functions)),
+        Expr::Unary(unary) => expr_may_allocate(&unary.inner, functions),
+        Expr::Binary(binary) => {
+            expr_may_allocate(&binary.left, functions)
+                || expr_may_allocate(&binary.right, functions)
+        }
+        Expr::Group(group) => expr_may_allocate(&group.inner, functions),
+        Expr::Comptime(body) => body_may_allocate(body, functions),
+        Expr::Handle(handle) => {
+            body_may_allocate(&handle.body, functions)
+                || handle
+                    .arms
+                    .iter()
+                    .any(|arm| body_may_allocate(&arm.body, functions))
+        }
+        Expr::Integer(_)
+        | Expr::Float(_)
+        | Expr::String(_)
+        | Expr::Bool(_)
+        | Expr::Name(_)
+        | Expr::ContractResult(_)
+        | Expr::Perform(_) => false,
     }
 }
 
@@ -1051,6 +1134,50 @@ fn creates_list() -> List[F64] effects [alloc] {
                 .iter()
                 .any(|d| d.code == "semantic.alloc-escape"),
             "should have at least one alloc-escape warning for returning List, got: {:#?}",
+            analysis.diagnostics
+        );
+    }
+
+    #[test]
+    fn alloc_escape_ignores_non_allocating_bodies() {
+        let source = "
+struct Token { start: I32 }
+
+fn passthrough(token: Token) -> Token effects [alloc] {
+    token
+}
+";
+        let analysis = analyze_source(source);
+        assert!(
+            !analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.alloc-escape"),
+            "non-allocating body should not trigger alloc-escape warning, got: {:#?}",
+            analysis.diagnostics
+        );
+    }
+
+    #[test]
+    fn alloc_escape_tracks_transitive_allocating_calls() {
+        let source = "
+fn creates_list() -> List[F64] effects [alloc] {
+    list_new(10, 0.0)
+}
+
+fn wraps_list() -> List[F64] effects [alloc] {
+    creates_list()
+}
+";
+        let analysis = analyze_source(source);
+        let warning_count = analysis
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "semantic.alloc-escape")
+            .count();
+        assert_eq!(
+            warning_count, 2,
+            "alloc-escape should cover direct and transitive allocation returns, got: {:#?}",
             analysis.diagnostics
         );
     }
