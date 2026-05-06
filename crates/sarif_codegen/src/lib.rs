@@ -7767,8 +7767,8 @@ impl<'a> Interpreter<'a> {
                     } else if clamped_start == 0 && clamped_end == bytes.len() {
                         text
                     } else {
-                        // The clamped indices are UTF-8 boundaries by construction.
-                        unsafe { std::str::from_utf8_unchecked(&bytes[clamped_start..clamped_end]) }
+                        std::str::from_utf8(&bytes[clamped_start..clamped_end])
+                            .expect("clamped text slice bounds must be UTF-8 boundaries")
                             .to_owned()
                     };
                     values[dest.0 as usize] = RuntimeValue::Text(sliced);
@@ -8951,8 +8951,9 @@ fn slice_text(text: &str, start: i64, end: i64) -> String {
     if end <= start {
         return String::new();
     }
-    // The clamped indices are UTF-8 boundaries by construction.
-    unsafe { std::str::from_utf8_unchecked(&bytes[start..end]) }.to_owned()
+    std::str::from_utf8(&bytes[start..end])
+        .expect("clamped text slice bounds must be UTF-8 boundaries")
+        .to_owned()
 }
 
 fn clamp_text_slice_start(bytes: &[u8], index: i64) -> usize {

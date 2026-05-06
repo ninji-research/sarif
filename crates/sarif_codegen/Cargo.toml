@@ -21,6 +21,3 @@ sarif_syntax = { path = "../sarif_syntax" }
 target-lexicon = { workspace = true, optional = true }
 wasmtime = { workspace = true, optional = true }
 wat = { workspace = true, optional = true }
-
-[lints.rust]
-unsafe_code = "allow"
