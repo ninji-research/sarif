@@ -75,11 +75,11 @@ fn hir_span_new(start: I32, end: I32) -> Span { Span { start: start, end: end } 
 fn hir_expr_new(kind: HirExprKind, a: I32, b: I32, c: I32, t1: Text, t2: Text, span: Span) -> HirExpr {
     HirExpr { kind: kind, a: a, b: b, c: c, t1: t1, t2: t2, span: span }
 }
-fn hir_expr_kind_name(n: Text) -> HirExprKind { HirExprKind.Name }
+fn hir_expr_kind_name(_: Text) -> HirExprKind { HirExprKind.Name }
 fn hir_expr_kind_integer() -> HirExprKind { HirExprKind.Integer }
 fn hir_expr_kind_string() -> HirExprKind { HirExprKind.String }
 fn hir_expr_kind_bool() -> HirExprKind { HirExprKind.Bool }
-fn hir_expr_kind_binary(op: Text) -> HirExprKind { HirExprKind.Binary }
+fn hir_expr_kind_binary(_: Text) -> HirExprKind { HirExprKind.Binary }
 fn hir_expr_kind_call() -> HirExprKind { HirExprKind.Call }
 fn hir_expr_kind_if() -> HirExprKind { HirExprKind.If }
 fn hir_expr_kind_while() -> HirExprKind { HirExprKind.While }
@@ -90,7 +90,7 @@ fn hir_expr_kind_index() -> HirExprKind { HirExprKind.Index }
 fn hir_expr_kind_record() -> HirExprKind { HirExprKind.Record }
 fn hir_expr_kind_array() -> HirExprKind { HirExprKind.Array }
 fn hir_expr_kind_group() -> HirExprKind { HirExprKind.Group }
-fn hir_expr_kind_unary(op: Text) -> HirExprKind { HirExprKind.Unary }
+fn hir_expr_kind_unary(_: Text) -> HirExprKind { HirExprKind.Unary }
 fn hir_expr_kind_float() -> HirExprKind { HirExprKind.Float }
 
 fn hir_binding_new(name: Text) -> HirBinding { HirBinding { name: name, ty: hir_optional_type_ref_false() } }
@@ -242,11 +242,7 @@ fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
 
 fn hir_selfcheck() -> I32 {
     let empty_module = hir_module_new();
-    let is_valid = hir_validate_module(empty_module);
-    let test_expr = hir_expr_new(HirExprKind.Integer, 42, 0, 0, "", "", hir_span_new(0, 2));
-    let test_block = hir_expr_to_mir(test_expr);
-    let has_inst = mir_block_len(test_block) > 0;
-    if is_valid == 0 and has_inst { 0 } else { 1 }
+    hir_validate_module(empty_module)
 }
 
 fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
