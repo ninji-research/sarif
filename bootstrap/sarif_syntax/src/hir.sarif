@@ -214,31 +214,36 @@ fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline,
     let mut i5 = hir_optional_item_false();
     if outline.first.present {
         let span = hir_span_from_optional(outline.first.entry.span);
-        let item = hir_item_new(outline.first.entry.kind, "", span);
+        let name = hir_name_from_span(outline.first.entry.name_span, source);
+        let item = hir_item_new(outline.first.entry.kind, name, span);
         i1 = hir_optional_item_true(item);
         len = len + 1;
     } else { };
     if outline.second.present {
         let span = hir_span_from_optional(outline.second.entry.span);
-        let item = hir_item_new(outline.second.entry.kind, "", span);
+        let name = hir_name_from_span(outline.second.entry.name_span, source);
+        let item = hir_item_new(outline.second.entry.kind, name, span);
         i2 = hir_optional_item_true(item);
         len = len + 1;
     } else { };
     if outline.third.present {
         let span = hir_span_from_optional(outline.third.entry.span);
-        let item = hir_item_new(outline.third.entry.kind, "", span);
+        let name = hir_name_from_span(outline.third.entry.name_span, source);
+        let item = hir_item_new(outline.third.entry.kind, name, span);
         i3 = hir_optional_item_true(item);
         len = len + 1;
     } else { };
     if outline.fourth.present {
         let span = hir_span_from_optional(outline.fourth.entry.span);
-        let item = hir_item_new(outline.fourth.entry.kind, "", span);
+        let name = hir_name_from_span(outline.fourth.entry.name_span, source);
+        let item = hir_item_new(outline.fourth.entry.kind, name, span);
         i4 = hir_optional_item_true(item);
         len = len + 1;
     } else { };
     if outline.fifth.present {
         let span = hir_span_from_optional(outline.fifth.entry.span);
-        let item = hir_item_new(outline.fifth.entry.kind, "", span);
+        let name = hir_name_from_span(outline.fifth.entry.name_span, source);
+        let item = hir_item_new(outline.fifth.entry.kind, name, span);
         i5 = hir_optional_item_true(item);
         len = len + 1;
     } else { };
