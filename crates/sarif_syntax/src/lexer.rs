@@ -1,7 +1,7 @@
 use crate::{Diagnostic, Span, Token, TokenKind};
 use logos::Logos;
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 thread_local! {
     static IDENT_CACHE: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());

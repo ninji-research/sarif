@@ -1036,11 +1036,6 @@ fn creates_list() -> List[F64] effects [alloc] {
         // Stage-0 (Core profile): [alloc] functions that return pointer types trigger a warning
         // because the compiler cannot verify the caller maintains proper scope.
         // The [alloc] effect itself is still satisfied when declared.
-        let alloc_escape_warnings: Vec<_> = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == "semantic.alloc-escape")
-            .collect();
         let alloc_effect_errors: Vec<_> = analysis
             .diagnostics
             .iter()
@@ -1048,11 +1043,13 @@ fn creates_list() -> List[F64] effects [alloc] {
             .collect();
         assert!(
             alloc_effect_errors.is_empty(),
-            "should have no alloc-effect errors when [alloc] is declared, got: {:#?}",
-            alloc_effect_errors
+            "should have no alloc-effect errors when [alloc] is declared, got: {alloc_effect_errors:#?}"
         );
         assert!(
-            !alloc_escape_warnings.is_empty(),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.alloc-escape"),
             "should have at least one alloc-escape warning for returning List, got: {:#?}",
             analysis.diagnostics
         );
@@ -1072,11 +1069,6 @@ fn creates_list() -> List[F64] effects [alloc] {
         let analysis = analyze(&hir.module, Profile::Rt);
         // Stage-1 (RT profile): [alloc] functions that return pointer types trigger a hard error
         // via Escape Analysis. This prevents unsafe code from compiling.
-        let escape_analysis_errors: Vec<_> = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == "escape.analysis.required")
-            .collect();
         let alloc_effect_errors: Vec<_> = analysis
             .diagnostics
             .iter()
@@ -1084,11 +1076,13 @@ fn creates_list() -> List[F64] effects [alloc] {
             .collect();
         assert!(
             alloc_effect_errors.is_empty(),
-            "should have no alloc-effect errors when [alloc] is declared, got: {:#?}",
-            alloc_effect_errors
+            "should have no alloc-effect errors when [alloc] is declared, got: {alloc_effect_errors:#?}"
         );
         assert!(
-            !escape_analysis_errors.is_empty(),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "escape.analysis.required"),
             "should have at least one escape.analysis.required error for RT profile, got: {:#?}",
             analysis.diagnostics
         );

@@ -627,14 +627,37 @@ fn lower_arithmetic<F, I>(
     int_op: I,
 ) -> Result<bool, String>
 where
-    F: FnOnce(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value,
-    I: FnOnce(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value,
+    F: FnOnce(
+        &mut FunctionBuilder<'_>,
+        cranelift_codegen::ir::Value,
+        cranelift_codegen::ir::Value,
+    ) -> cranelift_codegen::ir::Value,
+    I: FnOnce(
+        &mut FunctionBuilder<'_>,
+        cranelift_codegen::ir::Value,
+        cranelift_codegen::ir::Value,
+    ) -> cranelift_codegen::ir::Value,
 {
     let left_kind = value_kinds.get(&left).ok_or_else(|| {
-        format!("{backend} could not resolve {op_name} left operand kind for `{}`", function.name)
+        format!(
+            "{backend} could not resolve {op_name} left operand kind for `{}`",
+            function.name
+        )
     })?;
-    let left_value = native_value(values, left, function, &format!("{op_name} left operand"), backend)?;
-    let right_value = native_value(values, right, function, &format!("{op_name} right operand"), backend)?;
+    let left_value = native_value(
+        values,
+        left,
+        function,
+        &format!("{op_name} left operand"),
+        backend,
+    )?;
+    let right_value = native_value(
+        values,
+        right,
+        function,
+        &format!("{op_name} right operand"),
+        backend,
+    )?;
     let native = match left_kind {
         NativeValueKind::F64 => float_op(builder, left_value, right_value),
         _ => int_op(builder, left_value, right_value),
@@ -657,9 +680,26 @@ fn lower_binary_int<F>(
     op: F,
 ) -> Result<bool, String>
 where
-    F: Fn(&mut FunctionBuilder<'_>, cranelift_codegen::ir::Value, cranelift_codegen::ir::Value) -> cranelift_codegen::ir::Value + Copy,
+    F: Fn(
+            &mut FunctionBuilder<'_>,
+            cranelift_codegen::ir::Value,
+            cranelift_codegen::ir::Value,
+        ) -> cranelift_codegen::ir::Value
+        + Copy,
 {
-    lower_arithmetic(values, value_kinds, function, builder, backend, dest, left, right, op_name, op, op)
+    lower_arithmetic(
+        values,
+        value_kinds,
+        function,
+        builder,
+        backend,
+        dest,
+        left,
+        right,
+        op_name,
+        op,
+        op,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -687,8 +727,8 @@ fn lower_comparison<M: Module>(
         let left_val = native_value(values, left, function, "comparison left operand", backend)?;
         let right_val = native_value(values, right, function, "comparison right operand", backend)?;
         let value = lower_native_kind_comparison(
-            module, builder, text_eq_id, records, enums, left_val, right_val, kind, condition, backend,
-            function,
+            module, builder, text_eq_id, records, enums, left_val, right_val, kind, condition,
+            backend, function,
         )?;
         values.insert(dest, NativeValueRepr::Native(value));
         return Ok(true);
@@ -1369,7 +1409,14 @@ pub fn lower_inst<M: Module>(
             let text_val =
                 native_value(values, *text, function, "text_builder_append text", backend)?;
             let helper = module.declare_func_in_func(text_builder_append_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val, text_val], "text builder append", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val, text_val],
+                "text builder append",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1394,7 +1441,14 @@ pub fn lower_inst<M: Module>(
             )?;
             let helper =
                 module.declare_func_in_func(text_builder_append_codepoint_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val, codepoint_val], "text builder append codepoint", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val, codepoint_val],
+                "text builder append codepoint",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1418,7 +1472,14 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_append_ascii_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val, byte_val], "text builder append ascii", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val, byte_val],
+                "text builder append ascii",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1458,7 +1519,14 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_append_slice_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val, text_val, start_val, end_val], "text builder append slice", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val, text_val, start_val, end_val],
+                "text builder append slice",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1482,7 +1550,14 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_append_i32_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val, value_val], "text builder append i32", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val, value_val],
+                "text builder append i32",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1498,7 +1573,14 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_builder_finish_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val], "text builder finish", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val],
+                "text builder finish",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1580,7 +1662,14 @@ pub fn lower_inst<M: Module>(
             let value_val =
                 native_value(values, *value, function, "text_index_set value", backend)?;
             let helper = module.declare_func_in_func(text_index_helpers.set_id, builder.func);
-            let ptr = call_helper(builder, helper, &[index_val, key_val, value_val], "text index set", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[index_val, key_val, value_val],
+                "text index set",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1596,7 +1685,14 @@ pub fn lower_inst<M: Module>(
                     .bitcast(types::I64, MemFlags::new(), value_val);
             }
             let helper = module.declare_func_in_func(list_new_id, builder.func);
-            let ptr = call_helper(builder, helper, &[len_val, value_val], "list new", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[len_val, value_val],
+                "list new",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1700,7 +1796,14 @@ pub fn lower_inst<M: Module>(
                     .bitcast(types::I64, MemFlags::new(), value_val);
             }
             let helper = module.declare_func_in_func(list_push_id, builder.func);
-            let ptr = call_helper(builder, helper, &[vec_val, len_val, value_val], "list push", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[vec_val, len_val, value_val],
+                "list push",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1708,7 +1811,14 @@ pub fn lower_inst<M: Module>(
             let vec_val = native_value(values, *list, function, "list_sort_text list", backend)?;
             let len_val = native_value(values, *len, function, "list_sort_text len", backend)?;
             let helper = module.declare_func_in_func(list_sort_text_id, builder.func);
-            let ptr = call_helper(builder, helper, &[vec_val, len_val], "list sort text", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[vec_val, len_val],
+                "list sort text",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1768,7 +1878,14 @@ pub fn lower_inst<M: Module>(
                 .ins()
                 .iconst(types::I64, i64::from(field_desc.offset));
             let helper = module.declare_func_in_func(list_sort_by_text_field_id, builder.func);
-            let ptr = call_helper(builder, helper, &[vec_val, len_val, offset], "list sort by text field", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[vec_val, len_val, offset],
+                "list sort by text field",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1804,7 +1921,14 @@ pub fn lower_inst<M: Module>(
             let left_val = native_value(values, *left, function, "text_concat left", backend)?;
             let right_val = native_value(values, *right, function, "text_concat right", backend)?;
             let helper = module.declare_func_in_func(text_concat_id, builder.func);
-            let ptr = call_helper(builder, helper, &[left_val, right_val], "text concat", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[left_val, right_val],
+                "text concat",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1818,7 +1942,14 @@ pub fn lower_inst<M: Module>(
             let start_val = native_value(values, *start, function, "text_slice start", backend)?;
             let end_val = native_value(values, *end, function, "text_slice end", backend)?;
             let helper = module.declare_func_in_func(text_slice_id, builder.func);
-            let ptr = call_helper(builder, helper, &[text_val, start_val, end_val], "text slice", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[text_val, start_val, end_val],
+                "text slice",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -1832,7 +1963,14 @@ pub fn lower_inst<M: Module>(
             let start_val = native_value(values, *start, function, "bytes_slice start", backend)?;
             let end_val = native_value(values, *end, function, "bytes_slice end", backend)?;
             let helper = module.declare_func_in_func(bytes_slice_id, builder.func);
-            let ptr = call_helper(builder, helper, &[bytes_val, start_val, end_val], "bytes slice", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[bytes_val, start_val, end_val],
+                "bytes slice",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2132,7 +2270,14 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(text_from_f64_fixed_id, builder.func);
-            let ptr = call_helper(builder, helper, &[value_val, digits_val], "text_from_f64_fixed", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[value_val, digits_val],
+                "text_from_f64_fixed",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2244,7 +2389,14 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper = module.declare_func_in_func(stdout_write_builder_id, builder.func);
-            let ptr = call_helper(builder, helper, &[builder_val], "stdout_write_builder", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val],
+                "stdout_write_builder",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2302,7 +2454,14 @@ pub fn lower_inst<M: Module>(
                 .ok_or_else(|| format!("missing native record metadata for `{name}`"))?;
             let allocator = module.declare_func_in_func(allocator_id, builder.func);
             let size = builder.ins().iconst(types::I64, i64::from(record.size));
-            let ptr = call_helper(builder, allocator, &[size], "record allocator", function, backend)?;
+            let ptr = call_helper(
+                builder,
+                allocator,
+                &[size],
+                "record allocator",
+                function,
+                backend,
+            )?;
             for field in &record.fields {
                 let source = fields
                     .iter()
@@ -2356,23 +2515,232 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(native));
             Ok(true)
         }
-        Inst::Add { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "add", |b, l, r| b.ins().fadd(l, r), |b, l, r| b.ins().iadd(l, r)),
-        Inst::Sub { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "sub", |b, l, r| b.ins().fsub(l, r), |b, l, r| b.ins().isub(l, r)),
-        Inst::Mul { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "mul", |b, l, r| b.ins().fmul(l, r), |b, l, r| b.ins().imul(l, r)),
-        Inst::Div { dest, left, right } => lower_arithmetic(values, value_kinds, function, builder, backend, *dest, *left, *right, "div", |b, l, r| b.ins().fdiv(l, r), |b, l, r| b.ins().sdiv(l, r)),
-        Inst::BitAnd { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "bitand", |b, l, r| b.ins().band(l, r)),
-        Inst::BitOr { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "bitor", |b, l, r| b.ins().bor(l, r)),
-        Inst::BitXor { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "bitxor", |b, l, r| b.ins().bxor(l, r)),
-        Inst::Shl { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "shl", |b, l, r| b.ins().ishl(l, r)),
-        Inst::Shr { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "shr", |b, l, r| b.ins().sshr(l, r)),
-        Inst::And { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "and", |b, l, r| b.ins().band(l, r)),
-        Inst::Or { dest, left, right } => lower_binary_int(values, value_kinds, function, builder, backend, *dest, *left, *right, "or", |b, l, r| b.ins().bor(l, r)),
-        Inst::Eq { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::Equal, backend),
-        Inst::Ne { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::NotEqual, backend),
-        Inst::Lt { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedLessThan, backend),
-        Inst::Le { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedLessThanOrEqual, backend),
-        Inst::Gt { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedGreaterThan, backend),
-        Inst::Ge { dest, left, right } => lower_comparison(values, value_kinds, module, builder, text_eq_id, records, enums, *dest, *left, *right, function, IntCC::SignedGreaterThanOrEqual, backend),
+        Inst::Add { dest, left, right } => lower_arithmetic(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "add",
+            |b, l, r| b.ins().fadd(l, r),
+            |b, l, r| b.ins().iadd(l, r),
+        ),
+        Inst::Sub { dest, left, right } => lower_arithmetic(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "sub",
+            |b, l, r| b.ins().fsub(l, r),
+            |b, l, r| b.ins().isub(l, r),
+        ),
+        Inst::Mul { dest, left, right } => lower_arithmetic(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "mul",
+            |b, l, r| b.ins().fmul(l, r),
+            |b, l, r| b.ins().imul(l, r),
+        ),
+        Inst::Div { dest, left, right } => lower_arithmetic(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "div",
+            |b, l, r| b.ins().fdiv(l, r),
+            |b, l, r| b.ins().sdiv(l, r),
+        ),
+        Inst::BitAnd { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "bitand",
+            |b, l, r| b.ins().band(l, r),
+        ),
+        Inst::BitOr { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "bitor",
+            |b, l, r| b.ins().bor(l, r),
+        ),
+        Inst::BitXor { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "bitxor",
+            |b, l, r| b.ins().bxor(l, r),
+        ),
+        Inst::Shl { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "shl",
+            |b, l, r| b.ins().ishl(l, r),
+        ),
+        Inst::Shr { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "shr",
+            |b, l, r| b.ins().sshr(l, r),
+        ),
+        Inst::And { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "and",
+            |b, l, r| b.ins().band(l, r),
+        ),
+        Inst::Or { dest, left, right } => lower_binary_int(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "or",
+            |b, l, r| b.ins().bor(l, r),
+        ),
+        Inst::Eq { dest, left, right } => lower_comparison(
+            values,
+            value_kinds,
+            module,
+            builder,
+            text_eq_id,
+            records,
+            enums,
+            *dest,
+            *left,
+            *right,
+            function,
+            IntCC::Equal,
+            backend,
+        ),
+        Inst::Ne { dest, left, right } => lower_comparison(
+            values,
+            value_kinds,
+            module,
+            builder,
+            text_eq_id,
+            records,
+            enums,
+            *dest,
+            *left,
+            *right,
+            function,
+            IntCC::NotEqual,
+            backend,
+        ),
+        Inst::Lt { dest, left, right } => lower_comparison(
+            values,
+            value_kinds,
+            module,
+            builder,
+            text_eq_id,
+            records,
+            enums,
+            *dest,
+            *left,
+            *right,
+            function,
+            IntCC::SignedLessThan,
+            backend,
+        ),
+        Inst::Le { dest, left, right } => lower_comparison(
+            values,
+            value_kinds,
+            module,
+            builder,
+            text_eq_id,
+            records,
+            enums,
+            *dest,
+            *left,
+            *right,
+            function,
+            IntCC::SignedLessThanOrEqual,
+            backend,
+        ),
+        Inst::Gt { dest, left, right } => lower_comparison(
+            values,
+            value_kinds,
+            module,
+            builder,
+            text_eq_id,
+            records,
+            enums,
+            *dest,
+            *left,
+            *right,
+            function,
+            IntCC::SignedGreaterThan,
+            backend,
+        ),
+        Inst::Ge { dest, left, right } => lower_comparison(
+            values,
+            value_kinds,
+            module,
+            builder,
+            text_eq_id,
+            records,
+            enums,
+            *dest,
+            *left,
+            *right,
+            function,
+            IntCC::SignedGreaterThanOrEqual,
+            backend,
+        ),
         Inst::Sqrt { dest, value } => {
             let float = native_value(values, *value, function, "sqrt operand", backend)?;
             let sqrt = builder.ins().sqrt(float);

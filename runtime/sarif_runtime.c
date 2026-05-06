@@ -239,6 +239,32 @@ static inline __attribute__((always_inline)) uint64_t sarif_load_u64(const unsig
     return value;
 }
 
+static unsigned char* sarif_text_alloc(uint64_t len) {
+    unsigned char* text = NULL;
+    if (len > (uint64_t)SIZE_MAX - 8u) {
+        return NULL;
+    }
+    text = (unsigned char*)sarif_record_alloc(8u + len);
+    if (text == NULL) {
+        return NULL;
+    }
+    sarif_store_u64(text, 0, len);
+    return text;
+}
+
+static unsigned char* sarif_text_alloc_extra(uint64_t len, uint64_t extra) {
+    unsigned char* text = NULL;
+    if (len > UINT64_MAX - extra || len + extra > (uint64_t)SIZE_MAX - 8u) {
+        return NULL;
+    }
+    text = (unsigned char*)sarif_record_alloc(8u + len + extra);
+    if (text == NULL) {
+        return NULL;
+    }
+    sarif_store_u64(text, 0, len);
+    return text;
+}
+
 static int sarif_is_utf8_continuation(unsigned char byte) {
     return (byte & 0xc0u) == 0x80u;
 }
@@ -460,18 +486,12 @@ void* sarif_text_builder_finish(void* raw_builder) {
     if (builder == NULL) {
         return NULL;
     }
-    if (builder->len > (uint64_t)SIZE_MAX - 8u) {
-        free(builder->bytes);
-        free(builder);
-        return NULL;
-    }
-    text = malloc(8u + (size_t)builder->len);
+    text = sarif_text_alloc(builder->len);
     if (text == NULL) {
         free(builder->bytes);
         free(builder);
         return NULL;
     }
-    sarif_store_u64(text, 0, builder->len);
     if (builder->len != 0) {
         memcpy(text + 8, builder->bytes, (size_t)builder->len);
     }
@@ -837,7 +857,6 @@ void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
     uint64_t left_len = 0;
     uint64_t right_len = 0;
     uint64_t total_len = 0;
-    size_t total_size = 0;
     unsigned char* text = NULL;
     if (left == NULL || right == NULL) {
         return NULL;
@@ -857,12 +876,10 @@ void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
     if (total_len > (uint64_t)SIZE_MAX - 8u) {
         return NULL;
     }
-    total_size = (size_t)(8u + total_len);
-    text = malloc(total_size);
+    text = sarif_text_alloc(total_len);
     if (text == NULL) {
         return NULL;
     }
-    sarif_store_u64(text, 0, total_len);
     if (left_len != 0) {
         memcpy(text + 8, left + 8, (size_t)left_len);
     }
@@ -1040,9 +1057,8 @@ static void* sarif_slice_blob(const unsigned char* blob, uint64_t start, uint64_
     }
     if (cs == 0 && ce == len) return (void*)blob;
     slen = (size_t)(ce - cs);
-    result = malloc(8u + slen);
+    result = sarif_text_alloc((uint64_t)slen);
     if (!result) return NULL;
-    sarif_store_u64(result, 0, (uint64_t)slen);
     memcpy(result + 8, blob + 8 + cs, slen);
     return result;
 }
@@ -1063,14 +1079,13 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
         precision = digits > 1000 ? 1000 : (int)digits;
     }
     len = snprintf(NULL, 0, "%.*f", precision, value);
-    if (len < 0 || (uint64_t)len > (uint64_t)SIZE_MAX - 8u) {
+    if (len < 0) {
         return NULL;
     }
-    result = malloc(8u + (size_t)len);
+    result = sarif_text_alloc_extra((uint64_t)len, 1u);
     if (result == NULL) {
         return NULL;
     }
-    sarif_store_u64(result, 0, (uint64_t)len);
     if (len != 0) {
         snprintf((char*)(result + 8), (size_t)len + 1u, "%.*f", precision, value);
     }
@@ -1172,11 +1187,10 @@ void* sarif_arg_text(int64_t index) {
         value = sarif_argv[index];
     }
     len = strlen(value);
-    result = malloc(8u + len);
+    result = sarif_text_alloc((uint64_t)len);
     if (result == NULL) {
         return NULL;
     }
-    sarif_store_u64(result, 0, (uint64_t)len);
     if (len != 0) {
         memcpy(result + 8, value, len);
     }

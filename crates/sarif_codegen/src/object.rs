@@ -8,8 +8,7 @@ use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module, default
 use cranelift_object::{ObjectBuilder, ObjectModule};
 
 use crate::native::{
-    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TextIndexHelperIds,
-    TrustedListAccesses,
+    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TextIndexHelperIds, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
     declare_arg_count, declare_arg_text, declare_bytes_slice, declare_list_new, declare_list_push,
     declare_list_sort_by_text_field, declare_list_sort_text, declare_parse_f64, declare_parse_i32,
@@ -20,9 +19,8 @@ use crate::native::{
     declare_text_cmp, declare_text_concat, declare_text_data_for_insts, declare_text_eq,
     declare_text_eq_range, declare_text_field_end, declare_text_find_byte_range,
     declare_text_from_f64_fixed, declare_text_index_get, declare_text_index_get_or_insert,
-    declare_text_index_new, declare_text_index_set, declare_text_line_end,
-    declare_text_next_field, declare_text_next_line, declare_text_slice, encode_text_blob,
-    infer_value_kinds, lower_insts,
+    declare_text_index_new, declare_text_index_set, declare_text_line_end, declare_text_next_field,
+    declare_text_next_line, declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts,
     native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
 use crate::{Function, Program, ValueId};

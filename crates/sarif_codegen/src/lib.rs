@@ -3483,9 +3483,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             {
                 self.lower_text_builder_append_slice_expr(expr)
             }
-            "text_builder_append_i32"
-                if self.builtin_is_available("text_builder_append_i32") =>
-            {
+            "text_builder_append_i32" if self.builtin_is_available("text_builder_append_i32") => {
                 self.lower_text_builder_append_i32_expr(expr)
             }
             "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
@@ -3494,9 +3492,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_index_get" if self.builtin_is_available("text_index_get") => {
                 self.lower_text_index_get_expr(expr)
             }
-            "text_index_get_or_insert"
-                if self.builtin_is_available("text_index_get_or_insert") =>
-            {
+            "text_index_get_or_insert" if self.builtin_is_available("text_index_get_or_insert") => {
                 self.lower_text_index_get_or_insert_expr(expr)
             }
             "text_index_set" if self.builtin_is_available("text_index_set") => {
@@ -3512,9 +3508,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "list_sort_text" if self.builtin_is_available("list_sort_text") => {
                 self.lower_list_sort_text_expr(expr)
             }
-            "list_sort_by_text_field"
-                if self.builtin_is_available("list_sort_by_text_field") =>
-            {
+            "list_sort_by_text_field" if self.builtin_is_available("list_sort_by_text_field") => {
                 self.lower_list_sort_by_text_field_expr(expr)
             }
             "f64_from_i32" if self.builtin_is_available("f64_from_i32") => {
@@ -3627,9 +3621,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_builder_new" if self.builtin_is_available("text_builder_new") => {
                 LowerType::TextBuilder
             }
-            "text_index_new" if self.builtin_is_available("text_index_new") => {
-                LowerType::TextIndex
-            }
+            "text_index_new" if self.builtin_is_available("text_index_new") => LowerType::TextIndex,
             "text_builder_append" if self.builtin_is_available("text_builder_append") => {
                 LowerType::TextBuilder
             }
@@ -3648,23 +3640,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             {
                 LowerType::TextBuilder
             }
-            "text_builder_append_i32"
-                if self.builtin_is_available("text_builder_append_i32") =>
-            {
+            "text_builder_append_i32" if self.builtin_is_available("text_builder_append_i32") => {
                 LowerType::TextBuilder
             }
             "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
                 LowerType::Text
             }
             "text_index_get" if self.builtin_is_available("text_index_get") => LowerType::I32,
-            "text_index_get_or_insert"
-                if self.builtin_is_available("text_index_get_or_insert") =>
-            {
+            "text_index_get_or_insert" if self.builtin_is_available("text_index_get_or_insert") => {
                 LowerType::I32
             }
-            "text_index_set" if self.builtin_is_available("text_index_set") => {
-                LowerType::TextIndex
-            }
+            "text_index_set" if self.builtin_is_available("text_index_set") => LowerType::TextIndex,
             "list_new" if self.builtin_is_available("list_new") => {
                 match expr.args.get(1).map(|arg| self.infer_expr_type(arg)) {
                     Some(element) => LowerType::List(Box::new(element)),
@@ -3696,9 +3682,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     _ => LowerType::Error,
                 }
             }
-            "list_sort_by_text_field"
-                if self.builtin_is_available("list_sort_by_text_field") =>
-            {
+            "list_sort_by_text_field" if self.builtin_is_available("list_sort_by_text_field") => {
                 match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
                     Some(LowerType::List(element)) => LowerType::List(element),
                     _ => LowerType::Error,
@@ -6290,13 +6274,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         &mut self,
         expr: &sarif_frontend::hir::CallExpr,
     ) -> ValueId {
-        self.lower_ternary_builtin_expr(expr, |dest, index, key, next| {
-            Inst::TextIndexGetOrInsert {
-                dest,
-                index,
-                key,
-                next,
-            }
+        self.lower_ternary_builtin_expr(expr, |dest, index, key, next| Inst::TextIndexGetOrInsert {
+            dest,
+            index,
+            key,
+            next,
         })
     }
 
@@ -8209,7 +8191,8 @@ impl<'a> Interpreter<'a> {
                     values[dest.0 as usize] = RuntimeValue::Text(self.stdin_text.clone());
                 }
                 Inst::StdinBytes { dest } => {
-                    values[dest.0 as usize] = RuntimeValue::Bytes(self.stdin_text.as_bytes().to_vec());
+                    values[dest.0 as usize] =
+                        RuntimeValue::Bytes(self.stdin_text.as_bytes().to_vec());
                 }
                 Inst::StdoutWrite { text } => {
                     let text_val = extract_value(values, *text)?;
@@ -8244,10 +8227,10 @@ impl<'a> Interpreter<'a> {
                         .transpose()?
                         .map(Box::new);
                     values[dest.0 as usize] = RuntimeValue::Enum(RuntimeEnum {
-                            name: name.clone(),
-                            variant: variant.clone(),
-                            payload,
-                        });
+                        name: name.clone(),
+                        variant: variant.clone(),
+                        payload,
+                    });
                 }
                 Inst::MakeRecord { dest, name, fields } => {
                     let mut runtime_fields = Vec::with_capacity(fields.len());
@@ -8256,9 +8239,9 @@ impl<'a> Interpreter<'a> {
                         runtime_fields.push((field_name.clone(), field_value));
                     }
                     values[dest.0 as usize] = RuntimeValue::Record(RuntimeRecord {
-                            name: name.clone(),
-                            fields: runtime_fields,
-                        });
+                        name: name.clone(),
+                        fields: runtime_fields,
+                    });
                 }
                 Inst::Field { dest, base, name } => {
                     let base = extract_value(values, *base)?;
@@ -8330,13 +8313,16 @@ impl<'a> Interpreter<'a> {
                     }
                     *slots = branch_slots;
                     let result = branch_result.map_or(Ok(RuntimeValue::Unit), |result| {
-                        branch_values.get(result.0 as usize).cloned().ok_or_else(|| {
-                            RuntimeError::new(format!(
-                                "missing conditional branch result in `{}` for {}",
-                                function.name,
-                                result.render()
-                            ))
-                        })
+                        branch_values
+                            .get(result.0 as usize)
+                            .cloned()
+                            .ok_or_else(|| {
+                                RuntimeError::new(format!(
+                                    "missing conditional branch result in `{}` for {}",
+                                    function.name,
+                                    result.render()
+                                ))
+                            })
                     })?;
                     values[dest.0 as usize] = result;
                 }
@@ -8386,8 +8372,10 @@ impl<'a> Interpreter<'a> {
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
-                        let RuntimeValue::Bool(keep_going) =
-                            condition_values.get(condition.0 as usize).cloned().ok_or_else(|| {
+                        let RuntimeValue::Bool(keep_going) = condition_values
+                            .get(condition.0 as usize)
+                            .cloned()
+                            .ok_or_else(|| {
                                 RuntimeError::new(format!(
                                     "missing while condition result in `{}` for {}",
                                     function.name,
@@ -8419,13 +8407,37 @@ impl<'a> Interpreter<'a> {
                     values[dest.0 as usize] = RuntimeValue::Unit;
                 }
                 Inst::Add { dest, left, right } => {
-                    run_arithmetic!(values, *dest, *left, *right, |l, r| l + r, |l, r| l + r, "add")?;
+                    run_arithmetic!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l + r,
+                        |l, r| l + r,
+                        "add"
+                    )?;
                 }
                 Inst::Sub { dest, left, right } => {
-                    run_arithmetic!(values, *dest, *left, *right, |l, r| l - r, |l, r| l - r, "sub")?;
+                    run_arithmetic!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l - r,
+                        |l, r| l - r,
+                        "sub"
+                    )?;
                 }
                 Inst::Mul { dest, left, right } => {
-                    run_arithmetic!(values, *dest, *left, *right, |l, r| l * r, |l, r| l * r, "mul")?;
+                    run_arithmetic!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l * r,
+                        |l, r| l * r,
+                        "mul"
+                    )?;
                 }
                 Inst::Div { dest, left, right } => {
                     run_div(values, *dest, *left, *right)?;
@@ -8440,7 +8452,9 @@ impl<'a> Interpreter<'a> {
                     run_bitwise(values, *dest, *left, *right, |l, r| l ^ r)?;
                 }
                 Inst::Shl { dest, left, right } => {
-                    run_shift(values, *dest, *left, *right, |l, r| l.wrapping_shl(r) as i64)?;
+                    run_shift(values, *dest, *left, *right, |l, r| {
+                        l.wrapping_shl(r) as i64
+                    })?;
                 }
                 Inst::Shr { dest, left, right } => {
                     run_shift(values, *dest, *left, *right, |l, r| (l >> r) as i64)?;
@@ -8462,16 +8476,48 @@ impl<'a> Interpreter<'a> {
                     run_equality(values, *dest, *left, *right, false)?;
                 }
                 Inst::Lt { dest, left, right } => {
-                    run_comparison!(values, *dest, *left, *right, |l, r| l < r, |l, r| l < r, "lt")?;
+                    run_comparison!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l < r,
+                        |l, r| l < r,
+                        "lt"
+                    )?;
                 }
                 Inst::Le { dest, left, right } => {
-                    run_comparison!(values, *dest, *left, *right, |l, r| l <= r, |l, r| l <= r, "le")?;
+                    run_comparison!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l <= r,
+                        |l, r| l <= r,
+                        "le"
+                    )?;
                 }
                 Inst::Gt { dest, left, right } => {
-                    run_comparison!(values, *dest, *left, *right, |l, r| l > r, |l, r| l > r, "gt")?;
+                    run_comparison!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l > r,
+                        |l, r| l > r,
+                        "gt"
+                    )?;
                 }
                 Inst::Ge { dest, left, right } => {
-                    run_comparison!(values, *dest, *left, *right, |l, r| l >= r, |l, r| l >= r, "ge")?;
+                    run_comparison!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l >= r,
+                        |l, r| l >= r,
+                        "ge"
+                    )?;
                 }
                 Inst::Call { dest, callee, args } => {
                     let callee_fn = *self
@@ -8559,8 +8605,10 @@ impl<'a> Interpreter<'a> {
                     arms,
                 } => {
                     self.handlers.push(arms.clone());
-                    let mut local_values = vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
-                    let mut local_slots = vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
+                    let mut local_values =
+                        vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
+                    let mut local_slots =
+                        vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
                     let flow = self.execute_insts(
                         function,
                         body_insts,
@@ -8574,9 +8622,9 @@ impl<'a> Interpreter<'a> {
                         ExecFlow::Continue => {
                             if let Some(result_id) = body_result {
                                 let value =
-                                    local_values.get(result_id.0 as usize).cloned().ok_or_else(|| {
-                                        RuntimeError::new("missing handle body result")
-                                    })?;
+                                    local_values.get(result_id.0 as usize).cloned().ok_or_else(
+                                        || RuntimeError::new("missing handle body result"),
+                                    )?;
                                 values[dest.0 as usize] = value;
                             } else {
                                 values[dest.0 as usize] = RuntimeValue::Unit;
@@ -8771,10 +8819,7 @@ enum ExecFlow {
 }
 
 #[inline(always)]
-fn extract_int(
-    values: &[RuntimeValue],
-    value: ValueId,
-) -> Result<i64, RuntimeError> {
+fn extract_int(values: &[RuntimeValue], value: ValueId) -> Result<i64, RuntimeError> {
     match values.get(value.0 as usize) {
         Some(RuntimeValue::Int(value)) => Ok(*value),
         Some(other) => Err(RuntimeError::new(format!(
@@ -8789,10 +8834,7 @@ fn extract_int(
 }
 
 #[inline(always)]
-fn extract_bool(
-    values: &[RuntimeValue],
-    value: ValueId,
-) -> Result<bool, RuntimeError> {
+fn extract_bool(values: &[RuntimeValue], value: ValueId) -> Result<bool, RuntimeError> {
     match values.get(value.0 as usize) {
         Some(RuntimeValue::Bool(value)) => Ok(*value),
         Some(other) => Err(RuntimeError::new(format!(
@@ -8807,10 +8849,7 @@ fn extract_bool(
 }
 
 #[inline(always)]
-fn extract_value(
-    values: &[RuntimeValue],
-    value: ValueId,
-) -> Result<RuntimeValue, RuntimeError> {
+fn extract_value(values: &[RuntimeValue], value: ValueId) -> Result<RuntimeValue, RuntimeError> {
     values
         .get(value.0 as usize)
         .cloned()
@@ -8841,7 +8880,7 @@ fn run_div(
         }
         _ => {
             return Err(RuntimeError::new(
-                "expected matching numeric operands for div"
+                "expected matching numeric operands for div",
             ));
         }
     };
@@ -8886,8 +8925,7 @@ fn run_equality(
 ) -> Result<(), RuntimeError> {
     let left = extract_value(values, left)?;
     let right = extract_value(values, right)?;
-    values[dest.0 as usize] =
-        RuntimeValue::Bool(if eq { left == right } else { left != right });
+    values[dest.0 as usize] = RuntimeValue::Bool(if eq { left == right } else { left != right });
     Ok(())
 }
 
@@ -9076,12 +9114,23 @@ mod tests {
             eprintln!("Functions: {}", mir.program.functions.len());
             eprintln!("Structs: {}", mir.program.structs.len());
             eprintln!("Enums: {}", mir.program.enums.len());
-            eprintln!("Instructions (total): {}", mir.program.functions.iter().map(|f| f.instructions.len()).sum::<usize>());
+            eprintln!(
+                "Instructions (total): {}",
+                mir.program
+                    .functions
+                    .iter()
+                    .map(|f| f.instructions.len())
+                    .sum::<usize>()
+            );
 
             match emit_wasm(&mir.program) {
                 Ok(wasm_bytes) => {
                     eprintln!("WASM compilation: OK");
-                    eprintln!("WASM size: {} bytes ({} KB)", wasm_bytes.len(), wasm_bytes.len() / 1024);
+                    eprintln!(
+                        "WASM size: {} bytes ({} KB)",
+                        wasm_bytes.len(),
+                        wasm_bytes.len() / 1024
+                    );
                     eprintln!("=================================");
                 }
                 Err(e) => {
@@ -9106,7 +9155,11 @@ mod tests {
                 .unwrap_or(usize::MAX);
 
             let source = bootstrap_syntax_source();
-            let truncated: String = source.lines().take(max_lines).collect::<Vec<_>>().join("\n");
+            let truncated: String = source
+                .lines()
+                .take(max_lines)
+                .collect::<Vec<_>>()
+                .join("\n");
 
             eprintln!("=== WASM Compilation Test (max {} lines) ===", max_lines);
             let mir = lower_source(&truncated);
@@ -9119,7 +9172,11 @@ mod tests {
             match emit_wasm(&mir.program) {
                 Ok(wasm_bytes) => {
                     eprintln!("WASM compilation: OK");
-                    eprintln!("WASM size: {} bytes ({} KB)", wasm_bytes.len(), wasm_bytes.len() / 1024);
+                    eprintln!(
+                        "WASM size: {} bytes ({} KB)",
+                        wasm_bytes.len(),
+                        wasm_bytes.len() / 1024
+                    );
                     eprintln!("=================================");
                 }
                 Err(e) => {

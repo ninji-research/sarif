@@ -29,12 +29,13 @@ Before self-hosting can be achieved, the memory model must be fully sound:
 
 **Text Arena Integration (Technical Debt)**
 
-`Text` values currently use `malloc` for allocation instead of the scoped arena system. This causes memory leaks: every `text_builder_finish()` allocates via `malloc` with no corresponding `free()`. This is acceptable for Stage-0 benchmarks but will cause OOM crashes in long-running services.
+Most owned native `Text` results now allocate through the scoped arena system instead of unmanaged one-off text allocations. This includes text builder finish, concatenation, slicing, fixed-precision float formatting, and runtime argument text. This removes the most direct Stage-0 leak path for scoped text-heavy workloads.
 
-Required fix: Integrate `Text` into the arena system or implement a string interner so that:
-- Text allocation uses arena memory instead of `malloc`
-- `alloc_pop()` correctly reclaims all allocated text
-- No memory leaks occur during scoped allocation workflows
+Required remaining work:
+- finish auditing runtime text ownership, including long-lived cached runtime input
+- decide whether long-lived text needs explicit ownership, interning, or a separate process-lifetime arena
+- keep `alloc_pop()` reclaiming scoped owned text without invalidating intentionally process-lifetime text
+- add measurement coverage for long-running scoped text workflows
 
 **Escape Analysis for [alloc] (Stage-1 Hard Error)**
 

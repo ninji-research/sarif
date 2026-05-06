@@ -50,6 +50,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - maintained line-scanning builtins `text_line_end(...)` and `text_next_line(...)` are now available in stage-0 and remove duplicated CRLF and line-advance scaffolding from retained text workloads
 - maintained field-scanning builtins `text_field_end(...)` and `text_next_field(...)` are now available in stage-0 as the coherent delimiter-scanning surface for retained structured-text workloads
 - the text builder integer path now formats directly into the builder's reserved space without an intermediate scratch buffer, eliminating an extra memcpy and recovering the small speed regression introduced by the prior scratch-buffer refactor
+- native owned text results from text-builder finish, text concatenation, text/bytes slicing, fixed-precision float formatting, and runtime argument conversion now allocate through the scoped arena path, with native regression coverage for repeated `alloc_push`/`alloc_pop` text allocation
 - the wasm backend now supports the pure stage-0 text helper tier `text_cmp(...)`, `text_eq_range(...)`, `text_find_byte_range(...)`, `text_line_end(...)`, `text_next_line(...)`, `text_field_end(...)`, `text_next_field(...)`, `text_slice(...)`, and `parse_i32_range(...)`, with runnable CLI parity coverage
 - duplicated frontend semantic handling for `bytes_byte(...)`, `bytes_slice(...)`, and `bytes_find_byte_range(...)` has been collapsed so the maintained builtin surface now has one diagnostic path per primitive instead of drift-prone copies
 - retained `knucleotide` now uses one maintained percent-line path and one maintained count-line path instead of duplicated formatting helpers; canonical source formatting restored (183 lines vs minified 1 line) for honest concision tracking
@@ -72,6 +73,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - repeat fixed-array literals `[value; N]` are now maintained stage-0 syntax for duplicate-safe fixed-array elements, reusing the same fixed-length array model instead of introducing a second dynamic array form
 - the `binarytrees` lane no longer exhibits the prior pathological temporary-tree retention
 - the maintained compiler is still Rust-hosted
+- full Stage-1 memory safety still requires remaining runtime text ownership audit work and MIR-level escape analysis
 - the native executable path is maintained on Linux, feasible but less exercised on macOS, and not yet maintained on Windows or mobile hosts; the current platform matrix is recorded in `docs/platforms.md`
 - self-hosted tooling authority is not complete
 - a full standard library is not complete

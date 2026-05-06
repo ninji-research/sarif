@@ -1846,10 +1846,18 @@ impl<'a> WasmEmitter<'a> {
                 w_const(output, *dest, &format!("i64.const {}", value));
             }
             Inst::ConstF64 { dest, bits } => {
-                w_const(output, *dest, &format!("f64.const {}", f64::from_bits(*bits)));
+                w_const(
+                    output,
+                    *dest,
+                    &format!("f64.const {}", f64::from_bits(*bits)),
+                );
             }
             Inst::ConstBool { dest, value } => {
-                w_const(output, *dest, &format!("i64.const {}", if *value { 1 } else { 0 }));
+                w_const(
+                    output,
+                    *dest,
+                    &format!("i64.const {}", if *value { 1 } else { 0 }),
+                );
             }
             Inst::ConstText { dest, value } => {
                 let bytes = value.as_bytes();
@@ -1903,7 +1911,12 @@ impl<'a> WasmEmitter<'a> {
                 start,
                 end,
             } => {
-                w_call(output, *dest, &[*bytes, *start, *end], "$__sarif_bytes_slice");
+                w_call(
+                    output,
+                    *dest,
+                    &[*bytes, *start, *end],
+                    "$__sarif_bytes_slice",
+                );
             }
             Inst::BytesFindByteRange {
                 dest,
@@ -1912,7 +1925,12 @@ impl<'a> WasmEmitter<'a> {
                 end,
                 byte,
             } => {
-                w_call(output, *dest, &[*source, *start, *end, *byte], "$__sarif_bytes_find_byte_range");
+                w_call(
+                    output,
+                    *dest,
+                    &[*source, *start, *end, *byte],
+                    "$__sarif_bytes_find_byte_range",
+                );
             }
             Inst::TextByte { dest, text, index } => {
                 w_call(output, *dest, &[*text, *index], "$__sarif_text_byte");

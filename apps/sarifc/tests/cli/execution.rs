@@ -744,6 +744,33 @@ fn stable_build_executes_text_builder_programs() {
 
 #[cfg(feature = "native-build")]
 #[test]
+fn stable_build_reclaims_scoped_text_allocations() {
+    let path = temp_source(
+        "fn make_text() -> Text effects [alloc] { text_concat(\"abcdefghijklmnopqrstuvwxyz0123456789\", \"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\") }\nfn main() -> I32 effects [alloc] { let mut total = 0; repeat i in 4096 { alloc_push(); let text = make_text(); total = total + text_len(text); alloc_pop(); }; total }",
+    );
+    let binary_path = super::support::temp_artifact("scoped_text_alloc_build", "bin");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--print-main",
+        "-o",
+        binary_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "scoped text allocation program should build on the native target: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "294912\n");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
 fn stable_build_executes_text_index_get_or_insert_programs() {
     let path = temp_source(
         "fn main() -> I32 effects [alloc] { let index = text_index_new(); let a = text_index_get_or_insert(index, \"alpha\", 7); let b = text_index_get_or_insert(index, \"alpha\", 9); a * 10 + b }",
