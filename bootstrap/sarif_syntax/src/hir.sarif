@@ -187,8 +187,16 @@ fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
     }
 }
 
-fn hir_text_slice(source: Text, start: I32, end: I32) -> Text {
+fn hir_span_text(span: Span, source: Text) -> Text {
     source
+}
+
+fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text {
+    if span.present {
+        hir_span_text(span.span, source)
+    } else {
+        ""
+    }
 }
 
 fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
