@@ -20,11 +20,11 @@ Latest local `~/bnch` run on this machine:
 - memory rank: `1/7`
 - build rank: `1/7`
 - deploy-size rank: `2/7`
-- overall score: `0.9291`
-- speed score: `0.9206`
-- memory score: `0.9790`
+- overall score: `0.9322`
+- speed score: `0.9272`
+- memory score: `0.9731`
 - build score: `1.0000`
-- deploy-size score: `0.6978`
+- deploy-size score: `0.6993`
 
 That is a real current measurement, not a roadmap claim.
 
