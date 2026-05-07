@@ -29,12 +29,17 @@ Before self-hosting can be achieved, the memory model must be fully sound:
 
 **Text Arena Integration (Technical Debt)**
 
-Most owned native `Text` results now allocate through the scoped arena system instead of unmanaged one-off text allocations. This includes text builder finish, concatenation, slicing, fixed-precision float formatting, and runtime argument text. This removes the most direct Stage-0 leak path for scoped text-heavy workloads.
+Most owned native `Text` results now allocate through the scoped arena system instead of unmanaged one-off text allocations. This includes text builder finish, concatenation, slicing, and fixed-precision float formatting. Runtime argument text (`arg_text()`) uses process-lifetime malloc since argv is OS-provided process-lifetime memory. stdin_cache also uses process-lifetime malloc. This removes the most direct Stage-0 leak path for scoped text-heavy workloads.
+
+Completed:
+- audit of runtime text ownership: text_concat and text_slice no longer return original scoped arena pointers
+- arg_text uses process-lifetime malloc (argv is OS-provided)
+- stdin_cache uses process-lifetime malloc
+- text_concat always allocates fresh memory
+- text_slice always allocates fresh memory
 
 Required remaining work:
-- finish auditing runtime text ownership, including long-lived cached runtime input
 - decide whether long-lived text needs explicit ownership, interning, or a separate process-lifetime arena
-- keep `alloc_pop()` reclaiming scoped owned text without invalidating intentionally process-lifetime text
 - add measurement coverage for long-running scoped text workflows
 
 **Escape Analysis for [alloc] (Stage-1 Hard Error)**
