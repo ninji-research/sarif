@@ -863,12 +863,6 @@ void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
     }
     left_len = sarif_load_u64(left, 0);
     right_len = sarif_load_u64(right, 0);
-    if (left_len == 0) {
-        return (void*)right;
-    }
-    if (right_len == 0) {
-        return (void*)left;
-    }
     if (left_len > UINT64_MAX - right_len) {
         return NULL;
     }
@@ -1055,11 +1049,12 @@ static void* sarif_slice_blob(const unsigned char* blob, uint64_t start, uint64_
     } else {
         if (ce <= cs) return sarif_empty_text;
     }
-    if (cs == 0 && ce == len) return (void*)blob;
     slen = (size_t)(ce - cs);
     result = sarif_text_alloc((uint64_t)slen);
     if (!result) return NULL;
-    memcpy(result + 8, blob + 8 + cs, slen);
+    if (slen != 0) {
+        memcpy(result + 8, blob + 8 + cs, slen);
+    }
     return result;
 }
 
