@@ -92,7 +92,7 @@ fn call_helper(
 
 fn native_kind_type(kind: &NativeValueKind) -> cranelift_codegen::ir::types::Type {
     match kind {
-        NativeValueKind::Unit => types::I64, // Represented as 0 handle
+        NativeValueKind::Unit => types::I64,
         NativeValueKind::F64 => types::F64,
         _ => types::I64,
     }

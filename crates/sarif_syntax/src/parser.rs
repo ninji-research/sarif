@@ -31,7 +31,6 @@ impl<'a> Parser<'a> {
 
         self.collect_trivia(&mut children);
 
-        // 1. Types (enum, struct, effect)
         while self.at(TokenKind::KwEnum)
             || self.at(TokenKind::KwStruct)
             || self.at(TokenKind::KwEffect)
@@ -46,13 +45,11 @@ impl<'a> Parser<'a> {
             self.collect_trivia(&mut children);
         }
 
-        // 2. Constants
         while self.at(TokenKind::KwConst) {
             children.push(Element::Node(self.parse_const_item()));
             self.collect_trivia(&mut children);
         }
 
-        // 3. Functions
         while self.at(TokenKind::KwFn) {
             children.push(Element::Node(self.parse_fn_item()));
             self.collect_trivia(&mut children);

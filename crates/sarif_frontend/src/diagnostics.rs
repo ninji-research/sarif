@@ -2,11 +2,6 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use sarif_syntax::Diagnostic;
 
 /// Render diagnostics for one source file into an ANSI-colored string.
-///
-/// # Panics
-///
-/// Panics only if writing to the in-memory buffer fails or if the output is
-/// not valid UTF-8, both of which should be unreachable here.
 #[must_use]
 pub fn render_diagnostics(file_name: &str, source: &str, diagnostics: &[Diagnostic]) -> String {
     let mut output = Vec::new();
