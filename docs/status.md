@@ -1,6 +1,6 @@
 # Sarif Status
 
-As of May 3, 2026, Sarif is still in the bootstrap window.
+As of May 6, 2026, Sarif is still in the bootstrap window.
 
 ## Verified
 
@@ -20,11 +20,11 @@ Latest local `~/bnch` run on this machine:
 - memory rank: `1/7`
 - build rank: `1/7`
 - deploy-size rank: `2/7`
-- overall score: `0.9241`
-- speed score: `0.9186`
-- memory score: `0.9752`
-- build score: `0.9644`
-- deploy-size score: `0.7091`
+- overall score: `0.9291`
+- speed score: `0.9206`
+- memory score: `0.9790`
+- build score: `1.0000`
+- deploy-size score: `0.6978`
 
 That is a real current measurement, not a roadmap claim.
 
