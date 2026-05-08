@@ -20,18 +20,18 @@ Latest local `~/bnch` run on this machine:
 - memory rank: `1/7`
 - build rank: `1/7`
 - deploy-size rank: `2/7`
-- overall score: `0.9162`
-- speed score: `0.9162`
+- overall score: `0.9171`
+- speed score: `0.9171`
 - memory score: `0.9751`
 - build score: `1.0000`
 - deploy-size score: `0.6962`
 
 Individual benchmark ratios vs C (lower is better, <1.0 means FASTER than C):
-- fasta: 0.90x (FASTER)
-- mandelbrot: 1.10x
-- spectralnorm: 1.09x
-- nbody: 1.48x (numeric compute)
-- revcomp: 2.26x (text streaming)
+- fasta: 0.89x (FASTER)
+- mandelbrot: 1.11x
+- spectralnorm: 1.04x
+- nbody: 1.62x (numeric compute)
+- revcomp: 2.62x (text streaming - uses per-byte match expression)
 
 That is a real current measurement, not a roadmap claim.
 
@@ -85,5 +85,29 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings; runtime text ownership audit complete: text_concat and text_slice no longer return original scoped arena pointers (always allocate), arg_text uses process-lifetime malloc, stdin_cache uses process-lifetime malloc; remaining work is MIR-level escape analysis as hard error for RT profile
 - the native executable path is maintained on Linux, feasible but less exercised on macOS, and not yet maintained on Windows or mobile hosts; the current platform matrix is recorded in `docs/platforms.md`
 - self-hosted tooling authority is not complete
-- a full standard library is not complete
+
+## Stage-1 Completion Requirements
+
+Stage-1 self-hosting requires bootstrap HIR→MIR lowering for:
+
+**Missing expression types:**
+- If/While/Repeat (control flow)
+- Match (pattern matching)
+- Field/Index/Record/Array (data access)
+
+The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compiler
+(sarif_syntax) is reference infrastructure showing the lowering concepts.
+
+**Completed Stage-1 infrastructure:**
+- Runtime memory model is sound (text arena, escape analysis)
+- Constant folding at MIR lowering (24 tests covering int/float operators)
+- Bootstrap bitwise operator lowering
+- RT profile escape analysis as hard error
+
+**Path to completion:**
+1. Complete bootstrap HIR→MIR for control flow (If/While/Repeat)
+2. Complete bootstrap HIR→MIR for data access (Field/Index/Record/Array)
+3. Self-host format/check/doc using the bootstrap
+
+A full standard library is not complete
 - async, parallel, and multithreaded runtime support are not complete
