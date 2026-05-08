@@ -4181,8 +4181,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     // Only fold operators that make sense for integer constants
                     match expr.op {
                         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::BitAnd | BinaryOp::BitOr
-                        | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr
-                        | BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => {
+                        | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
                             let result: i64 = match expr.op {
                                 BinaryOp::Add => left_int.value + right_int.value,
                                 BinaryOp::Sub => left_int.value - right_int.value,
@@ -4192,16 +4191,24 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                                 BinaryOp::BitXor => ((left_int.value as i32) ^ (right_int.value as i32)) as i64,
                                 BinaryOp::Shl => ((left_int.value as i32) << right_int.value) as i64,
                                 BinaryOp::Shr => ((left_int.value as i32) >> right_int.value) as i64,
-                                BinaryOp::Eq => (left_int.value == right_int.value) as i64,
-                                BinaryOp::Ne => (left_int.value != right_int.value) as i64,
-                                BinaryOp::Lt => (left_int.value < right_int.value) as i64,
-                                BinaryOp::Le => (left_int.value <= right_int.value) as i64,
-                                BinaryOp::Gt => (left_int.value > right_int.value) as i64,
-                                BinaryOp::Ge => (left_int.value >= right_int.value) as i64,
                                 _ => unreachable!(),
                             };
                             let dest = self.fresh_value();
                             self.instructions.push(Inst::ConstInt { dest, value: result });
+                            return dest;
+                        }
+                        BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => {
+                            let result: bool = match expr.op {
+                                BinaryOp::Eq => left_int.value == right_int.value,
+                                BinaryOp::Ne => left_int.value != right_int.value,
+                                BinaryOp::Lt => left_int.value < right_int.value,
+                                BinaryOp::Le => left_int.value <= right_int.value,
+                                BinaryOp::Gt => left_int.value > right_int.value,
+                                BinaryOp::Ge => left_int.value >= right_int.value,
+                                _ => unreachable!(),
+                            };
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstBool { dest, value: result });
                             return dest;
                         }
                         BinaryOp::Div if right_int.value != 0 => {
@@ -9384,5 +9391,173 @@ fn main() -> I32 {
 
         let result = run_main(&mir.program).expect("program should run");
         assert_eq!(result, RuntimeValue::Int(15));
+    }
+
+    #[test]
+    fn constant_folds_integer_add() {
+        let mir = lower_source("fn main() -> I32 { 2 + 3 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(5));
+    }
+
+    #[test]
+    fn constant_folds_integer_sub() {
+        let mir = lower_source("fn main() -> I32 { 10 - 3 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(7));
+    }
+
+    #[test]
+    fn constant_folds_integer_mul() {
+        let mir = lower_source("fn main() -> I32 { 6 * 7 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(42));
+    }
+
+    #[test]
+    fn constant_folds_integer_div() {
+        let mir = lower_source("fn main() -> I32 { 42 / 2 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(21));
+    }
+
+    #[test]
+    fn constant_folds_integer_bitwise_and() {
+        let mir = lower_source("fn main() -> I32 { 12 & 10 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(8));
+    }
+
+    #[test]
+    fn constant_folds_integer_bitwise_or() {
+        let mir = lower_source("fn main() -> I32 { 12 | 10 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(14));
+    }
+
+    #[test]
+    fn constant_folds_integer_bitwise_xor() {
+        let mir = lower_source("fn main() -> I32 { 12 ^ 10 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(6));
+    }
+
+    #[test]
+    fn constant_folds_integer_shl() {
+        let mir = lower_source("fn main() -> I32 { 1 << 3 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(8));
+    }
+
+    #[test]
+    fn constant_folds_integer_shr() {
+        let mir = lower_source("fn main() -> I32 { 16 >> 2 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(4));
+    }
+
+    #[test]
+    fn constant_folds_integer_comparison_eq() {
+        let mir = lower_source("fn main() -> Bool { 5 == 5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Bool(true));
+    }
+
+    #[test]
+    fn constant_folds_integer_comparison_ne() {
+        let mir = lower_source("fn main() -> Bool { 5 != 5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Bool(false));
+    }
+
+    #[test]
+    fn constant_folds_integer_comparison_lt() {
+        let mir = lower_source("fn main() -> Bool { 3 < 5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Bool(true));
+    }
+
+    #[test]
+    fn constant_folds_integer_comparison_le() {
+        let mir = lower_source("fn main() -> Bool { 5 <= 5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Bool(true));
+    }
+
+    #[test]
+    fn constant_folds_integer_comparison_gt() {
+        let mir = lower_source("fn main() -> Bool { 5 > 3 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Bool(true));
+    }
+
+    #[test]
+    fn constant_folds_integer_comparison_ge() {
+        let mir = lower_source("fn main() -> Bool { 5 >= 5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Bool(true));
+    }
+
+    #[test]
+    fn constant_folds_nested_integer_operations() {
+        let mir = lower_source("fn main() -> I32 { (2 + 3) * 4 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(20));
+    }
+
+    #[test]
+    fn constant_folds_float_add() {
+        let mir = lower_source("fn main() -> F64 { 1.5 + 2.5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::F64(4.0));
+    }
+
+    #[test]
+    fn constant_folds_float_sub() {
+        let mir = lower_source("fn main() -> F64 { 5.0 - 3.0 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::F64(2.0));
+    }
+
+    #[test]
+    fn constant_folds_float_mul() {
+        let mir = lower_source("fn main() -> F64 { 2.0 * 3.5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::F64(7.0));
+    }
+
+    #[test]
+    fn constant_folds_float_div() {
+        let mir = lower_source("fn main() -> F64 { 10.0 / 2.0 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::F64(5.0));
+    }
+
+    #[test]
+    fn constant_folds_mixed_int_float_variable() {
+        let mir = lower_source("fn main() -> I32 { let x = 5; x + 3 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(8));
     }
 }
