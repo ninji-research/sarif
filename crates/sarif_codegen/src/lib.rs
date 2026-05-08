@@ -9560,4 +9560,28 @@ fn main() -> I32 {
         let result = run_main(&mir.program).unwrap();
         assert_eq!(result, RuntimeValue::Int(8));
     }
+
+    #[test]
+    fn constant_folds_integer_negation() {
+        let mir = lower_source("fn main() -> I32 { 5 - 10 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(-5));
+    }
+
+    #[test]
+    fn constant_folds_float_negation() {
+        let mir = lower_source("fn main() -> F64 { 3.0 - 7.5 }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::F64(-4.5));
+    }
+
+    #[test]
+    fn constant_folds_complex_nested() {
+        let mir = lower_source("fn main() -> I32 { (2 + 3) * (4 - 1) }");
+        assert!(mir.diagnostics.is_empty());
+        let result = run_main(&mir.program).unwrap();
+        assert_eq!(result, RuntimeValue::Int(15));
+    }
 }
