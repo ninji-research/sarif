@@ -20,18 +20,18 @@ Latest local `~/bnch` run on this machine:
 - memory rank: `1/7`
 - build rank: `1/7`
 - deploy-size rank: `2/7`
-- overall score: `0.9173`
-- speed score: `0.9173`
-- memory score: `0.9752`
+- overall score: `0.9197`
+- speed score: `0.9197`
+- memory score: `0.9747`
 - build score: `1.0000`
 - deploy-size score: `0.6962`
 
-Individual benchmark ratios vs C (sarif/c):
-- fasta: 0.93x (FASTER than C)
-- mandelbrot: 0.85x (FASTER than C)
-- revcomp: 2.53x (slower - text streaming)
-- nbody: 1.64x (slower - numeric compute)
-- spectralnorm: 1.06x (close to C)
+Individual benchmark ratios vs C (lower is better, <1.0 means FASTER than C):
+- fasta: 0.91x (FASTER)
+- mandelbrot: 1.11x
+- spectralnorm: 1.05x
+- nbody: 1.61x (numeric compute heavy)
+- revcomp: 2.11x (text streaming heavy)
 
 That is a real current measurement, not a roadmap claim.
 
