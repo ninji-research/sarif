@@ -20,11 +20,18 @@ Latest local `~/bnch` run on this machine:
 - memory rank: `1/7`
 - build rank: `1/7`
 - deploy-size rank: `2/7`
-- overall score: `0.9322`
-- speed score: `0.9272`
-- memory score: `0.9731`
+- overall score: `0.9173`
+- speed score: `0.9173`
+- memory score: `0.9752`
 - build score: `1.0000`
-- deploy-size score: `0.6993`
+- deploy-size score: `0.6962`
+
+Individual benchmark ratios vs C (sarif/c):
+- fasta: 0.93x (FASTER than C)
+- mandelbrot: 0.85x (FASTER than C)
+- revcomp: 2.53x (slower - text streaming)
+- nbody: 1.64x (slower - numeric compute)
+- spectralnorm: 1.06x (close to C)
 
 That is a real current measurement, not a roadmap claim.
 
@@ -44,6 +51,8 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - Sarif is currently first overall, first on speed, first on memory, first on build time, and second on deploy size in the latest local clean `~/bnch` run
 - Sarif is currently first on build time; the native artifact path now reuses cached runtime objects instead of recompiling the static runtime every build, compiles the shared C runtime with a size-oriented flag set while leaving generated code on the maintained performance-oriented path, skips record/enum metadata glue entirely for scalar `main` results, compiles out structured-result pretty-printing when scalar mains do not need it, avoids libc integer formatting on the scalar print path, routes stage-0 text/int/bool/record/enum output through one direct-write runtime path instead of the wider stdio surface, removes extra runtime hardening/ident baggage Sarif does not need in release mode, and the native linker path garbage-collects unused sections so stage-0 artifacts stay lean by default
 - maintained integer bitwise operators `&`, `|`, `^`, `<<`, and `>>` are now available in stage-0 and remove arithmetic-emulation overhead from hot integer/text kernels
+- MIR-level constant folding for integer and float binary operations reduces runtime arithmetic in numeric workloads; 21 tests cover add, sub, mul, div, bitwise ops, and comparisons at compile time
+- float formatting fast-path for integer-valued doubles avoids snprintf overhead and improves performance of floating-point output
 - chained `else if` is again accepted as maintained stage-0 syntax, with parser/AST/runtime regression coverage instead of relying on benchmark-local nesting workarounds
 - unary `not` now binds over full postfix expressions such as `not flag()`, eliminating another source-level workaround path and restoring the expected compact boolean style
 - maintained `match` pattern alternatives `a | b | c` and half-open integer ranges `lo..hi` are now available in stage-0 and remove nested byte/CDF ladders from retained kernels without introducing benchmark-specific builtins
