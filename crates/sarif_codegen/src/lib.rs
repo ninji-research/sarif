@@ -4176,6 +4176,80 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 dest
             }
             Expr::Binary(expr) => {
+                // Constant folding: if both operands are integer constants, compute at compile time
+                if let (Expr::Integer(left_int), Expr::Integer(right_int)) = (expr.left.as_ref(), expr.right.as_ref()) {
+                    // Only fold operators that make sense for integer constants
+                    match expr.op {
+                        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::BitAnd | BinaryOp::BitOr
+                        | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr
+                        | BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => {
+                            let result: i64 = match expr.op {
+                                BinaryOp::Add => left_int.value + right_int.value,
+                                BinaryOp::Sub => left_int.value - right_int.value,
+                                BinaryOp::Mul => left_int.value * right_int.value,
+                                BinaryOp::BitAnd => ((left_int.value as i32) & (right_int.value as i32)) as i64,
+                                BinaryOp::BitOr => ((left_int.value as i32) | (right_int.value as i32)) as i64,
+                                BinaryOp::BitXor => ((left_int.value as i32) ^ (right_int.value as i32)) as i64,
+                                BinaryOp::Shl => ((left_int.value as i32) << right_int.value) as i64,
+                                BinaryOp::Shr => ((left_int.value as i32) >> right_int.value) as i64,
+                                BinaryOp::Eq => (left_int.value == right_int.value) as i64,
+                                BinaryOp::Ne => (left_int.value != right_int.value) as i64,
+                                BinaryOp::Lt => (left_int.value < right_int.value) as i64,
+                                BinaryOp::Le => (left_int.value <= right_int.value) as i64,
+                                BinaryOp::Gt => (left_int.value > right_int.value) as i64,
+                                BinaryOp::Ge => (left_int.value >= right_int.value) as i64,
+                                _ => unreachable!(),
+                            };
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstInt { dest, value: result });
+                            return dest;
+                        }
+                        BinaryOp::Div if right_int.value != 0 => {
+                            let result = left_int.value / right_int.value;
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstInt { dest, value: result });
+                            return dest;
+                        }
+                        BinaryOp::Div => {
+                            // Fall through to normal lowering for division by zero
+                        }
+                        _ => {
+                            // Fall through to normal lowering for non-foldable operators
+                        }
+                    }
+                }
+                // Constant folding for float expressions
+                if let (Expr::Float(left_fl), Expr::Float(right_fl)) = (expr.left.as_ref(), expr.right.as_ref()) {
+                    match expr.op {
+                        BinaryOp::Add => {
+                            let result = left_fl.value + right_fl.value;
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstF64 { dest, bits: result.to_bits() });
+                            return dest;
+                        }
+                        BinaryOp::Sub => {
+                            let result = left_fl.value - right_fl.value;
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstF64 { dest, bits: result.to_bits() });
+                            return dest;
+                        }
+                        BinaryOp::Mul => {
+                            let result = left_fl.value * right_fl.value;
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstF64 { dest, bits: result.to_bits() });
+                            return dest;
+                        }
+                        BinaryOp::Div if right_fl.value != 0.0 => {
+                            let result = left_fl.value / right_fl.value;
+                            let dest = self.fresh_value();
+                            self.instructions.push(Inst::ConstF64 { dest, bits: result.to_bits() });
+                            return dest;
+                        }
+                        _ => {
+                            // Fall through for non-foldable float ops
+                        }
+                    }
+                }
                 let left = self.lower_expr(&expr.left);
                 let right = self.lower_expr(&expr.right);
                 let dest = self.fresh_value();

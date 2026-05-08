@@ -1073,6 +1073,38 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     if (digits > 0) {
         precision = digits > 1000 ? 1000 : (int)digits;
     }
+    // Fast path for integer values - avoid snprintf overhead
+    if (precision == 0 && value == (double)(int64_t)value && value >= -1000000000000.0 && value <= 1000000000000.0) {
+        int64_t int_part = (int64_t)value;
+        char scratch[32];
+        int idx = 32;
+        uint64_t mag;
+        int negative = 0;
+        if (int_part < 0) {
+            negative = 1;
+            mag = (uint64_t)(-int_part);
+        } else {
+            mag = (uint64_t)int_part;
+        }
+        if (mag == 0) {
+            scratch[--idx] = '0';
+        } else {
+            while (mag > 0) {
+                scratch[--idx] = '0' + (char)(mag % 10);
+                mag /= 10;
+            }
+        }
+        if (negative) {
+            scratch[--idx] = '-';
+        }
+        len = 32 - idx;
+        result = sarif_text_alloc_extra((uint64_t)len, 1u);
+        if (result == NULL) {
+            return NULL;
+        }
+        memcpy(result + 8, scratch + idx, (size_t)len);
+        return result;
+    }
     len = snprintf(NULL, 0, "%.*f", precision, value);
     if (len < 0) {
         return NULL;

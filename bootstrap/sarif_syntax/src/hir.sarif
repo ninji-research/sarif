@@ -333,6 +333,16 @@ fn hir_binary_to_mir(expr: HirExpr) -> MirBlock {
         mir_block_with_inst(mir_inst_and(0, expr.a, expr.b))
     } else if op == "||" {
         mir_block_with_inst(mir_inst_or(0, expr.a, expr.b))
+    } else if op == "&" {
+        mir_block_with_inst(mir_inst_bitand(0, expr.a, expr.b))
+    } else if op == "|" {
+        mir_block_with_inst(mir_inst_bitor(0, expr.a, expr.b))
+    } else if op == "^" {
+        mir_block_with_inst(mir_inst_bitxor(0, expr.a, expr.b))
+    } else if op == "<<" {
+        mir_block_with_inst(mir_inst_shl(0, expr.a, expr.b))
+    } else if op == ">>" {
+        mir_block_with_inst(mir_inst_shr(0, expr.a, expr.b))
     } else {
         mir_block_new()
     }
