@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-#[cfg(all(test, feature = "codegen"))]
+#[cfg(feature = "codegen")]
 use sarif_codegen::{Program, RuntimeError, RuntimeValue, run_function};
 use sarif_frontend::diagnostics::render_diagnostics;
 #[cfg(feature = "codegen")]
@@ -17,10 +17,6 @@ use sarif_tools::report::{
 };
 
 use crate::{LoadedSource, PackageSegment};
-
-#[cfg(all(test, feature = "codegen"))]
-static BOOTSTRAP_FORMAT_PROGRAM: std::sync::OnceLock<Result<Program, String>> =
-    std::sync::OnceLock::new();
 
 pub fn render_semantic_format(target: &LoadedSource) -> Result<String, String> {
     let mut output = String::new();
@@ -63,12 +59,12 @@ pub fn render_semantic_check(target: &LoadedSource, profile: Profile) -> Result<
     Ok(render_semantic_check_output(&semantic_snapshot(profile)))
 }
 
-#[cfg(all(test, feature = "codegen"))]
-pub fn render_bootstrap_format(target: &LoadedSource) -> Result<String, String> {
-    target.ensure_no_diagnostics(&target.ast_diagnostics(), "bootstrap format failed")?;
+#[cfg(feature = "codegen")]
+pub fn render_bootstrap_format(loaded: &LoadedSource) -> Result<String, String> {
+    loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap format failed")?;
     let program = bootstrap_format_program()?;
     let mut output = String::new();
-    for segment in &target.segments {
+    for segment in &loaded.segments {
         let formatted = run_function(
             program,
             "format_text",
@@ -97,25 +93,21 @@ pub fn render_bootstrap_format(target: &LoadedSource) -> Result<String, String> 
     Ok(output)
 }
 
-#[cfg(all(test, feature = "codegen"))]
+#[cfg(feature = "codegen")]
 fn bootstrap_format_program() -> Result<&'static Program, String> {
-    let cached = BOOTSTRAP_FORMAT_PROGRAM.get_or_init(|| {
-        load_bootstrap_tools().and_then(|tools| {
-            tools
-                .lower_program(Profile::Core, "bootstrap format failed")
-                .cloned()
-        })
+    static BOOTSTRAP_PROGRAM: std::sync::OnceLock<Result<Program, String>> =
+        std::sync::OnceLock::new();
+    let cached = BOOTSTRAP_PROGRAM.get_or_init(|| {
+        let manifest_path = format!(
+            "{}/../../bootstrap/sarif_tools/Sarif.toml",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let loaded = LoadedSource::load(&manifest_path)?;
+        let diags = loaded.mir_diagnostics(Profile::Core);
+        loaded.ensure_no_diagnostics(&LoadedSource::blocking_diagnostics(&diags, Profile::Core), "bootstrap format failed")?;
+        Ok(loaded.mir().program.clone())
     });
     cached.as_ref().map_err(Clone::clone)
-}
-
-#[cfg(all(test, feature = "codegen"))]
-fn load_bootstrap_tools() -> Result<LoadedSource, String> {
-    let manifest_path = format!(
-        "{}/../../bootstrap/sarif_tools/Sarif.toml",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    LoadedSource::load(&manifest_path)
 }
 
 pub fn render_package_diagnostics(

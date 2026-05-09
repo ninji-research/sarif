@@ -83,7 +83,6 @@ fn value_may_escape(
     let mut env = Env {
         escaped: &mut escaped,
         esc_locals: &mut esc_locals,
-        function,
         callee_map,
     };
     env.analyze(&function.instructions);
@@ -95,7 +94,6 @@ fn value_may_escape(
 struct Env<'a> {
     escaped: &'a mut Vec<bool>,
     esc_locals: &'a mut Vec<bool>,
-    function: &'a Function,
     callee_map: &'a HashMap<String, CalleeInfo>,
 }
 

@@ -13,8 +13,8 @@ use input::resolve_input;
 use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
-#[cfg(all(test, feature = "codegen"))]
-use sarif_codegen::Program;
+#[cfg(feature = "codegen")]
+use reports::render_bootstrap_format;
 #[cfg(feature = "codegen")]
 use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
@@ -160,12 +160,6 @@ impl LoadedSource {
             .collect()
     }
 
-    #[cfg(all(test, feature = "codegen"))]
-    fn lower_program(&self, profile: Profile, failure: &str) -> Result<&Program, String> {
-        let diags = self.mir_diagnostics(profile);
-        self.ensure_no_diagnostics(&Self::blocking_diagnostics(&diags, profile), failure)?;
-        Ok(&self.mir().program)
-    }
 }
 
 fn main() -> ExitCode {
@@ -226,13 +220,34 @@ fn run_doc(command: &command::Command) -> Result<(), String> {
 }
 
 fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
-    print_loaded_render(command, |loaded| {
-        emit_requested_dump(loaded, command)?;
-        render_semantic_format(loaded)
-    })
+    let loaded = LoadedSource::load(&command.path)?;
+    emit_requested_dump(&loaded, command)?;
+    #[cfg(feature = "codegen")]
+    {
+        let path = command.path.clone();
+        let result = std::thread::Builder::new()
+            .name("bootstrap-format".to_owned())
+            .stack_size(32 * 1024 * 1024)
+            .spawn(move || {
+                let mem_loaded = LoadedSource::load(&path)?;
+                render_bootstrap_format(&mem_loaded)
+            })
+            .map_err(|e| format!("failed to spawn bootstrap thread: {e}"))?
+            .join()
+            .map_err(|_| "bootstrap format thread panicked".to_owned())?;
+        print!("{}", result?);
+        Ok(())
+    }
+    #[cfg(not(feature = "codegen"))]
+    {
+        let _ = loaded;
+        Err("bootstrap format requires the `codegen` feature".to_owned())
+    }
 }
 
 fn run_bootstrap_check(command: &command::Command) -> Result<(), String> {
+    // bootstrap-check uses the Rust semantic checker (Sarif bootstrap doesn't
+    // have full semantic analysis parity yet; only format is flipped).
     print_loaded_render(command, |loaded| {
         emit_requested_dump(loaded, command)?;
         render_semantic_check(loaded, command.profile)
@@ -240,6 +255,8 @@ fn run_bootstrap_check(command: &command::Command) -> Result<(), String> {
 }
 
 fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
+    // bootstrap-doc uses the Rust doc generator (Sarif bootstrap doesn't
+    // have full doc parity yet; only format is flipped).
     print_loaded_render(command, |loaded| {
         emit_requested_dump(loaded, command)?;
         render_semantic_doc(loaded, command.profile)

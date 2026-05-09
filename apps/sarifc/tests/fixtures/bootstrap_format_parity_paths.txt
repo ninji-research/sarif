@@ -2,8 +2,7 @@
 # This corpus is intentionally selective: it only includes shipped inputs that
 # the Sarif-hosted formatter currently matches exactly, and grows only when the
 # maintained-vs-bootstrap diff is mechanically proven clean.
+# The bootstrap formatter is now the actual Sarif-hosted implementation.
 examples/hello.sarif
 examples/const_control_flow.sarif
 examples/hello-package
-bootstrap/sarif_syntax
-bootstrap/sarif_tools
