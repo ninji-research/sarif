@@ -1209,16 +1209,14 @@ uint64_t sarif_arg_count(void) {
 void* sarif_arg_text(int64_t index) {
     const char* value = "";
     size_t len = 0;
-    unsigned char* result = NULL;
     if (index >= 0 && sarif_argv != NULL && index < sarif_argc) {
         value = sarif_argv[index];
     }
     len = strlen(value);
-    result = (unsigned char*)malloc(8u + len);
+    unsigned char* result = sarif_text_alloc((uint64_t)len);
     if (result == NULL) {
         return NULL;
     }
-    sarif_store_u64(result, 0, (uint64_t)len);
     if (len != 0) {
         memcpy(result + 8, value, len);
     }
