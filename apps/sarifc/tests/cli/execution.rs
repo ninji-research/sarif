@@ -189,6 +189,22 @@ fn run_executes_text_index_get_or_insert_consistently() {
 }
 
 #[test]
+fn run_executes_text_index_set_consistently() {
+    assert_run_parity(
+        "fn main() -> I32 effects [alloc] { let mut index = text_index_new(); index = text_index_set(index, \"alpha\", 7); let a = text_index_get(index, \"alpha\"); index = text_index_set(index, \"alpha\", 9); let b = text_index_get(index, \"alpha\"); a * 10 + b }",
+        "79",
+    );
+}
+
+#[test]
+fn run_executes_stdout_write_builder_consistently() {
+    let path = temp_source("fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }");
+    let output = run_profiled("run", &path);
+    assert!(output.status.success(), "stdout_write_builder run should succeed: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "sarifok");
+}
+
+#[test]
 fn run_executes_record_field_punning_consistently() {
     assert_run_parity(
         "struct Pair { left: I32, right: I32 }\nfn main() -> I32 { let left = 7; let right = 9; let pair = Pair { left, right }; pair.left + pair.right }",
@@ -724,6 +740,24 @@ fn stable_build_streams_stdout_write() {
 
 #[cfg(feature = "native-build")]
 #[test]
+fn stable_build_streams_stdout_write_builder() {
+    let path = temp_source("fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }");
+    let binary_path = super::support::temp_artifact("stdout_write_builder_build", "bin");
+    let build = run_build_profiled(&path, &binary_path, "core");
+
+    assert!(
+        build.status.success(),
+        "stdout_write_builder program should build on the native target"
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert!(native.status.success());
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "sarifok");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
 fn stable_build_executes_text_builder_programs() {
     let path = temp_source(
         "fn main() -> Text effects [alloc] { let mut builder = text_builder_new(); builder = text_builder_append(builder, \"sa\"); builder = text_builder_append(builder, text_slice(\"sarif\", 2, 5)); builder = text_builder_append_i32(builder, -7); builder = text_builder_append_i32(builder, 0); text_builder_finish(builder) }",
@@ -767,6 +801,32 @@ fn stable_build_reclaims_scoped_text_allocations() {
         .expect("built binary should run");
     assert_eq!(native.status.code(), Some(0));
     assert_eq!(String::from_utf8_lossy(&native.stdout), "294912\n");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
+fn stable_build_executes_text_index_set_programs() {
+    let path = temp_source(
+        "fn main() -> I32 effects [alloc] { let mut index = text_index_new(); index = text_index_set(index, \"alpha\", 7); let a = text_index_get(index, \"alpha\"); index = text_index_set(index, \"alpha\", 9); let b = text_index_get(index, \"alpha\"); a * 10 + b }",
+    );
+    let binary_path = super::support::temp_artifact("text_index_set_build", "bin");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--print-main",
+        "-o",
+        binary_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "text index set program should build on the native target"
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "79\n");
 }
 
 #[cfg(feature = "native-build")]
