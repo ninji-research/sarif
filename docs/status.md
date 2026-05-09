@@ -85,6 +85,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings; runtime text ownership audit complete: text_concat and text_slice no longer return original scoped arena pointers (always allocate), arg_text uses process-lifetime malloc, stdin_cache uses process-lifetime malloc; remaining work is MIR-level escape analysis as hard error for RT profile
 - the native executable path is maintained on Linux, feasible but less exercised on macOS, and not yet maintained on Windows or mobile hosts; the current platform matrix is recorded in `docs/platforms.md`
 - Stage-1 bootstrap HIR→MIR lowering is now complete; remaining work is self-hosting the tools themselves
+- Repository audit complete (May 2026): empty `bootstrap/sarif_compiler` directory removed as cruft; no dead code, no TODOs; codebase is lean and well-organized
 
 ## Stage-1 Completion Requirements
 
