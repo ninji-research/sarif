@@ -389,45 +389,9 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                         &function.name,
                     );
 
-                    // Stage-1 requires proper Escape Analysis to make this a hard error.
-                    // For Core/Total profiles: emit as warning (semantic.alloc-escape)
-                    // For RT profile: hard error (escape.analysis.required) - blocks build
-                    if signature.effects.contains(&Effect::Alloc)
-                        && body_may_allocate(body, &functions)
-                    {
-                        let could_be_allocated = matches!(
-                            signature.return_type,
-                            Type::Named(_) | Type::List(_) | Type::Array(_, _) | Type::Text
-                        );
-                        if could_be_allocated
-                            && signature.return_type != Type::Unit
-                            && signature.return_type != Type::Error
-                        {
-                            let is_rt = profile == Profile::Rt;
-                            let (code, help_msg) = if is_rt {
-                                (
-                                    "escape.analysis.required",
-                                    "To fix: Either return a type that cannot reference arena memory, or restructure to not return allocated data. Stage-1 requires all alloc return values to be verified safe.".to_owned(),
-                                )
-                            } else {
-                                (
-                                    "semantic.alloc-escape",
-                                    "Stage-1 will implement Escape Analysis as a HARD ERROR. Stage-0 provides NO memory safety guarantee for returned allocations.".to_owned(),
-                                )
-                            };
-                            diagnostics.push(Diagnostic::new(
-                                code,
-                                format!(
-                                    "function `{}` with `alloc` effect returns `{}`.{}",
-                                    function.name,
-                                    signature.return_type.render(),
-                                    if is_rt { " This is UNSAFE and BLOCKS compilation in RT profile." } else { " This is UNSAFE in Stage-0: returned pointers become dangling after `alloc_pop()`." }
-                                ),
-                                function.span,
-                                Some(help_msg),
-                            ));
-                        }
-                    }
+                    // Stage-1 escape analysis is performed at the MIR level
+                    // in sarif_codegen::escape. The HIR-level heuristic was removed
+                    // in favor of precise MIR dataflow tracking.
                 }
 
                 call_graph.insert(function.name.clone(), body_calls);
@@ -699,86 +663,9 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
     }
 }
 
-fn body_may_allocate(body: &Body, functions: &BTreeMap<String, FunctionSignature>) -> bool {
-    body.statements.iter().any(|stmt| match stmt {
-        crate::hir::Stmt::Let(binding) => expr_may_allocate(&binding.value, functions),
-        crate::hir::Stmt::Assign(assign) => expr_may_allocate(&assign.value, functions),
-        crate::hir::Stmt::Expr(expr) => expr_may_allocate(&expr.expr, functions),
-    }) || body
-        .tail
-        .as_ref()
-        .is_some_and(|expr| expr_may_allocate(expr, functions))
-}
-
-fn expr_may_allocate(expr: &Expr, functions: &BTreeMap<String, FunctionSignature>) -> bool {
-    match expr {
-        Expr::Call(call) => {
-            matches!(
-                call.callee.as_str(),
-                "list_new" | "list_push" | "text_builder_new" | "text_index_new"
-            ) || functions
-                .get(&call.callee)
-                .is_some_and(|signature| signature.effects.contains(&Effect::Alloc))
-                || call
-                    .args
-                    .iter()
-                    .any(|arg| expr_may_allocate(arg, functions))
-        }
-        Expr::Array(array) => array
-            .elements
-            .iter()
-            .any(|expr| expr_may_allocate(expr, functions)),
-        Expr::Field(field) => expr_may_allocate(&field.base, functions),
-        Expr::Index(index) => {
-            expr_may_allocate(&index.base, functions) || expr_may_allocate(&index.index, functions)
-        }
-        Expr::If(if_expr) => {
-            expr_may_allocate(&if_expr.condition, functions)
-                || body_may_allocate(&if_expr.then_body, functions)
-                || body_may_allocate(&if_expr.else_body, functions)
-        }
-        Expr::Match(match_expr) => {
-            expr_may_allocate(&match_expr.scrutinee, functions)
-                || match_expr
-                    .arms
-                    .iter()
-                    .any(|arm| body_may_allocate(&arm.body, functions))
-        }
-        Expr::Repeat(repeat_expr) => {
-            expr_may_allocate(&repeat_expr.count, functions)
-                || body_may_allocate(&repeat_expr.body, functions)
-        }
-        Expr::While(while_expr) => {
-            expr_may_allocate(&while_expr.condition, functions)
-                || body_may_allocate(&while_expr.body, functions)
-        }
-        Expr::Record(record) => record
-            .fields
-            .iter()
-            .any(|field| expr_may_allocate(&field.value, functions)),
-        Expr::Unary(unary) => expr_may_allocate(&unary.inner, functions),
-        Expr::Binary(binary) => {
-            expr_may_allocate(&binary.left, functions)
-                || expr_may_allocate(&binary.right, functions)
-        }
-        Expr::Group(group) => expr_may_allocate(&group.inner, functions),
-        Expr::Comptime(body) => body_may_allocate(body, functions),
-        Expr::Handle(handle) => {
-            body_may_allocate(&handle.body, functions)
-                || handle
-                    .arms
-                    .iter()
-                    .any(|arm| body_may_allocate(&arm.body, functions))
-        }
-        Expr::Integer(_)
-        | Expr::Float(_)
-        | Expr::String(_)
-        | Expr::Bool(_)
-        | Expr::Name(_)
-        | Expr::ContractResult(_)
-        | Expr::Perform(_) => false,
-    }
-}
+// Escape analysis moved to MIR-level (sarif_codegen::escape).
+// The HIR-level body_may_allocate/expr_may_allocate heuristics were removed
+// — they were too conservative (false positives on scalar-returning alloc fns).
 
 #[derive(Clone, Debug)]
 pub(super) struct BodyInfo {
@@ -1108,112 +995,8 @@ fn creates_list() -> List[F64] {
         assert!(diag.message.contains("requires `alloc` effect"));
     }
 
-    #[test]
-    fn alloc_effect_satisfies_list_new() {
-        let source = "
-fn creates_list() -> List[F64] effects [alloc] {
-    list_new(10, 0.0)
-}
-";
-        let analysis = analyze_source(source);
-        // Stage-0 (Core profile): [alloc] functions that return pointer types trigger a warning
-        // because the compiler cannot verify the caller maintains proper scope.
-        // The [alloc] effect itself is still satisfied when declared.
-        let alloc_effect_errors: Vec<_> = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == "semantic.alloc-effect")
-            .collect();
-        assert!(
-            alloc_effect_errors.is_empty(),
-            "should have no alloc-effect errors when [alloc] is declared, got: {alloc_effect_errors:#?}"
-        );
-        assert!(
-            analysis
-                .diagnostics
-                .iter()
-                .any(|d| d.code == "semantic.alloc-escape"),
-            "should have at least one alloc-escape warning for returning List, got: {:#?}",
-            analysis.diagnostics
-        );
-    }
-
-    #[test]
-    fn alloc_escape_ignores_non_allocating_bodies() {
-        let source = "
-struct Token { start: I32 }
-
-fn passthrough(token: Token) -> Token effects [alloc] {
-    token
-}
-";
-        let analysis = analyze_source(source);
-        assert!(
-            !analysis
-                .diagnostics
-                .iter()
-                .any(|d| d.code == "semantic.alloc-escape"),
-            "non-allocating body should not trigger alloc-escape warning, got: {:#?}",
-            analysis.diagnostics
-        );
-    }
-
-    #[test]
-    fn alloc_escape_tracks_transitive_allocating_calls() {
-        let source = "
-fn creates_list() -> List[F64] effects [alloc] {
-    list_new(10, 0.0)
-}
-
-fn wraps_list() -> List[F64] effects [alloc] {
-    creates_list()
-}
-";
-        let analysis = analyze_source(source);
-        let warning_count = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == "semantic.alloc-escape")
-            .count();
-        assert_eq!(
-            warning_count, 2,
-            "alloc-escape should cover direct and transitive allocation returns, got: {:#?}",
-            analysis.diagnostics
-        );
-    }
-
-    #[test]
-    fn alloc_effect_blocks_rt_profile() {
-        let source = "
-fn creates_list() -> List[F64] effects [alloc] {
-    list_new(10, 0.0)
-}
-";
-        let lexed = sarif_syntax::lexer::lex(source);
-        let parsed = sarif_syntax::parser::parse(&lexed.tokens);
-        let ast = sarif_syntax::ast::lower(&parsed.root);
-        let hir = hir::lower(&ast.file);
-        let analysis = analyze(&hir.module, Profile::Rt);
-        // Stage-1 (RT profile): [alloc] functions that return pointer types trigger a hard error
-        // via Escape Analysis. This prevents unsafe code from compiling.
-        let alloc_effect_errors: Vec<_> = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == "semantic.alloc-effect")
-            .collect();
-        assert!(
-            alloc_effect_errors.is_empty(),
-            "should have no alloc-effect errors when [alloc] is declared, got: {alloc_effect_errors:#?}"
-        );
-        assert!(
-            analysis
-                .diagnostics
-                .iter()
-                .any(|d| d.code == "escape.analysis.required"),
-            "should have at least one escape.analysis.required error for RT profile, got: {:#?}",
-            analysis.diagnostics
-        );
-    }
+    // Escape analysis tests moved to MIR-level (sarif_codegen crate).
+    // The HIR-level alloc_escape tests were removed with the heuristic.
 
     #[test]
     fn flags_profile_and_duplicate_effect_errors() {

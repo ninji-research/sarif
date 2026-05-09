@@ -18,7 +18,7 @@ use sarif_codegen::Program;
 #[cfg(feature = "codegen")]
 use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
-use sarif_codegen::{RuntimeError, RuntimeValue, lower as lower_mir};
+use sarif_codegen::{RuntimeError, RuntimeValue, analyze_escapes, lower as lower_mir};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
 use sarif_frontend::semantic::Profile;
@@ -120,6 +120,13 @@ impl LoadedSource {
     fn mir_diagnostics(&self, profile: Profile) -> Vec<Diagnostic> {
         let mut diagnostics = self.semantic_diagnostics(profile);
         diagnostics.extend(self.mir().diagnostics.iter().cloned());
+        let escape_diags = analyze_escapes(&self.mir().program);
+        for mut diag in escape_diags {
+            if profile != Profile::Rt {
+                diag.code = "semantic.alloc-escape";
+            }
+            diagnostics.push(diag);
+        }
         diagnostics
     }
 

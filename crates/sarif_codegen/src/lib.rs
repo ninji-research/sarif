@@ -22,6 +22,9 @@ pub use object::{ENTRYPOINT_SYMBOL, ObjectError, emit_object};
 #[cfg(feature = "backend-wasm")]
 pub use wasm::{WasmError, emit_wasm, emit_wat, run_function_wasm, run_main_wasm};
 
+mod escape;
+pub use escape::analyze_escapes;
+
 #[derive(Clone, Debug, Default)]
 pub struct MirLowering {
     pub program: Program,
