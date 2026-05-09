@@ -9088,9 +9088,11 @@ mod tests {
         );
         let core = fs::read_to_string(format!("{root}/main.sarif"))
             .expect("bootstrap syntax core should be readable");
+        let hir = fs::read_to_string(format!("{root}/hir.sarif"))
+            .expect("bootstrap syntax hir should be readable");
         let entry = fs::read_to_string(format!("{root}/selfcheck.sarif"))
             .expect("bootstrap syntax entrypoint should be readable");
-        format!("{core}\n{entry}")
+        format!("{core}\n{hir}\n{entry}")
     }
 
     fn run_with_large_stack<T>(label: &'static str, f: impl FnOnce() -> T + Send + 'static) -> T
@@ -9178,7 +9180,7 @@ mod tests {
 
             assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
             let result = run_main(&mir.program).expect("bootstrap syntax should run");
-            assert_eq!(result, RuntimeValue::Int(32));
+            assert_eq!(result, RuntimeValue::Int(35));
         });
     }
 

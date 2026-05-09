@@ -31,27 +31,20 @@ impl<'a> Parser<'a> {
 
         self.collect_trivia(&mut children);
 
-        while self.at(TokenKind::KwEnum)
-            || self.at(TokenKind::KwStruct)
-            || self.at(TokenKind::KwEffect)
-        {
+        loop {
             if self.at(TokenKind::KwEnum) {
                 children.push(Element::Node(self.parse_enum_item()));
             } else if self.at(TokenKind::KwStruct) {
                 children.push(Element::Node(self.parse_struct_item()));
-            } else {
+            } else if self.at(TokenKind::KwEffect) {
                 children.push(Element::Node(self.parse_effect_item()));
+            } else if self.at(TokenKind::KwConst) {
+                children.push(Element::Node(self.parse_const_item()));
+            } else if self.at(TokenKind::KwFn) {
+                children.push(Element::Node(self.parse_fn_item()));
+            } else {
+                break;
             }
-            self.collect_trivia(&mut children);
-        }
-
-        while self.at(TokenKind::KwConst) {
-            children.push(Element::Node(self.parse_const_item()));
-            self.collect_trivia(&mut children);
-        }
-
-        while self.at(TokenKind::KwFn) {
-            children.push(Element::Node(self.parse_fn_item()));
             self.collect_trivia(&mut children);
         }
 

@@ -1327,6 +1327,12 @@
 - ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 
+### fn mir_block_with_inst
+
+- signature: `fn mir_block_with_inst(inst: MirInstData) -> MirBlock`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn mir_fn_list_new
 
 - signature: `fn mir_fn_list_new() -> MirFnList`
@@ -1390,6 +1396,12 @@
 ### fn mir_inst_const_bool
 
 - signature: `fn mir_inst_const_bool(dest: I32, value: Bool) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_const_text
+
+- signature: `fn mir_inst_const_text(dest: I32, value: Text) -> MirInstData`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
@@ -1655,6 +1667,963 @@
 
 - signature: `fn mir_inst_match(dest: I32, scrut: I32) -> MirInstData`
 - ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+## bootstrap/sarif_syntax/src/hir.sarif
+
+### enum HirExprKind
+
+- variants: `17`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct HirExpr
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirExprId
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct HirBodyId
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct HirTypeRef
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### enum HirTypeKind
+
+- variants: `9`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct OptionalHirTypeRef
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirExprId
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct OptionalHirBodyId
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### enum HirItemKind
+
+- variants: `5`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct HirItem
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirItemList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirItem
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirModule
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirConst
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirParam
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirParamList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirParam
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirFxList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirFx
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirBinding
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirBinding
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirVariant
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirVariantList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirVariant
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirEnum
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirField
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirFieldList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirField
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirStruct
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirConstList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirConst
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirFnList2
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirFn2
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirEnumList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirEnum
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirStructList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirStruct
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirExprPool
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct HirBodyPool
+
+- ownership: `plain value`
+- rt status: `profile-compatible`
+
+### struct HirBody
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirStmtList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirStmt
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### enum HirStmtKind
+
+- variants: `3`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct HirStmt
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirFn
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### enum HirLoweringDiagKind
+
+- variants: `1`
+- ownership: `plain tag`
+- rt status: `profile-compatible`
+
+### struct HirLoweringDiag
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirDiagList
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct OptionalHirDiag
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirLowering
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### struct HirModuleData
+
+- ownership: `contains affine fields`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_i32
+
+- signature: `fn hir_type_ref_i32() -> HirTypeRef`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_bool
+
+- signature: `fn hir_type_ref_bool() -> HirTypeRef`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_unit
+
+- signature: `fn hir_type_ref_unit() -> HirTypeRef`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_text
+
+- signature: `fn hir_type_ref_text() -> HirTypeRef`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_f64
+
+- signature: `fn hir_type_ref_f64() -> HirTypeRef`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_named
+
+- signature: `fn hir_type_ref_named(name: Text) -> HirTypeRef`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_array
+
+- signature: `fn hir_type_ref_array(elem: Text) -> HirTypeRef`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_optional
+
+- signature: `fn hir_type_ref_optional(inner: Text) -> HirTypeRef`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_type_ref_result
+
+- signature: `fn hir_type_ref_result(inner: Text) -> HirTypeRef`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_type_ref_false
+
+- signature: `fn hir_optional_type_ref_false() -> OptionalHirTypeRef`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_type_ref_true
+
+- signature: `fn hir_optional_type_ref_true(ty: HirTypeRef) -> OptionalHirTypeRef`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_expr_id_false
+
+- signature: `fn hir_optional_expr_id_false() -> OptionalHirExprId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_optional_body_id_false
+
+- signature: `fn hir_optional_body_id_false() -> OptionalHirBodyId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_id_0
+
+- signature: `fn hir_expr_id_0() -> HirExprId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_body_id_0
+
+- signature: `fn hir_body_id_0() -> HirBodyId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_id_new
+
+- signature: `fn hir_expr_id_new(i: I32) -> HirExprId`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_body_id_new
+
+- signature: `fn hir_body_id_new(i: I32) -> HirBodyId`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_span_new
+
+- signature: `fn hir_span_new(start: I32, end: I32) -> Span`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_expr_new
+
+- signature: `fn hir_expr_new(kind: HirExprKind, a: I32, b: I32, c: I32, t1: Text, t2: Text, span: Span) -> HirExpr`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_expr_kind_name
+
+- signature: `fn hir_expr_kind_name(ignored: Text) -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_expr_kind_integer
+
+- signature: `fn hir_expr_kind_integer() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_string
+
+- signature: `fn hir_expr_kind_string() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_bool
+
+- signature: `fn hir_expr_kind_bool() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_binary
+
+- signature: `fn hir_expr_kind_binary(ignored: Text) -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_expr_kind_call
+
+- signature: `fn hir_expr_kind_call() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_if
+
+- signature: `fn hir_expr_kind_if() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_while
+
+- signature: `fn hir_expr_kind_while() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_repeat
+
+- signature: `fn hir_expr_kind_repeat() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_match
+
+- signature: `fn hir_expr_kind_match() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_field
+
+- signature: `fn hir_expr_kind_field() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_index
+
+- signature: `fn hir_expr_kind_index() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_record
+
+- signature: `fn hir_expr_kind_record() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_array
+
+- signature: `fn hir_expr_kind_array() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_group
+
+- signature: `fn hir_expr_kind_group() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_kind_unary
+
+- signature: `fn hir_expr_kind_unary(ignored: Text) -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_expr_kind_float
+
+- signature: `fn hir_expr_kind_float() -> HirExprKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_binding_new
+
+- signature: `fn hir_binding_new(name: Text) -> HirBinding`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_stmt_new
+
+- signature: `fn hir_stmt_new(kind: HirStmtKind, binding: OptionalHirBinding, target: OptionalHirExprId, value: OptionalHirExprId, span: Span) -> HirStmt`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_stmt_kind_let
+
+- signature: `fn hir_stmt_kind_let() -> HirStmtKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_stmt_kind_assign
+
+- signature: `fn hir_stmt_kind_assign() -> HirStmtKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_stmt_kind_expr
+
+- signature: `fn hir_stmt_kind_expr() -> HirStmtKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_body_new
+
+- signature: `fn hir_body_new(stmts: HirStmtList, tail: OptionalHirExprId, span: Span) -> HirBody`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_stmt_list_new
+
+- signature: `fn hir_stmt_list_new() -> HirStmtList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_stmt_false
+
+- signature: `fn hir_optional_stmt_false() -> OptionalHirStmt`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_binding_false
+
+- signature: `fn hir_optional_binding_false() -> OptionalHirBinding`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_expr_false
+
+- signature: `fn hir_optional_expr_false() -> OptionalHirExprId`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_param_list_new
+
+- signature: `fn hir_param_list_new() -> HirParamList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_param_false
+
+- signature: `fn hir_optional_param_false() -> OptionalHirParam`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_fx_list_new
+
+- signature: `fn hir_fx_list_new() -> HirFxList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_fx_false
+
+- signature: `fn hir_optional_fx_false() -> OptionalHirFx`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_fn_new
+
+- signature: `fn hir_fn_new(name: Text) -> HirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_variant_new
+
+- signature: `fn hir_variant_new(name: Text) -> HirVariant`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_variant_list_new
+
+- signature: `fn hir_variant_list_new() -> HirVariantList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_variant_false
+
+- signature: `fn hir_optional_variant_false() -> OptionalHirVariant`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_enum_new
+
+- signature: `fn hir_enum_new(name: Text) -> HirEnum`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_field_new
+
+- signature: `fn hir_field_new(name: Text) -> HirField`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_field_list_new
+
+- signature: `fn hir_field_list_new() -> HirFieldList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_field_false
+
+- signature: `fn hir_optional_field_false() -> OptionalHirField`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_struct_new
+
+- signature: `fn hir_struct_new(name: Text) -> HirStruct`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_const_new
+
+- signature: `fn hir_const_new(name: Text) -> HirConst`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_const_list_new
+
+- signature: `fn hir_const_list_new() -> HirConstList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_const_list_with
+
+- signature: `fn hir_const_list_with(c: HirConst) -> HirConstList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_const_false
+
+- signature: `fn hir_optional_const_false() -> OptionalHirConst`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_fn_list_2_new
+
+- signature: `fn hir_fn_list_2_new() -> HirFnList2`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_fn_list_2_with
+
+- signature: `fn hir_fn_list_2_with(f: HirFn) -> HirFnList2`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_fn_2_false
+
+- signature: `fn hir_optional_fn_2_false() -> OptionalHirFn2`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_enum_list_new
+
+- signature: `fn hir_enum_list_new() -> HirEnumList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_enum_list_with
+
+- signature: `fn hir_enum_list_with(e: HirEnum) -> HirEnumList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_enum_false
+
+- signature: `fn hir_optional_enum_false() -> OptionalHirEnum`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_struct_list_new
+
+- signature: `fn hir_struct_list_new() -> HirStructList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_struct_list_with
+
+- signature: `fn hir_struct_list_with(s: HirStruct) -> HirStructList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_struct_false
+
+- signature: `fn hir_optional_struct_false() -> OptionalHirStruct`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_expr_pool_new
+
+- signature: `fn hir_expr_pool_new() -> HirExprPool`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_body_pool_new
+
+- signature: `fn hir_body_pool_new() -> HirBodyPool`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_item_new
+
+- signature: `fn hir_item_new(kind: HirItemKind, name: Text, span: Span) -> HirItem`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_item_kind_const
+
+- signature: `fn hir_item_kind_const() -> HirItemKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_item_kind_fn
+
+- signature: `fn hir_item_kind_fn() -> HirItemKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_item_kind_enum
+
+- signature: `fn hir_item_kind_enum() -> HirItemKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_item_kind_struct
+
+- signature: `fn hir_item_kind_struct() -> HirItemKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_item_kind_effect
+
+- signature: `fn hir_item_kind_effect() -> HirItemKind`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_const_list_push
+
+- signature: `fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_fn_list_2_push
+
+- signature: `fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_enum_list_push
+
+- signature: `fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_struct_list_push
+
+- signature: `fn hir_struct_list_push(list: HirStructList, s: HirStruct) -> HirStructList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_fn_set_params
+
+- signature: `fn hir_fn_set_params(f: HirFn, params: HirParamList) -> HirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_fn_set_ret
+
+- signature: `fn hir_fn_set_ret(f: HirFn, ret: OptionalHirTypeRef) -> HirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_fn_set_fx
+
+- signature: `fn hir_fn_set_fx(f: HirFn, fx: HirFxList) -> HirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_fn_set_body
+
+- signature: `fn hir_fn_set_body(f: HirFn, body: OptionalHirBodyId) -> HirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_binding_true
+
+- signature: `fn hir_optional_binding_true(binding: HirBinding) -> OptionalHirBinding`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_optional_expr_id_true
+
+- signature: `fn hir_optional_expr_id_true(id: HirExprId) -> OptionalHirExprId`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_optional_body_id_true
+
+- signature: `fn hir_optional_body_id_true(id: HirBodyId) -> OptionalHirBodyId`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_diag_list_new
+
+- signature: `fn hir_diag_list_new() -> HirDiagList`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_diag_false
+
+- signature: `fn hir_optional_diag_false() -> OptionalHirDiag`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_module_new
+
+- signature: `fn hir_module_new() -> HirModuleData`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_module_lower
+
+- signature: `fn hir_module_lower(report: ModuleReport) -> HirLowering`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_lower_top_level
+
+- signature: `fn hir_lower_top_level(source: Text) -> HirLowering`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_module_from_report
+
+- signature: `fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_span_text
+
+- signature: `fn hir_span_text(span: Span, source: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_name_from_span
+
+- signature: `fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_build_module_from_outline
+
+- signature: `fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_item_kind_from_top_level
+
+- signature: `fn hir_item_kind_from_top_level(kind: TopLevelKind) -> HirItemKind`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_build_items_from_outline
+
+- signature: `fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> HirItemList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_span_from_optional
+
+- signature: `fn hir_span_from_optional(span: OptionalSpan) -> Span`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_optional_item_false
+
+- signature: `fn hir_optional_item_false() -> OptionalHirItem`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_optional_item_true
+
+- signature: `fn hir_optional_item_true(item: HirItem) -> OptionalHirItem`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_module_to_lowering
+
+- signature: `fn hir_module_to_lowering(module: HirModuleData) -> HirLowering`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_selfcheck
+
+- signature: `fn hir_selfcheck() -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+### fn hir_expr_to_mir
+
+- signature: `fn hir_expr_to_mir(expr: HirExpr) -> MirBlock`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_unary_to_mir
+
+- signature: `fn hir_unary_to_mir(expr: HirExpr) -> MirBlock`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_binary_to_mir
+
+- signature: `fn hir_binary_to_mir(expr: HirExpr) -> MirBlock`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_stmt_to_mir
+
+- signature: `fn hir_stmt_to_mir(stmt: HirStmt) -> MirBlock`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_fn_to_mir
+
+- signature: `fn hir_fn_to_mir(func: HirFn) -> MirFn`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_module_to_mir
+
+- signature: `fn hir_module_to_mir(module: HirModuleData) -> MirProg`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_validate_module
+
+- signature: `fn hir_validate_module(module: HirModuleData) -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn hir_module_selfcheck
+
+- signature: `fn hir_module_selfcheck(module: HirModuleData) -> I32`
+- ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 
 ## bootstrap/sarif_syntax/src/selfcheck.sarif

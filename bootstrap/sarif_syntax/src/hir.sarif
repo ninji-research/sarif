@@ -43,7 +43,7 @@ struct HirStmtList { len: I32, s1: OptionalHirStmt, s2: OptionalHirStmt, s3: Opt
 struct OptionalHirStmt { present: Bool, stmt: HirStmt }
 enum HirStmtKind { Let, Assign, Expr }
 struct HirStmt { kind: HirStmtKind, binding: OptionalHirBinding, target: OptionalHirExprId, value: OptionalHirExprId, span: Span }
-struct HirFn { name: Text, params: HirParamList, ret: OptionalHirTypeRef, effects: HirFxList, requires: OptionalHirExprId, ensures: OptionalHirExprId, body: OptionalHirBodyId, span: Span }
+struct HirFn { name: Text, params: HirParamList, ret: OptionalHirTypeRef, fx: HirFxList, req: OptionalHirExprId, ens: OptionalHirExprId, body: OptionalHirBodyId, span: Span }
 enum HirLoweringDiagKind { Generic }
 struct HirLoweringDiag { kind: HirLoweringDiagKind, msg: Text }
 struct HirDiagList { len: I32, d1: OptionalHirDiag, d2: OptionalHirDiag }
@@ -75,11 +75,11 @@ fn hir_span_new(start: I32, end: I32) -> Span { Span { start: start, end: end } 
 fn hir_expr_new(kind: HirExprKind, a: I32, b: I32, c: I32, t1: Text, t2: Text, span: Span) -> HirExpr {
     HirExpr { kind: kind, a: a, b: b, c: c, t1: t1, t2: t2, span: span }
 }
-fn hir_expr_kind_name(_: Text) -> HirExprKind { HirExprKind.Name }
+fn hir_expr_kind_name(ignored: Text) -> HirExprKind { HirExprKind.Name }
 fn hir_expr_kind_integer() -> HirExprKind { HirExprKind.Integer }
 fn hir_expr_kind_string() -> HirExprKind { HirExprKind.String }
 fn hir_expr_kind_bool() -> HirExprKind { HirExprKind.Bool }
-fn hir_expr_kind_binary(_: Text) -> HirExprKind { HirExprKind.Binary }
+fn hir_expr_kind_binary(ignored: Text) -> HirExprKind { HirExprKind.Binary }
 fn hir_expr_kind_call() -> HirExprKind { HirExprKind.Call }
 fn hir_expr_kind_if() -> HirExprKind { HirExprKind.If }
 fn hir_expr_kind_while() -> HirExprKind { HirExprKind.While }
@@ -90,7 +90,7 @@ fn hir_expr_kind_index() -> HirExprKind { HirExprKind.Index }
 fn hir_expr_kind_record() -> HirExprKind { HirExprKind.Record }
 fn hir_expr_kind_array() -> HirExprKind { HirExprKind.Array }
 fn hir_expr_kind_group() -> HirExprKind { HirExprKind.Group }
-fn hir_expr_kind_unary(_: Text) -> HirExprKind { HirExprKind.Unary }
+fn hir_expr_kind_unary(ignored: Text) -> HirExprKind { HirExprKind.Unary }
 fn hir_expr_kind_float() -> HirExprKind { HirExprKind.Float }
 
 fn hir_binding_new(name: Text) -> HirBinding { HirBinding { name: name, ty: hir_optional_type_ref_false() } }
@@ -113,7 +113,7 @@ fn hir_param_list_new() -> HirParamList { HirParamList { len: 0, p1: hir_optiona
 fn hir_optional_param_false() -> OptionalHirParam { OptionalHirParam { present: false, param: HirParam { name: "", ty: hir_type_ref_i32() } } }
 fn hir_fx_list_new() -> HirFxList { HirFxList { len: 0, fx1: hir_optional_fx_false(), fx2: hir_optional_fx_false(), fx3: hir_optional_fx_false(), fx4: hir_optional_fx_false(), fx5: hir_optional_fx_false() } }
 fn hir_optional_fx_false() -> OptionalHirFx { OptionalHirFx { present: false, name: "" } }
-fn hir_fn_new(name: Text) -> HirFn { HirFn { name: name, params: hir_param_list_new(), ret: hir_optional_type_ref_false(), effects: hir_fx_list_new(), requires: hir_optional_expr_id_false(), ensures: hir_optional_expr_id_false(), body: hir_optional_body_id_false(), span: hir_span_new(0, 0) } }
+fn hir_fn_new(name: Text) -> HirFn { HirFn { name: name, params: hir_param_list_new(), ret: hir_optional_type_ref_false(), fx: hir_fx_list_new(), req: hir_optional_expr_id_false(), ens: hir_optional_expr_id_false(), body: hir_optional_body_id_false(), span: hir_span_new(0, 0) } }
 fn hir_variant_new(name: Text) -> HirVariant { HirVariant { name: name, payload: hir_optional_type_ref_false(), span: hir_span_new(0, 0) } }
 fn hir_variant_list_new() -> HirVariantList { HirVariantList { len: 0, v1: hir_optional_variant_false(), v2: hir_optional_variant_false(), v3: hir_optional_variant_false(), v4: hir_optional_variant_false(), v5: hir_optional_variant_false() } }
 fn hir_optional_variant_false() -> OptionalHirVariant { OptionalHirVariant { present: false, variant: hir_variant_new("") } }
@@ -147,6 +147,115 @@ fn hir_item_kind_enum() -> HirItemKind { HirItemKind.Enum }
 fn hir_item_kind_struct() -> HirItemKind { HirItemKind.Struct }
 fn hir_item_kind_effect() -> HirItemKind { HirItemKind.Effect }
 
+fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList {
+    let next = list.len + 1;
+    if list.len == 0 {
+        HirConstList { len: next, c1: OptionalHirConst { present: true, c: c }, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5 }
+    } else {
+        if list.len == 1 {
+            HirConstList { len: next, c1: list.c1, c2: OptionalHirConst { present: true, c: c }, c3: list.c3, c4: list.c4, c5: list.c5 }
+        } else {
+            if list.len == 2 {
+                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: OptionalHirConst { present: true, c: c }, c4: list.c4, c5: list.c5 }
+            } else {
+                if list.len == 3 {
+                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: OptionalHirConst { present: true, c: c }, c5: list.c5 }
+                } else {
+                    if list.len == 4 {
+                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: OptionalHirConst { present: true, c: c } }
+                    } else { list }
+                }
+            }
+        }
+    }
+}
+
+fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2 {
+    let next = list.len + 1;
+    if list.len == 0 {
+        HirFnList2 { len: next, f1: OptionalHirFn2 { present: true, f: f }, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5 }
+    } else {
+        if list.len == 1 {
+            HirFnList2 { len: next, f1: list.f1, f2: OptionalHirFn2 { present: true, f: f }, f3: list.f3, f4: list.f4, f5: list.f5 }
+        } else {
+            if list.len == 2 {
+                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: OptionalHirFn2 { present: true, f: f }, f4: list.f4, f5: list.f5 }
+            } else {
+                if list.len == 3 {
+                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: OptionalHirFn2 { present: true, f: f }, f5: list.f5 }
+                } else {
+                    if list.len == 4 {
+                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: OptionalHirFn2 { present: true, f: f } }
+                    } else { list }
+                }
+            }
+        }
+    }
+}
+
+fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList {
+    let next = list.len + 1;
+    if list.len == 0 {
+        HirEnumList { len: next, e1: OptionalHirEnum { present: true, e: e }, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5 }
+    } else {
+        if list.len == 1 {
+            HirEnumList { len: next, e1: list.e1, e2: OptionalHirEnum { present: true, e: e }, e3: list.e3, e4: list.e4, e5: list.e5 }
+        } else {
+            if list.len == 2 {
+                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: OptionalHirEnum { present: true, e: e }, e4: list.e4, e5: list.e5 }
+            } else {
+                if list.len == 3 {
+                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: OptionalHirEnum { present: true, e: e }, e5: list.e5 }
+                } else {
+                    if list.len == 4 {
+                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: OptionalHirEnum { present: true, e: e } }
+                    } else { list }
+                }
+            }
+        }
+    }
+}
+
+fn hir_struct_list_push(list: HirStructList, s: HirStruct) -> HirStructList {
+    let next = list.len + 1;
+    if list.len == 0 {
+        HirStructList { len: next, s1: OptionalHirStruct { present: true, s: s }, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5 }
+    } else {
+        if list.len == 1 {
+            HirStructList { len: next, s1: list.s1, s2: OptionalHirStruct { present: true, s: s }, s3: list.s3, s4: list.s4, s5: list.s5 }
+        } else {
+            if list.len == 2 {
+                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: OptionalHirStruct { present: true, s: s }, s4: list.s4, s5: list.s5 }
+            } else {
+                if list.len == 3 {
+                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: OptionalHirStruct { present: true, s: s }, s5: list.s5 }
+                } else {
+                    if list.len == 4 {
+                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: OptionalHirStruct { present: true, s: s } }
+                    } else { list }
+                }
+            }
+        }
+    }
+}
+
+fn hir_fn_set_params(f: HirFn, params: HirParamList) -> HirFn {
+    HirFn { name: f.name, params: params, ret: f.ret, fx: f.fx, req: f.req, ens: f.ens, body: f.body, span: f.span }
+}
+fn hir_fn_set_ret(f: HirFn, ret: OptionalHirTypeRef) -> HirFn {
+    HirFn { name: f.name, params: f.params, ret: ret, fx: f.fx, req: f.req, ens: f.ens, body: f.body, span: f.span }
+}
+fn hir_fn_set_fx(f: HirFn, fx: HirFxList) -> HirFn {
+    HirFn { name: f.name, params: f.params, ret: f.ret, fx: fx, req: f.req, ens: f.ens, body: f.body, span: f.span }
+}
+fn hir_fn_set_body(f: HirFn, body: OptionalHirBodyId) -> HirFn {
+    HirFn { name: f.name, params: f.params, ret: f.ret, fx: f.fx, req: f.req, ens: f.ens, body: body, span: f.span }
+}
+
+fn hir_optional_binding_true(binding: HirBinding) -> OptionalHirBinding { OptionalHirBinding { present: true, binding: binding } }
+fn hir_optional_expr_id_true(id: HirExprId) -> OptionalHirExprId { OptionalHirExprId { present: true, id: id } }
+fn hir_optional_body_id_true(id: HirBodyId) -> OptionalHirBodyId { OptionalHirBodyId { present: true, id: id } }
+
 fn hir_diag_list_new() -> HirDiagList { HirDiagList { len: 0, d1: hir_optional_diag_false(), d2: hir_optional_diag_false() } }
 fn hir_optional_diag_false() -> OptionalHirDiag { OptionalHirDiag { present: false, diag: HirLoweringDiag { kind: HirLoweringDiagKind.Generic, msg: "" } } }
 
@@ -162,15 +271,12 @@ fn hir_module_new() -> HirModuleData {
 }
 
 fn hir_module_lower(report: ModuleReport) -> HirLowering {
-    HirLowering {
-        module: hir_module_new(),
-        expr_pool: hir_expr_pool_new(),
-        body_pool: hir_body_pool_new(),
-        fns: hir_fn_list_2_new(),
-        enums: hir_enum_list_new(),
-        structs: hir_struct_list_new(),
-        diags: hir_diag_list_new(),
-    }
+    let module = if report.ok {
+        hir_build_module_from_outline(report.outline, report.fn_outline, report.events, "")
+    } else {
+        hir_module_new()
+    };
+    hir_module_to_lowering(module)
 }
 
 fn hir_lower_top_level(source: Text) -> HirLowering {
@@ -188,7 +294,11 @@ fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
 }
 
 fn hir_span_text(span: Span, source: Text) -> Text {
-    source
+    if span.start < span.end and span.end <= text_len(source) {
+        text_slice(source, span.start, span.end)
+    } else {
+        ""
+    }
 }
 
 fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text {
@@ -200,53 +310,78 @@ fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text {
 }
 
 fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
-    let items = hir_build_items_from_outline(outline, fn_outline, source);
-    let module = hir_module_new();
-    module
+    let n1 = hir_name_from_span(outline.first.entry.name_span, source);
+    let n2 = hir_name_from_span(outline.second.entry.name_span, source);
+    let n3 = hir_name_from_span(outline.third.entry.name_span, source);
+    let n4 = hir_name_from_span(outline.fourth.entry.name_span, source);
+    let n5 = hir_name_from_span(outline.fifth.entry.name_span, source);
+    let dummy = syntax_event_at(events, -1);
+    let c1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Const { hir_const_list_with(hir_const_new(n1)) } else { hir_const_list_new() };
+    let c2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Const { hir_const_list_push(c1, hir_const_new(n2)) } else { c1 };
+    let c3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Const { hir_const_list_push(c2, hir_const_new(n3)) } else { c2 };
+    let c4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Const { hir_const_list_push(c3, hir_const_new(n4)) } else { c3 };
+    let c5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Const { hir_const_list_push(c4, hir_const_new(n5)) } else { c4 };
+    let f1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Fn { hir_fn_list_2_with(hir_fn_new(n1)) } else { hir_fn_list_2_new() };
+    let f2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f1, hir_fn_new(n2)) } else { f1 };
+    let f3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f2, hir_fn_new(n3)) } else { f2 };
+    let f4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f3, hir_fn_new(n4)) } else { f3 };
+    let f5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f4, hir_fn_new(n5)) } else { f4 };
+    let e1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Enum { hir_enum_list_with(hir_enum_new(n1)) } else { hir_enum_list_new() };
+    let e2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Enum { hir_enum_list_push(e1, hir_enum_new(n2)) } else { e1 };
+    let e3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Enum { hir_enum_list_push(e2, hir_enum_new(n3)) } else { e2 };
+    let e4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Enum { hir_enum_list_push(e3, hir_enum_new(n4)) } else { e3 };
+    let e5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Enum { hir_enum_list_push(e4, hir_enum_new(n5)) } else { e4 };
+    let s1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Struct { hir_struct_list_with(hir_struct_new(n1)) } else { hir_struct_list_new() };
+    let s2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s1, hir_struct_new(n2)) } else { s1 };
+    let s3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s2, hir_struct_new(n3)) } else { s2 };
+    let s4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s3, hir_struct_new(n4)) } else { s3 };
+    let s5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s4, hir_struct_new(n5)) } else { s4 };
+    HirModuleData {
+        consts: c5,
+        funcs: f5,
+        enums: e5,
+        structs: s5,
+        exprs: hir_expr_pool_new(),
+        bodies: hir_body_pool_new(),
+    }
+}
+
+fn hir_item_kind_from_top_level(kind: TopLevelKind) -> HirItemKind {
+    match kind {
+        TopLevelKind.Struct => { HirItemKind.Struct },
+        TopLevelKind.Enum => { HirItemKind.Enum },
+        TopLevelKind.Const => { HirItemKind.Const },
+        TopLevelKind.Fn => { HirItemKind.Fn },
+    }
 }
 
 fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> HirItemList {
-    let mut len = 0;
-    let mut i1 = hir_optional_item_false();
-    let mut i2 = hir_optional_item_false();
-    let mut i3 = hir_optional_item_false();
-    let mut i4 = hir_optional_item_false();
-    let mut i5 = hir_optional_item_false();
-    if outline.first.present {
-        let span = hir_span_from_optional(outline.first.entry.span);
+    let i1 = if outline.first.present {
         let name = hir_name_from_span(outline.first.entry.name_span, source);
-        let item = hir_item_new(outline.first.entry.kind, name, span);
-        i1 = hir_optional_item_true(item);
-        len = len + 1;
-    } else { };
-    if outline.second.present {
-        let span = hir_span_from_optional(outline.second.entry.span);
+        let item = hir_item_new(hir_item_kind_from_top_level(outline.first.entry.kind), name, outline.first.entry.span);
+        hir_optional_item_true(item)
+    } else { hir_optional_item_false() };
+    let i2 = if outline.second.present {
         let name = hir_name_from_span(outline.second.entry.name_span, source);
-        let item = hir_item_new(outline.second.entry.kind, name, span);
-        i2 = hir_optional_item_true(item);
-        len = len + 1;
-    } else { };
-    if outline.third.present {
-        let span = hir_span_from_optional(outline.third.entry.span);
+        let item = hir_item_new(hir_item_kind_from_top_level(outline.second.entry.kind), name, outline.second.entry.span);
+        hir_optional_item_true(item)
+    } else { hir_optional_item_false() };
+    let i3 = if outline.third.present {
         let name = hir_name_from_span(outline.third.entry.name_span, source);
-        let item = hir_item_new(outline.third.entry.kind, name, span);
-        i3 = hir_optional_item_true(item);
-        len = len + 1;
-    } else { };
-    if outline.fourth.present {
-        let span = hir_span_from_optional(outline.fourth.entry.span);
+        let item = hir_item_new(hir_item_kind_from_top_level(outline.third.entry.kind), name, outline.third.entry.span);
+        hir_optional_item_true(item)
+    } else { hir_optional_item_false() };
+    let i4 = if outline.fourth.present {
         let name = hir_name_from_span(outline.fourth.entry.name_span, source);
-        let item = hir_item_new(outline.fourth.entry.kind, name, span);
-        i4 = hir_optional_item_true(item);
-        len = len + 1;
-    } else { };
-    if outline.fifth.present {
-        let span = hir_span_from_optional(outline.fifth.entry.span);
+        let item = hir_item_new(hir_item_kind_from_top_level(outline.fourth.entry.kind), name, outline.fourth.entry.span);
+        hir_optional_item_true(item)
+    } else { hir_optional_item_false() };
+    let i5 = if outline.fifth.present {
         let name = hir_name_from_span(outline.fifth.entry.name_span, source);
-        let item = hir_item_new(outline.fifth.entry.kind, name, span);
-        i5 = hir_optional_item_true(item);
-        len = len + 1;
-    } else { };
+        let item = hir_item_new(hir_item_kind_from_top_level(outline.fifth.entry.kind), name, outline.fifth.entry.span);
+        hir_optional_item_true(item)
+    } else { hir_optional_item_false() };
+    let len = if outline.first.present { 1 } else { 0 } + if outline.second.present { 1 } else { 0 } + if outline.third.present { 1 } else { 0 } + if outline.fourth.present { 1 } else { 0 } + if outline.fifth.present { 1 } else { 0 };
     HirItemList { len: len, i1: i1, i2: i2, i3: i3, i4: i4, i5: i5 }
 }
 
@@ -270,29 +405,69 @@ fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
 }
 
 fn hir_selfcheck() -> I32 {
-    let empty_module = hir_module_new();
-    hir_validate_module(empty_module)
+    let source = "struct Pair {}\nenum Option { none, some }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32) { let y = x; y }\n";
+    let report = parse_module_report(source);
+    if report.ok {
+        let module = hir_module_from_report(report, source);
+        hir_validate_module(module)
+    } else {
+        0
+    }
 }
 
 fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
     match expr.kind {
-        HirExprKind.Integer => mir_block_with_inst(mir_inst_const_i32(0, expr.a)),
-        HirExprKind.Float => mir_block_new(),
-        HirExprKind.Bool => mir_block_with_inst(mir_inst_const_bool(0, if expr.a != 0 { true } else { false })),
-        HirExprKind.Name => mir_block_with_inst(mir_inst_load_local(0, 0)),
-        HirExprKind.String => mir_block_with_inst(mir_inst_const_text(0, expr.t1)),
-        HirExprKind.Binary => hir_binary_to_mir(expr),
-        HirExprKind.Unary => hir_unary_to_mir(expr),
-        HirExprKind.Call => mir_block_with_inst(mir_inst_call(0, expr.t1, expr.a, expr.b, expr.c, 0, 0)),
-        HirExprKind.If => mir_block_with_inst(mir_inst_if(0, expr.a, expr.b, expr.c)),
-        HirExprKind.While => mir_block_with_inst(mir_inst_while(0, expr.a, expr.b)),
-        HirExprKind.Repeat => mir_block_with_inst(mir_inst_repeat(0, expr.a, expr.b)),
-        HirExprKind.Match => mir_block_with_inst(mir_inst_match(0, expr.a)),
-        HirExprKind.Field => mir_block_with_inst(mir_inst_field(0, expr.a, expr.t1)),
-        HirExprKind.Index => mir_block_with_inst(mir_inst_list_get(0, expr.a, expr.b)),
-        HirExprKind.Record => mir_block_with_inst(mir_inst_make_record(0, expr.t1)),
-        HirExprKind.Array => mir_block_with_inst(mir_inst_list_new(0, expr.a, expr.b)),
-        HirExprKind.Group => mir_block_new(),
+        HirExprKind.Integer => {
+            mir_block_with_inst(mir_inst_const_i32(0, expr.a))
+        },
+        HirExprKind.Float => {
+            mir_block_new()
+        },
+        HirExprKind.Bool => {
+            mir_block_with_inst(mir_inst_const_bool(0, if expr.a != 0 { true } else { false }))
+        },
+        HirExprKind.Name => {
+            mir_block_with_inst(mir_inst_load_local(0))
+        },
+        HirExprKind.String => {
+            mir_block_with_inst(mir_inst_const_text(0, expr.t1))
+        },
+        HirExprKind.Binary => {
+            hir_binary_to_mir(expr)
+        },
+        HirExprKind.Unary => {
+            hir_unary_to_mir(expr)
+        },
+        HirExprKind.Call => {
+            mir_block_with_inst(mir_inst_call(0, expr.t1, expr.a, expr.b, expr.c, 0, 0))
+        },
+        HirExprKind.If => {
+            mir_block_with_inst(mir_inst_if(0, expr.a, expr.b, expr.c))
+        },
+        HirExprKind.While => {
+            mir_block_with_inst(mir_inst_while(0, expr.a, expr.b))
+        },
+        HirExprKind.Repeat => {
+            mir_block_with_inst(mir_inst_repeat(0, expr.a, expr.b))
+        },
+        HirExprKind.Match => {
+            mir_block_with_inst(mir_inst_match(0, expr.a))
+        },
+        HirExprKind.Field => {
+            mir_block_with_inst(mir_inst_field(0, expr.a, expr.t1))
+        },
+        HirExprKind.Index => {
+            mir_block_with_inst(mir_inst_list_get(0, expr.a, expr.b))
+        },
+        HirExprKind.Record => {
+            mir_block_with_inst(mir_inst_make_record(0, expr.t1))
+        },
+        HirExprKind.Array => {
+            mir_block_with_inst(mir_inst_list_new(0, expr.a, expr.b))
+        },
+        HirExprKind.Group => {
+            mir_block_new()
+        },
     }
 }
 
@@ -349,22 +524,17 @@ fn hir_binary_to_mir(expr: HirExpr) -> MirBlock {
 }
 
 fn hir_stmt_to_mir(stmt: HirStmt) -> MirBlock {
-    match stmt.kind {
-        HirStmtKind.Expr => hir_expr_to_mir(stmt.value),
-        HirStmtKind.Let => hir_expr_to_mir(stmt.value),
-        HirStmtKind.Assign => hir_expr_to_mir(stmt.value),
-    }
+    mir_block_new()
 }
 
-fn hir_fn_to_mir(fn: HirFn) -> MirFn {
-    let body_block = if fn.body.present { hir_expr_to_mir(hir_expr_id_0()) } else { mir_block_new() };
+fn hir_fn_to_mir(func: HirFn) -> MirFn {
     MirFn {
-        name: fn.name,
-        params: hir_param_list_new(),
+        name: func.name,
+        params: mir_param_list_new(),
         ret: mir_optional_type_false(),
-        fx: hir_fx_list_new(),
+        fx: mir_fx_list_new(),
         locals: mir_local_list_new(),
-        code: body_block,
+        code: mir_block_new(),
         result: value_id_0(),
     }
 }

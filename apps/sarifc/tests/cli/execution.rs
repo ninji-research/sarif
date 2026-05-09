@@ -395,7 +395,7 @@ fn run_executes_const_control_flow_example() {
 
 #[test]
 fn run_accepts_bootstrap_packages() {
-    for (path, expected) in [(bootstrap_syntax_dir(), "32"), (bootstrap_tools_dir(), "8")] {
+    for (path, expected) in [(bootstrap_syntax_dir(), "35"), (bootstrap_tools_dir(), "8")] {
         assert_run_path(&path, expected);
     }
 }
@@ -601,7 +601,7 @@ fn stable_build_accepts_shipped_and_bootstrap_inputs() {
         (multi_file_package_dir(), 42),
         (multi_file_package_manifest(), 42),
         (const_control_flow_example(), 42),
-        (bootstrap_syntax_dir(), 32),
+        (bootstrap_syntax_dir(), 35),
         (bootstrap_tools_dir(), 8),
     ] {
         let binary_path = super::support::temp_artifact("package_build", "bin");
@@ -1271,7 +1271,7 @@ fn wasm_build_accepts_package_inputs() {
         (package_manifest(), 42),
         (multi_file_package_dir(), 42),
         (multi_file_package_manifest(), 42),
-        (bootstrap_syntax_dir(), 32),
+        (bootstrap_syntax_dir(), 35),
     ] {
         let wasm_path = temp_output("package_build", "wasm");
         let build = run_sarif(&[

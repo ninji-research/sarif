@@ -1327,6 +1327,12 @@
 - ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 
+### fn mir_block_with_inst
+
+- signature: `fn mir_block_with_inst(inst: MirInstData) -> MirBlock`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn mir_fn_list_new
 
 - signature: `fn mir_fn_list_new() -> MirFnList`
@@ -1390,6 +1396,12 @@
 ### fn mir_inst_const_bool
 
 - signature: `fn mir_inst_const_bool(dest: I32, value: Bool) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_const_text
+
+- signature: `fn mir_inst_const_text(dest: I32, value: Text) -> MirInstData`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
