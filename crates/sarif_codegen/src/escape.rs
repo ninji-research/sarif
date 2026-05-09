@@ -272,14 +272,20 @@ impl Env<'_> {
             }
 
             Inst::Handle {
-                dest: _,
+                dest,
                 body_insts,
-                body_result: _,
+                body_result,
                 arms,
             } => {
                 self.analyze(body_insts);
+                if body_result.is_some_and(|r| self.is_escaped(r)) {
+                    self.mark(*dest);
+                }
                 for arm in arms {
                     self.analyze(&arm.body_insts);
+                    if arm.body_result.is_some_and(|r| self.is_escaped(r)) {
+                        self.mark(*dest);
+                    }
                 }
             }
 

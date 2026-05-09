@@ -328,7 +328,12 @@ static inline __attribute__((always_inline)) SarifTextBuilder* sarif_text_builde
         next_cap = required;
     } else {
         while (next_cap < required) {
-            next_cap += next_cap / 2u + 1u;
+            uint64_t growth = next_cap / 2u + 1u;
+            if (next_cap > UINT64_MAX - growth) {
+                next_cap = required;
+                break;
+            }
+            next_cap += growth;
         }
     }
     if (next_cap > (uint64_t)SIZE_MAX) {
@@ -548,9 +553,12 @@ void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
     if (used != list->len) {
         return NULL;
     }
-    next_cap = used == 0 ? 8u : used * 2u;
-    if (next_cap <= used) {
+    if (used == 0) {
+        next_cap = 8u;
+    } else if (used > UINT64_MAX / 2u) {
         next_cap = used + 1u;
+    } else {
+        next_cap = used * 2u;
     }
     if (next_cap > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
         return NULL;
