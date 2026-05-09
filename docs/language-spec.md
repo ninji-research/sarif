@@ -28,6 +28,7 @@ Sarif keeps one declaration order:
 - `F64`
 - `Bool`
 - `Text`
+- `Bytes`
 - `Unit`
 - named `struct`
 - named `enum`
@@ -55,6 +56,7 @@ Sarif keeps one declaration order:
 - `stdin_text() -> Text`
 - `stdin_bytes() -> Bytes`
 - `stdout_write(text: Text) -> Unit`
+- `stdout_write_builder(builder: TextBuilder) -> TextBuilder`
 - `alloc_push() -> Unit`
 - `alloc_pop() -> Unit`
 - `text_builder_new() -> TextBuilder`
@@ -78,8 +80,12 @@ Sarif keeps one declaration order:
 - `f64_from_i32(value: I32) -> F64`
 - `parse_i32(text: Text) -> I32`
 - `parse_i32_range(text: Text, start: I32, end: I32) -> I32`
+- `text_len(text: Text) -> I32`
 - `bytes_len(bytes: Bytes) -> I32`
+- `text_byte(text: Text, index: I32) -> I32`
 - `bytes_byte(bytes: Bytes, index: I32) -> I32`
+- `text_concat(left: Text, right: Text) -> Text`
+- `text_slice(text: Text, start: I32, end: I32) -> Text`
 - `bytes_slice(bytes: Bytes, start: I32, end: I32) -> Bytes`
 - `bytes_find_byte_range(bytes: Bytes, start: I32, end: I32, byte: I32) -> I32`
 - `text_cmp(left: Text, right: Text) -> I32`
@@ -91,6 +97,7 @@ Sarif keeps one declaration order:
 - `text_next_field(text: Text, start: I32, end: I32, byte: I32) -> I32`
 - `sqrt(value: F64) -> F64`
 - `text_from_f64_fixed(value: F64, digits: I32) -> Text`
+- `parse_f64(text: Text) -> F64`
 
 `TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. Misses return `-1`; `text_index_get_or_insert(...)` returns the existing slot or inserts `next`; and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
 
