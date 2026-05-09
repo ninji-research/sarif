@@ -283,7 +283,7 @@ static void sarif_clamp_text_range(const unsigned char* source, uint64_t len, in
     while (*start < (int64_t)len && sarif_is_utf8_continuation(source[8 + *start])) {
         (*start)++;
     }
-    while (*end < (int64_t)len && sarif_is_utf8_continuation(source[8 + *end])) {
+    while (*end > 0 && *end < (int64_t)len && sarif_is_utf8_continuation(source[8 + *end])) {
         (*end)--;
     }
     if (*end < *start) {
@@ -708,7 +708,7 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
     if (found != NULL) {
         *found = 0;
     }
-    if (index == NULL || index->entries == NULL) {
+    if (index == NULL || index->entries == NULL || index->cap == 0) {
         return NULL;
     }
     idx = hash % index->cap;

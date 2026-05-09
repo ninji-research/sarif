@@ -52,7 +52,7 @@ impl<'a> Parser<'a> {
             let token = self.bump();
             self.diagnostics.push(Diagnostic::new(
                 "parse.out-of-order-item",
-                format!("unexpected token `{:?}`: top-level items must follow the order: Types (enum, struct) -> Consts -> Functions", token.kind),
+                format!("unexpected token `{:?}`: expected a top-level item (enum, struct, effect, const, fn)", token.kind),
                 token.span,
                 Some("Move this item to its canonical section.".to_owned()),
             ));

@@ -4065,7 +4065,6 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
     let n3 = hir_name_from_span(outline.third.entry.name_span, source);
     let n4 = hir_name_from_span(outline.fourth.entry.name_span, source);
     let n5 = hir_name_from_span(outline.fifth.entry.name_span, source);
-    let dummy = syntax_event_at(events, -1);
     let c1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Const {
         hir_const_list_with(hir_const_new(n1))
     } else {
