@@ -84,19 +84,19 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - the maintained compiler is still Rust-hosted
 - alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings; runtime text ownership audit complete: text_concat and text_slice no longer return original scoped arena pointers (always allocate), arg_text uses process-lifetime malloc, stdin_cache uses process-lifetime malloc; remaining work is MIR-level escape analysis as hard error for RT profile
 - the native executable path is maintained on Linux, feasible but less exercised on macOS, and not yet maintained on Windows or mobile hosts; the current platform matrix is recorded in `docs/platforms.md`
-- self-hosted tooling authority is not complete
+- Stage-1 bootstrap HIR→MIR lowering is now complete; remaining work is self-hosting the tools themselves
 
 ## Stage-1 Completion Requirements
 
-Stage-1 self-hosting requires bootstrap HIR→MIR lowering for:
-
-**Missing expression types:**
-- If/While/Repeat (control flow)
-- Match (pattern matching)
-- Field/Index/Record/Array (data access)
-
+Stage-1 self-hosting requires bootstrap HIR→MIR lowering for control flow and data access.
 The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compiler
 (sarif_syntax) is reference infrastructure showing the lowering concepts.
+
+**Completed bootstrap HIR→MIR lowering:**
+- If/While/Repeat/Match (control flow) - NOW COMPLETE
+- Field/Index/Record/Array (data access) - NOW COMPLETE
+- Record creation (mir_inst_make_record) - COMPLETE
+- Array creation (mir_inst_list_new) - COMPLETE
 
 **Completed Stage-1 infrastructure:**
 - Runtime memory model is sound (text arena, escape analysis)
@@ -104,10 +104,20 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
 - Bootstrap bitwise operator lowering
 - RT profile escape analysis as hard error
 
-**Path to completion:**
-1. Complete bootstrap HIR→MIR for control flow (If/While/Repeat)
-2. Complete bootstrap HIR→MIR for data access (Field/Index/Record/Array)
-3. Self-host format/check/doc using the bootstrap
+**Remaining Stage-1 work:**
+- Self-host format/check/doc using the bootstrap compiler as maintained authority
+  (requires completing the bootstrap compiler's end-to-end lowering pipeline)
 
-A full standard library is not complete
+**Current bnch scores (May 2026):**
+- overall rank: `1/7`
+- speed rank: `1/7`
+- memory rank: `1/7`
+- build rank: `1/7`
+- overall score: `0.9189`
+- speed score: `0.9189`
+- memory score: `0.9730`
+- build score: `1.0000`
+- deploy-size score: `0.6962`
+
+A full standard library is not complete:
 - async, parallel, and multithreaded runtime support are not complete
