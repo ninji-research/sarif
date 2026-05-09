@@ -120,6 +120,7 @@ enum MirInst {
     If,
     While,
     Repeat,
+    Match,
     Call,
     Return,
     MakeRecord,
@@ -2731,6 +2732,9 @@ fn mir_inst_tag_is_alloc_push(tag: MirInst) -> Bool {
         MirInst.Repeat => {
             false
         },
+        MirInst.Match => {
+            false
+        },
         MirInst.Call => {
             false
         },
@@ -2894,6 +2898,9 @@ fn mir_inst_tag_name(tag: MirInst) -> Text {
         },
         MirInst.Repeat => {
             "repeat"
+        },
+        MirInst.Match => {
+            "match"
         },
         MirInst.Call => {
             "call"
@@ -3174,6 +3181,22 @@ fn mir_inst_arg_text(dest: I32, idx: I32) -> MirInstData {
 
 fn mir_inst_assert(cond: I32) -> MirInstData {
     MirInstData { tag: MirInst.Assert, a: cond, b: 0, c: 0, d: 0, t1: "", t2: "" }
+}
+
+fn mir_inst_if(dest: I32, cond: I32, then_body: I32, else_body: I32) -> MirInstData {
+    MirInstData { tag: MirInst.If, a: cond, b: then_body, c: else_body, d: dest, t1: "", t2: "" }
+}
+
+fn mir_inst_while(dest: I32, cond: I32, body: I32) -> MirInstData {
+    MirInstData { tag: MirInst.While, a: cond, b: body, c: 0, d: dest, t1: "", t2: "" }
+}
+
+fn mir_inst_repeat(dest: I32, count: I32, body: I32) -> MirInstData {
+    MirInstData { tag: MirInst.Repeat, a: count, b: body, c: 0, d: dest, t1: "", t2: "" }
+}
+
+fn mir_inst_match(dest: I32, scrut: I32) -> MirInstData {
+    MirInstData { tag: MirInst.Match, a: scrut, b: 0, c: 0, d: dest, t1: "", t2: "" }
 }
 
 fn main() -> I32 {

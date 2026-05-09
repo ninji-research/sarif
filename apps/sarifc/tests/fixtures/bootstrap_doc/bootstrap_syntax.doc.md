@@ -68,7 +68,7 @@
 
 ### enum MirInst
 
-- variants: `53`
+- variants: `54`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1630,6 +1630,30 @@
 ### fn mir_inst_assert
 
 - signature: `fn mir_inst_assert(cond: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_if
+
+- signature: `fn mir_inst_if(dest: I32, cond: I32, then_body: I32, else_body: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_while
+
+- signature: `fn mir_inst_while(dest: I32, cond: I32, body: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_repeat
+
+- signature: `fn mir_inst_repeat(dest: I32, count: I32, body: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn mir_inst_match
+
+- signature: `fn mir_inst_match(dest: I32, scrut: I32) -> MirInstData`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 

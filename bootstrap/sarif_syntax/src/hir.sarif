@@ -1,8 +1,8 @@
 enum HirExprKind { Name, Integer, String, Bool, Binary, Call, If, While, Repeat, Match, Field, Index, Record, Array, Group, Unary, Float }
-struct HirExpr { kind: HirExprKind, a: I32, b: I32, t1: Text }
+struct HirExpr { kind: HirExprKind, a: I32, b: I32, c: I32, t1: Text, t2: Text, span: Span }
 struct HirExprId { index: I32 }
 struct HirBodyId { index: I32 }
-struct HirTypeRef { kind: HirTypeKind, t1: Text }
+struct HirTypeRef { kind: HirTypeKind, t1: Text, t2: Text }
 enum HirTypeKind { I32, F64, Bool, Text, Unit, Array, Named, Optional, Result }
 struct OptionalHirTypeRef { present: Bool, ty: HirTypeRef }
 struct OptionalHirExprId { present: Bool, id: HirExprId }
@@ -284,14 +284,14 @@ fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
         HirExprKind.Binary => hir_binary_to_mir(expr),
         HirExprKind.Unary => hir_unary_to_mir(expr),
         HirExprKind.Call => mir_block_with_inst(mir_inst_call(0, expr.t1, expr.a, expr.b, expr.c, 0, 0)),
-        HirExprKind.If => mir_block_new(),
-        HirExprKind.While => mir_block_new(),
-        HirExprKind.Repeat => mir_block_new(),
-        HirExprKind.Match => mir_block_new(),
+        HirExprKind.If => mir_block_with_inst(mir_inst_if(0, expr.a, expr.b, expr.c)),
+        HirExprKind.While => mir_block_with_inst(mir_inst_while(0, expr.a, expr.b)),
+        HirExprKind.Repeat => mir_block_with_inst(mir_inst_repeat(0, expr.a, expr.b)),
+        HirExprKind.Match => mir_block_with_inst(mir_inst_match(0, expr.a)),
         HirExprKind.Field => mir_block_new(),
         HirExprKind.Index => mir_block_new(),
-        HirExprKind.Record => mir_block_new(),
-        HirExprKind.Array => mir_block_new(),
+        HirExprKind.Record => mir_block_with_inst(mir_inst_make_record(0, expr.t1)),
+        HirExprKind.Array => mir_block_with_inst(mir_inst_list_new(0, expr.a, expr.b)),
         HirExprKind.Group => mir_block_new(),
     }
 }
