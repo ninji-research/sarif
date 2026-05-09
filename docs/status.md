@@ -1,6 +1,6 @@
 # Sarif Status
 
-As of May 6, 2026, Sarif is still in the bootstrap window.
+As of May 9, 2026, Sarif is still in the bootstrap window.
 
 ## Verified
 
