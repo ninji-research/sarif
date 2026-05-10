@@ -7288,15 +7288,13 @@ impl<'a> Interpreter<'a> {
     ) -> Result<RuntimeValue, RuntimeError> {
         let mut values = vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
         let mut slots = vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
-        if let ExecFlow::Return(value) = self.execute_insts(
+        self.execute_insts(
             function,
             &function.instructions,
             &mut values,
             &mut slots,
             args,
-        )? {
-            return Ok(value);
-        }
+        )?;
 
         function.result.map_or(Ok(RuntimeValue::Unit), |result| {
             values
@@ -7314,7 +7312,7 @@ impl<'a> Interpreter<'a> {
         values: &mut Vec<RuntimeValue>,
         slots: &mut Vec<RuntimeValue>,
         function_args: &[RuntimeValue],
-    ) -> Result<ExecFlow, RuntimeError>
+    ) -> Result<(), RuntimeError>
     where
         'a: 'b,
     {
@@ -7335,7 +7333,7 @@ impl<'a> Interpreter<'a> {
                     instructions = frame.saved_instructions;
                     pc = frame.pc;
                 } else {
-                    return Ok(ExecFlow::Continue);
+                    return Ok(());
                 }
                 continue;
             }
@@ -8408,15 +8406,13 @@ impl<'a> Interpreter<'a> {
                     } else {
                         (else_insts, else_result)
                     };
-                    if let ExecFlow::Return(value) = self.execute_insts(
+                    self.execute_insts(
                         function,
                         branch_insts,
                         values,
                         slots,
                         &active_args,
-                    )? {
-                        return Ok(ExecFlow::Return(value));
-                    }
+                    )?;
                     let result = branch_result.map_or(Ok(RuntimeValue::Unit), |result| {
                         values
                             .get(result.0 as usize)
@@ -8443,15 +8439,13 @@ impl<'a> Interpreter<'a> {
                             if let Some(slot) = index_slot {
                                 slots[slot.0 as usize] = RuntimeValue::Int(index);
                             }
-                            if let ExecFlow::Return(value) = self.execute_insts(
+                            self.execute_insts(
                                 function,
                                 body_insts,
                                 values,
                                 slots,
                                 &active_args,
-                            )? {
-                                return Ok(ExecFlow::Return(value));
-                            }
+                            )?;
                         }
                     }
                     values[dest.0 as usize] = RuntimeValue::Unit;
@@ -8463,15 +8457,13 @@ impl<'a> Interpreter<'a> {
                     body_insts,
                 } => {
                     loop {
-                        if let ExecFlow::Return(value) = self.execute_insts(
+                        self.execute_insts(
                             function,
                             condition_insts,
                             values,
                             slots,
                             &active_args,
-                        )? {
-                            return Ok(ExecFlow::Return(value));
-                        }
+                        )?;
                         let RuntimeValue::Bool(keep_going) = values
                             .get(condition.0 as usize)
                             .cloned()
@@ -8491,15 +8483,13 @@ impl<'a> Interpreter<'a> {
                         if !keep_going {
                             break;
                         }
-                        if let ExecFlow::Return(value) = self.execute_insts(
+                        self.execute_insts(
                             function,
                             body_insts,
                             values,
                             slots,
                             &active_args,
-                        )? {
-                            return Ok(ExecFlow::Return(value));
-                        }
+                        )?;
                     }
                     values[dest.0 as usize] = RuntimeValue::Unit;
                 }
@@ -8682,24 +8672,21 @@ impl<'a> Interpreter<'a> {
                     if let Some(arm) = matched_arm {
                         let saved_args = std::mem::take(&mut active_args);
                         active_args = arg_values;
-                        if let ExecFlow::Return(value) = self.execute_insts(
+                        self.execute_insts(
                             function,
                             &arm.body_insts,
                             values,
                             slots,
                             &active_args,
-                        )? {
-                            active_args = saved_args;
-                            values[dest.0 as usize] = value;
-                        } else if let Some(result_id) = arm.body_result {
+                        )?;
+                        active_args = saved_args;
+                        if let Some(result_id) = arm.body_result {
                             let value = values
                                 .get(result_id.0 as usize)
                                 .cloned()
                                 .ok_or_else(|| RuntimeError::new("missing handler arm result"))?;
-                            active_args = saved_args;
                             values[dest.0 as usize] = value;
                         } else {
-                            active_args = saved_args;
                             values[dest.0 as usize] = RuntimeValue::Unit;
                         }
                     } else {
@@ -8721,7 +8708,7 @@ impl<'a> Interpreter<'a> {
                         vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
                     let mut local_slots =
                         vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
-                    let flow = self.execute_insts(
+                    self.execute_insts(
                         function,
                         body_insts,
                         &mut local_values,
@@ -8729,19 +8716,14 @@ impl<'a> Interpreter<'a> {
                         &[],
                     )?;
                     self.handlers.pop();
-                    match flow {
-                        ExecFlow::Return(value) => return Ok(ExecFlow::Return(value)),
-                        ExecFlow::Continue => {
-                            if let Some(result_id) = body_result {
-                                let value =
-                                    local_values.get(result_id.0 as usize).cloned().ok_or_else(
-                                        || RuntimeError::new("missing handle body result"),
-                                    )?;
-                                values[dest.0 as usize] = value;
-                            } else {
-                                values[dest.0 as usize] = RuntimeValue::Unit;
-                            }
-                        }
+                    if let Some(result_id) = body_result {
+                        let value =
+                            local_values.get(result_id.0 as usize).cloned().ok_or_else(
+                                || RuntimeError::new("missing handle body result"),
+                            )?;
+                        values[dest.0 as usize] = value;
+                    } else {
+                        values[dest.0 as usize] = RuntimeValue::Unit;
                     }
                 }
             }
@@ -8922,11 +8904,6 @@ pub fn decode_enum_tag(
         variant: variant.clone(),
         payload: None,
     }))
-}
-
-enum ExecFlow {
-    Continue,
-    Return(RuntimeValue),
 }
 
 struct CalleeFrame<'a, 'b> {
