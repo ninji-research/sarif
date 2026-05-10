@@ -1,6 +1,6 @@
 # Sarif Status
 
-As of May 9, 2026, Sarif is still in the bootstrap window.
+As of May 9, 2026 (updated frequently), Sarif is still in the bootstrap window.
 
 ## Verified
 
@@ -81,8 +81,19 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - inferred const-generic fixed-array helpers now build cleanly on the native backend, and their array length parameters are now available as immutable `I32` values inside the same generic function body and contracts
 - repeat fixed-array literals `[value; N]` are now maintained stage-0 syntax for duplicate-safe fixed-array elements, reusing the same fixed-length array model instead of introducing a second dynamic array form
 - the `binarytrees` lane no longer exhibits the prior pathological temporary-tree retention
+- **Stage-1 MIR-level escape analysis** now uses interprocedural fixed-point iteration instead of conservative `has_alloc` heuristic; each function's result is analyzed via data-flow through the call graph until stable. Eliminates false positives from pass-through wrappers and non-allocating callees.
+- `arg_text` corrected from arena to `malloc` allocation: argv strings are process-lifetime, could invalidate results across `alloc_pop`. Now consistent with `stdin_cache`.
+- **`ExecFlow::Return` dead code removed**: the variant was never constructed; the entire enum removed, `execute_insts` return type simplified to `Result<(), RuntimeError>`, all unreachable match arms eliminated. Net −48 lines.
+- **Total profile** now accepts `repeat N` with a compile-time constant integer count as statically terminating; `while` and non-constant repeats remain rejected.
+- **MIR interpreter Call trampoline**: `Call` handling made fully iterative via `callee_stack: Vec<CalleeFrame>` in `execute_insts`, eliminating unbounded recursion proportional to call chain depth.
+- **Performance: eliminated `values.clone()`** in If/While/Repeat/Perform — branches now execute directly on the real `values`/`slots` vecs instead of cloning 200+ RuntimeValues per branch/loop iteration.
+- **Performance: internalized `args`** into `execute_insts` state — `active_args` managed by callee stack inside the loop, eliminating all `args.clone()` in branches.
+- **C runtime fuzzing**: clang libFuzzer + ASan harness (13 opcodes), caught and fixed `sarif_slice_blob` UTF-8 backward continuation-byte underflow. 20M iterations: **0 crashes, 0 memory safety violations**, RSS stable at 216MB. Extended 100M-iteration run now in progress (~200K exec/s).
+- **Rust-side pipeline fuzzing**: `cargo +nightly fuzz` target covering lexer → parser → AST → HIR → semantic → MIR → escape analysis. 8,504 coverage blocks in first 10 seconds. Long-term run in progress.
+- **CI workflow** written to `.github/workflows/ci.yml` (build, test, clippy, formatting check); push blocked by PAT scope — needs maintainer token with `workflow` scope.
+- **C runtime overflow guards**: text builder reserve growth guard against UINT64_MAX wraparound; list push capacity guard `used > UINT64_MAX/2` before doubling.
 - the maintained compiler is still Rust-hosted
-- alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings; runtime text ownership audit complete: text_concat and text_slice no longer return original scoped arena pointers (always allocate), arg_text uses process-lifetime malloc, stdin_cache uses process-lifetime malloc; remaining work is MIR-level escape analysis as hard error for RT profile
+- alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings; runtime text ownership audit complete: text_concat and text_slice no longer return original scoped arena pointers (always allocate), arg_text uses process-lifetime malloc, stdin_cache uses process-lifetime malloc; MIR-level escape analysis (Stage-1) is complete as interprocedural fixed-point iteration, replacing the earlier conservative `has_alloc` approach
 - the native executable path is maintained on Linux, feasible but less exercised on macOS, and not yet maintained on Windows or mobile hosts; the current platform matrix is recorded in `docs/platforms.md`
 - Stage-1 bootstrap HIR→MIR lowering is now complete; remaining work is self-hosting the tools themselves
 - Repository audit complete (May 2026): empty `bootstrap/sarif_compiler` directory removed as cruft; no dead code, no TODOs; codebase is lean and well-organized
@@ -104,10 +115,16 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
 - Constant folding at MIR lowering (24 tests covering int/float operators)
 - Bootstrap bitwise operator lowering
 - RT profile escape analysis as hard error
+- MIR-level interprocedural escape analysis with fixed-point iteration (replaces conservative `has_alloc` heuristic)
+- MIR interpreter Call trampoline (iterative, eliminates unbounded recursion)
+- ExecFlow::Return dead code removed (simplified interpreter control flow)
 
 **Remaining Stage-1 work:**
-- Self-host format/check/doc using the bootstrap compiler as maintained authority
-  (requires completing the bootstrap compiler's end-to-end lowering pipeline)
+- Self-host check/doc using the bootstrap compiler as maintained authority
+  (bootstrap format is flipped to Sarif host; check/doc remain Rust aliases because the
+  Sarif bootstrap does not have full semantic analysis parity — assessed as not practical
+  to implement for the current bootstrap runtime; requires ~4150 lines of type inference
+  + ownership tracking and is constrained by bootstrap fixed-size tuple limits)
 
 **Current bnch scores (May 2026):**
 - overall rank: `1/7`

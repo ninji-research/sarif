@@ -7,3 +7,8 @@ runtime/fuzz/crash-*
 runtime/fuzz/leak-*
 runtime/fuzz/oom-*
 runtime/fuzz/*.log
+fuzz/target/
+fuzz/artifacts/
+fuzz/corpus/
+fuzz/Cargo.lock
+fuzz/*.log

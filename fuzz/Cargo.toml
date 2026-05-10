@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "sarifc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+sarif_codegen = { path = "../crates/sarif_codegen" }
+sarif_frontend = { path = "../crates/sarif_frontend" }
+sarif_syntax = { path = "../crates/sarif_syntax" }
+
+[[bin]]
+name = "pipeline"
+path = "fuzz_targets/pipeline.rs"
+test = false
+doc = false
+bench = false
