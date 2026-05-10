@@ -164,11 +164,29 @@ pub struct LexOutput {
 pub fn lex(source: &str) -> LexOutput {
     let mut lexer = RawTokenKind::lexer(source);
     let mut output = LexOutput::default();
+    let mut source_offset: usize = 0;
 
     while let Some(result) = lexer.next() {
         let range = lexer.span();
-        let span = Span::new(range.start, range.end);
-        let lexeme = &source[range];
+
+        if result.is_err() && range.start == range.end {
+            let abs_pos = source_offset + range.start;
+            let span = Span::new(abs_pos, abs_pos + 1);
+            output.diagnostics.push(Diagnostic::new(
+                "lex.null-byte",
+                format!("byte 0x{:02x} at position {}", source.as_bytes()[abs_pos], abs_pos),
+                span,
+                Some("Remove this byte from source.".to_owned()),
+            ));
+            source_offset = abs_pos + 1;
+            lexer = RawTokenKind::lexer(&source[source_offset..]);
+            continue;
+        }
+
+        let abs_start = source_offset + range.start;
+        let abs_end = source_offset + range.end;
+        let span = Span::new(abs_start, abs_end);
+        let lexeme = &source[abs_start..abs_end];
 
         if let Ok(kind) = result {
             let interned_lexeme = if kind == RawTokenKind::Ident {
@@ -197,7 +215,7 @@ pub fn lex(source: &str) -> LexOutput {
     output.tokens.push(Token::new(
         TokenKind::Eof,
         String::new(),
-        Span::empty_at(source.len()),
+        Span::empty_at(source_offset),
     ));
 
     output

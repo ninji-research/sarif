@@ -363,3 +363,149 @@ fn type_can_hold_arena_memory(ty: &str) -> bool {
         || ty.contains("List")
         || ty.contains("Bytes")
 }
+
+#[cfg(test)]
+mod tests {
+    use sarif_frontend::hir::lower as lower_hir;
+    use sarif_syntax::ast::lower as lower_ast;
+    use sarif_syntax::lexer::lex;
+    use sarif_syntax::parser::parse;
+
+    use crate::lower;
+
+    fn lower_source(source: &str) -> crate::MirLowering {
+        let lexed = lex(source);
+        let parsed = parse(&lexed.tokens);
+        let ast = lower_ast(&parsed.root);
+        let hir = lower_hir(&ast.file);
+        lower(&hir.module)
+    }
+
+    #[test]
+    fn no_alloc_effect_no_diagnostic() {
+        let mir = lower_source("fn main() -> Text { arg_text(0) }");
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        assert!(diags.is_empty(), "no alloc effect should not produce escape diagnostics");
+    }
+
+    #[test]
+    fn i32_return_no_diagnostic() {
+        let mir = lower_source(
+            "\
+fn main() -> I32 effects [alloc] { 42 }",
+        );
+        assert!(mir.diagnostics.is_empty(), "lowering should succeed: {:#?}", mir.diagnostics);
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(diags.is_empty(), "I32 cannot hold arena memory");
+    }
+
+    #[test]
+    fn text_created_inside_triggers_diagnostic() {
+        let mir = lower_source(
+            "\
+fn main() -> Text effects [alloc] { arg_text(0) }",
+        );
+        assert!(mir.diagnostics.is_empty(), "lowering should succeed: {:#?}", mir.diagnostics);
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(!diags.is_empty(), "returning arena text should trigger diagnostic");
+        assert!(diags.iter().any(|d| d.code == "escape.analysis.required"));
+    }
+
+    #[test]
+    fn param_passthrough_no_diagnostic() {
+        let mir = lower_source(
+            "\
+fn identity(s: Text) -> Text effects [alloc] { s }
+fn main() -> I32 { 0 }",
+        );
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        assert!(diags.is_empty(), "passing a parameter through should not produce a false positive");
+    }
+
+    #[test]
+    fn text_through_if_triggers_diagnostic() {
+        let mir = lower_source(
+            "\
+fn choose(c: Bool) -> Text effects [alloc] {
+  if c { arg_text(0) } else { arg_text(1) }
+}
+fn main() -> Text effects [alloc] { choose(true) }",
+        );
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        assert!(!diags.is_empty(), "escaping through if should trigger diagnostic");
+    }
+
+    #[test]
+    fn type_list_text_is_arena_holding() {
+        assert!(super::type_can_hold_arena_memory("List[Text]"), "List[Text] holds arena memory");
+        assert!(super::type_can_hold_arena_memory("List[I32]"), "List[I32] holds arena memory via List");
+        assert!(super::type_can_hold_arena_memory("Bytes"), "Bytes holds arena memory");
+        assert!(!super::type_can_hold_arena_memory("I32"), "I32 does not hold arena memory");
+        assert!(!super::type_can_hold_arena_memory("F64"), "F64 does not hold arena memory");
+        assert!(!super::type_can_hold_arena_memory("Bool"), "Bool does not hold arena memory");
+    }
+
+    #[test]
+    fn alloc_text_ret_list_triggers_diagnostic() {
+        let mir = lower_source(
+            "\
+fn take(s: Text) -> Text effects [alloc] { s }
+fn main() -> Text effects [alloc] { take(arg_text(0)) }",
+        );
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        assert!(!diags.is_empty(), "returning passed-through arena text should trigger on main");
+    }
+
+    #[test]
+    fn non_alloc_callee_no_false_positive() {
+        let mir = lower_source(
+            "\
+fn helper() -> I32 { 42 }
+fn main() -> I32 effects [alloc] { helper() }",
+        );
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        assert!(diags.is_empty(), "calling non-alloc function should not cause false positive");
+    }
+
+    #[test]
+    fn alloc_callee_triggers_on_caller() {
+        let mir = lower_source(
+            "\
+fn inner() -> Text effects [alloc] { arg_text(0) }
+fn outer() -> Text effects [alloc] { inner() }
+fn main() -> Text effects [alloc] { outer() }",
+        );
+        let diags = super::analyze_escapes(&mir.program);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        assert!(!diags.is_empty(), "allocating callee should trigger on caller");
+    }
+}

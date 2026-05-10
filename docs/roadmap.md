@@ -15,11 +15,14 @@ Current maintained authority:
 
 ## Stage 1
 
-Promote Sarif-hosted tooling to maintained authority:
+Promote Sarif-hosted tooling to maintained authority.
 
-- formatter
-- semantic `check`
-- semantic `doc`
+Completed:
+- **Formatter**: `sarifc format` now runs the Sarif-hosted formatter by default, passing parity tests against the Rust formatter for all shipped inputs. This validates the bootstrap compiler against serious production use.
+
+Remaining (blocked — see Memory Model section):
+- **Semantic `check`**: Requires a Sarif-hosted semantic analysis pass that does type checking, name resolution, and borrow inference. Not practical in the current bootstrap runtime due to fixed-size tuple limits and the ~4150 lines of infrastructure needed.
+- **Semantic `doc`**: Shares the same semantic analysis dependency as `check`.
 
 Rust remains required until those authority paths are actually replaced without reducing correctness or coverage.
 
@@ -42,14 +45,16 @@ Required remaining work:
 - decide whether long-lived text needs explicit ownership, interning, or a separate process-lifetime arena
 - add measurement coverage for long-running scoped text workflows
 
-**Escape Analysis for [alloc] (Stage-1 Hard Error)**
+**Escape Analysis for [alloc] (Stage-1 Hard Error — Complete)**
 
-Stage-0 emits a `semantic.alloc-escape` warning when `[alloc]` functions return types that could reference arena-allocated memory and the function body actually allocates, including transitive calls to other `[alloc]` functions. Non-allocating compatibility declarations no longer produce escape warnings. This is still a Stage-0 approximation rather than full proof.
+Stage-0 emits a `semantic.alloc-escape` warning when `[alloc]` functions return types that could reference arena-allocated memory and the function body actually allocates, including transitive calls to other `[alloc]` functions. Non-allocating compatibility declarations no longer produce escape warnings.
 
-Required implementation: Add MIR-level escape analysis in Stage-1 that:
+MIR-level escape analysis (interprocedural fixed-point iteration) now implements the full Stage-1 proof:
 - Detects when a pointer to arena-allocated data would escape the scope where it was created
-- Emits a hard error (not just a warning) when allocations would escape their scope
+- Emits a hard error (blocks compilation) for RT profile; warnings for Core and Total profiles
 - Distinguishes between allocations created inside an `[alloc]` function (which cannot be safely returned) and parameters passed into the function (which can be returned)
+- Analysis is monotonic (false → true only), converging in at most N passes for N functions
+- Eliminates false positives from pass-through wrappers and non-allocating callees
 
 This eliminates the "trust the programmer" model and brings Sarif's memory safety guarantees in line with its performance goals.
 
@@ -117,6 +122,8 @@ Sarif does not yet ship:
 - maintained multithreading support
 - maintained parallel runtime primitives
 - a maintained reactive DAG runtime
-- self-hosted release authority for `format`, `check`, or `doc`
+- self-hosted release authority for `check` or `doc`
+
+Format is flipped and self-hosted (`bootstrap-format` is the default `sarifc format` path).
 
 Platform reality is tracked separately in [platforms.md](platforms.md): Linux native is the maintained host target, macOS native is feasible but less exercised, wasm is maintained with explicit exclusions, and Windows/mobile/cross-compilation remain future work rather than implied support.
