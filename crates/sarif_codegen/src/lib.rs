@@ -7283,7 +7283,7 @@ impl<'a> Interpreter<'a> {
     #[allow(clippy::too_many_lines)]
     fn execute_function(
         &mut self,
-        function: &Function,
+        function: &'a Function,
         args: &[RuntimeValue],
     ) -> Result<RuntimeValue, RuntimeError> {
         let mut values = vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
@@ -7293,7 +7293,7 @@ impl<'a> Interpreter<'a> {
             &function.instructions,
             &mut values,
             &mut slots,
-            args,
+            args.to_vec(),
         )? {
             return Ok(value);
         }
@@ -7308,15 +7308,39 @@ impl<'a> Interpreter<'a> {
 
     #[allow(clippy::too_many_lines)]
     #[allow(clippy::ptr_arg)]
-    fn execute_insts(
+    fn execute_insts<'b>(
         &mut self,
-        function: &Function,
-        instructions: &[Inst],
+        mut function: &'a Function,
+        mut instructions: &'b [Inst],
         values: &mut Vec<RuntimeValue>,
         slots: &mut Vec<RuntimeValue>,
-        args: &[RuntimeValue],
-    ) -> Result<ExecFlow, RuntimeError> {
-        for inst in instructions {
+        mut args: Vec<RuntimeValue>,
+    ) -> Result<ExecFlow, RuntimeError>
+    where
+        'a: 'b,
+    {
+        let mut pc = 0;
+        let mut callee_stack: Vec<CalleeFrame<'a, 'b>> = Vec::new();
+        loop {
+            if pc >= instructions.len() {
+                if let Some(frame) = callee_stack.pop() {
+                    let result = function.result.map_or(RuntimeValue::Unit, |r| {
+                        values.get(r.0 as usize).cloned().unwrap_or(RuntimeValue::Unit)
+                    });
+                    *values = frame.saved_values;
+                    *slots = frame.saved_slots;
+                    args = frame.saved_args;
+                    values[frame.dest.0 as usize] = result;
+                    function = frame.saved_function;
+                    instructions = frame.saved_instructions;
+                    pc = frame.pc;
+                } else {
+                    return Ok(ExecFlow::Continue);
+                }
+                continue;
+            }
+            let inst = &instructions[pc];
+            pc += 1;
             match inst {
                 Inst::LoadParam { dest, index } => {
                     let value = args
@@ -8391,7 +8415,7 @@ impl<'a> Interpreter<'a> {
                         branch_insts,
                         &mut branch_values,
                         &mut branch_slots,
-                        args,
+                        args.clone(),
                     )? {
                         return Ok(ExecFlow::Return(value));
                     }
@@ -8429,7 +8453,7 @@ impl<'a> Interpreter<'a> {
                                 body_insts,
                                 &mut body_values,
                                 &mut body_slots,
-                                args,
+                                args.clone(),
                             )? {
                                 return Ok(ExecFlow::Return(value));
                             }
@@ -8452,7 +8476,7 @@ impl<'a> Interpreter<'a> {
                             condition_insts,
                             &mut condition_values,
                             &mut condition_slots,
-                            args,
+                            args.clone(),
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
@@ -8482,7 +8506,7 @@ impl<'a> Interpreter<'a> {
                             body_insts,
                             &mut body_values,
                             &mut body_slots,
-                            args,
+                            args.clone(),
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
@@ -8603,12 +8627,12 @@ impl<'a> Interpreter<'a> {
                         "ge"
                     )?;
                 }
-                Inst::Call { dest, callee, args } => {
+                Inst::Call { dest, callee, args: call_refs } => {
                     let callee_fn = *self
                         .functions
                         .get(callee.as_str())
                         .ok_or_else(|| RuntimeError::new(format!("unknown callee `{callee}`")))?;
-                    let arg_values = args
+                    let arg_values = call_refs
                         .iter()
                         .map(|value| {
                             values.get(value.0 as usize).cloned().ok_or_else(|| {
@@ -8616,8 +8640,21 @@ impl<'a> Interpreter<'a> {
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    let result = self.execute_function(callee_fn, &arg_values)?;
-                    values[dest.0 as usize] = result;
+                    callee_stack.push(CalleeFrame {
+                        saved_function: function,
+                        saved_instructions: instructions,
+                        saved_values: std::mem::take(values),
+                        saved_slots: std::mem::take(slots),
+                        saved_args: args.clone(),
+                        pc,
+                        dest: *dest,
+                    });
+                    function = callee_fn;
+                    instructions = &callee_fn.instructions;
+                    *values = vec![RuntimeValue::Unit; callee_fn.value_count.max(1) as usize];
+                    *slots = vec![RuntimeValue::Unit; callee_fn.slot_count.max(1) as usize];
+                    args = arg_values;
+                    pc = 0;
                 }
                 Inst::Assert { condition, kind } => {
                     let condition = extract_bool(values, *condition)?;
@@ -8662,7 +8699,7 @@ impl<'a> Interpreter<'a> {
                             &arm.body_insts,
                             &mut local_values,
                             &mut local_slots,
-                            &arg_values,
+                            arg_values.clone(),
                         )? {
                             values[dest.0 as usize] = value;
                         } else if let Some(result_id) = arm.body_result {
@@ -8698,7 +8735,7 @@ impl<'a> Interpreter<'a> {
                         body_insts,
                         &mut local_values,
                         &mut local_slots,
-                        &[],
+                        vec![],
                     )?;
                     self.handlers.pop();
                     match flow {
@@ -8718,7 +8755,6 @@ impl<'a> Interpreter<'a> {
                 }
             }
         }
-        Ok(ExecFlow::Continue)
     }
 
     fn ensure_type(&self, ty: &str, value: &RuntimeValue) -> Result<(), RuntimeError> {
@@ -8900,6 +8936,16 @@ pub fn decode_enum_tag(
 enum ExecFlow {
     Continue,
     Return(RuntimeValue),
+}
+
+struct CalleeFrame<'a, 'b> {
+    saved_function: &'a Function,
+    saved_instructions: &'b [Inst],
+    saved_values: Vec<RuntimeValue>,
+    saved_slots: Vec<RuntimeValue>,
+    saved_args: Vec<RuntimeValue>,
+    pc: usize,
+    dest: ValueId,
 }
 
 #[inline(always)]

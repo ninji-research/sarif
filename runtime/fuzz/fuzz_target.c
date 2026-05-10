@@ -54,6 +54,26 @@ static double extract_f64(const uint8_t* data, size_t len, size_t offset) {
 }
 
 // ---------------------------------------------------------------------------
+// Cleanup helpers for heap-allocated objects (not arena-managed).
+// ---------------------------------------------------------------------------
+
+static void cleanup_list(void* list_ptr) {
+    if (list_ptr) {
+        SarifList* list = (SarifList*)list_ptr;
+        free(list->values);
+        free(list);
+    }
+}
+
+static void cleanup_text_index(void* index_ptr) {
+    if (index_ptr) {
+        SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+        free(index->entries);
+        free(index);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Fuzz target entry point.
 // ---------------------------------------------------------------------------
 
@@ -108,20 +128,18 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (builder) {
                 unsigned char* text = make_text(payload, payload_len, 256);
                 if (text) {
-                    builder = sarif_text_builder_append(builder, text);
-                    if (builder) {
-                        builder = sarif_text_builder_append_codepoint(
-                            builder, extract_i64(payload, payload_len, 0, 65));
-                        if (builder) {
-                            builder = sarif_text_builder_append_ascii(
-                                builder, extract_i64(payload, payload_len, 0, 65) & 0x7f);
-                            if (builder) {
-                                builder = sarif_text_builder_append_i32(
-                                    builder, extract_i64(payload, payload_len, 0, 42));
-                            }
-                        }
-                    }
+                    void* tmp = sarif_text_builder_append(builder, text);
+                    if (tmp) builder = tmp;
                 }
+                void* tmp = sarif_text_builder_append_codepoint(
+                    builder, extract_i64(payload, payload_len, 0, 65));
+                if (tmp) builder = tmp;
+                tmp = sarif_text_builder_append_ascii(
+                    builder, extract_i64(payload, payload_len, 0, 65) & 0x7f);
+                if (tmp) builder = tmp;
+                tmp = sarif_text_builder_append_i32(
+                    builder, extract_i64(payload, payload_len, 0, 42));
+                if (tmp) builder = tmp;
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
             }
@@ -134,7 +152,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 if (text) {
                     int64_t start = (int64_t)extract_u64(payload, payload_len, 0, 0);
                     int64_t end = (int64_t)extract_u64(payload, payload_len, 8, payload_len);
-                    builder = sarif_text_builder_append_slice(builder, text, start, end);
+                    void* tmp = sarif_text_builder_append_slice(builder, text, start, end);
+                    if (tmp) builder = tmp;
                 }
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
@@ -149,6 +168,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 sarif_list_push(list, push_len, extract_u64(payload, payload_len, 24, 0));
                 sarif_list_sort_text(list, push_len);
             }
+            cleanup_list(list);
             break;
         }
         case 6: {
@@ -209,6 +229,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                                                    extract_i64(payload, payload_len, 8, 0));
                 }
             }
+            cleanup_text_index(index);
             break;
         }
         case 11: {
@@ -229,18 +250,18 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 unsigned char* short_text = sarif_text_alloc(5);
                 if (short_text) {
                     memcpy(short_text + 8, "hello", 5);
-                    builder = sarif_text_builder_append(builder, short_text);
+                    void* tmp = sarif_text_builder_append(builder, short_text);
+                    if (tmp) builder = tmp;
                 }
                 unsigned char* big_text = make_text(payload, payload_len, 8192);
-                if (big_text && builder) {
+                if (big_text) {
                     int64_t start = (int64_t)extract_u64(payload, payload_len, 0, 0);
                     int64_t end = (int64_t)extract_u64(payload, payload_len, 8, payload_len);
-                    builder = sarif_text_builder_append_slice(builder, big_text, start, end);
+                    void* tmp = sarif_text_builder_append_slice(builder, big_text, start, end);
+                    if (tmp) builder = tmp;
                 }
-                if (builder) {
-                    void* result = sarif_text_builder_finish(builder);
-                    (void)result;
-                }
+                void* result = sarif_text_builder_finish(builder);
+                (void)result;
             }
             break;
         }

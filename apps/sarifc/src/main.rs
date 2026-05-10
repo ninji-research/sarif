@@ -227,7 +227,7 @@ fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
         let path = command.path.clone();
         let result = std::thread::Builder::new()
             .name("bootstrap-format".to_owned())
-            .stack_size(32 * 1024 * 1024)
+            .stack_size(48 * 1024 * 1024)
             .spawn(move || {
                 let mem_loaded = LoadedSource::load(&path)?;
                 render_bootstrap_format(&mem_loaded)

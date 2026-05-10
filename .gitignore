@@ -1,2 +1,9 @@
 target/
 .verify-target/
+runtime/fuzz/fuzz_target
+runtime/fuzz/corpus/
+runtime/fuzz/corpus-*/
+runtime/fuzz/crash-*
+runtime/fuzz/leak-*
+runtime/fuzz/oom-*
+runtime/fuzz/*.log
