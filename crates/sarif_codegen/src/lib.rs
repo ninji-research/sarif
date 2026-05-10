@@ -7293,7 +7293,7 @@ impl<'a> Interpreter<'a> {
             &function.instructions,
             &mut values,
             &mut slots,
-            args.to_vec(),
+            args,
         )? {
             return Ok(value);
         }
@@ -7307,19 +7307,19 @@ impl<'a> Interpreter<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    #[allow(clippy::ptr_arg)]
     fn execute_insts<'b>(
         &mut self,
         mut function: &'a Function,
         mut instructions: &'b [Inst],
         values: &mut Vec<RuntimeValue>,
         slots: &mut Vec<RuntimeValue>,
-        mut args: Vec<RuntimeValue>,
+        function_args: &[RuntimeValue],
     ) -> Result<ExecFlow, RuntimeError>
     where
         'a: 'b,
     {
         let mut pc = 0;
+        let mut active_args: Vec<RuntimeValue> = function_args.to_vec();
         let mut callee_stack: Vec<CalleeFrame<'a, 'b>> = Vec::new();
         loop {
             if pc >= instructions.len() {
@@ -7329,7 +7329,7 @@ impl<'a> Interpreter<'a> {
                     });
                     *values = frame.saved_values;
                     *slots = frame.saved_slots;
-                    args = frame.saved_args;
+                    active_args = frame.saved_args;
                     values[frame.dest.0 as usize] = result;
                     function = frame.saved_function;
                     instructions = frame.saved_instructions;
@@ -7343,7 +7343,7 @@ impl<'a> Interpreter<'a> {
             pc += 1;
             match inst {
                 Inst::LoadParam { dest, index } => {
-                    let value = args
+                    let value = active_args
                         .get(*index)
                         .ok_or_else(|| RuntimeError::new("parameter load out of bounds"))?;
                     values[dest.0 as usize] = value.clone();
@@ -8413,7 +8413,7 @@ impl<'a> Interpreter<'a> {
                         branch_insts,
                         values,
                         slots,
-                        args.clone(),
+                        &active_args,
                     )? {
                         return Ok(ExecFlow::Return(value));
                     }
@@ -8448,7 +8448,7 @@ impl<'a> Interpreter<'a> {
                                 body_insts,
                                 values,
                                 slots,
-                                args.clone(),
+                                &active_args,
                             )? {
                                 return Ok(ExecFlow::Return(value));
                             }
@@ -8468,7 +8468,7 @@ impl<'a> Interpreter<'a> {
                             condition_insts,
                             values,
                             slots,
-                            args.clone(),
+                            &active_args,
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
@@ -8496,7 +8496,7 @@ impl<'a> Interpreter<'a> {
                             body_insts,
                             values,
                             slots,
-                            args.clone(),
+                            &active_args,
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
@@ -8634,7 +8634,7 @@ impl<'a> Interpreter<'a> {
                         saved_instructions: instructions,
                         saved_values: std::mem::take(values),
                         saved_slots: std::mem::take(slots),
-                        saved_args: args.clone(),
+                        saved_args: active_args.clone(),
                         pc,
                         dest: *dest,
                     });
@@ -8642,7 +8642,7 @@ impl<'a> Interpreter<'a> {
                     instructions = &callee_fn.instructions;
                     *values = vec![RuntimeValue::Unit; callee_fn.value_count.max(1) as usize];
                     *slots = vec![RuntimeValue::Unit; callee_fn.slot_count.max(1) as usize];
-                    args = arg_values;
+                    active_args = arg_values;
                     pc = 0;
                 }
                 Inst::Assert { condition, kind } => {
@@ -8680,21 +8680,26 @@ impl<'a> Interpreter<'a> {
                             .cloned()
                     });
                     if let Some(arm) = matched_arm {
+                        let saved_args = std::mem::take(&mut active_args);
+                        active_args = arg_values;
                         if let ExecFlow::Return(value) = self.execute_insts(
                             function,
                             &arm.body_insts,
                             values,
                             slots,
-                            arg_values.clone(),
+                            &active_args,
                         )? {
+                            active_args = saved_args;
                             values[dest.0 as usize] = value;
                         } else if let Some(result_id) = arm.body_result {
                             let value = values
                                 .get(result_id.0 as usize)
                                 .cloned()
                                 .ok_or_else(|| RuntimeError::new("missing handler arm result"))?;
+                            active_args = saved_args;
                             values[dest.0 as usize] = value;
                         } else {
+                            active_args = saved_args;
                             values[dest.0 as usize] = RuntimeValue::Unit;
                         }
                     } else {
@@ -8721,7 +8726,7 @@ impl<'a> Interpreter<'a> {
                         body_insts,
                         &mut local_values,
                         &mut local_slots,
-                        vec![],
+                        &[],
                     )?;
                     self.handlers.pop();
                     match flow {
