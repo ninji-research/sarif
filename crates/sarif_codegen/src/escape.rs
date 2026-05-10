@@ -6,24 +6,45 @@ use crate::{Function, Inst, Program, ValueId};
 
 #[derive(Clone, Debug)]
 struct CalleeInfo {
-    has_alloc: bool,
-    return_type: Option<String>,
+    return_escapes: bool,
 }
 
 pub fn analyze_escapes(program: &Program) -> Vec<Diagnostic> {
-    let callee_map: HashMap<String, CalleeInfo> = program
+    let mut callee_map: HashMap<String, CalleeInfo> = program
         .functions
         .iter()
-        .map(|f| {
-            (
-                f.name.clone(),
-                CalleeInfo {
-                    has_alloc: f.effects.iter().any(|e| e == "alloc"),
-                    return_type: f.return_type.clone(),
-                },
-            )
-        })
+        .map(|f| (f.name.clone(), CalleeInfo { return_escapes: false }))
         .collect();
+
+    // Fixed-point iteration: compute return_escapes for each function.
+    // return_escapes is true when the function's result value is in the
+    // escaped set — meaning it references arena memory created inside
+    // the function or transitively through callees.
+    // Uses a snapshot of the previous iteration for the interprocedural
+    // analysis, so changes propagate upward through the call graph.
+    loop {
+        let mut changed = false;
+        let snapshot = callee_map.clone();
+        for function in &program.functions {
+            let may_escape = function.result.is_some_and(|result| {
+                function.effects.iter().any(|e| e == "alloc")
+                    && function
+                        .return_type
+                        .as_deref()
+                        .is_some_and(type_can_hold_arena_memory)
+                    && value_may_escape(result, function, &snapshot)
+            });
+            if let Some(info) = callee_map.get_mut(&function.name) {
+                if info.return_escapes != may_escape {
+                    info.return_escapes = may_escape;
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
 
     let mut diagnostics = Vec::new();
     for function in &program.functions {
@@ -193,13 +214,7 @@ impl Env<'_> {
             }
 
             Inst::Call { dest, callee, args } => {
-                if let Some(info) = self.callee_map.get(callee)
-                    && info.has_alloc
-                    && info
-                        .return_type
-                        .as_deref()
-                        .is_some_and(type_can_hold_arena_memory)
-                {
+                if let Some(info) = self.callee_map.get(callee) && info.return_escapes {
                     self.mark(*dest);
                 }
                 if args.iter().any(|a| self.is_escaped(*a)) {
