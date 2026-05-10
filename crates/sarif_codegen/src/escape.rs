@@ -34,11 +34,11 @@ pub fn analyze_escapes(program: &Program) -> Vec<Diagnostic> {
                         .is_some_and(type_can_hold_arena_memory)
                     && value_may_escape(result, function, &snapshot)
             });
-            if let Some(info) = callee_map.get_mut(&function.name) {
-                if info.return_escapes != may_escape {
-                    info.return_escapes = may_escape;
-                    changed = true;
-                }
+            if let Some(info) = callee_map.get_mut(&function.name)
+                && info.return_escapes != may_escape
+            {
+                info.return_escapes = may_escape;
+                changed = true;
             }
         }
         if !changed {
