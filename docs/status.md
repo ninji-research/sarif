@@ -47,6 +47,8 @@ Sarif is still materially behind the best concise baselines on source size. The 
 
 ## Important Current Truth
 
+- **Conditional runtime compilation**: `RuntimeFeatures::detect()` scans the program for text builder, text index, and sort usage. The native object backend only declares runtime helpers for features the program actually uses. The C runtime has `#ifndef` guards (`SARIF_NO_TEXT_BUILDER`, `SARIF_NO_TEXT_INDEX`, `SARIF_NO_SORT`) so unused subsystems are excluded from compiled runtime objects, reducing binary size for programs that don't use text builders, text indices, or sort.
+- **AllocPush/AllocPop wired up**: The MIR interpreter now properly delegates `AllocPush`/`AllocPop` to `self.alloc_push()` / `self.alloc_pop()`. The C runtime's arena allocator correctly pushes and pops allocation scopes, validated by CLI regression tests.
 - Sarif now covers the full retained main-track benchmark suite in `~/bnch`
 - Sarif is currently first overall, first on speed, first on memory, first on build time, and second on deploy size in the latest local clean `~/bnch` run
 - Sarif is currently first on build time; the native artifact path now reuses cached runtime objects instead of recompiling the static runtime every build, compiles the shared C runtime with a size-oriented flag set while leaving generated code on the maintained performance-oriented path, skips record/enum metadata glue entirely for scalar `main` results, compiles out structured-result pretty-printing when scalar mains do not need it, avoids libc integer formatting on the scalar print path, routes stage-0 text/int/bool/record/enum output through one direct-write runtime path instead of the wider stdio surface, removes extra runtime hardening/ident baggage Sarif does not need in release mode, and the native linker path garbage-collects unused sections so stage-0 artifacts stay lean by default
@@ -91,7 +93,10 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - **C runtime fuzzing**: clang libFuzzer + ASan harness (13 opcodes), caught and fixed `sarif_slice_blob` UTF-8 backward continuation-byte underflow. 20M iterations: **0 crashes, 0 memory safety violations**, RSS stable at 216MB. Extended 100M-iteration run now in progress (~200K exec/s).
 - **Rust-side pipeline fuzzing**: `cargo +nightly fuzz` target covering lexer → parser → AST → HIR → semantic → MIR → escape analysis. 8,504 coverage blocks in first 10 seconds. Long-term run in progress. Found 1 timeout artifact (NUL byte infinite loop in logos lexer).
 - **Null byte infinite loop fixed**: The `logos` lexer entered an infinite loop on NUL bytes (`U+0000`) because logos returns `Err` with a zero-length span and doesn't advance. Fix adds a defense-in-depth guard: detects zero-length spans on `Err` tokens, emits a `lex.null-byte` diagnostic, and recreates the lexer past the offending byte. This prevents hangs from any unparseable byte, not just NUL.
-- **CI workflow** defined in `.github/workflows/ci.yml` (build, test, clippy, formatting check); push blocked by PAT scope — needs maintainer token with `workflow` scope.
+- **Semantic infinite loop fixed**: `infer_param_modes` fixpoint iteration in `ownership.rs` could oscillate forever when duplicate function definitions with different parameter names existed. Fixed by skipping duplicate `functions.insert()` in `resolve.rs` and deduplicating by name in the `while changed` loop as defense-in-depth.
+- **3 new native build tests**: `list_sort_text` sort feature, no-text-builder, and no-text-index conditional compilation verification.
+- **Binary size reduced 57%**: Added `-g0` to compile flags and `-Wl,-s` to ELF link flags — hello binary went from 11,112 B to 4,792 B.
+- **CI workflow** defined in `.github/workflows/ci.yml` (build, test, clippy, formatting check) — `on: push` and `on: pull_request` to `main`. Pushed and active.
 - **C runtime overflow guards**: text builder reserve growth guard against UINT64_MAX wraparound; list push capacity guard `used > UINT64_MAX/2` before doubling.
 - the maintained compiler is still Rust-hosted
 - alloc-escape diagnostics now require actual body-level allocation, including transitive calls to `[alloc]` functions, so non-allocating compatibility declarations no longer produce false Stage-0 escape warnings; runtime text ownership audit complete: text_concat and text_slice no longer return original scoped arena pointers (always allocate), arg_text uses process-lifetime malloc, stdin_cache uses process-lifetime malloc; MIR-level escape analysis (Stage-1) is complete as interprocedural fixed-point iteration, replacing the earlier conservative `has_alloc` approach
@@ -119,6 +124,8 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
 - MIR-level interprocedural escape analysis with fixed-point iteration (replaces conservative `has_alloc` heuristic)
 - MIR interpreter Call trampoline (iterative, eliminates unbounded recursion)
 - ExecFlow::Return dead code removed (simplified interpreter control flow)
+- Conditional runtime compilation: `RuntimeFeatures::detect()` + `Option<FuncId>` fields + C `#ifndef` guards
+- 122 CLI tests pass, 149+ total tests, clippy clean
 
 **Remaining Stage-1 work:**
 - Self-host check/doc using the bootstrap compiler as maintained authority

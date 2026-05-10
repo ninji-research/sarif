@@ -857,6 +857,67 @@ fn stable_build_executes_text_index_get_or_insert_programs() {
 
 #[cfg(feature = "native-build")]
 #[test]
+fn stable_build_executes_list_sort_text_program() {
+    let path = temp_source(
+        "fn main() -> Text effects [alloc] { let mut xs = list_new(3, \"\"); xs = list_set(xs, 0, \"c\"); xs = list_set(xs, 1, \"a\"); xs = list_set(xs, 2, \"b\"); xs = list_sort_text(xs, 3); list_get(xs, 0) }",
+    );
+    let binary_path = super::support::temp_artifact("list_sort_text_build", "bin");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--print-main",
+        "-o",
+        binary_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "list_sort_text program should build on the native target"
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&native.stdout), "a");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
+fn stable_build_without_text_builder_links_successfully() {
+    let path = temp_source("fn main() -> I32 { 42 }");
+    let binary_path = super::support::temp_artifact("no_text_builder", "bin");
+    let build = run_build_profiled(&path, &binary_path, "core");
+
+    assert!(
+        build.status.success(),
+        "program without text builder should build: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(42));
+}
+
+#[cfg(feature = "native-build")]
+#[test]
+fn stable_build_without_text_index_links_successfully() {
+    let path = temp_source("fn main() -> Bool { true }");
+    let binary_path = super::support::temp_artifact("no_text_index", "bin");
+    let build = run_build_profiled(&path, &binary_path, "core");
+
+    assert!(
+        build.status.success(),
+        "program without text index should build"
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert!(native.status.success());
+}
+
+#[cfg(feature = "native-build")]
+#[test]
 fn stable_build_executes_list_f64_programs() {
     let path = temp_source(
         "fn main() -> Text effects [alloc] { let mut xs = list_new(3, 0.0); xs = list_set(xs, 0, 1.5); xs = list_set(xs, 1, 2.25); xs = list_set(xs, 2, list_get(xs, 0) + list_get(xs, 1)); text_from_f64_fixed(list_get(xs, 2), 2) }",

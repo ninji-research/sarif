@@ -132,12 +132,17 @@ pub fn infer_param_modes(
     struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
 ) {
     let mut changed = true;
+    let mut seen = BTreeSet::<&str>::new();
     while changed {
         changed = false;
+        seen.clear();
         for item in &module.items {
             let crate::hir::Item::Function(function) = item else {
                 continue;
             };
+            if !seen.insert(function.name.as_str()) {
+                continue;
+            }
             let Some(signature) = functions.get(&function.name).cloned() else {
                 continue;
             };

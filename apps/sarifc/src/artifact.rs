@@ -178,6 +178,7 @@ fn release_c_flags() -> Vec<&'static str> {
 fn release_c_flags_for(cpu_mode: &str, lto_mode: &str) -> Vec<&'static str> {
     let mut flags = vec![
         "-O3",
+        "-g0",
         "-fomit-frame-pointer",
         "-fno-math-errno",
         "-fno-trapping-math",
@@ -211,6 +212,7 @@ fn runtime_c_flags() -> Vec<&'static str> {
 fn runtime_c_flags_for(cpu_mode: &str, lto_mode: &str) -> Vec<&'static str> {
     let mut flags = vec![
         "-Os",
+        "-g0",
         "-fomit-frame-pointer",
         "-fno-math-errno",
         "-fno-trapping-math",
@@ -237,7 +239,11 @@ fn runtime_c_flags_for(cpu_mode: &str, lto_mode: &str) -> Vec<&'static str> {
 
 fn release_link_flags(family: LinkerFamily) -> Vec<&'static str> {
     let mut flags = match family {
-        LinkerFamily::Elf => vec!["-Wl,--gc-sections", "-Wl,--build-id=none"],
+        LinkerFamily::Elf => vec![
+            "-Wl,--gc-sections",
+            "-Wl,--build-id=none",
+            "-Wl,-s",
+        ],
         LinkerFamily::MachO => vec!["-Wl,-dead_strip"],
     };
     if cfg!(target_os = "linux") && family == LinkerFamily::Elf {
@@ -426,6 +432,7 @@ mod tests {
     fn release_flags_default_to_native_non_lto() {
         let flags = release_c_flags_for("native", "off");
         assert!(flags.contains(&"-O3"));
+        assert!(flags.contains(&"-g0"));
         assert!(flags.contains(&"-march=native"));
         assert!(flags.contains(&"-mtune=native"));
         assert!(flags.contains(&"-fno-unwind-tables"));
@@ -448,6 +455,7 @@ mod tests {
     fn runtime_flags_bias_toward_size_without_losing_native_cpu_selection() {
         let flags = runtime_c_flags_for("native", "off");
         assert!(flags.contains(&"-Os"));
+        assert!(flags.contains(&"-g0"));
         assert!(!flags.contains(&"-O3"));
         assert!(flags.contains(&"-march=native"));
         assert!(flags.contains(&"-mtune=native"));
@@ -460,6 +468,7 @@ mod tests {
         let flags = release_link_flags(LinkerFamily::Elf);
         assert!(flags.contains(&"-Wl,--gc-sections"));
         assert!(flags.contains(&"-Wl,--build-id=none"));
+        assert!(flags.contains(&"-Wl,-s"));
         if cfg!(target_os = "linux") {
             assert!(flags.contains(&"-Wl,-z,noseparate-code"));
         }

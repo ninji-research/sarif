@@ -102,6 +102,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                         function.span,
                         Some("Use a unique name for this function.".to_owned()),
                     ));
+                    continue;
                 }
 
                 let mut generic_params = BTreeSet::<String>::new();

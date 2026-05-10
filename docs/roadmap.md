@@ -19,6 +19,9 @@ Promote Sarif-hosted tooling to maintained authority.
 
 Completed:
 - **Formatter**: `sarifc format` now runs the Sarif-hosted formatter by default, passing parity tests against the Rust formatter for all shipped inputs. This validates the bootstrap compiler against serious production use.
+- **Conditional runtime compilation**: `RuntimeFeatures::detect()` scans programs for text builder, text index, and sort usage. The native codegen only declares needed runtime helpers, and the C runtime excludes unused subsystems at compile time via `#ifndef` guards. Reduces compiled runtime size for programs that don't use these features.
+- **Semantic fixpoint cycle fixed**: `infer_param_modes` no longer oscillates on duplicate function definitions.
+- **Binary size reduced 57%**: `-g0` and `-Wl,-s` added to compile/link flags; hello binary 4,792 B stripped.
 
 Remaining (blocked — see Memory Model section):
 - **Semantic `check`**: Requires a Sarif-hosted semantic analysis pass that does type checking, name resolution, and borrow inference. Not practical in the current bootstrap runtime due to fixed-size tuple limits and the ~4150 lines of infrastructure needed.
