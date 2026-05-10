@@ -1,5 +1,5 @@
-fn main() -> I32 {
-    repeat 2 {
+fn main(n: I32) -> I32 {
+    repeat n {
     };
-    0
+    n
 }

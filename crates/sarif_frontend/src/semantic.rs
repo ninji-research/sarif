@@ -537,12 +537,12 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                         diagnostics.push(Diagnostic::new(
                             "semantic.total-loop",
                             format!(
-                                "function `{}` in total profile uses an iterative loop",
+                                "function `{}` in total profile uses a non-terminating loop",
                                 function.name
                             ),
                             function.span,
                             Some(
-                                "Use recursion or a total iteration form instead of `repeat` or `while`."
+                                "Use recursion or `repeat N` with a compile-time constant count."
                                     .to_owned(),
                             ),
                         ));

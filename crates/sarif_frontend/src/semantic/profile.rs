@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::hir::{Expr, Stmt};
+use crate::hir::{Expr, RepeatExpr, Stmt};
 
 use super::{Body, Type};
 
@@ -11,7 +11,8 @@ pub enum Profile {
     /// Core: Minimal semantic checks - just type checking
     #[default]
     Core,
-    /// Total: Forbid partial functions (while, repeat without proof of termination)
+    /// Total: Forbid partial functions (while, repeat without proof of termination).
+    /// `repeat N` with a compile-time constant count is allowed.
     Total,
     /// RT (Runtime): Enforce determinism, restrict nondeterminism,
     /// forbid heap allocation (`Text`, `List`, `TextBuilder`, `TextIndex`)
@@ -83,9 +84,14 @@ pub(super) fn body_contains_loop(body: &Body) -> bool {
     }) || body.tail.as_ref().is_some_and(expr_contains_loop)
 }
 
+fn is_constant_repeat(expr: &RepeatExpr) -> bool {
+    matches!(expr.count.as_ref(), Expr::Integer(_))
+}
+
 fn expr_contains_loop(expr: &Expr) -> bool {
     match expr {
-        Expr::Repeat(_) | Expr::While(_) => true,
+        Expr::Repeat(expr) => !is_constant_repeat(expr),
+        Expr::While(_) => true,
         Expr::Perform(expr) => expr.args.iter().any(expr_contains_loop),
         Expr::If(expr) => {
             expr_contains_loop(&expr.condition)
