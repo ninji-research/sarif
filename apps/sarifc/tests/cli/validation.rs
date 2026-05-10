@@ -209,6 +209,16 @@ fn dump_ir_emits_the_requested_representation() {
 }
 
 #[test]
+fn total_profile_accepts_constant_repeat() {
+    let path = temp_source("fn main() -> I32 { repeat 5 {}; 0 }");
+    let output = run_path_profiled("check", &path, "total");
+    assert!(
+        output.status.success(),
+        "constant repeat should pass total profile"
+    );
+}
+
+#[test]
 fn profile_checks_reject_invalid_examples() {
     for (profile, path, code) in [
         ("rt", rt_invalid(), "semantic.rt-effect"),
