@@ -8408,20 +8408,17 @@ impl<'a> Interpreter<'a> {
                     } else {
                         (else_insts, else_result)
                     };
-                    let mut branch_values = values.clone();
-                    let mut branch_slots = slots.clone();
                     if let ExecFlow::Return(value) = self.execute_insts(
                         function,
                         branch_insts,
-                        &mut branch_values,
-                        &mut branch_slots,
+                        values,
+                        slots,
                         args.clone(),
                     )? {
                         return Ok(ExecFlow::Return(value));
                     }
-                    *slots = branch_slots;
                     let result = branch_result.map_or(Ok(RuntimeValue::Unit), |result| {
-                        branch_values
+                        values
                             .get(result.0 as usize)
                             .cloned()
                             .ok_or_else(|| {
@@ -8443,21 +8440,18 @@ impl<'a> Interpreter<'a> {
                     let count = extract_int(values, *count)?;
                     if count > 0 {
                         for index in 0..count {
-                            let mut body_values = values.clone();
-                            let mut body_slots = slots.clone();
                             if let Some(slot) = index_slot {
-                                body_slots[slot.0 as usize] = RuntimeValue::Int(index);
+                                slots[slot.0 as usize] = RuntimeValue::Int(index);
                             }
                             if let ExecFlow::Return(value) = self.execute_insts(
                                 function,
                                 body_insts,
-                                &mut body_values,
-                                &mut body_slots,
+                                values,
+                                slots,
                                 args.clone(),
                             )? {
                                 return Ok(ExecFlow::Return(value));
                             }
-                            *slots = body_slots;
                         }
                     }
                     values[dest.0 as usize] = RuntimeValue::Unit;
@@ -8469,18 +8463,16 @@ impl<'a> Interpreter<'a> {
                     body_insts,
                 } => {
                     loop {
-                        let mut condition_values = values.clone();
-                        let mut condition_slots = slots.clone();
                         if let ExecFlow::Return(value) = self.execute_insts(
                             function,
                             condition_insts,
-                            &mut condition_values,
-                            &mut condition_slots,
+                            values,
+                            slots,
                             args.clone(),
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
-                        let RuntimeValue::Bool(keep_going) = condition_values
+                        let RuntimeValue::Bool(keep_going) = values
                             .get(condition.0 as usize)
                             .cloned()
                             .ok_or_else(|| {
@@ -8499,18 +8491,15 @@ impl<'a> Interpreter<'a> {
                         if !keep_going {
                             break;
                         }
-                        let mut body_values = values.clone();
-                        let mut body_slots = slots.clone();
                         if let ExecFlow::Return(value) = self.execute_insts(
                             function,
                             body_insts,
-                            &mut body_values,
-                            &mut body_slots,
+                            values,
+                            slots,
                             args.clone(),
                         )? {
                             return Ok(ExecFlow::Return(value));
                         }
-                        *slots = body_slots;
                     }
                     values[dest.0 as usize] = RuntimeValue::Unit;
                 }
@@ -8691,19 +8680,16 @@ impl<'a> Interpreter<'a> {
                             .cloned()
                     });
                     if let Some(arm) = matched_arm {
-                        // For non-resumable handlers, we just run the instructions and take the result.
-                        let mut local_values = values.clone();
-                        let mut local_slots = slots.clone();
                         if let ExecFlow::Return(value) = self.execute_insts(
                             function,
                             &arm.body_insts,
-                            &mut local_values,
-                            &mut local_slots,
+                            values,
+                            slots,
                             arg_values.clone(),
                         )? {
                             values[dest.0 as usize] = value;
                         } else if let Some(result_id) = arm.body_result {
-                            let value = local_values
+                            let value = values
                                 .get(result_id.0 as usize)
                                 .cloned()
                                 .ok_or_else(|| RuntimeError::new("missing handler arm result"))?;
