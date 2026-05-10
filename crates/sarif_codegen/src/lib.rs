@@ -25,6 +25,41 @@ pub use wasm::{WasmError, emit_wasm, emit_wat, run_function_wasm, run_main_wasm}
 mod escape;
 pub use escape::analyze_escapes;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuntimeFeatures {
+    pub text_builder: bool,
+    pub text_index: bool,
+    pub sort: bool,
+}
+
+impl RuntimeFeatures {
+    #[must_use]
+    pub fn detect(program: &Program) -> Self {
+        let mut f = Self::default();
+        for func in &program.functions {
+            for_each_inst_recursive(&func.instructions, &mut |inst| {
+                match inst {
+                    Inst::TextBuilderNew { .. }
+                    | Inst::TextBuilderAppend { .. }
+                    | Inst::TextBuilderAppendCodepoint { .. }
+                    | Inst::TextBuilderAppendAscii { .. }
+                    | Inst::TextBuilderAppendSlice { .. }
+                    | Inst::TextBuilderAppendI32 { .. }
+                    | Inst::TextBuilderFinish { .. }
+                    | Inst::StdoutWriteBuilder { .. } => f.text_builder = true,
+                    Inst::TextIndexNew { .. }
+                    | Inst::TextIndexGet { .. }
+                    | Inst::TextIndexGetOrInsert { .. }
+                    | Inst::TextIndexSet { .. } => f.text_index = true,
+                    Inst::ListSortText { .. } | Inst::ListSortRecordTextField { .. } => f.sort = true,
+                    _ => {}
+                }
+            });
+        }
+        f
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct MirLowering {
     pub program: Program,

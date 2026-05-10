@@ -23,7 +23,7 @@ use crate::native::{
     declare_text_next_line, declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts,
     native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
-use crate::{Function, Program, ValueId};
+use crate::{Function, Program, RuntimeFeatures, ValueId};
 
 pub const ENTRYPOINT_SYMBOL: &str = "sarif_user_main";
 
@@ -61,19 +61,19 @@ struct ObjectBackend<'a> {
     allocator_id: FuncId,
     alloc_push_id: FuncId,
     alloc_pop_id: FuncId,
-    text_builder_new_id: FuncId,
-    text_builder_append_id: FuncId,
-    text_builder_append_codepoint_id: FuncId,
-    text_builder_append_ascii_id: FuncId,
-    text_builder_append_slice_id: FuncId,
-    text_builder_append_i32_id: FuncId,
-    text_builder_finish_id: FuncId,
-    stdout_write_builder_id: FuncId,
+    text_builder_new_id: Option<FuncId>,
+    text_builder_append_id: Option<FuncId>,
+    text_builder_append_codepoint_id: Option<FuncId>,
+    text_builder_append_ascii_id: Option<FuncId>,
+    text_builder_append_slice_id: Option<FuncId>,
+    text_builder_append_i32_id: Option<FuncId>,
+    text_builder_finish_id: Option<FuncId>,
+    stdout_write_builder_id: Option<FuncId>,
     text_index_helpers: TextIndexHelperIds,
     list_new_id: FuncId,
     list_push_id: FuncId,
-    list_sort_text_id: FuncId,
-    list_sort_by_text_field_id: FuncId,
+    list_sort_text_id: Option<FuncId>,
+    list_sort_by_text_field_id: Option<FuncId>,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
@@ -124,35 +124,49 @@ impl<'a> ObjectBackend<'a> {
                 ))
             })?;
         let mut module = ObjectModule::new(builder);
+        let features = RuntimeFeatures::detect(program);
         let allocator_id =
             declare_record_allocator(&mut module, "object").map_err(ObjectError::new)?;
         let alloc_push_id = declare_alloc_push(&mut module, "object").map_err(ObjectError::new)?;
         let alloc_pop_id = declare_alloc_pop(&mut module, "object").map_err(ObjectError::new)?;
-        let text_builder_new_id =
-            declare_text_builder_new(&mut module, "object").map_err(ObjectError::new)?;
-        let text_builder_append_id =
-            declare_text_builder_append(&mut module, "object").map_err(ObjectError::new)?;
-        let text_builder_append_codepoint_id =
-            declare_text_builder_append_codepoint(&mut module, "object")
-                .map_err(ObjectError::new)?;
-        let text_builder_append_ascii_id =
-            declare_text_builder_append_ascii(&mut module, "object").map_err(ObjectError::new)?;
-        let text_builder_append_slice_id =
-            declare_text_builder_append_slice(&mut module, "object").map_err(ObjectError::new)?;
-        let text_builder_append_i32_id =
-            declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)?;
-        let text_builder_finish_id =
-            declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new)?;
-        let stdout_write_builder_id =
-            declare_stdout_write_builder(&mut module, "object").map_err(ObjectError::new)?;
-        let text_index_new_id =
-            declare_text_index_new(&mut module, "object").map_err(ObjectError::new)?;
-        let text_index_get_id =
-            declare_text_index_get(&mut module, "object").map_err(ObjectError::new)?;
-        let text_index_get_or_insert_id =
-            declare_text_index_get_or_insert(&mut module, "object").map_err(ObjectError::new)?;
-        let text_index_set_id =
-            declare_text_index_set(&mut module, "object").map_err(ObjectError::new)?;
+
+        let text_builder_new_id = features.text_builder.then(|| {
+            declare_text_builder_new(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_builder_append_id = features.text_builder.then(|| {
+            declare_text_builder_append(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_builder_append_codepoint_id = features.text_builder.then(|| {
+            declare_text_builder_append_codepoint(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_builder_append_ascii_id = features.text_builder.then(|| {
+            declare_text_builder_append_ascii(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_builder_append_slice_id = features.text_builder.then(|| {
+            declare_text_builder_append_slice(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_builder_append_i32_id = features.text_builder.then(|| {
+            declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_builder_finish_id = features.text_builder.then(|| {
+            declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let stdout_write_builder_id = features.text_builder.then(|| {
+            declare_stdout_write_builder(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+
+        let text_index_new_id = features.text_index.then(|| {
+            declare_text_index_new(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_index_get_id = features.text_index.then(|| {
+            declare_text_index_get(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_index_get_or_insert_id = features.text_index.then(|| {
+            declare_text_index_get_or_insert(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let text_index_set_id = features.text_index.then(|| {
+            declare_text_index_set(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
         let text_index_helpers = TextIndexHelperIds {
             new_id: text_index_new_id,
             get_id: text_index_get_id,
@@ -161,10 +175,12 @@ impl<'a> ObjectBackend<'a> {
         };
         let list_new_id = declare_list_new(&mut module, "object").map_err(ObjectError::new)?;
         let list_push_id = declare_list_push(&mut module, "object").map_err(ObjectError::new)?;
-        let list_sort_text_id =
-            declare_list_sort_text(&mut module, "object").map_err(ObjectError::new)?;
-        let list_sort_by_text_field_id =
-            declare_list_sort_by_text_field(&mut module, "object").map_err(ObjectError::new)?;
+        let list_sort_text_id = features.sort.then(|| {
+            declare_list_sort_text(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
+        let list_sort_by_text_field_id = features.sort.then(|| {
+            declare_list_sort_by_text_field(&mut module, "object").map_err(ObjectError::new)
+        }).transpose()?;
         let text_concat_id =
             declare_text_concat(&mut module, "object").map_err(ObjectError::new)?;
         let text_slice_id = declare_text_slice(&mut module, "object").map_err(ObjectError::new)?;

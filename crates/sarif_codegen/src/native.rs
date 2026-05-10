@@ -1134,10 +1134,10 @@ pub fn lower_enum_tag_eq(
 
 #[derive(Clone, Copy)]
 pub struct TextIndexHelperIds {
-    pub new_id: FuncId,
-    pub get_id: FuncId,
-    pub get_or_insert_id: FuncId,
-    pub set_id: FuncId,
+    pub new_id: Option<FuncId>,
+    pub get_id: Option<FuncId>,
+    pub get_or_insert_id: Option<FuncId>,
+    pub set_id: Option<FuncId>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1147,19 +1147,19 @@ pub fn lower_insts<M: Module>(
     allocator_id: FuncId,
     alloc_push_id: FuncId,
     alloc_pop_id: FuncId,
-    text_builder_new_id: FuncId,
-    text_builder_append_id: FuncId,
-    text_builder_append_codepoint_id: FuncId,
-    text_builder_append_ascii_id: FuncId,
-    text_builder_append_slice_id: FuncId,
-    text_builder_append_i32_id: FuncId,
-    text_builder_finish_id: FuncId,
-    stdout_write_builder_id: FuncId,
+    text_builder_new_id: Option<FuncId>,
+    text_builder_append_id: Option<FuncId>,
+    text_builder_append_codepoint_id: Option<FuncId>,
+    text_builder_append_ascii_id: Option<FuncId>,
+    text_builder_append_slice_id: Option<FuncId>,
+    text_builder_append_i32_id: Option<FuncId>,
+    text_builder_finish_id: Option<FuncId>,
+    stdout_write_builder_id: Option<FuncId>,
     text_index_helpers: &TextIndexHelperIds,
     list_new_id: FuncId,
     list_push_id: FuncId,
-    list_sort_text_id: FuncId,
-    list_sort_by_text_field_id: FuncId,
+    list_sort_text_id: Option<FuncId>,
+    list_sort_by_text_field_id: Option<FuncId>,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
@@ -1261,19 +1261,19 @@ pub fn lower_inst<M: Module>(
     allocator_id: FuncId,
     alloc_push_id: FuncId,
     alloc_pop_id: FuncId,
-    text_builder_new_id: FuncId,
-    text_builder_append_id: FuncId,
-    text_builder_append_codepoint_id: FuncId,
-    text_builder_append_ascii_id: FuncId,
-    text_builder_append_slice_id: FuncId,
-    text_builder_append_i32_id: FuncId,
-    text_builder_finish_id: FuncId,
-    stdout_write_builder_id: FuncId,
+    text_builder_new_id: Option<FuncId>,
+    text_builder_append_id: Option<FuncId>,
+    text_builder_append_codepoint_id: Option<FuncId>,
+    text_builder_append_ascii_id: Option<FuncId>,
+    text_builder_append_slice_id: Option<FuncId>,
+    text_builder_append_i32_id: Option<FuncId>,
+    text_builder_finish_id: Option<FuncId>,
+    stdout_write_builder_id: Option<FuncId>,
     text_index_helpers: &TextIndexHelperIds,
     list_new_id: FuncId,
     list_push_id: FuncId,
-    list_sort_text_id: FuncId,
-    list_sort_by_text_field_id: FuncId,
+    list_sort_text_id: Option<FuncId>,
+    list_sort_by_text_field_id: Option<FuncId>,
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
@@ -1389,7 +1389,7 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::TextBuilderNew { dest } => {
-            let helper = module.declare_func_in_func(text_builder_new_id, builder.func);
+            let helper = module.declare_func_in_func(text_builder_new_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(builder, helper, &[], "text builder new", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
@@ -1399,16 +1399,9 @@ pub fn lower_inst<M: Module>(
             builder: builder_value,
             text,
         } => {
-            let builder_val = native_value(
-                values,
-                *builder_value,
-                function,
-                "text_builder_append builder",
-                backend,
-            )?;
-            let text_val =
-                native_value(values, *text, function, "text_builder_append text", backend)?;
-            let helper = module.declare_func_in_func(text_builder_append_id, builder.func);
+            let helper = module.declare_func_in_func(text_builder_append_id.expect("text builder declared"), builder.func);
+            let builder_val = native_value(values, *builder_value, function, "text builder", backend)?;
+            let text_val = native_value(values, *text, function, "text builder text", backend)?;
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1440,7 +1433,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper =
-                module.declare_func_in_func(text_builder_append_codepoint_id, builder.func);
+                module.declare_func_in_func(text_builder_append_codepoint_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1471,7 +1464,7 @@ pub fn lower_inst<M: Module>(
                 "text_builder_append_ascii byte",
                 backend,
             )?;
-            let helper = module.declare_func_in_func(text_builder_append_ascii_id, builder.func);
+            let helper = module.declare_func_in_func(text_builder_append_ascii_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1518,7 +1511,7 @@ pub fn lower_inst<M: Module>(
                 "text_builder_append_slice end",
                 backend,
             )?;
-            let helper = module.declare_func_in_func(text_builder_append_slice_id, builder.func);
+            let helper = module.declare_func_in_func(text_builder_append_slice_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1549,7 +1542,7 @@ pub fn lower_inst<M: Module>(
                 "text_builder_append_i32 value",
                 backend,
             )?;
-            let helper = module.declare_func_in_func(text_builder_append_i32_id, builder.func);
+            let helper = module.declare_func_in_func(text_builder_append_i32_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1572,7 +1565,7 @@ pub fn lower_inst<M: Module>(
                 "text_builder_finish builder",
                 backend,
             )?;
-            let helper = module.declare_func_in_func(text_builder_finish_id, builder.func);
+            let helper = module.declare_func_in_func(text_builder_finish_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1585,7 +1578,7 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::TextIndexNew { dest } => {
-            let helper = module.declare_func_in_func(text_index_helpers.new_id, builder.func);
+            let helper = module.declare_func_in_func(text_index_helpers.new_id.expect("text index declared"), builder.func);
             let ptr = call_helper(builder, helper, &[], "text index new", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
@@ -1594,7 +1587,7 @@ pub fn lower_inst<M: Module>(
             let index_val =
                 native_value(values, *index, function, "text_index_get index", backend)?;
             let key_val = native_value(values, *key, function, "text_index_get key", backend)?;
-            let helper = module.declare_func_in_func(text_index_helpers.get_id, builder.func);
+            let helper = module.declare_func_in_func(text_index_helpers.get_id.expect("text index declared"), builder.func);
             let call = builder.ins().call(helper, &[index_val, key_val]);
             let value = match builder.inst_results(call) {
                 [value] => *value,
@@ -1636,7 +1629,7 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             let helper =
-                module.declare_func_in_func(text_index_helpers.get_or_insert_id, builder.func);
+                module.declare_func_in_func(text_index_helpers.get_or_insert_id.expect("text index declared"), builder.func);
             let call = builder.ins().call(helper, &[index_val, key_val, next_val]);
             let value = match builder.inst_results(call) {
                 [value] => *value,
@@ -1661,7 +1654,7 @@ pub fn lower_inst<M: Module>(
             let key_val = native_value(values, *key, function, "text_index_set key", backend)?;
             let value_val =
                 native_value(values, *value, function, "text_index_set value", backend)?;
-            let helper = module.declare_func_in_func(text_index_helpers.set_id, builder.func);
+            let helper = module.declare_func_in_func(text_index_helpers.set_id.expect("text index declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1810,7 +1803,7 @@ pub fn lower_inst<M: Module>(
         Inst::ListSortText { dest, list, len } => {
             let vec_val = native_value(values, *list, function, "list_sort_text list", backend)?;
             let len_val = native_value(values, *len, function, "list_sort_text len", backend)?;
-            let helper = module.declare_func_in_func(list_sort_text_id, builder.func);
+            let helper = module.declare_func_in_func(list_sort_text_id.expect("sort declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -1877,7 +1870,7 @@ pub fn lower_inst<M: Module>(
             let offset = builder
                 .ins()
                 .iconst(types::I64, i64::from(field_desc.offset));
-            let helper = module.declare_func_in_func(list_sort_by_text_field_id, builder.func);
+            let helper = module.declare_func_in_func(list_sort_by_text_field_id.expect("sort declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
@@ -2388,7 +2381,7 @@ pub fn lower_inst<M: Module>(
                 "stdout_write_builder builder",
                 backend,
             )?;
-            let helper = module.declare_func_in_func(stdout_write_builder_id, builder.func);
+            let helper = module.declare_func_in_func(stdout_write_builder_id.expect("text builder declared"), builder.func);
             let ptr = call_helper(
                 builder,
                 helper,

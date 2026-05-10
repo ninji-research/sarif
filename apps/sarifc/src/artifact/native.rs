@@ -1,13 +1,14 @@
 use std::{collections::BTreeMap, fmt::Write};
 
 use sarif_codegen::{
-    NativeEnum, NativeRecord, NativeValueKind, Program, collect_native_enums,
+    NativeEnum, NativeRecord, NativeValueKind, Program, RuntimeFeatures, collect_native_enums,
     collect_native_records,
 };
 
 pub(super) struct NativeBuildPlan {
     pub records: BTreeMap<String, NativeRecord>,
     pub enums: BTreeMap<String, NativeEnum>,
+    pub features: RuntimeFeatures,
     main_result_type: String,
     main_kind: i32,
 }
@@ -35,9 +36,11 @@ pub(super) fn native_build_plan(program: &Program) -> Result<NativeBuildPlan, St
             ));
         }
     };
+    let features = RuntimeFeatures::detect(program);
     Ok(NativeBuildPlan {
         records,
         enums,
+        features,
         main_result_type,
         main_kind,
     })
@@ -56,10 +59,20 @@ pub(super) fn runtime_metadata_source(plan: &NativeBuildPlan) -> Option<String> 
 
 pub(super) fn runtime_defines(plan: &NativeBuildPlan, print_main: bool) -> Vec<String> {
     let print_flag = i32::from(print_main);
-    vec![
+    let mut defines = vec![
         format!("-DSARIF_MAIN_KIND={}", plan.main_kind),
         format!("-DSARIF_MAIN_PRINT={print_flag}"),
-    ]
+    ];
+    if !plan.features.text_builder {
+        defines.push("-DSARIF_NO_TEXT_BUILDER".to_owned());
+    }
+    if !plan.features.text_index {
+        defines.push("-DSARIF_NO_TEXT_INDEX".to_owned());
+    }
+    if !plan.features.sort {
+        defines.push("-DSARIF_NO_SORT".to_owned());
+    }
+    defines
 }
 
 fn record_metadata_source(
