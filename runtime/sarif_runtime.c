@@ -1221,10 +1221,11 @@ void* sarif_arg_text(int64_t index) {
         value = sarif_argv[index];
     }
     len = strlen(value);
-    unsigned char* result = sarif_text_alloc((uint64_t)len);
+    unsigned char* result = (unsigned char*)malloc(8u + len);
     if (result == NULL) {
         return NULL;
     }
+    sarif_store_u64(result, 0, (uint64_t)len);
     if (len != 0) {
         memcpy(result + 8, value, len);
     }
