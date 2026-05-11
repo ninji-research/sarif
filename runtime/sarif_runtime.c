@@ -23,14 +23,12 @@ static int sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
 static int sarif_write_all(const unsigned char* bytes, uint64_t len) {
-    while (len != 0) {
-        size_t chunk = len > (uint64_t)SIZE_MAX ? SIZE_MAX : (size_t)len;
-        ssize_t written = write(STDOUT_FILENO, bytes, chunk);
-        if (written <= 0) {
-            return 1;
-        }
-        bytes += (size_t)written;
-        len -= (uint64_t)written;
+    if (len == 0) {
+        return 0;
+    }
+    size_t chunk = len > (uint64_t)SIZE_MAX ? SIZE_MAX : (size_t)len;
+    if (fwrite(bytes, 1, chunk, stdout) != chunk) {
+        return 1;
     }
     return 0;
 }
@@ -1468,6 +1466,7 @@ static int sarif_write_value(
 int main(int argc, char** argv) {
     sarif_argc = argc;
     sarif_argv = argv;
+    setvbuf(stdout, NULL, _IOFBF, 0);
 #if SARIF_MAIN_KIND == 1
     int32_t value = sarif_user_main();
 #if SARIF_MAIN_PRINT

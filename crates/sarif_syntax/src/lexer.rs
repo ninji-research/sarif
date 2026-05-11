@@ -174,7 +174,11 @@ pub fn lex(source: &str) -> LexOutput {
             let span = Span::new(abs_pos, abs_pos + 1);
             output.diagnostics.push(Diagnostic::new(
                 "lex.null-byte",
-                format!("byte 0x{:02x} at position {}", source.as_bytes()[abs_pos], abs_pos),
+                format!(
+                    "byte 0x{:02x} at position {}",
+                    source.as_bytes()[abs_pos],
+                    abs_pos
+                ),
                 span,
                 Some("Remove this byte from source.".to_owned()),
             ));

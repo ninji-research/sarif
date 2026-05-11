@@ -100,18 +100,9 @@ struct ObjectBackend<'a> {
 impl<'a> ObjectBackend<'a> {
     fn new(program: &'a Program, module_name: &str) -> Result<Self, ObjectError> {
         let mut flag_builder = settings::builder();
-        flag_builder
-            .set("opt_level", "speed_and_size")
-            .map_err(|error| {
-                ObjectError::new(format!("failed to set cranelift opt_level: {error}"))
-            })?;
-        flag_builder
-            .set("regalloc_algorithm", "backtracking")
-            .map_err(|error| {
-                ObjectError::new(format!(
-                    "failed to set cranelift regalloc_algorithm: {error}"
-                ))
-            })?;
+        flag_builder.set("opt_level", "speed").map_err(|error| {
+            ObjectError::new(format!("failed to set cranelift opt_level: {error}"))
+        })?;
         let isa_builder = cranelift_native::builder()
             .map_err(|error| ObjectError::new(format!("failed to build native ISA: {error}")))?;
         let isa = isa_builder
@@ -130,43 +121,66 @@ impl<'a> ObjectBackend<'a> {
         let alloc_push_id = declare_alloc_push(&mut module, "object").map_err(ObjectError::new)?;
         let alloc_pop_id = declare_alloc_pop(&mut module, "object").map_err(ObjectError::new)?;
 
-        let text_builder_new_id = features.text_builder.then(|| {
-            declare_text_builder_new(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_builder_append_id = features.text_builder.then(|| {
-            declare_text_builder_append(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_builder_append_codepoint_id = features.text_builder.then(|| {
-            declare_text_builder_append_codepoint(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_builder_append_ascii_id = features.text_builder.then(|| {
-            declare_text_builder_append_ascii(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_builder_append_slice_id = features.text_builder.then(|| {
-            declare_text_builder_append_slice(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_builder_append_i32_id = features.text_builder.then(|| {
-            declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_builder_finish_id = features.text_builder.then(|| {
-            declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let stdout_write_builder_id = features.text_builder.then(|| {
-            declare_stdout_write_builder(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
+        let text_builder_new_id = features
+            .text_builder
+            .then(|| declare_text_builder_new(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
+        let text_builder_append_id = features
+            .text_builder
+            .then(|| declare_text_builder_append(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
+        let text_builder_append_codepoint_id = features
+            .text_builder
+            .then(|| {
+                declare_text_builder_append_codepoint(&mut module, "object")
+                    .map_err(ObjectError::new)
+            })
+            .transpose()?;
+        let text_builder_append_ascii_id = features
+            .text_builder
+            .then(|| {
+                declare_text_builder_append_ascii(&mut module, "object").map_err(ObjectError::new)
+            })
+            .transpose()?;
+        let text_builder_append_slice_id = features
+            .text_builder
+            .then(|| {
+                declare_text_builder_append_slice(&mut module, "object").map_err(ObjectError::new)
+            })
+            .transpose()?;
+        let text_builder_append_i32_id = features
+            .text_builder
+            .then(|| {
+                declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)
+            })
+            .transpose()?;
+        let text_builder_finish_id = features
+            .text_builder
+            .then(|| declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
+        let stdout_write_builder_id = features
+            .text_builder
+            .then(|| declare_stdout_write_builder(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
 
-        let text_index_new_id = features.text_index.then(|| {
-            declare_text_index_new(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_index_get_id = features.text_index.then(|| {
-            declare_text_index_get(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_index_get_or_insert_id = features.text_index.then(|| {
-            declare_text_index_get_or_insert(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let text_index_set_id = features.text_index.then(|| {
-            declare_text_index_set(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
+        let text_index_new_id = features
+            .text_index
+            .then(|| declare_text_index_new(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
+        let text_index_get_id = features
+            .text_index
+            .then(|| declare_text_index_get(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
+        let text_index_get_or_insert_id = features
+            .text_index
+            .then(|| {
+                declare_text_index_get_or_insert(&mut module, "object").map_err(ObjectError::new)
+            })
+            .transpose()?;
+        let text_index_set_id = features
+            .text_index
+            .then(|| declare_text_index_set(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
         let text_index_helpers = TextIndexHelperIds {
             new_id: text_index_new_id,
             get_id: text_index_get_id,
@@ -175,12 +189,16 @@ impl<'a> ObjectBackend<'a> {
         };
         let list_new_id = declare_list_new(&mut module, "object").map_err(ObjectError::new)?;
         let list_push_id = declare_list_push(&mut module, "object").map_err(ObjectError::new)?;
-        let list_sort_text_id = features.sort.then(|| {
-            declare_list_sort_text(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
-        let list_sort_by_text_field_id = features.sort.then(|| {
-            declare_list_sort_by_text_field(&mut module, "object").map_err(ObjectError::new)
-        }).transpose()?;
+        let list_sort_text_id = features
+            .sort
+            .then(|| declare_list_sort_text(&mut module, "object").map_err(ObjectError::new))
+            .transpose()?;
+        let list_sort_by_text_field_id = features
+            .sort
+            .then(|| {
+                declare_list_sort_by_text_field(&mut module, "object").map_err(ObjectError::new)
+            })
+            .transpose()?;
         let text_concat_id =
             declare_text_concat(&mut module, "object").map_err(ObjectError::new)?;
         let text_slice_id = declare_text_slice(&mut module, "object").map_err(ObjectError::new)?;

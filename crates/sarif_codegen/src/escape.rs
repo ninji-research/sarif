@@ -13,7 +13,14 @@ pub fn analyze_escapes(program: &Program) -> Vec<Diagnostic> {
     let mut callee_map: HashMap<String, CalleeInfo> = program
         .functions
         .iter()
-        .map(|f| (f.name.clone(), CalleeInfo { return_escapes: false }))
+        .map(|f| {
+            (
+                f.name.clone(),
+                CalleeInfo {
+                    return_escapes: false,
+                },
+            )
+        })
         .collect();
 
     // Fixed-point iteration: compute return_escapes for each function.
@@ -55,7 +62,10 @@ pub fn analyze_escapes(program: &Program) -> Vec<Diagnostic> {
     diagnostics
 }
 
-fn analyze_function(function: &Function, callee_map: &HashMap<String, CalleeInfo>) -> Vec<Diagnostic> {
+fn analyze_function(
+    function: &Function,
+    callee_map: &HashMap<String, CalleeInfo>,
+) -> Vec<Diagnostic> {
     let result = match function.result {
         Some(v) => v,
         None => return Vec::new(),
@@ -214,7 +224,9 @@ impl Env<'_> {
             }
 
             Inst::Call { dest, callee, args } => {
-                if let Some(info) = self.callee_map.get(callee) && info.return_escapes {
+                if let Some(info) = self.callee_map.get(callee)
+                    && info.return_escapes
+                {
                     self.mark(*dest);
                 }
                 if args.iter().any(|a| self.is_escaped(*a)) {
@@ -355,10 +367,8 @@ impl Env<'_> {
 }
 
 fn type_can_hold_arena_memory(ty: &str) -> bool {
-    matches!(
-        ty,
-        "Text" | "TextBuilder" | "TextIndex" | "List" | "Bytes"
-    ) || ty.starts_with('[')
+    matches!(ty, "Text" | "TextBuilder" | "TextIndex" | "List" | "Bytes")
+        || ty.starts_with('[')
         || ty.contains("Text")
         || ty.contains("List")
         || ty.contains("Bytes")
@@ -390,7 +400,10 @@ mod tests {
             "lowering should succeed: {:#?}",
             mir.diagnostics,
         );
-        assert!(diags.is_empty(), "no alloc effect should not produce escape diagnostics");
+        assert!(
+            diags.is_empty(),
+            "no alloc effect should not produce escape diagnostics"
+        );
     }
 
     #[test]
@@ -399,7 +412,11 @@ mod tests {
             "\
 fn main() -> I32 effects [alloc] { 42 }",
         );
-        assert!(mir.diagnostics.is_empty(), "lowering should succeed: {:#?}", mir.diagnostics);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics
+        );
         let diags = super::analyze_escapes(&mir.program);
         assert!(diags.is_empty(), "I32 cannot hold arena memory");
     }
@@ -410,9 +427,16 @@ fn main() -> I32 effects [alloc] { 42 }",
             "\
 fn main() -> Text effects [alloc] { arg_text(0) }",
         );
-        assert!(mir.diagnostics.is_empty(), "lowering should succeed: {:#?}", mir.diagnostics);
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics
+        );
         let diags = super::analyze_escapes(&mir.program);
-        assert!(!diags.is_empty(), "returning arena text should trigger diagnostic");
+        assert!(
+            !diags.is_empty(),
+            "returning arena text should trigger diagnostic"
+        );
         assert!(diags.iter().any(|d| d.code == "escape.analysis.required"));
     }
 
@@ -429,7 +453,10 @@ fn main() -> I32 { 0 }",
             "lowering should succeed: {:#?}",
             mir.diagnostics,
         );
-        assert!(diags.is_empty(), "passing a parameter through should not produce a false positive");
+        assert!(
+            diags.is_empty(),
+            "passing a parameter through should not produce a false positive"
+        );
     }
 
     #[test]
@@ -447,17 +474,38 @@ fn main() -> Text effects [alloc] { choose(true) }",
             "lowering should succeed: {:#?}",
             mir.diagnostics,
         );
-        assert!(!diags.is_empty(), "escaping through if should trigger diagnostic");
+        assert!(
+            !diags.is_empty(),
+            "escaping through if should trigger diagnostic"
+        );
     }
 
     #[test]
     fn type_list_text_is_arena_holding() {
-        assert!(super::type_can_hold_arena_memory("List[Text]"), "List[Text] holds arena memory");
-        assert!(super::type_can_hold_arena_memory("List[I32]"), "List[I32] holds arena memory via List");
-        assert!(super::type_can_hold_arena_memory("Bytes"), "Bytes holds arena memory");
-        assert!(!super::type_can_hold_arena_memory("I32"), "I32 does not hold arena memory");
-        assert!(!super::type_can_hold_arena_memory("F64"), "F64 does not hold arena memory");
-        assert!(!super::type_can_hold_arena_memory("Bool"), "Bool does not hold arena memory");
+        assert!(
+            super::type_can_hold_arena_memory("List[Text]"),
+            "List[Text] holds arena memory"
+        );
+        assert!(
+            super::type_can_hold_arena_memory("List[I32]"),
+            "List[I32] holds arena memory via List"
+        );
+        assert!(
+            super::type_can_hold_arena_memory("Bytes"),
+            "Bytes holds arena memory"
+        );
+        assert!(
+            !super::type_can_hold_arena_memory("I32"),
+            "I32 does not hold arena memory"
+        );
+        assert!(
+            !super::type_can_hold_arena_memory("F64"),
+            "F64 does not hold arena memory"
+        );
+        assert!(
+            !super::type_can_hold_arena_memory("Bool"),
+            "Bool does not hold arena memory"
+        );
     }
 
     #[test]
@@ -473,7 +521,10 @@ fn main() -> Text effects [alloc] { take(arg_text(0)) }",
             "lowering should succeed: {:#?}",
             mir.diagnostics,
         );
-        assert!(!diags.is_empty(), "returning passed-through arena text should trigger on main");
+        assert!(
+            !diags.is_empty(),
+            "returning passed-through arena text should trigger on main"
+        );
     }
 
     #[test]
@@ -489,7 +540,10 @@ fn main() -> I32 effects [alloc] { helper() }",
             "lowering should succeed: {:#?}",
             mir.diagnostics,
         );
-        assert!(diags.is_empty(), "calling non-alloc function should not cause false positive");
+        assert!(
+            diags.is_empty(),
+            "calling non-alloc function should not cause false positive"
+        );
     }
 
     #[test]
@@ -506,6 +560,9 @@ fn main() -> Text effects [alloc] { outer() }",
             "lowering should succeed: {:#?}",
             mir.diagnostics,
         );
-        assert!(!diags.is_empty(), "allocating callee should trigger on caller");
+        assert!(
+            !diags.is_empty(),
+            "allocating callee should trigger on caller"
+        );
     }
 }

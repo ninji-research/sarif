@@ -104,7 +104,10 @@ fn bootstrap_format_program() -> Result<&'static Program, String> {
         );
         let loaded = LoadedSource::load(&manifest_path)?;
         let diags = loaded.mir_diagnostics(Profile::Core);
-        loaded.ensure_no_diagnostics(&LoadedSource::blocking_diagnostics(&diags, Profile::Core), "bootstrap format failed")?;
+        loaded.ensure_no_diagnostics(
+            &LoadedSource::blocking_diagnostics(&diags, Profile::Core),
+            "bootstrap format failed",
+        )?;
         Ok(loaded.mir().program.clone())
     });
     cached.as_ref().map_err(Clone::clone)

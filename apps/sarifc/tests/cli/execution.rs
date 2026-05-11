@@ -198,9 +198,15 @@ fn run_executes_text_index_set_consistently() {
 
 #[test]
 fn run_executes_stdout_write_builder_consistently() {
-    let path = temp_source("fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }");
+    let path = temp_source(
+        "fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }",
+    );
     let output = run_profiled("run", &path);
-    assert!(output.status.success(), "stdout_write_builder run should succeed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stdout_write_builder run should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "sarifok");
 }
 
@@ -741,7 +747,9 @@ fn stable_build_streams_stdout_write() {
 #[cfg(feature = "native-build")]
 #[test]
 fn stable_build_streams_stdout_write_builder() {
-    let path = temp_source("fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }");
+    let path = temp_source(
+        "fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }",
+    );
     let binary_path = super::support::temp_artifact("stdout_write_builder_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
 

@@ -239,11 +239,7 @@ fn runtime_c_flags_for(cpu_mode: &str, lto_mode: &str) -> Vec<&'static str> {
 
 fn release_link_flags(family: LinkerFamily) -> Vec<&'static str> {
     let mut flags = match family {
-        LinkerFamily::Elf => vec![
-            "-Wl,--gc-sections",
-            "-Wl,--build-id=none",
-            "-Wl,-s",
-        ],
+        LinkerFamily::Elf => vec!["-Wl,--gc-sections", "-Wl,--build-id=none", "-Wl,-s"],
         LinkerFamily::MachO => vec!["-Wl,-dead_strip"],
     };
     if cfg!(target_os = "linux") && family == LinkerFamily::Elf {

@@ -10,11 +10,11 @@ mod reports;
 use artifact::link_executable;
 use command::{BuildTarget, CommandKind, parse_command, usage};
 use input::resolve_input;
+#[cfg(feature = "codegen")]
+use reports::render_bootstrap_format;
 use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
-#[cfg(feature = "codegen")]
-use reports::render_bootstrap_format;
 #[cfg(feature = "codegen")]
 use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
@@ -159,7 +159,6 @@ impl LoadedSource {
             .cloned()
             .collect()
     }
-
 }
 
 fn main() -> ExitCode {

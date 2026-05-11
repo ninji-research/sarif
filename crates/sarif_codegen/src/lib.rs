@@ -37,23 +37,21 @@ impl RuntimeFeatures {
     pub fn detect(program: &Program) -> Self {
         let mut f = Self::default();
         for func in &program.functions {
-            for_each_inst_recursive(&func.instructions, &mut |inst| {
-                match inst {
-                    Inst::TextBuilderNew { .. }
-                    | Inst::TextBuilderAppend { .. }
-                    | Inst::TextBuilderAppendCodepoint { .. }
-                    | Inst::TextBuilderAppendAscii { .. }
-                    | Inst::TextBuilderAppendSlice { .. }
-                    | Inst::TextBuilderAppendI32 { .. }
-                    | Inst::TextBuilderFinish { .. }
-                    | Inst::StdoutWriteBuilder { .. } => f.text_builder = true,
-                    Inst::TextIndexNew { .. }
-                    | Inst::TextIndexGet { .. }
-                    | Inst::TextIndexGetOrInsert { .. }
-                    | Inst::TextIndexSet { .. } => f.text_index = true,
-                    Inst::ListSortText { .. } | Inst::ListSortRecordTextField { .. } => f.sort = true,
-                    _ => {}
-                }
+            for_each_inst_recursive(&func.instructions, &mut |inst| match inst {
+                Inst::TextBuilderNew { .. }
+                | Inst::TextBuilderAppend { .. }
+                | Inst::TextBuilderAppendCodepoint { .. }
+                | Inst::TextBuilderAppendAscii { .. }
+                | Inst::TextBuilderAppendSlice { .. }
+                | Inst::TextBuilderAppendI32 { .. }
+                | Inst::TextBuilderFinish { .. }
+                | Inst::StdoutWriteBuilder { .. } => f.text_builder = true,
+                Inst::TextIndexNew { .. }
+                | Inst::TextIndexGet { .. }
+                | Inst::TextIndexGetOrInsert { .. }
+                | Inst::TextIndexSet { .. } => f.text_index = true,
+                Inst::ListSortText { .. } | Inst::ListSortRecordTextField { .. } => f.sort = true,
+                _ => {}
             });
         }
         f
@@ -7358,7 +7356,10 @@ impl<'a> Interpreter<'a> {
             if pc >= instructions.len() {
                 if let Some(frame) = callee_stack.pop() {
                     let result = function.result.map_or(RuntimeValue::Unit, |r| {
-                        values.get(r.0 as usize).cloned().unwrap_or(RuntimeValue::Unit)
+                        values
+                            .get(r.0 as usize)
+                            .cloned()
+                            .unwrap_or(RuntimeValue::Unit)
                     });
                     *values = frame.saved_values;
                     *slots = frame.saved_slots;
@@ -8441,24 +8442,15 @@ impl<'a> Interpreter<'a> {
                     } else {
                         (else_insts, else_result)
                     };
-                    self.execute_insts(
-                        function,
-                        branch_insts,
-                        values,
-                        slots,
-                        &active_args,
-                    )?;
+                    self.execute_insts(function, branch_insts, values, slots, &active_args)?;
                     let result = branch_result.map_or(Ok(RuntimeValue::Unit), |result| {
-                        values
-                            .get(result.0 as usize)
-                            .cloned()
-                            .ok_or_else(|| {
-                                RuntimeError::new(format!(
-                                    "missing conditional branch result in `{}` for {}",
-                                    function.name,
-                                    result.render()
-                                ))
-                            })
+                        values.get(result.0 as usize).cloned().ok_or_else(|| {
+                            RuntimeError::new(format!(
+                                "missing conditional branch result in `{}` for {}",
+                                function.name,
+                                result.render()
+                            ))
+                        })
                     })?;
                     values[dest.0 as usize] = result;
                 }
@@ -8474,13 +8466,7 @@ impl<'a> Interpreter<'a> {
                             if let Some(slot) = index_slot {
                                 slots[slot.0 as usize] = RuntimeValue::Int(index);
                             }
-                            self.execute_insts(
-                                function,
-                                body_insts,
-                                values,
-                                slots,
-                                &active_args,
-                            )?;
+                            self.execute_insts(function, body_insts, values, slots, &active_args)?;
                         }
                     }
                     values[dest.0 as usize] = RuntimeValue::Unit;
@@ -8492,17 +8478,9 @@ impl<'a> Interpreter<'a> {
                     body_insts,
                 } => {
                     loop {
-                        self.execute_insts(
-                            function,
-                            condition_insts,
-                            values,
-                            slots,
-                            &active_args,
-                        )?;
-                        let RuntimeValue::Bool(keep_going) = values
-                            .get(condition.0 as usize)
-                            .cloned()
-                            .ok_or_else(|| {
+                        self.execute_insts(function, condition_insts, values, slots, &active_args)?;
+                        let RuntimeValue::Bool(keep_going) =
+                            values.get(condition.0 as usize).cloned().ok_or_else(|| {
                                 RuntimeError::new(format!(
                                     "missing while condition result in `{}` for {}",
                                     function.name,
@@ -8518,13 +8496,7 @@ impl<'a> Interpreter<'a> {
                         if !keep_going {
                             break;
                         }
-                        self.execute_insts(
-                            function,
-                            body_insts,
-                            values,
-                            slots,
-                            &active_args,
-                        )?;
+                        self.execute_insts(function, body_insts, values, slots, &active_args)?;
                     }
                     values[dest.0 as usize] = RuntimeValue::Unit;
                 }
@@ -8641,7 +8613,11 @@ impl<'a> Interpreter<'a> {
                         "ge"
                     )?;
                 }
-                Inst::Call { dest, callee, args: call_refs } => {
+                Inst::Call {
+                    dest,
+                    callee,
+                    args: call_refs,
+                } => {
                     let callee_fn = *self
                         .functions
                         .get(callee.as_str())
@@ -8707,13 +8683,7 @@ impl<'a> Interpreter<'a> {
                     if let Some(arm) = matched_arm {
                         let saved_args = std::mem::take(&mut active_args);
                         active_args = arg_values;
-                        self.execute_insts(
-                            function,
-                            &arm.body_insts,
-                            values,
-                            slots,
-                            &active_args,
-                        )?;
+                        self.execute_insts(function, &arm.body_insts, values, slots, &active_args)?;
                         active_args = saved_args;
                         if let Some(result_id) = arm.body_result {
                             let value = values
@@ -8752,10 +8722,10 @@ impl<'a> Interpreter<'a> {
                     )?;
                     self.handlers.pop();
                     if let Some(result_id) = body_result {
-                        let value =
-                            local_values.get(result_id.0 as usize).cloned().ok_or_else(
-                                || RuntimeError::new("missing handle body result"),
-                            )?;
+                        let value = local_values
+                            .get(result_id.0 as usize)
+                            .cloned()
+                            .ok_or_else(|| RuntimeError::new("missing handle body result"))?;
                         values[dest.0 as usize] = value;
                     } else {
                         values[dest.0 as usize] = RuntimeValue::Unit;
