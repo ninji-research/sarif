@@ -135,7 +135,8 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
   (bootstrap format is flipped to Sarif host; check/doc remain Rust aliases because the
   Sarif bootstrap does not have full semantic analysis parity — assessed as not practical
   to implement for the current bootstrap runtime; requires ~4150 lines of type inference
-  + ownership tracking and is constrained by bootstrap fixed-size tuple limits)
+  + ownership tracking)
+  - Bootstrap fixed-size tuple limits (5→16 slots for all MIR and HIR list types) — DONE
 
 A full standard library is not complete:
 - async, parallel, and multithreaded runtime support are not complete

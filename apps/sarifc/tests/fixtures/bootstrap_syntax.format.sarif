@@ -207,6 +207,17 @@ struct MirParamList {
     p3: OptionalMirParam,
     p4: OptionalMirParam,
     p5: OptionalMirParam,
+    p6: OptionalMirParam,
+    p7: OptionalMirParam,
+    p8: OptionalMirParam,
+    p9: OptionalMirParam,
+    p10: OptionalMirParam,
+    p11: OptionalMirParam,
+    p12: OptionalMirParam,
+    p13: OptionalMirParam,
+    p14: OptionalMirParam,
+    p15: OptionalMirParam,
+    p16: OptionalMirParam,
 }
 
 struct OptionalMirParam {
@@ -221,6 +232,17 @@ struct MirFxList {
     fx3: OptionalMirFx,
     fx4: OptionalMirFx,
     fx5: OptionalMirFx,
+    fx6: OptionalMirFx,
+    fx7: OptionalMirFx,
+    fx8: OptionalMirFx,
+    fx9: OptionalMirFx,
+    fx10: OptionalMirFx,
+    fx11: OptionalMirFx,
+    fx12: OptionalMirFx,
+    fx13: OptionalMirFx,
+    fx14: OptionalMirFx,
+    fx15: OptionalMirFx,
+    fx16: OptionalMirFx,
 }
 
 struct OptionalMirFx {
@@ -235,6 +257,17 @@ struct MirLocalList {
     l3: OptionalMirLocal,
     l4: OptionalMirLocal,
     l5: OptionalMirLocal,
+    l6: OptionalMirLocal,
+    l7: OptionalMirLocal,
+    l8: OptionalMirLocal,
+    l9: OptionalMirLocal,
+    l10: OptionalMirLocal,
+    l11: OptionalMirLocal,
+    l12: OptionalMirLocal,
+    l13: OptionalMirLocal,
+    l14: OptionalMirLocal,
+    l15: OptionalMirLocal,
+    l16: OptionalMirLocal,
 }
 
 struct OptionalMirLocal {
@@ -249,6 +282,17 @@ struct MirBlock {
     i3: OptionalMirInst,
     i4: OptionalMirInst,
     i5: OptionalMirInst,
+    i6: OptionalMirInst,
+    i7: OptionalMirInst,
+    i8: OptionalMirInst,
+    i9: OptionalMirInst,
+    i10: OptionalMirInst,
+    i11: OptionalMirInst,
+    i12: OptionalMirInst,
+    i13: OptionalMirInst,
+    i14: OptionalMirInst,
+    i15: OptionalMirInst,
+    i16: OptionalMirInst,
 }
 
 struct OptionalMirInst {
@@ -267,6 +311,17 @@ struct MirFnList {
     f3: OptionalMirFn,
     f4: OptionalMirFn,
     f5: OptionalMirFn,
+    f6: OptionalMirFn,
+    f7: OptionalMirFn,
+    f8: OptionalMirFn,
+    f9: OptionalMirFn,
+    f10: OptionalMirFn,
+    f11: OptionalMirFn,
+    f12: OptionalMirFn,
+    f13: OptionalMirFn,
+    f14: OptionalMirFn,
+    f15: OptionalMirFn,
+    f16: OptionalMirFn,
 }
 
 struct OptionalMirFn {
@@ -2618,27 +2673,27 @@ fn mir_optional_inst_false() -> OptionalMirInst {
 }
 
 fn mir_param_list_new() -> MirParamList {
-    MirParamList { len: 0, p1: mir_optional_param_false(), p2: mir_optional_param_false(), p3: mir_optional_param_false(), p4: mir_optional_param_false(), p5: mir_optional_param_false() }
+    MirParamList { len: 0, p1: mir_optional_param_false(), p2: mir_optional_param_false(), p3: mir_optional_param_false(), p4: mir_optional_param_false(), p5: mir_optional_param_false(), p6: mir_optional_param_false(), p7: mir_optional_param_false(), p8: mir_optional_param_false(), p9: mir_optional_param_false(), p10: mir_optional_param_false(), p11: mir_optional_param_false(), p12: mir_optional_param_false(), p13: mir_optional_param_false(), p14: mir_optional_param_false(), p15: mir_optional_param_false(), p16: mir_optional_param_false() }
 }
 
 fn mir_fx_list_new() -> MirFxList {
-    MirFxList { len: 0, fx1: mir_optional_fx_false(), fx2: mir_optional_fx_false(), fx3: mir_optional_fx_false(), fx4: mir_optional_fx_false(), fx5: mir_optional_fx_false() }
+    MirFxList { len: 0, fx1: mir_optional_fx_false(), fx2: mir_optional_fx_false(), fx3: mir_optional_fx_false(), fx4: mir_optional_fx_false(), fx5: mir_optional_fx_false(), fx6: mir_optional_fx_false(), fx7: mir_optional_fx_false(), fx8: mir_optional_fx_false(), fx9: mir_optional_fx_false(), fx10: mir_optional_fx_false(), fx11: mir_optional_fx_false(), fx12: mir_optional_fx_false(), fx13: mir_optional_fx_false(), fx14: mir_optional_fx_false(), fx15: mir_optional_fx_false(), fx16: mir_optional_fx_false() }
 }
 
 fn mir_local_list_new() -> MirLocalList {
-    MirLocalList { len: 0, l1: mir_optional_local_false(), l2: mir_optional_local_false(), l3: mir_optional_local_false(), l4: mir_optional_local_false(), l5: mir_optional_local_false() }
+    MirLocalList { len: 0, l1: mir_optional_local_false(), l2: mir_optional_local_false(), l3: mir_optional_local_false(), l4: mir_optional_local_false(), l5: mir_optional_local_false(), l6: mir_optional_local_false(), l7: mir_optional_local_false(), l8: mir_optional_local_false(), l9: mir_optional_local_false(), l10: mir_optional_local_false(), l11: mir_optional_local_false(), l12: mir_optional_local_false(), l13: mir_optional_local_false(), l14: mir_optional_local_false(), l15: mir_optional_local_false(), l16: mir_optional_local_false() }
 }
 
 fn mir_block_new() -> MirBlock {
-    MirBlock { len: 0, i1: mir_optional_inst_false(), i2: mir_optional_inst_false(), i3: mir_optional_inst_false(), i4: mir_optional_inst_false(), i5: mir_optional_inst_false() }
+    MirBlock { len: 0, i1: mir_optional_inst_false(), i2: mir_optional_inst_false(), i3: mir_optional_inst_false(), i4: mir_optional_inst_false(), i5: mir_optional_inst_false(), i6: mir_optional_inst_false(), i7: mir_optional_inst_false(), i8: mir_optional_inst_false(), i9: mir_optional_inst_false(), i10: mir_optional_inst_false(), i11: mir_optional_inst_false(), i12: mir_optional_inst_false(), i13: mir_optional_inst_false(), i14: mir_optional_inst_false(), i15: mir_optional_inst_false(), i16: mir_optional_inst_false() }
 }
 
 fn mir_block_with_inst(inst: MirInstData) -> MirBlock {
-    MirBlock { len: 1, i1: OptionalMirInst { present: true, data: inst }, i2: mir_optional_inst_false(), i3: mir_optional_inst_false(), i4: mir_optional_inst_false(), i5: mir_optional_inst_false() }
+    MirBlock { len: 1, i1: OptionalMirInst { present: true, data: inst }, i2: mir_optional_inst_false(), i3: mir_optional_inst_false(), i4: mir_optional_inst_false(), i5: mir_optional_inst_false(), i6: mir_optional_inst_false(), i7: mir_optional_inst_false(), i8: mir_optional_inst_false(), i9: mir_optional_inst_false(), i10: mir_optional_inst_false(), i11: mir_optional_inst_false(), i12: mir_optional_inst_false(), i13: mir_optional_inst_false(), i14: mir_optional_inst_false(), i15: mir_optional_inst_false(), i16: mir_optional_inst_false() }
 }
 
 fn mir_fn_list_new() -> MirFnList {
-    MirFnList { len: 0, f1: mir_optional_fn_false(), f2: mir_optional_fn_false(), f3: mir_optional_fn_false(), f4: mir_optional_fn_false(), f5: mir_optional_fn_false() }
+    MirFnList { len: 0, f1: mir_optional_fn_false(), f2: mir_optional_fn_false(), f3: mir_optional_fn_false(), f4: mir_optional_fn_false(), f5: mir_optional_fn_false(), f6: mir_optional_fn_false(), f7: mir_optional_fn_false(), f8: mir_optional_fn_false(), f9: mir_optional_fn_false(), f10: mir_optional_fn_false(), f11: mir_optional_fn_false(), f12: mir_optional_fn_false(), f13: mir_optional_fn_false(), f14: mir_optional_fn_false(), f15: mir_optional_fn_false(), f16: mir_optional_fn_false() }
 }
 
 fn mir_inst_tag_is_alloc_push(tag: MirInst) -> Bool {
@@ -3299,6 +3354,17 @@ struct HirItemList {
     i3: OptionalHirItem,
     i4: OptionalHirItem,
     i5: OptionalHirItem,
+    i6: OptionalHirItem,
+    i7: OptionalHirItem,
+    i8: OptionalHirItem,
+    i9: OptionalHirItem,
+    i10: OptionalHirItem,
+    i11: OptionalHirItem,
+    i12: OptionalHirItem,
+    i13: OptionalHirItem,
+    i14: OptionalHirItem,
+    i15: OptionalHirItem,
+    i16: OptionalHirItem,
 }
 
 struct OptionalHirItem {
@@ -3329,6 +3395,17 @@ struct HirParamList {
     p3: OptionalHirParam,
     p4: OptionalHirParam,
     p5: OptionalHirParam,
+    p6: OptionalHirParam,
+    p7: OptionalHirParam,
+    p8: OptionalHirParam,
+    p9: OptionalHirParam,
+    p10: OptionalHirParam,
+    p11: OptionalHirParam,
+    p12: OptionalHirParam,
+    p13: OptionalHirParam,
+    p14: OptionalHirParam,
+    p15: OptionalHirParam,
+    p16: OptionalHirParam,
 }
 
 struct OptionalHirParam {
@@ -3343,6 +3420,17 @@ struct HirFxList {
     fx3: OptionalHirFx,
     fx4: OptionalHirFx,
     fx5: OptionalHirFx,
+    fx6: OptionalHirFx,
+    fx7: OptionalHirFx,
+    fx8: OptionalHirFx,
+    fx9: OptionalHirFx,
+    fx10: OptionalHirFx,
+    fx11: OptionalHirFx,
+    fx12: OptionalHirFx,
+    fx13: OptionalHirFx,
+    fx14: OptionalHirFx,
+    fx15: OptionalHirFx,
+    fx16: OptionalHirFx,
 }
 
 struct OptionalHirFx {
@@ -3373,6 +3461,17 @@ struct HirVariantList {
     v3: OptionalHirVariant,
     v4: OptionalHirVariant,
     v5: OptionalHirVariant,
+    v6: OptionalHirVariant,
+    v7: OptionalHirVariant,
+    v8: OptionalHirVariant,
+    v9: OptionalHirVariant,
+    v10: OptionalHirVariant,
+    v11: OptionalHirVariant,
+    v12: OptionalHirVariant,
+    v13: OptionalHirVariant,
+    v14: OptionalHirVariant,
+    v15: OptionalHirVariant,
+    v16: OptionalHirVariant,
 }
 
 struct OptionalHirVariant {
@@ -3399,6 +3498,17 @@ struct HirFieldList {
     f3: OptionalHirField,
     f4: OptionalHirField,
     f5: OptionalHirField,
+    f6: OptionalHirField,
+    f7: OptionalHirField,
+    f8: OptionalHirField,
+    f9: OptionalHirField,
+    f10: OptionalHirField,
+    f11: OptionalHirField,
+    f12: OptionalHirField,
+    f13: OptionalHirField,
+    f14: OptionalHirField,
+    f15: OptionalHirField,
+    f16: OptionalHirField,
 }
 
 struct OptionalHirField {
@@ -3419,6 +3529,17 @@ struct HirConstList {
     c3: OptionalHirConst,
     c4: OptionalHirConst,
     c5: OptionalHirConst,
+    c6: OptionalHirConst,
+    c7: OptionalHirConst,
+    c8: OptionalHirConst,
+    c9: OptionalHirConst,
+    c10: OptionalHirConst,
+    c11: OptionalHirConst,
+    c12: OptionalHirConst,
+    c13: OptionalHirConst,
+    c14: OptionalHirConst,
+    c15: OptionalHirConst,
+    c16: OptionalHirConst,
 }
 
 struct OptionalHirConst {
@@ -3433,6 +3554,17 @@ struct HirFnList2 {
     f3: OptionalHirFn2,
     f4: OptionalHirFn2,
     f5: OptionalHirFn2,
+    f6: OptionalHirFn2,
+    f7: OptionalHirFn2,
+    f8: OptionalHirFn2,
+    f9: OptionalHirFn2,
+    f10: OptionalHirFn2,
+    f11: OptionalHirFn2,
+    f12: OptionalHirFn2,
+    f13: OptionalHirFn2,
+    f14: OptionalHirFn2,
+    f15: OptionalHirFn2,
+    f16: OptionalHirFn2,
 }
 
 struct OptionalHirFn2 {
@@ -3447,6 +3579,17 @@ struct HirEnumList {
     e3: OptionalHirEnum,
     e4: OptionalHirEnum,
     e5: OptionalHirEnum,
+    e6: OptionalHirEnum,
+    e7: OptionalHirEnum,
+    e8: OptionalHirEnum,
+    e9: OptionalHirEnum,
+    e10: OptionalHirEnum,
+    e11: OptionalHirEnum,
+    e12: OptionalHirEnum,
+    e13: OptionalHirEnum,
+    e14: OptionalHirEnum,
+    e15: OptionalHirEnum,
+    e16: OptionalHirEnum,
 }
 
 struct OptionalHirEnum {
@@ -3461,6 +3604,17 @@ struct HirStructList {
     s3: OptionalHirStruct,
     s4: OptionalHirStruct,
     s5: OptionalHirStruct,
+    s6: OptionalHirStruct,
+    s7: OptionalHirStruct,
+    s8: OptionalHirStruct,
+    s9: OptionalHirStruct,
+    s10: OptionalHirStruct,
+    s11: OptionalHirStruct,
+    s12: OptionalHirStruct,
+    s13: OptionalHirStruct,
+    s14: OptionalHirStruct,
+    s15: OptionalHirStruct,
+    s16: OptionalHirStruct,
 }
 
 struct OptionalHirStruct {
@@ -3489,6 +3643,17 @@ struct HirStmtList {
     s3: OptionalHirStmt,
     s4: OptionalHirStmt,
     s5: OptionalHirStmt,
+    s6: OptionalHirStmt,
+    s7: OptionalHirStmt,
+    s8: OptionalHirStmt,
+    s9: OptionalHirStmt,
+    s10: OptionalHirStmt,
+    s11: OptionalHirStmt,
+    s12: OptionalHirStmt,
+    s13: OptionalHirStmt,
+    s14: OptionalHirStmt,
+    s15: OptionalHirStmt,
+    s16: OptionalHirStmt,
 }
 
 struct OptionalHirStmt {
@@ -3729,7 +3894,7 @@ fn hir_body_new(stmts: HirStmtList, tail: OptionalHirExprId, span: Span) -> HirB
 }
 
 fn hir_stmt_list_new() -> HirStmtList {
-    HirStmtList { len: 0, s1: hir_optional_stmt_false(), s2: hir_optional_stmt_false(), s3: hir_optional_stmt_false(), s4: hir_optional_stmt_false(), s5: hir_optional_stmt_false() }
+    HirStmtList { len: 0, s1: hir_optional_stmt_false(), s2: hir_optional_stmt_false(), s3: hir_optional_stmt_false(), s4: hir_optional_stmt_false(), s5: hir_optional_stmt_false(), s6: hir_optional_stmt_false(), s7: hir_optional_stmt_false(), s8: hir_optional_stmt_false(), s9: hir_optional_stmt_false(), s10: hir_optional_stmt_false(), s11: hir_optional_stmt_false(), s12: hir_optional_stmt_false(), s13: hir_optional_stmt_false(), s14: hir_optional_stmt_false(), s15: hir_optional_stmt_false(), s16: hir_optional_stmt_false() }
 }
 
 fn hir_optional_stmt_false() -> OptionalHirStmt {
@@ -3745,7 +3910,7 @@ fn hir_optional_expr_false() -> OptionalHirExprId {
 }
 
 fn hir_param_list_new() -> HirParamList {
-    HirParamList { len: 0, p1: hir_optional_param_false(), p2: hir_optional_param_false(), p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false() }
+    HirParamList { len: 0, p1: hir_optional_param_false(), p2: hir_optional_param_false(), p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false(), p6: hir_optional_param_false(), p7: hir_optional_param_false(), p8: hir_optional_param_false(), p9: hir_optional_param_false(), p10: hir_optional_param_false(), p11: hir_optional_param_false(), p12: hir_optional_param_false(), p13: hir_optional_param_false(), p14: hir_optional_param_false(), p15: hir_optional_param_false(), p16: hir_optional_param_false() }
 }
 
 fn hir_optional_param_false() -> OptionalHirParam {
@@ -3753,7 +3918,7 @@ fn hir_optional_param_false() -> OptionalHirParam {
 }
 
 fn hir_fx_list_new() -> HirFxList {
-    HirFxList { len: 0, fx1: hir_optional_fx_false(), fx2: hir_optional_fx_false(), fx3: hir_optional_fx_false(), fx4: hir_optional_fx_false(), fx5: hir_optional_fx_false() }
+    HirFxList { len: 0, fx1: hir_optional_fx_false(), fx2: hir_optional_fx_false(), fx3: hir_optional_fx_false(), fx4: hir_optional_fx_false(), fx5: hir_optional_fx_false(), fx6: hir_optional_fx_false(), fx7: hir_optional_fx_false(), fx8: hir_optional_fx_false(), fx9: hir_optional_fx_false(), fx10: hir_optional_fx_false(), fx11: hir_optional_fx_false(), fx12: hir_optional_fx_false(), fx13: hir_optional_fx_false(), fx14: hir_optional_fx_false(), fx15: hir_optional_fx_false(), fx16: hir_optional_fx_false() }
 }
 
 fn hir_optional_fx_false() -> OptionalHirFx {
@@ -3769,7 +3934,7 @@ fn hir_variant_new(name: Text) -> HirVariant {
 }
 
 fn hir_variant_list_new() -> HirVariantList {
-    HirVariantList { len: 0, v1: hir_optional_variant_false(), v2: hir_optional_variant_false(), v3: hir_optional_variant_false(), v4: hir_optional_variant_false(), v5: hir_optional_variant_false() }
+    HirVariantList { len: 0, v1: hir_optional_variant_false(), v2: hir_optional_variant_false(), v3: hir_optional_variant_false(), v4: hir_optional_variant_false(), v5: hir_optional_variant_false(), v6: hir_optional_variant_false(), v7: hir_optional_variant_false(), v8: hir_optional_variant_false(), v9: hir_optional_variant_false(), v10: hir_optional_variant_false(), v11: hir_optional_variant_false(), v12: hir_optional_variant_false(), v13: hir_optional_variant_false(), v14: hir_optional_variant_false(), v15: hir_optional_variant_false(), v16: hir_optional_variant_false() }
 }
 
 fn hir_optional_variant_false() -> OptionalHirVariant {
@@ -3785,7 +3950,7 @@ fn hir_field_new(name: Text) -> HirField {
 }
 
 fn hir_field_list_new() -> HirFieldList {
-    HirFieldList { len: 0, f1: hir_optional_field_false(), f2: hir_optional_field_false(), f3: hir_optional_field_false(), f4: hir_optional_field_false(), f5: hir_optional_field_false() }
+    HirFieldList { len: 0, f1: hir_optional_field_false(), f2: hir_optional_field_false(), f3: hir_optional_field_false(), f4: hir_optional_field_false(), f5: hir_optional_field_false(), f6: hir_optional_field_false(), f7: hir_optional_field_false(), f8: hir_optional_field_false(), f9: hir_optional_field_false(), f10: hir_optional_field_false(), f11: hir_optional_field_false(), f12: hir_optional_field_false(), f13: hir_optional_field_false(), f14: hir_optional_field_false(), f15: hir_optional_field_false(), f16: hir_optional_field_false() }
 }
 
 fn hir_optional_field_false() -> OptionalHirField {
@@ -3801,11 +3966,11 @@ fn hir_const_new(name: Text) -> HirConst {
 }
 
 fn hir_const_list_new() -> HirConstList {
-    HirConstList { len: 0, c1: hir_optional_const_false(), c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false() }
+    HirConstList { len: 0, c1: hir_optional_const_false(), c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false(), c6: hir_optional_const_false(), c7: hir_optional_const_false(), c8: hir_optional_const_false(), c9: hir_optional_const_false(), c10: hir_optional_const_false(), c11: hir_optional_const_false(), c12: hir_optional_const_false(), c13: hir_optional_const_false(), c14: hir_optional_const_false(), c15: hir_optional_const_false(), c16: hir_optional_const_false() }
 }
 
 fn hir_const_list_with(c: HirConst) -> HirConstList {
-    HirConstList { len: 1, c1: OptionalHirConst { present: true, c: c }, c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false() }
+    HirConstList { len: 1, c1: OptionalHirConst { present: true, c: c }, c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false(), c6: hir_optional_const_false(), c7: hir_optional_const_false(), c8: hir_optional_const_false(), c9: hir_optional_const_false(), c10: hir_optional_const_false(), c11: hir_optional_const_false(), c12: hir_optional_const_false(), c13: hir_optional_const_false(), c14: hir_optional_const_false(), c15: hir_optional_const_false(), c16: hir_optional_const_false() }
 }
 
 fn hir_optional_const_false() -> OptionalHirConst {
@@ -3813,11 +3978,11 @@ fn hir_optional_const_false() -> OptionalHirConst {
 }
 
 fn hir_fn_list_2_new() -> HirFnList2 {
-    HirFnList2 { len: 0, f1: hir_optional_fn_2_false(), f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false() }
+    HirFnList2 { len: 0, f1: hir_optional_fn_2_false(), f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false(), f6: hir_optional_fn_2_false(), f7: hir_optional_fn_2_false(), f8: hir_optional_fn_2_false(), f9: hir_optional_fn_2_false(), f10: hir_optional_fn_2_false(), f11: hir_optional_fn_2_false(), f12: hir_optional_fn_2_false(), f13: hir_optional_fn_2_false(), f14: hir_optional_fn_2_false(), f15: hir_optional_fn_2_false(), f16: hir_optional_fn_2_false() }
 }
 
 fn hir_fn_list_2_with(f: HirFn) -> HirFnList2 {
-    HirFnList2 { len: 1, f1: OptionalHirFn2 { present: true, f: f }, f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false() }
+    HirFnList2 { len: 1, f1: OptionalHirFn2 { present: true, f: f }, f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false(), f6: hir_optional_fn_2_false(), f7: hir_optional_fn_2_false(), f8: hir_optional_fn_2_false(), f9: hir_optional_fn_2_false(), f10: hir_optional_fn_2_false(), f11: hir_optional_fn_2_false(), f12: hir_optional_fn_2_false(), f13: hir_optional_fn_2_false(), f14: hir_optional_fn_2_false(), f15: hir_optional_fn_2_false(), f16: hir_optional_fn_2_false() }
 }
 
 fn hir_optional_fn_2_false() -> OptionalHirFn2 {
@@ -3825,11 +3990,11 @@ fn hir_optional_fn_2_false() -> OptionalHirFn2 {
 }
 
 fn hir_enum_list_new() -> HirEnumList {
-    HirEnumList { len: 0, e1: hir_optional_enum_false(), e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false() }
+    HirEnumList { len: 0, e1: hir_optional_enum_false(), e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false(), e6: hir_optional_enum_false(), e7: hir_optional_enum_false(), e8: hir_optional_enum_false(), e9: hir_optional_enum_false(), e10: hir_optional_enum_false(), e11: hir_optional_enum_false(), e12: hir_optional_enum_false(), e13: hir_optional_enum_false(), e14: hir_optional_enum_false(), e15: hir_optional_enum_false(), e16: hir_optional_enum_false() }
 }
 
 fn hir_enum_list_with(e: HirEnum) -> HirEnumList {
-    HirEnumList { len: 1, e1: OptionalHirEnum { present: true, e: e }, e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false() }
+    HirEnumList { len: 1, e1: OptionalHirEnum { present: true, e: e }, e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false(), e6: hir_optional_enum_false(), e7: hir_optional_enum_false(), e8: hir_optional_enum_false(), e9: hir_optional_enum_false(), e10: hir_optional_enum_false(), e11: hir_optional_enum_false(), e12: hir_optional_enum_false(), e13: hir_optional_enum_false(), e14: hir_optional_enum_false(), e15: hir_optional_enum_false(), e16: hir_optional_enum_false() }
 }
 
 fn hir_optional_enum_false() -> OptionalHirEnum {
@@ -3837,11 +4002,11 @@ fn hir_optional_enum_false() -> OptionalHirEnum {
 }
 
 fn hir_struct_list_new() -> HirStructList {
-    HirStructList { len: 0, s1: hir_optional_struct_false(), s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false() }
+    HirStructList { len: 0, s1: hir_optional_struct_false(), s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false(), s6: hir_optional_struct_false(), s7: hir_optional_struct_false(), s8: hir_optional_struct_false(), s9: hir_optional_struct_false(), s10: hir_optional_struct_false(), s11: hir_optional_struct_false(), s12: hir_optional_struct_false(), s13: hir_optional_struct_false(), s14: hir_optional_struct_false(), s15: hir_optional_struct_false(), s16: hir_optional_struct_false() }
 }
 
 fn hir_struct_list_with(s: HirStruct) -> HirStructList {
-    HirStructList { len: 1, s1: OptionalHirStruct { present: true, s: s }, s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false() }
+    HirStructList { len: 1, s1: OptionalHirStruct { present: true, s: s }, s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false(), s6: hir_optional_struct_false(), s7: hir_optional_struct_false(), s8: hir_optional_struct_false(), s9: hir_optional_struct_false(), s10: hir_optional_struct_false(), s11: hir_optional_struct_false(), s12: hir_optional_struct_false(), s13: hir_optional_struct_false(), s14: hir_optional_struct_false(), s15: hir_optional_struct_false(), s16: hir_optional_struct_false() }
 }
 
 fn hir_optional_struct_false() -> OptionalHirStruct {
@@ -3883,21 +4048,65 @@ fn hir_item_kind_effect() -> HirItemKind {
 fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList {
     let next = list.len + 1;
     if list.len == 0 {
-        HirConstList { len: next, c1: OptionalHirConst { present: true, c: c }, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5 }
+        HirConstList { len: next, c1: OptionalHirConst { present: true, c: c }, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
     } else {
         if list.len == 1 {
-            HirConstList { len: next, c1: list.c1, c2: OptionalHirConst { present: true, c: c }, c3: list.c3, c4: list.c4, c5: list.c5 }
+            HirConstList { len: next, c1: list.c1, c2: OptionalHirConst { present: true, c: c }, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
         } else {
             if list.len == 2 {
-                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: OptionalHirConst { present: true, c: c }, c4: list.c4, c5: list.c5 }
+                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: OptionalHirConst { present: true, c: c }, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
             } else {
                 if list.len == 3 {
-                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: OptionalHirConst { present: true, c: c }, c5: list.c5 }
+                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: OptionalHirConst { present: true, c: c }, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
                 } else {
                     if list.len == 4 {
-                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: OptionalHirConst { present: true, c: c } }
+                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: OptionalHirConst { present: true, c: c }, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
                     } else {
-                        list
+                        if list.len == 5 {
+                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: OptionalHirConst { present: true, c: c }, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                        } else {
+                            if list.len == 6 {
+                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: OptionalHirConst { present: true, c: c }, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                            } else {
+                                if list.len == 7 {
+                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: OptionalHirConst { present: true, c: c }, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                } else {
+                                    if list.len == 8 {
+                                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: OptionalHirConst { present: true, c: c }, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                    } else {
+                                        if list.len == 9 {
+                                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: OptionalHirConst { present: true, c: c }, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                        } else {
+                                            if list.len == 10 {
+                                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: OptionalHirConst { present: true, c: c }, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                            } else {
+                                                if list.len == 11 {
+                                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: OptionalHirConst { present: true, c: c }, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                                } else {
+                                                    if list.len == 12 {
+                                                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: OptionalHirConst { present: true, c: c }, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                                    } else {
+                                                        if list.len == 13 {
+                                                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: OptionalHirConst { present: true, c: c }, c15: list.c15, c16: list.c16 }
+                                                        } else {
+                                                            if list.len == 14 {
+                                                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: OptionalHirConst { present: true, c: c }, c16: list.c16 }
+                                                            } else {
+                                                                if list.len == 15 {
+                                                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: OptionalHirConst { present: true, c: c } }
+                                                                } else {
+                                                                    list
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -3908,21 +4117,65 @@ fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList {
 fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2 {
     let next = list.len + 1;
     if list.len == 0 {
-        HirFnList2 { len: next, f1: OptionalHirFn2 { present: true, f: f }, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5 }
+        HirFnList2 { len: next, f1: OptionalHirFn2 { present: true, f: f }, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
     } else {
         if list.len == 1 {
-            HirFnList2 { len: next, f1: list.f1, f2: OptionalHirFn2 { present: true, f: f }, f3: list.f3, f4: list.f4, f5: list.f5 }
+            HirFnList2 { len: next, f1: list.f1, f2: OptionalHirFn2 { present: true, f: f }, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
         } else {
             if list.len == 2 {
-                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: OptionalHirFn2 { present: true, f: f }, f4: list.f4, f5: list.f5 }
+                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: OptionalHirFn2 { present: true, f: f }, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
             } else {
                 if list.len == 3 {
-                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: OptionalHirFn2 { present: true, f: f }, f5: list.f5 }
+                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: OptionalHirFn2 { present: true, f: f }, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
                 } else {
                     if list.len == 4 {
-                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: OptionalHirFn2 { present: true, f: f } }
+                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: OptionalHirFn2 { present: true, f: f }, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
                     } else {
-                        list
+                        if list.len == 5 {
+                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: OptionalHirFn2 { present: true, f: f }, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                        } else {
+                            if list.len == 6 {
+                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: OptionalHirFn2 { present: true, f: f }, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                            } else {
+                                if list.len == 7 {
+                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: OptionalHirFn2 { present: true, f: f }, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                                } else {
+                                    if list.len == 8 {
+                                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: OptionalHirFn2 { present: true, f: f }, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                                    } else {
+                                        if list.len == 9 {
+                                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: OptionalHirFn2 { present: true, f: f }, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                                        } else {
+                                            if list.len == 10 {
+                                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: OptionalHirFn2 { present: true, f: f }, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                                            } else {
+                                                if list.len == 11 {
+                                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: OptionalHirFn2 { present: true, f: f }, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+                                                } else {
+                                                    if list.len == 12 {
+                                                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: OptionalHirFn2 { present: true, f: f }, f14: list.f14, f15: list.f15, f16: list.f16 }
+                                                    } else {
+                                                        if list.len == 13 {
+                                                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: OptionalHirFn2 { present: true, f: f }, f15: list.f15, f16: list.f16 }
+                                                        } else {
+                                                            if list.len == 14 {
+                                                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: OptionalHirFn2 { present: true, f: f }, f16: list.f16 }
+                                                            } else {
+                                                                if list.len == 15 {
+                                                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: OptionalHirFn2 { present: true, f: f } }
+                                                                } else {
+                                                                    list
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -3933,21 +4186,65 @@ fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2 {
 fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList {
     let next = list.len + 1;
     if list.len == 0 {
-        HirEnumList { len: next, e1: OptionalHirEnum { present: true, e: e }, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5 }
+        HirEnumList { len: next, e1: OptionalHirEnum { present: true, e: e }, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
     } else {
         if list.len == 1 {
-            HirEnumList { len: next, e1: list.e1, e2: OptionalHirEnum { present: true, e: e }, e3: list.e3, e4: list.e4, e5: list.e5 }
+            HirEnumList { len: next, e1: list.e1, e2: OptionalHirEnum { present: true, e: e }, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
         } else {
             if list.len == 2 {
-                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: OptionalHirEnum { present: true, e: e }, e4: list.e4, e5: list.e5 }
+                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: OptionalHirEnum { present: true, e: e }, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
             } else {
                 if list.len == 3 {
-                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: OptionalHirEnum { present: true, e: e }, e5: list.e5 }
+                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: OptionalHirEnum { present: true, e: e }, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
                 } else {
                     if list.len == 4 {
-                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: OptionalHirEnum { present: true, e: e } }
+                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: OptionalHirEnum { present: true, e: e }, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
                     } else {
-                        list
+                        if list.len == 5 {
+                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: OptionalHirEnum { present: true, e: e }, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                        } else {
+                            if list.len == 6 {
+                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: OptionalHirEnum { present: true, e: e }, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                            } else {
+                                if list.len == 7 {
+                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: OptionalHirEnum { present: true, e: e }, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                                } else {
+                                    if list.len == 8 {
+                                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: OptionalHirEnum { present: true, e: e }, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                                    } else {
+                                        if list.len == 9 {
+                                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: OptionalHirEnum { present: true, e: e }, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                                        } else {
+                                            if list.len == 10 {
+                                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: OptionalHirEnum { present: true, e: e }, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                                            } else {
+                                                if list.len == 11 {
+                                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: OptionalHirEnum { present: true, e: e }, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+                                                } else {
+                                                    if list.len == 12 {
+                                                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: OptionalHirEnum { present: true, e: e }, e14: list.e14, e15: list.e15, e16: list.e16 }
+                                                    } else {
+                                                        if list.len == 13 {
+                                                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: OptionalHirEnum { present: true, e: e }, e15: list.e15, e16: list.e16 }
+                                                        } else {
+                                                            if list.len == 14 {
+                                                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: OptionalHirEnum { present: true, e: e }, e16: list.e16 }
+                                                            } else {
+                                                                if list.len == 15 {
+                                                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: OptionalHirEnum { present: true, e: e } }
+                                                                } else {
+                                                                    list
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -3958,21 +4255,65 @@ fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList {
 fn hir_struct_list_push(list: HirStructList, s: HirStruct) -> HirStructList {
     let next = list.len + 1;
     if list.len == 0 {
-        HirStructList { len: next, s1: OptionalHirStruct { present: true, s: s }, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5 }
+        HirStructList { len: next, s1: OptionalHirStruct { present: true, s: s }, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
     } else {
         if list.len == 1 {
-            HirStructList { len: next, s1: list.s1, s2: OptionalHirStruct { present: true, s: s }, s3: list.s3, s4: list.s4, s5: list.s5 }
+            HirStructList { len: next, s1: list.s1, s2: OptionalHirStruct { present: true, s: s }, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
         } else {
             if list.len == 2 {
-                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: OptionalHirStruct { present: true, s: s }, s4: list.s4, s5: list.s5 }
+                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: OptionalHirStruct { present: true, s: s }, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
             } else {
                 if list.len == 3 {
-                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: OptionalHirStruct { present: true, s: s }, s5: list.s5 }
+                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: OptionalHirStruct { present: true, s: s }, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
                 } else {
                     if list.len == 4 {
-                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: OptionalHirStruct { present: true, s: s } }
+                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: OptionalHirStruct { present: true, s: s }, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
                     } else {
-                        list
+                        if list.len == 5 {
+                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: OptionalHirStruct { present: true, s: s }, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                        } else {
+                            if list.len == 6 {
+                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: OptionalHirStruct { present: true, s: s }, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                            } else {
+                                if list.len == 7 {
+                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: OptionalHirStruct { present: true, s: s }, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                                } else {
+                                    if list.len == 8 {
+                                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: OptionalHirStruct { present: true, s: s }, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                                    } else {
+                                        if list.len == 9 {
+                                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: OptionalHirStruct { present: true, s: s }, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                                        } else {
+                                            if list.len == 10 {
+                                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: OptionalHirStruct { present: true, s: s }, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                                            } else {
+                                                if list.len == 11 {
+                                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: OptionalHirStruct { present: true, s: s }, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
+                                                } else {
+                                                    if list.len == 12 {
+                                                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: OptionalHirStruct { present: true, s: s }, s14: list.s14, s15: list.s15, s16: list.s16 }
+                                                    } else {
+                                                        if list.len == 13 {
+                                                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: OptionalHirStruct { present: true, s: s }, s15: list.s15, s16: list.s16 }
+                                                        } else {
+                                                            if list.len == 14 {
+                                                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: OptionalHirStruct { present: true, s: s }, s16: list.s16 }
+                                                            } else {
+                                                                if list.len == 15 {
+                                                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: OptionalHirStruct { present: true, s: s } }
+                                                                } else {
+                                                                    list
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -4246,7 +4587,7 @@ fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline,
     } else {
         0
     };
-    HirItemList { len: len, i1: i1, i2: i2, i3: i3, i4: i4, i5: i5 }
+    HirItemList { len: len, i1: i1, i2: i2, i3: i3, i4: i4, i5: i5, i6: hir_optional_item_false(), i7: hir_optional_item_false(), i8: hir_optional_item_false(), i9: hir_optional_item_false(), i10: hir_optional_item_false(), i11: hir_optional_item_false(), i12: hir_optional_item_false(), i13: hir_optional_item_false(), i14: hir_optional_item_false(), i15: hir_optional_item_false(), i16: hir_optional_item_false() }
 }
 
 fn hir_span_from_optional(span: OptionalSpan) -> Span {

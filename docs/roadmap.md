@@ -27,7 +27,7 @@ Completed:
 - **C runtime I/O optimized**: `sarif_write_all` rewritten to use `fwrite()` and `setvbuf` for full stdout buffering.
 
 Remaining (blocked — see Memory Model section):
-- **Semantic `check`**: Requires a Sarif-hosted semantic analysis pass that does type checking, name resolution, and borrow inference. Not practical in the current bootstrap runtime due to fixed-size tuple limits and the ~4150 lines of infrastructure needed.
+- **Semantic `check`**: Requires a Sarif-hosted semantic analysis pass that does type checking, name resolution, and borrow inference. Not yet implemented despite bootstrap tuple limits being resolved (all MIR/HIR list types now support 16 slots). Requires ~4150 lines of type inference + ownership tracking infrastructure.
 - **Semantic `doc`**: Shares the same semantic analysis dependency as `check`.
 
 Rust remains required until those authority paths are actually replaced without reducing correctness or coverage.
