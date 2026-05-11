@@ -2488,6 +2488,18 @@
 - ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 
+### fn hir_diag_list_with
+
+- signature: `fn hir_diag_list_with(d: HirLoweringDiag) -> HirDiagList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn hir_diag_list_push
+
+- signature: `fn hir_diag_list_push(list: HirDiagList, d: HirLoweringDiag) -> HirDiagList`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn hir_optional_diag_false
 
 - signature: `fn hir_optional_diag_false() -> OptionalHirDiag`

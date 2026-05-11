@@ -3699,6 +3699,20 @@ struct HirDiagList {
     len: I32,
     d1: OptionalHirDiag,
     d2: OptionalHirDiag,
+    d3: OptionalHirDiag,
+    d4: OptionalHirDiag,
+    d5: OptionalHirDiag,
+    d6: OptionalHirDiag,
+    d7: OptionalHirDiag,
+    d8: OptionalHirDiag,
+    d9: OptionalHirDiag,
+    d10: OptionalHirDiag,
+    d11: OptionalHirDiag,
+    d12: OptionalHirDiag,
+    d13: OptionalHirDiag,
+    d14: OptionalHirDiag,
+    d15: OptionalHirDiag,
+    d16: OptionalHirDiag,
 }
 
 struct OptionalHirDiag {
@@ -4350,7 +4364,80 @@ fn hir_optional_body_id_true(id: HirBodyId) -> OptionalHirBodyId {
 }
 
 fn hir_diag_list_new() -> HirDiagList {
-    HirDiagList { len: 0, d1: hir_optional_diag_false(), d2: hir_optional_diag_false() }
+    HirDiagList { len: 0, d1: hir_optional_diag_false(), d2: hir_optional_diag_false(), d3: hir_optional_diag_false(), d4: hir_optional_diag_false(), d5: hir_optional_diag_false(), d6: hir_optional_diag_false(), d7: hir_optional_diag_false(), d8: hir_optional_diag_false(), d9: hir_optional_diag_false(), d10: hir_optional_diag_false(), d11: hir_optional_diag_false(), d12: hir_optional_diag_false(), d13: hir_optional_diag_false(), d14: hir_optional_diag_false(), d15: hir_optional_diag_false(), d16: hir_optional_diag_false() }
+}
+
+fn hir_diag_list_with(d: HirLoweringDiag) -> HirDiagList {
+    HirDiagList { len: 1, d1: OptionalHirDiag { present: true, diag: d }, d2: hir_optional_diag_false(), d3: hir_optional_diag_false(), d4: hir_optional_diag_false(), d5: hir_optional_diag_false(), d6: hir_optional_diag_false(), d7: hir_optional_diag_false(), d8: hir_optional_diag_false(), d9: hir_optional_diag_false(), d10: hir_optional_diag_false(), d11: hir_optional_diag_false(), d12: hir_optional_diag_false(), d13: hir_optional_diag_false(), d14: hir_optional_diag_false(), d15: hir_optional_diag_false(), d16: hir_optional_diag_false() }
+}
+
+fn hir_diag_list_push(list: HirDiagList, d: HirLoweringDiag) -> HirDiagList {
+    let next = list.len + 1;
+    if list.len == 0 {
+        HirDiagList { len: next, d1: OptionalHirDiag { present: true, diag: d }, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+    } else {
+        if list.len == 1 {
+            HirDiagList { len: next, d1: list.d1, d2: OptionalHirDiag { present: true, diag: d }, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+        } else {
+            if list.len == 2 {
+                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: OptionalHirDiag { present: true, diag: d }, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+            } else {
+                if list.len == 3 {
+                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: OptionalHirDiag { present: true, diag: d }, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                } else {
+                    if list.len == 4 {
+                        HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: OptionalHirDiag { present: true, diag: d }, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                    } else {
+                        if list.len == 5 {
+                            HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: OptionalHirDiag { present: true, diag: d }, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                        } else {
+                            if list.len == 6 {
+                                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: OptionalHirDiag { present: true, diag: d }, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                            } else {
+                                if list.len == 7 {
+                                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: OptionalHirDiag { present: true, diag: d }, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                                } else {
+                                    if list.len == 8 {
+                                        HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: OptionalHirDiag { present: true, diag: d }, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                                    } else {
+                                        if list.len == 9 {
+                                            HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: OptionalHirDiag { present: true, diag: d }, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                                        } else {
+                                            if list.len == 10 {
+                                                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: OptionalHirDiag { present: true, diag: d }, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                                            } else {
+                                                if list.len == 11 {
+                                                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: OptionalHirDiag { present: true, diag: d }, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
+                                                } else {
+                                                    if list.len == 12 {
+                                                        HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: OptionalHirDiag { present: true, diag: d }, d14: list.d14, d15: list.d15, d16: list.d16 }
+                                                    } else {
+                                                        if list.len == 13 {
+                                                            HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: OptionalHirDiag { present: true, diag: d }, d15: list.d15, d16: list.d16 }
+                                                        } else {
+                                                            if list.len == 14 {
+                                                                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: OptionalHirDiag { present: true, diag: d }, d16: list.d16 }
+                                                            } else {
+                                                                if list.len == 15 {
+                                                                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: OptionalHirDiag { present: true, diag: d } }
+                                                                } else {
+                                                                    list
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn hir_optional_diag_false() -> OptionalHirDiag {

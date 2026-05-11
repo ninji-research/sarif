@@ -137,6 +137,7 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
   to implement for the current bootstrap runtime; requires ~4150 lines of type inference
   + ownership tracking)
   - Bootstrap fixed-size tuple limits (5→16 slots for all MIR and HIR list types) — DONE
+  - HirDiagList upgraded from 2→16 slots with _push/_with helpers — DONE
 
 A full standard library is not complete:
 - async, parallel, and multithreaded runtime support are not complete
