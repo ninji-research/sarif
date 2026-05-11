@@ -23,13 +23,14 @@ This document records the external references that inform the current v1 archite
 ## Verification Strategy
 
 - CompCert
-- Crocus and related lowering-rule verification work
+- [CompCert](https://compcert.org/) verified C compiler
+- [Crocus](https://dl.acm.org/doi/10.1145/3571254) and related lowering-rule verification work
 
 ## Reactive Runtime And Data Plane
 
 These references inform the runtime direction only. They do not automatically become language commitments:
 
-- Salsa and related incremental-query systems
+- [Salsa](https://salsa-rs.github.io/salsa/) and related incremental-query systems
 - Apache Arrow columnar memory model
 - Polars engine design
 - Arrow Flight transport model

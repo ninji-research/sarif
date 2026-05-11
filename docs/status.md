@@ -137,16 +137,5 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
   to implement for the current bootstrap runtime; requires ~4150 lines of type inference
   + ownership tracking and is constrained by bootstrap fixed-size tuple limits)
 
-**Current bnch scores (May 2026):**
-- overall rank: `1/7`
-- speed rank: `1/7`
-- memory rank: `1/7`
-- build rank: `1/7`
-- overall score: `0.9189`
-- speed score: `0.9189`
-- memory score: `0.9730`
-- build score: `1.0000`
-- deploy-size score: `0.6962`
-
 A full standard library is not complete:
 - async, parallel, and multithreaded runtime support are not complete
