@@ -55,7 +55,7 @@ pub fn link_executable(
     command.env("TMPDIR", temp_dir.path());
     command
         .args(release_c_flags())
-        .args(release_link_flags(linker.family))
+        .args(release_link_flags(linker.family, linker.flavor.as_deref() == Some("-fuse-ld=lld")))
         .arg("-std=c11");
     if let Some(path) = &metadata_path {
         command.arg(path);
@@ -237,7 +237,7 @@ fn runtime_c_flags_for(cpu_mode: &str, lto_mode: &str) -> Vec<&'static str> {
     flags
 }
 
-fn release_link_flags(family: LinkerFamily) -> Vec<&'static str> {
+fn release_link_flags(family: LinkerFamily, icf_supported: bool) -> Vec<&'static str> {
     let mut flags = match family {
         LinkerFamily::Elf => vec!["-Wl,--gc-sections", "-Wl,--build-id=none", "-Wl,-s"],
         LinkerFamily::MachO => vec!["-Wl,-dead_strip"],
@@ -248,7 +248,7 @@ fn release_link_flags(family: LinkerFamily) -> Vec<&'static str> {
     if matches!(env::consts::OS, "linux" | "android") && family == LinkerFamily::Elf {
         flags.push("-Wl,--as-needed");
     }
-    if family == LinkerFamily::Elf {
+    if icf_supported && family == LinkerFamily::Elf {
         flags.push("-Wl,--icf=all");
     }
     flags
@@ -461,7 +461,7 @@ mod tests {
 
     #[test]
     fn release_link_flags_enable_section_gc_everywhere() {
-        let flags = release_link_flags(LinkerFamily::Elf);
+        let flags = release_link_flags(LinkerFamily::Elf, true);
         assert!(flags.contains(&"-Wl,--gc-sections"));
         assert!(flags.contains(&"-Wl,--build-id=none"));
         assert!(flags.contains(&"-Wl,-s"));
@@ -473,13 +473,13 @@ mod tests {
 
     #[test]
     fn release_link_flags_enable_icf_for_lld_like_linkers() {
-        let flags = release_link_flags(LinkerFamily::Elf);
+        let flags = release_link_flags(LinkerFamily::Elf, true);
         assert!(flags.contains(&"-Wl,--icf=all"));
     }
 
     #[test]
     fn release_link_flags_switch_to_dead_strip_on_macho() {
-        let flags = release_link_flags(LinkerFamily::MachO);
+        let flags = release_link_flags(LinkerFamily::MachO, false);
         assert!(flags.contains(&"-Wl,-dead_strip"));
         assert!(!flags.contains(&"-Wl,--gc-sections"));
         assert!(!flags.contains(&"-Wl,--icf=all"));
