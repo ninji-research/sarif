@@ -1,6 +1,6 @@
 # Sarif Status
 
-As of May 9, 2026 (updated frequently), Sarif is still in the bootstrap window.
+As of May 10, 2026 (updated frequently), Sarif is still in the bootstrap window.
 
 ## Verified
 
@@ -74,7 +74,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - fixed-array accesses with compile-time constant indices now lower directly to slot/field operations instead of flowing through the generic decision-tree path
 - retained `nbody` now benefits from that slot-backed, balanced, bounds-eliding, constant-folded fixed-array path; in the latest clean `~/bnch` run it remains correct at `1.5511s`, `89.85 MiB`, and `18.84 KiB`
 - the stage-0 object backend now exports only the runtime entrypoint symbol instead of every user helper function, keeping native symbol policy closer to the actual execution model
-- the stage-0 object backend now emits with Cranelift `speed_and_size` tuning instead of a pure `speed` bias, which restored first place on build time and slightly reduced native artifact size without giving back first place on speed or memory
+- the stage-0 object backend now emits with Cranelift `speed` tuning (was `speed_and_size`) and the `regalloc_algorithm` override was removed, letting Cranelift use its default register allocator for better generated code quality. The `speed_and_size` setting was originally chosen to improve build time and reduce artifact size, but caused a material regression in the memory profile; reverting to `speed` restored first place on memory without sacrificing build or speed rank
 - Sarif still materially trails Nim and Go on retained benchmark source concision; canonical formatting discipline restored (947 lines vs the prior minified 10-line snapshot) to keep concision metrics honest
 - the maintained `TextIndex` primitive is now promoted as the dense text-keyed aggregation/indexing path used by the strongest retained Sarif benchmark lanes
 - the maintained `TextIndex` surface now includes `text_index_get_or_insert(...)`, which removes the repeated stage-0 `get`/`set` upsert boilerplate from retained aggregation workloads without introducing a second indexing abstraction
@@ -96,6 +96,9 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - **Semantic infinite loop fixed**: `infer_param_modes` fixpoint iteration in `ownership.rs` could oscillate forever when duplicate function definitions with different parameter names existed. Fixed by skipping duplicate `functions.insert()` in `resolve.rs` and deduplicating by name in the `while changed` loop as defense-in-depth.
 - **3 new native build tests**: `list_sort_text` sort feature, no-text-builder, and no-text-index conditional compilation verification.
 - **Binary size reduced 57%**: Added `-g0` to compile flags and `-Wl,-s` to ELF link flags — hello binary went from 11,112 B to 4,792 B.
+- **Null trap gated behind debug_assertions**: The `call_helper` function in the native backend previously emitted a null-pointer trap on every call result. This trap is now wrapped in `#[cfg(debug_assertions)]` so release builds skip the unnecessary runtime check, improving performance of emitted native code without losing debug-mode safety.
+- **C runtime I/O optimized**: `sarif_write_all` was rewritten from a raw POSIX `write()` loop (with partial-write handling) to a single `fwrite()` call, and `main()` now calls `setvbuf(stdout, NULL, _IOFBF, 0)` to enable full buffering. This reduces system call overhead for output-heavy workloads.
+- **CI formatting fixed**: `cargo fmt` was applied across all modified files, resolving the `cargo fmt --check` failure that was blocking CI. The workspace is now formatted cleanly with the Rust 2024 edition style.
 - **CI workflow** defined in `.github/workflows/ci.yml` (build, test, clippy, formatting check) — `on: push` and `on: pull_request` to `main`. Pushed and active.
 - **C runtime overflow guards**: text builder reserve growth guard against UINT64_MAX wraparound; list push capacity guard `used > UINT64_MAX/2` before doubling.
 - the maintained compiler is still Rust-hosted

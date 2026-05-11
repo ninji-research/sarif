@@ -26,7 +26,7 @@ What is real today:
 - `~/bnch` carries a full main-track Sarif lane across the retained benchmark suite
 
 What is not complete today:
-- self-hosted release authority for `format`, `check`, or `doc`
+- self-hosted release authority for `check` or `doc` (format is flipped and Sarif-hosted)
 - self-hosted HIR lowering, MIR generation, or backend ownership
 - a full standard library
 - a maintained async, multithreaded, or parallel runtime model
