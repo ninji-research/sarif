@@ -3647,490 +3647,482 @@ pub fn native_type(
     }
 }
 
+fn declare_runtime_fn<M: Module>(
+    module: &mut M,
+    name: &str,
+    backend: &str,
+    description: &str,
+    params: &[types::Type],
+    returns: &[types::Type],
+) -> Result<FuncId, String> {
+    let mut signature = module.make_signature();
+    signature.call_conv = CallConv::triple_default(module.isa().triple());
+    for ty in params {
+        signature.params.push(AbiParam::new(*ty));
+    }
+    for ty in returns {
+        signature.returns.push(AbiParam::new(*ty));
+    }
+    module
+        .declare_function(name, Linkage::Import, &signature)
+        .map_err(|error| format!("failed to declare {backend} {description}: {error}"))
+}
+
 pub fn declare_record_allocator<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_record_alloc", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} record allocator: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_record_alloc",
+        backend,
+        "record allocator",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_alloc_push<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    module
-        .declare_function("sarif_alloc_push", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} alloc_push helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_alloc_push",
+        backend,
+        "alloc_push helper",
+        &[],
+        &[],
+    )
 }
 
 pub fn declare_alloc_pop<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    module
-        .declare_function("sarif_alloc_pop", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} alloc_pop helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_alloc_pop",
+        backend,
+        "alloc_pop helper",
+        &[],
+        &[],
+    )
 }
 
 pub fn declare_text_concat<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_concat", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text concat helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_concat",
+        backend,
+        "text concat helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_list_new<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_list_new", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} list new helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_list_new",
+        backend,
+        "list new helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_list_push<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_list_push", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} list push helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_list_push",
+        backend,
+        "list push helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_list_sort_text<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_list_sort_text", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} list sort text helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_list_sort_text",
+        backend,
+        "list sort text helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_list_sort_by_text_field<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_list_sort_by_text_field", Linkage::Import, &signature)
-        .map_err(|error| {
-            format!("failed to declare {backend} list sort by text field helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_list_sort_by_text_field",
+        backend,
+        "list sort by text field helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_new<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_builder_new", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text builder new helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_new",
+        backend,
+        "text builder new helper",
+        &[],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_append<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_builder_append", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text builder append helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_append",
+        backend,
+        "text builder append helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_append_codepoint<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function(
-            "sarif_text_builder_append_codepoint",
-            Linkage::Import,
-            &signature,
-        )
-        .map_err(|error| {
-            format!("failed to declare {backend} text builder append codepoint helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_append_codepoint",
+        backend,
+        "text builder append codepoint helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_append_ascii<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function(
-            "sarif_text_builder_append_ascii",
-            Linkage::Import,
-            &signature,
-        )
-        .map_err(|error| {
-            format!("failed to declare {backend} text builder append ascii helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_append_ascii",
+        backend,
+        "text builder append ascii helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_append_slice<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function(
-            "sarif_text_builder_append_slice",
-            Linkage::Import,
-            &signature,
-        )
-        .map_err(|error| {
-            format!("failed to declare {backend} text builder append slice helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_append_slice",
+        backend,
+        "text builder append slice helper",
+        &[types::I64, types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_append_i32<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_builder_append_i32", Linkage::Import, &signature)
-        .map_err(|error| {
-            format!("failed to declare {backend} text builder append i32 helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_append_i32",
+        backend,
+        "text builder append i32 helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_builder_finish<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_builder_finish", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text builder finish helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_finish",
+        backend,
+        "text builder finish helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_index_new<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_index_new", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text index new helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_index_new",
+        backend,
+        "text index new helper",
+        &[],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_index_get<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_index_get", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text index get helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_index_get",
+        backend,
+        "text index get helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_index_get_or_insert<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function(
-            "sarif_text_index_get_or_insert",
-            Linkage::Import,
-            &signature,
-        )
-        .map_err(|error| {
-            format!("failed to declare {backend} text index get-or-insert helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_index_get_or_insert",
+        backend,
+        "text index get-or-insert helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_index_set<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_index_set", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text index set helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_index_set",
+        backend,
+        "text index set helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_slice<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_slice", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text slice helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_slice",
+        backend,
+        "text slice helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_bytes_slice<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_bytes_slice", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} bytes slice helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_bytes_slice",
+        backend,
+        "bytes slice helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_eq_range<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_eq_range", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text range equality helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_eq_range",
+        backend,
+        "text range equality helper",
+        &[types::I64, types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_find_byte_range<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_find_byte_range", Linkage::Import, &signature)
-        .map_err(|error| {
-            format!("failed to declare {backend} text_find_byte_range helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_find_byte_range",
+        backend,
+        "text_find_byte_range helper",
+        &[types::I64, types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_line_end<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_line_end", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text_line_end helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_line_end",
+        backend,
+        "text_line_end helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_next_line<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_next_line", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text_next_line helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_next_line",
+        backend,
+        "text_next_line helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_field_end<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_field_end", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text_field_end helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_field_end",
+        backend,
+        "text_field_end helper",
+        &[types::I64, types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_next_field<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_next_field", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text_next_field helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_next_field",
+        backend,
+        "text_next_field helper",
+        &[types::I64, types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_from_f64_fixed<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::F64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_from_f64_fixed", Linkage::Import, &signature)
-        .map_err(|error| {
-            format!("failed to declare {backend} fixed-decimal float text helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_text_from_f64_fixed",
+        backend,
+        "fixed-decimal float text helper",
+        &[types::F64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_parse_i32<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_parse_i32", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} parse_i32 helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_parse_i32",
+        backend,
+        "parse_i32 helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_parse_i32_range<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_parse_i32_range", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} parse_i32_range helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_parse_i32_range",
+        backend,
+        "parse_i32_range helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_parse_f64<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::F64));
-    module
-        .declare_function("sarif_parse_f64", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} parse_f64 helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_parse_f64",
+        backend,
+        "parse_f64 helper",
+        &[types::I64],
+        &[types::F64],
+    )
 }
 
 pub fn declare_text_eq<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_eq", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text equality helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_eq",
+        backend,
+        "text equality helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_cmp<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_text_cmp", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} text compare helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_text_cmp",
+        backend,
+        "text compare helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_arg_count<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_arg_count", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} arg count helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_arg_count",
+        backend,
+        "arg count helper",
+        &[],
+        &[types::I64],
+    )
 }
 
 pub fn declare_arg_text<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_arg_text", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} arg text helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_arg_text",
+        backend,
+        "arg text helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_stdin_text<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_stdin_text", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} stdin text helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_stdin_text",
+        backend,
+        "stdin text helper",
+        &[],
+        &[types::I64],
+    )
 }
 
 pub fn declare_stdout_write<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_stdout_write", Linkage::Import, &signature)
-        .map_err(|error| format!("failed to declare {backend} stdout write helper: {error}"))
+    declare_runtime_fn(
+        module,
+        "sarif_stdout_write",
+        backend,
+        "stdout write helper",
+        &[types::I64],
+        &[],
+    )
 }
 
 pub fn declare_stdout_write_builder<M: Module>(
     module: &mut M,
     backend: &str,
 ) -> Result<FuncId, String> {
-    let mut signature = module.make_signature();
-    signature.call_conv = CallConv::triple_default(module.isa().triple());
-    signature.params.push(AbiParam::new(types::I64));
-    signature.returns.push(AbiParam::new(types::I64));
-    module
-        .declare_function("sarif_stdout_write_builder", Linkage::Import, &signature)
-        .map_err(|error| {
-            format!("failed to declare {backend} stdout_write_builder helper: {error}")
-        })
+    declare_runtime_fn(
+        module,
+        "sarif_stdout_write_builder",
+        backend,
+        "stdout_write_builder helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_data_for_insts<M: Module>(
