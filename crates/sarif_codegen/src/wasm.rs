@@ -71,7 +71,7 @@ mod runtime;
 pub use runtime::{run_function_wasm, run_main_wasm};
 
 pub fn emit_wat(program: &Program) -> Result<String, WasmError> {
-    reject_text_builder_program(program)?;
+    reject_text_index_program(program)?;
     reject_runtime_input_program(program)?;
     let emitter = WasmEmitter::new(program)?;
     emitter.emit()
@@ -85,33 +85,25 @@ pub fn emit_wasm(program: &Program) -> Result<Vec<u8>, WasmError> {
     wat::parse_str(&wat).map_err(|error| WasmError::new(error.to_string()))
 }
 
-fn reject_text_builder_program(program: &Program) -> Result<(), WasmError> {
-    const TEXT_BUILDER_UNSUPPORTED_MESSAGE: &str =
-        "wasm backend does not yet support text builder builtins in stage-0";
+fn reject_text_index_program(program: &Program) -> Result<(), WasmError> {
     for function in &program.functions {
-        let has_text_builder_type = function.params.iter().any(|p| p.ty == "TextBuilder")
-            || function.return_type.as_deref() == Some("TextBuilder")
-            || function
-                .mutable_locals
-                .iter()
-                .any(|local| local.ty == "TextBuilder");
-        if has_text_builder_type {
-            return Err(WasmError::new(TEXT_BUILDER_UNSUPPORTED_MESSAGE));
-        }
-        let mut has_text_builder_inst = false;
+        let mut has_text_index_inst = false;
         for_each_inst_recursive(&function.instructions, &mut |inst| {
             if matches!(
                 inst,
-                Inst::TextBuilderNew { .. }
-                    | Inst::TextBuilderAppend { .. }
-                    | Inst::TextBuilderAppendCodepoint { .. }
-                    | Inst::TextBuilderFinish { .. }
+                Inst::TextIndexNew { .. }
+                    | Inst::TextIndexGet { .. }
+                    | Inst::TextIndexGetOrInsert { .. }
+                    | Inst::TextIndexSet { .. }
+                    | Inst::StdoutWriteBuilder { .. }
             ) {
-                has_text_builder_inst = true;
+                has_text_index_inst = true;
             }
         });
-        if has_text_builder_inst {
-            return Err(WasmError::new(TEXT_BUILDER_UNSUPPORTED_MESSAGE));
+        if has_text_index_inst {
+            return Err(WasmError::new(
+                "wasm backend does not yet support text index builtins in stage-0",
+            ));
         }
     }
     Ok(())
@@ -1445,6 +1437,628 @@ impl<'a> WasmEmitter<'a> {
 "#,
         );
 
+        output.push_str(
+            r#"  (func $__sarif_text_builder_new (result i64)
+    (local $state i32)
+    i32.const 16
+    call $alloc
+    local.tee $state
+    i64.extend_i32_u
+    local.get $state
+    i32.const 0
+    i32.store offset=0
+    local.get $state
+    i32.const 0
+    i32.store offset=4
+    local.get $state
+    i32.const 0
+    i32.store offset=8
+  )
+  (func $__sarif_text_builder_reserve
+    (param $state i32) (param $needed i32) (result i32)
+    (local $data_ptr i32) (local $len i32) (local $cap i32)
+    (local $new_cap i32) (local $new_ptr i32) (local $i i32)
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    local.get $state
+    i32.load offset=8
+    local.set $cap
+    local.get $len
+    local.get $needed
+    i32.add
+    local.tee $needed
+    local.get $cap
+    i32.le_u
+    if
+      local.get $state
+      return
+    end
+    local.get $cap
+    i32.eqz
+    if
+      i32.const 128
+      local.set $new_cap
+      local.get $needed
+      i32.const 128
+      i32.gt_u
+      if
+        local.get $needed
+        local.set $new_cap
+      end
+    else
+      local.get $cap
+      i32.const 1
+      i32.shl
+      local.tee $new_cap
+      local.get $needed
+      i32.lt_u
+      if
+        local.get $needed
+        local.set $new_cap
+      end
+    end
+    local.get $new_cap
+    call $alloc
+    local.set $new_ptr
+    i32.const 0
+    local.set $i
+    block $copy_done
+      loop $copy
+        local.get $i
+        local.get $len
+        i32.ge_u
+        br_if $copy_done
+        local.get $new_ptr
+        local.get $i
+        i32.add
+        local.get $data_ptr
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $copy
+      end
+    end
+    local.get $state
+    local.get $new_ptr
+    i32.store offset=0
+    local.get $state
+    local.get $new_cap
+    i32.store offset=8
+    local.get $state
+  )
+  (func $__sarif_text_builder_append
+    (param $builder i64) (param $text i64) (result i64)
+    (local $state i32) (local $text_ptr i32) (local $text_len i32) (local $data_ptr i32) (local $len i32) (local $i i32)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
+    local.get $text
+    i32.wrap_i64
+    local.set $text_ptr
+    local.get $text
+    call $__sarif_text_len_i32
+    local.tee $text_len
+    i32.eqz
+    if
+      local.get $builder
+      return
+    end
+    local.get $state
+    local.get $text_len
+    call $__sarif_text_builder_reserve
+    drop
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    i32.const 0
+    local.set $i
+    block $append_done
+      loop $append
+        local.get $i
+        local.get $text_len
+        i32.ge_u
+        br_if $append_done
+        local.get $data_ptr
+        local.get $len
+        i32.add
+        local.get $i
+        i32.add
+        local.get $text_ptr
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $append
+      end
+    end
+    local.get $state
+    local.get $len
+    local.get $text_len
+    i32.add
+    i32.store offset=4
+    local.get $builder
+  )
+  (func $__sarif_text_builder_append_codepoint
+    (param $builder i64) (param $codepoint i64) (result i64)
+    (local $state i32) (local $cp i32) (local $encoded i32) (local $data_ptr i32) (local $len i32)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
+    local.get $codepoint
+    i32.wrap_i64
+    local.tee $cp
+    i32.const 0
+    i32.lt_s
+    if
+      unreachable
+    end
+    local.get $cp
+    i32.const 0x10ffff
+    i32.gt_u
+    if
+      unreachable
+    end
+    local.get $cp
+    i32.const 0xd800
+    i32.ge_u
+    local.get $cp
+    i32.const 0xdfff
+    i32.le_u
+    i32.and
+    if
+      unreachable
+    end
+    local.get $cp
+    i32.const 0x7f
+    i32.le_u
+    if
+      local.get $state
+      i32.const 1
+      call $__sarif_text_builder_reserve
+      drop
+      local.get $state
+      i32.load offset=0
+      local.set $data_ptr
+      local.get $state
+      i32.load offset=4
+      local.set $len
+      local.get $data_ptr
+      local.get $len
+      i32.add
+      local.get $cp
+      i32.store8
+      local.get $state
+      local.get $len
+      i32.const 1
+      i32.add
+      i32.store offset=4
+      local.get $builder
+      return
+    end
+    local.get $cp
+    i32.const 0x7ff
+    i32.le_u
+    if
+      local.get $state
+      i32.const 2
+      call $__sarif_text_builder_reserve
+      drop
+      local.get $state
+      i32.load offset=0
+      local.set $data_ptr
+      local.get $state
+      i32.load offset=4
+      local.set $len
+      local.get $data_ptr
+      local.get $len
+      i32.add
+      i32.const 0xc0
+      local.get $cp
+      i32.const 6
+      i32.shr_u
+      i32.or
+      i32.store8
+      local.get $data_ptr
+      local.get $len
+      i32.add
+      i32.const 1
+      i32.add
+      i32.const 0x80
+      local.get $cp
+      i32.const 0x3f
+      i32.and
+      i32.or
+      i32.store8
+      local.get $state
+      local.get $len
+      i32.const 2
+      i32.add
+      i32.store offset=4
+      local.get $builder
+      return
+    end
+    local.get $cp
+    i32.const 0xffff
+    i32.le_u
+    if
+      local.get $state
+      i32.const 3
+      call $__sarif_text_builder_reserve
+      drop
+      local.get $state
+      i32.load offset=0
+      local.set $data_ptr
+      local.get $state
+      i32.load offset=4
+      local.set $len
+      local.get $data_ptr
+      local.get $len
+      i32.add
+      i32.const 0xe0
+      local.get $cp
+      i32.const 12
+      i32.shr_u
+      i32.or
+      i32.store8
+      local.get $data_ptr
+      local.get $len
+      i32.add
+      i32.const 1
+      i32.add
+      i32.const 0x80
+      local.get $cp
+      i32.const 6
+      i32.shr_u
+      i32.const 0x3f
+      i32.and
+      i32.or
+      i32.store8
+      local.get $data_ptr
+      local.get $len
+      i32.add
+      i32.const 2
+      i32.add
+      i32.const 0x80
+      local.get $cp
+      i32.const 0x3f
+      i32.and
+      i32.or
+      i32.store8
+      local.get $state
+      local.get $len
+      i32.const 3
+      i32.add
+      i32.store offset=4
+      local.get $builder
+      return
+    end
+    local.get $state
+    i32.const 4
+    call $__sarif_text_builder_reserve
+    drop
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    local.get $data_ptr
+    local.get $len
+    i32.add
+    i32.const 0xf0
+    local.get $cp
+    i32.const 18
+    i32.shr_u
+    i32.or
+    i32.store8
+    local.get $data_ptr
+    local.get $len
+    i32.add
+    i32.const 1
+    i32.add
+    i32.const 0x80
+    local.get $cp
+    i32.const 12
+    i32.shr_u
+    i32.const 0x3f
+    i32.and
+    i32.or
+    i32.store8
+    local.get $data_ptr
+    local.get $len
+    i32.add
+    i32.const 2
+    i32.add
+    i32.const 0x80
+    local.get $cp
+    i32.const 6
+    i32.shr_u
+    i32.const 0x3f
+    i32.and
+    i32.or
+    i32.store8
+    local.get $data_ptr
+    local.get $len
+    i32.add
+    i32.const 3
+    i32.add
+    i32.const 0x80
+    local.get $cp
+    i32.const 0x3f
+    i32.and
+    i32.or
+    i32.store8
+    local.get $state
+    local.get $len
+    i32.const 4
+    i32.add
+    i32.store offset=4
+    local.get $builder
+  )
+  (func $__sarif_text_builder_append_ascii
+    (param $builder i64) (param $byte i64) (result i64)
+    (local $state i32) (local $b i32) (local $data_ptr i32) (local $len i32)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
+    local.get $byte
+    i32.wrap_i64
+    local.tee $b
+    i32.const 0
+    i32.lt_s
+    if
+      unreachable
+    end
+    local.get $b
+    i32.const 0x7f
+    i32.gt_u
+    if
+      unreachable
+    end
+    local.get $state
+    i32.const 1
+    call $__sarif_text_builder_reserve
+    drop
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    local.get $data_ptr
+    local.get $len
+    i32.add
+    local.get $b
+    i32.store8
+    local.get $state
+    local.get $len
+    i32.const 1
+    i32.add
+    i32.store offset=4
+    local.get $builder
+  )
+  (func $__sarif_text_builder_append_slice
+    (param $builder i64) (param $text i64) (param $start i64) (param $end i64) (result i64)
+    (local $state i32) (local $text_ptr i32) (local $text_len i32)
+    (local $s i32) (local $e i32) (local $slice_len i32)
+    (local $data_ptr i32) (local $len i32) (local $i i32)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
+    local.get $text
+    i32.wrap_i64
+    local.set $text_ptr
+    local.get $text
+    call $__sarif_text_len_i32
+    local.set $text_len
+    local.get $start
+    i32.wrap_i64
+    local.tee $s
+    i32.const 0
+    i32.lt_s
+    if
+      unreachable
+    end
+    local.get $end
+    i32.wrap_i64
+    local.tee $e
+    local.get $s
+    i32.lt_s
+    if
+      unreachable
+    end
+    local.get $e
+    local.get $text_len
+    i32.gt_u
+    if
+      unreachable
+    end
+    local.get $e
+    local.get $s
+    i32.sub
+    local.tee $slice_len
+    i32.eqz
+    if
+      local.get $builder
+      return
+    end
+    local.get $state
+    local.get $slice_len
+    call $__sarif_text_builder_reserve
+    drop
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    i32.const 0
+    local.set $i
+    block $append_done
+      loop $append
+        local.get $i
+        local.get $slice_len
+        i32.ge_u
+        br_if $append_done
+        local.get $data_ptr
+        local.get $len
+        i32.add
+        local.get $i
+        i32.add
+        local.get $text_ptr
+        local.get $s
+        i32.add
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $append
+      end
+    end
+    local.get $state
+    local.get $len
+    local.get $slice_len
+    i32.add
+    i32.store offset=4
+    local.get $builder
+  )
+  (func $__sarif_text_builder_append_i32
+    (param $builder i64) (param $value i64) (result i64)
+    (local $state i32) (local $buf i32) (local $i i32) (local $neg i32)
+    (local $mag i64) (local $formatted i64)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
+    i32.const 21
+    call $alloc
+    local.set $buf
+    i32.const 20
+    local.set $i
+    local.get $value
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $neg
+      local.get $buf
+      i32.const 20
+      i32.add
+      i64.const 0
+      local.get $value
+      i64.const 10
+      i64.rem_s
+      i64.sub
+      i32.wrap_i64
+      i32.const 48
+      i32.add
+      i32.store8
+      i64.const 0
+      local.get $value
+      i64.const 10
+      i64.div_s
+      i64.sub
+      local.set $mag
+      i32.const 19
+      local.set $i
+    else
+      i32.const 0
+      local.set $neg
+      local.get $value
+      local.set $mag
+    end
+    block $digits_done
+      loop $digits
+        local.get $mag
+        i64.eqz
+        br_if $digits_done
+        local.get $buf
+        local.get $i
+        i32.add
+        local.get $mag
+        i64.const 10
+        i64.rem_u
+        i32.wrap_i64
+        i32.const 48
+        i32.add
+        i32.store8
+        local.get $mag
+        i64.const 10
+        i64.div_u
+        local.set $mag
+        local.get $i
+        i32.const 1
+        i32.sub
+        local.set $i
+        br $digits
+      end
+    end
+    local.get $neg
+    if
+      local.get $buf
+      local.get $i
+      i32.add
+      i32.const 45
+      i32.store8
+      local.get $builder
+      local.get $buf
+      local.get $i
+      i32.add
+      i32.const 21
+      local.get $i
+      i32.sub
+      call $__sarif_pack_text
+      call $__sarif_text_builder_append
+      return
+    end
+    local.get $builder
+    local.get $buf
+    local.get $i
+    i32.add
+    i32.const 1
+    i32.add
+    i32.const 20
+    local.get $i
+    i32.sub
+    call $__sarif_pack_text
+    call $__sarif_text_builder_append
+  )
+  (func $__sarif_text_builder_finish (param $builder i64) (result i64)
+    (local $state i32) (local $data_ptr i32) (local $len i32)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    local.get $data_ptr
+    local.get $len
+    call $__sarif_pack_text
+  )"#,
+        );
+
         for (name, record) in &self.records {
             self.emit_record_eq_helper(output, name, record)?;
         }
@@ -1955,21 +2569,82 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::TextBuilderNew { .. }
-            | Inst::TextIndexNew { .. }
-            | Inst::TextBuilderAppend { .. }
-            | Inst::TextBuilderAppendCodepoint { .. }
-            | Inst::TextBuilderAppendAscii { .. }
-            | Inst::TextBuilderAppendSlice { .. }
-            | Inst::TextBuilderAppendI32 { .. }
-            | Inst::TextBuilderFinish { .. }
+            Inst::TextBuilderNew { dest } => {
+                w_call(output, *dest, &[], "$__sarif_text_builder_new");
+            }
+            Inst::TextIndexNew { .. }
             | Inst::StdoutWriteBuilder { .. }
             | Inst::TextIndexGet { .. }
             | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. } => {
                 return Err(WasmError::new(
-                    "wasm backend does not yet support text builder/index builtins in stage-0",
+                    "wasm backend does not yet support text index builtins in stage-0",
                 ));
+            }
+            Inst::TextBuilderAppend {
+                dest,
+                builder,
+                text,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*builder, *text],
+                    "$__sarif_text_builder_append",
+                );
+            }
+            Inst::TextBuilderAppendCodepoint {
+                dest,
+                builder,
+                codepoint,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*builder, *codepoint],
+                    "$__sarif_text_builder_append_codepoint",
+                );
+            }
+            Inst::TextBuilderAppendAscii {
+                dest,
+                builder,
+                byte,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*builder, *byte],
+                    "$__sarif_text_builder_append_ascii",
+                );
+            }
+            Inst::TextBuilderAppendSlice {
+                dest,
+                builder,
+                text,
+                start,
+                end,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*builder, *text, *start, *end],
+                    "$__sarif_text_builder_append_slice",
+                );
+            }
+            Inst::TextBuilderAppendI32 {
+                dest,
+                builder,
+                value,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*builder, *value],
+                    "$__sarif_text_builder_append_i32",
+                );
+            }
+            Inst::TextBuilderFinish { dest, builder } => {
+                w_call(output, *dest, &[*builder], "$__sarif_text_builder_finish");
             }
             Inst::TextFromF64Fixed { .. } => {
                 return Err(WasmError::new(
@@ -2669,6 +3344,8 @@ fn wasm_value_kind_from_name(
         "Bool" => Ok(WasmValueKind::Bool),
         "Text" => Ok(WasmValueKind::Text),
         "Bytes" => Ok(WasmValueKind::Bytes),
+        "TextBuilder" => Ok(WasmValueKind::TextBuilder),
+        "TextIndex" => Ok(WasmValueKind::TextIndex),
         "Unit" => Ok(WasmValueKind::Unit),
         other => {
             if enums.iter().any(|e| e.name == other) {
@@ -2782,20 +3459,24 @@ fn collect_inst_kinds(
                     "wasm backend does not yet support runtime input builtins in stage-0",
                 ));
             }
-            Inst::TextBuilderNew { .. }
-            | Inst::TextIndexNew { .. }
-            | Inst::TextBuilderAppend { .. }
-            | Inst::TextBuilderAppendCodepoint { .. }
-            | Inst::TextBuilderAppendAscii { .. }
-            | Inst::TextBuilderAppendSlice { .. }
-            | Inst::TextBuilderAppendI32 { .. }
-            | Inst::TextBuilderFinish { .. }
+            Inst::TextBuilderNew { dest }
+            | Inst::TextBuilderAppend { dest, .. }
+            | Inst::TextBuilderAppendCodepoint { dest, .. }
+            | Inst::TextBuilderAppendAscii { dest, .. }
+            | Inst::TextBuilderAppendSlice { dest, .. }
+            | Inst::TextBuilderAppendI32 { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::TextBuilder);
+            }
+            Inst::TextBuilderFinish { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::Text);
+            }
+            Inst::TextIndexNew { .. }
             | Inst::StdoutWriteBuilder { .. }
             | Inst::TextIndexGet { .. }
             | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. } => {
                 return Err(WasmError::new(
-                    "wasm backend does not yet support text builder/index builtins in stage-0",
+                    "wasm backend does not yet support text index builtins in stage-0",
                 ));
             }
             Inst::ListNew { dest, value, .. } => {

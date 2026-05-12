@@ -337,7 +337,7 @@ mod tests {
     use sarif_syntax::lexer::lex;
     use sarif_syntax::parser::parse;
 
-    use super::{call_main_i64, instantiate_wasm_module, run_function_wasm};
+    use super::{call_main_i64, instantiate_wasm_module, run_function_wasm, run_main_wasm};
     use crate::{RuntimeValue, emit_wasm, lower};
 
     fn lower_program(source: &str) -> crate::Program {
@@ -382,5 +382,58 @@ mod tests {
         let result = run_function_wasm(&program, "probe", &[RuntimeValue::Bytes(b"sari".to_vec())])
             .expect("wasm bytes function should run");
         assert_eq!(result, RuntimeValue::Int(42));
+    }
+
+    #[test]
+    fn wasm_text_builder_new_and_finish() {
+        let program = lower_program(
+            "fn main() -> Text { let mut tb = text_builder_new(); text_builder_finish(tb) }",
+        );
+        let result = run_main_wasm(&program).expect("wasm text builder should run");
+        assert_eq!(result, RuntimeValue::Text(String::new()));
+    }
+
+    #[test]
+    fn wasm_text_builder_append_text() {
+        let program = lower_program(
+            "fn build(greeting: Text, name: Text) -> Text {\n  let mut tb = text_builder_new();\n  tb = text_builder_append(tb, greeting);\n  tb = text_builder_append(tb, name);\n  text_builder_finish(tb)\n}",
+        );
+        let result = run_function_wasm(
+            &program,
+            "build",
+            &[
+                RuntimeValue::Text("Hello, ".into()),
+                RuntimeValue::Text("World!".into()),
+            ],
+        )
+        .expect("wasm text builder append should run");
+        assert_eq!(result, RuntimeValue::Text("Hello, World!".into()));
+    }
+
+    #[test]
+    fn wasm_text_builder_append_ascii() {
+        let program = lower_program(
+            "fn main() -> Text {\n  let mut tb = text_builder_new();\n  tb = text_builder_append_ascii(tb, 72);\n  tb = text_builder_append_ascii(tb, 105);\n  text_builder_finish(tb)\n}",
+        );
+        let result = run_main_wasm(&program).expect("wasm text builder append_ascii should run");
+        assert_eq!(result, RuntimeValue::Text("Hi".into()));
+    }
+
+    #[test]
+    fn wasm_text_builder_append_i32() {
+        let program = lower_program(
+            "fn main() -> Text {\n  let mut tb = text_builder_new();\n  tb = text_builder_append_i32(tb, 42);\n  text_builder_finish(tb)\n}",
+        );
+        let result = run_main_wasm(&program).expect("wasm text builder append_i32 should run");
+        assert_eq!(result, RuntimeValue::Text("42".into()));
+    }
+
+    #[test]
+    fn wasm_text_builder_compound() {
+        let program = lower_program(
+            "fn main() -> Text {\n  let mut tb = text_builder_new();\n  tb = text_builder_append(tb, \"The answer is \");\n  tb = text_builder_append_i32(tb, 42);\n  tb = text_builder_append_ascii(tb, 46);\n  tb = text_builder_append_ascii(tb, 10);\n  text_builder_finish(tb)\n}",
+        );
+        let result = run_main_wasm(&program).expect("wasm text builder compound should run");
+        assert_eq!(result, RuntimeValue::Text("The answer is 42.\n".into()));
     }
 }

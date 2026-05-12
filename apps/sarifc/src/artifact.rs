@@ -55,7 +55,10 @@ pub fn link_executable(
     command.env("TMPDIR", temp_dir.path());
     command
         .args(release_c_flags())
-        .args(release_link_flags(linker.family, linker.flavor.as_deref() == Some("-fuse-ld=lld")))
+        .args(release_link_flags(
+            linker.family,
+            linker.flavor.as_deref() == Some("-fuse-ld=lld"),
+        ))
         .arg("-std=c11");
     if let Some(path) = &metadata_path {
         command.arg(path);
