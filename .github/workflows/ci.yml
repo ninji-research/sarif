@@ -29,7 +29,6 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-          profile: minimal
 
       - name: Cache cargo registry & git
         uses: actions/cache@v5
