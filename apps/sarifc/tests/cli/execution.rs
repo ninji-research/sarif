@@ -1213,7 +1213,7 @@ fn wasm_build_rejects_stdout_write_modules() {
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_text_builder_modules() {
+fn wasm_build_accepts_text_builder_modules() {
     let path = temp_source(
         "fn main() -> Text effects [alloc] { let mut builder = text_builder_new(); builder = text_builder_append(builder, \"sarif\"); text_builder_finish(builder) }",
     );
@@ -1228,13 +1228,9 @@ fn wasm_build_rejects_text_builder_modules() {
     ]);
 
     assert!(
-        !build.status.success(),
-        "text builder builtins should be rejected on the wasm backend for now"
-    );
-    assert!(
+        build.status.success(),
+        "text builder builtins should be accepted on the wasm backend:\n{}",
         String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support text builder builtins"),
-        "wasm rejection should explain the current stage-0 backend limitation"
     );
 }
 
@@ -1260,7 +1256,7 @@ fn wasm_build_rejects_text_index_get_or_insert_modules() {
     );
     assert!(
         String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support text builder/index builtins"),
+            .contains("wasm backend does not yet support text index builtins"),
         "wasm rejection should explain the current stage-0 backend limitation"
     );
 }
