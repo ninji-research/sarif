@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
+use std::io::Write;
 
-use wasmtime::{Engine, Instance, Memory, Module, Store, TypedFunc, Val};
+use wasmtime::{Caller, Engine, Extern, Instance, Linker, Memory, Module, Store, TypedFunc, Val};
 
 use super::memory::{
     decode_enum_from_memory, decode_payload_free_enum_tag, decode_record_from_memory,
@@ -86,7 +87,10 @@ pub fn run_function_wasm(
     let module = Module::new(&engine, wasm)
         .map_err(|error| WasmError::new(format!("failed to compile wasm module: {error}")))?;
     let mut store = Store::new(&engine, ());
-    let instance = Instance::new(&mut store, &module, &[])
+    let mut linker = Linker::new(&engine);
+    link_fd_write(&mut linker)?;
+    let instance = linker
+        .instantiate(&mut store, &module)
         .map_err(|error| WasmError::new(format!("failed to instantiate wasm module: {error}")))?;
     let memory = instance
         .get_memory(&mut store, "memory")
@@ -137,12 +141,65 @@ pub fn run_function_wasm(
     )
 }
 
+fn link_fd_write(linker: &mut Linker<()>) -> Result<(), WasmError> {
+    linker
+        .func_wrap(
+            "wasi_snapshot_preview1",
+            "fd_write",
+            |mut caller: Caller<'_, ()>,
+             fd: i32,
+             iovs: i32,
+             iovs_len: i32,
+             _nwritten_ptr: i32|
+             -> i32 {
+                if fd != 1 {
+                    return 8;
+                }
+                let memory = match caller.get_export("memory") {
+                    Some(Extern::Memory(m)) => m,
+                    _ => return 9,
+                };
+                let data = memory.data(&caller);
+                for i in 0..iovs_len as usize {
+                    let base = (iovs as usize).wrapping_add(i.wrapping_mul(8));
+                    if base.wrapping_add(8) > data.len() {
+                        return 21;
+                    }
+                    let ptr =
+                        i32::from_le_bytes(data[base..base.wrapping_add(4)].try_into().unwrap());
+                    let len = i32::from_le_bytes(
+                        data[base.wrapping_add(4)..base.wrapping_add(8)]
+                            .try_into()
+                            .unwrap(),
+                    );
+                    if len < 0 {
+                        return 21;
+                    }
+                    let start = ptr as usize;
+                    let end = start.wrapping_add(len as usize);
+                    if end > data.len() {
+                        return 21;
+                    }
+                    if std::io::stdout().write_all(&data[start..end]).is_err() {
+                        return 5;
+                    }
+                }
+                0
+            },
+        )
+        .map_err(|error| WasmError::new(format!("failed to link WASI fd_write: {error}")))?;
+    Ok(())
+}
+
 fn instantiate_wasm_module(wasm: &[u8]) -> Result<(Store<()>, Instance), WasmError> {
     let engine = Engine::default();
     let module = Module::new(&engine, wasm)
         .map_err(|error| WasmError::new(format!("failed to compile wasm module: {error}")))?;
     let mut store = Store::new(&engine, ());
-    let instance = Instance::new(&mut store, &module, &[])
+    let mut linker = Linker::new(&engine);
+    link_fd_write(&mut linker)?;
+    let instance = linker
+        .instantiate(&mut store, &module)
         .map_err(|error| WasmError::new(format!("failed to instantiate wasm module: {error}")))?;
     Ok((store, instance))
 }
@@ -435,5 +492,51 @@ mod tests {
         );
         let result = run_main_wasm(&program).expect("wasm text builder compound should run");
         assert_eq!(result, RuntimeValue::Text("The answer is 42.\n".into()));
+    }
+
+    #[test]
+    fn wasm_text_index_new_and_get_missing() {
+        let program = lower_program(
+            "fn main() -> I32 effects [alloc] { let idx = text_index_new(); text_index_get(idx, \"missing\") }",
+        );
+        let result = run_main_wasm(&program).expect("wasm text index new/get should run");
+        assert_eq!(result, RuntimeValue::Int(-1));
+    }
+
+    #[test]
+    fn wasm_text_index_set_and_get() {
+        let program = lower_program(
+            "fn main() -> I32 effects [alloc] { let mut idx = text_index_new(); idx = text_index_set(idx, \"alpha\", 42); text_index_get(idx, \"alpha\") }",
+        );
+        let result = run_main_wasm(&program).expect("wasm text index set/get should run");
+        assert_eq!(result, RuntimeValue::Int(42));
+    }
+
+    #[test]
+    fn wasm_text_index_get_or_insert() {
+        let program = lower_program(
+            "fn main() -> I32 effects [alloc] { let idx = text_index_new(); text_index_get_or_insert(idx, \"key\", 7) }",
+        );
+        let result = run_main_wasm(&program).expect("wasm text index get_or_insert should run");
+        assert_eq!(result, RuntimeValue::Int(7));
+    }
+
+    #[test]
+    fn wasm_text_index_get_or_insert_existing() {
+        let program = lower_program(
+            "fn main() -> I32 effects [alloc] { let mut idx = text_index_new(); idx = text_index_set(idx, \"k\", 99); text_index_get_or_insert(idx, \"k\", 7) }",
+        );
+        let result =
+            run_main_wasm(&program).expect("wasm text index get_or_insert existing should run");
+        assert_eq!(result, RuntimeValue::Int(99));
+    }
+
+    #[test]
+    fn wasm_text_index_multiple_ops() {
+        let program = lower_program(
+            "fn main() -> I32 effects [alloc] { let mut idx = text_index_new(); idx = text_index_set(idx, \"a\", 10); idx = text_index_set(idx, \"b\", 20); idx = text_index_set(idx, \"c\", 30); text_index_get(idx, \"b\") }",
+        );
+        let result = run_main_wasm(&program).expect("wasm text index multiple ops should run");
+        assert_eq!(result, RuntimeValue::Int(20));
     }
 }

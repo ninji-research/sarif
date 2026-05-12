@@ -6,7 +6,7 @@ use super::support::{
 use std::io::Write;
 use std::process::{Command, Stdio};
 #[cfg(feature = "wasm")]
-use wasmtime::{Engine, Instance, Module, Store, TypedFunc};
+use wasmtime::{Caller, Engine, Extern, Instance, Linker, Module, Store, TypedFunc};
 
 fn assert_run_parity(source: &str, expected: &str) {
     let path = temp_source(source);
@@ -30,6 +30,56 @@ fn assert_run_path(path: &std::path::Path, expected: &str) {
 }
 
 #[cfg(feature = "wasm")]
+fn link_fd_write(linker: &mut Linker<()>) -> Result<(), String> {
+    linker
+        .func_wrap(
+            "wasi_snapshot_preview1",
+            "fd_write",
+            |mut caller: Caller<'_, ()>,
+             fd: i32,
+             iovs: i32,
+             iovs_len: i32,
+             _nwritten_ptr: i32|
+             -> i32 {
+                if fd != 1 {
+                    return 8;
+                }
+                let memory = match caller.get_export("memory") {
+                    Some(Extern::Memory(m)) => m,
+                    _ => return 9,
+                };
+                let data = memory.data(&caller);
+                for i in 0..iovs_len as usize {
+                    let base = (iovs as usize).wrapping_add(i.wrapping_mul(8));
+                    if base.wrapping_add(8) > data.len() {
+                        return 21;
+                    }
+                    let ptr =
+                        i32::from_le_bytes(data[base..base.wrapping_add(4)].try_into().unwrap());
+                    let len = i32::from_le_bytes(
+                        data[base.wrapping_add(4)..base.wrapping_add(8)]
+                            .try_into()
+                            .unwrap(),
+                    );
+                    if len < 0 {
+                        return 21;
+                    }
+                    let start = ptr as usize;
+                    let end = start.wrapping_add(len as usize);
+                    if end > data.len() {
+                        return 21;
+                    }
+                    if std::io::stdout().write_all(&data[start..end]).is_err() {
+                        return 5;
+                    }
+                }
+                0
+            },
+        )
+        .map_err(|error| format!("failed to link WASI fd_write: {error}"))?;
+    Ok(())
+}
+
 fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
     let bytes =
         std::fs::read(path).map_err(|error| format!("failed to read wasm artifact: {error}"))?;
@@ -37,7 +87,10 @@ fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
     let module = Module::new(&engine, bytes)
         .map_err(|error| format!("failed to compile wasm artifact: {error}"))?;
     let mut store = Store::new(&engine, ());
-    let instance = Instance::new(&mut store, &module, &[])
+    let mut linker = Linker::new(&engine);
+    link_fd_write(&mut linker).map_err(|e| format!("failed to link fd_write: {e}"))?;
+    let instance = linker
+        .instantiate(&mut store, &module)
         .map_err(|error| format!("failed to instantiate wasm artifact: {error}"))?;
     let main: TypedFunc<(), i64> = instance
         .get_typed_func(&mut store, "main")
@@ -1188,7 +1241,7 @@ fn wasm_build_rejects_stdin_bytes_modules() {
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_stdout_write_modules() {
+fn wasm_build_accepts_stdout_write_modules() {
     let path = temp_source("fn main() { stdout_write(\"sarif\") }");
     let wasm_path = temp_output("stdout_write_build", "wasm");
     let build = run_sarif(&[
@@ -1201,13 +1254,9 @@ fn wasm_build_rejects_stdout_write_modules() {
     ]);
 
     assert!(
-        !build.status.success(),
-        "stdout_write should be rejected on the wasm backend for now"
-    );
-    assert!(
+        build.status.success(),
+        "stdout_write should be accepted on the wasm backend:\n{}",
         String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support runtime io builtins"),
-        "wasm rejection should explain the current stage-0 backend limitation"
     );
 }
 
@@ -1236,7 +1285,7 @@ fn wasm_build_accepts_text_builder_modules() {
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_text_index_get_or_insert_modules() {
+fn wasm_build_accepts_text_index_get_or_insert_modules() {
     let path = temp_source(
         "fn main() -> I32 effects [alloc] { let index = text_index_new(); text_index_get_or_insert(index, \"alpha\", 7) }",
     );
@@ -1251,13 +1300,9 @@ fn wasm_build_rejects_text_index_get_or_insert_modules() {
     ]);
 
     assert!(
-        !build.status.success(),
-        "text index builtins should be rejected on the wasm backend for now"
-    );
-    assert!(
+        build.status.success(),
+        "text index builtins should be accepted on the wasm backend:\n{}",
         String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support text index builtins"),
-        "wasm rejection should explain the current stage-0 backend limitation"
     );
 }
 

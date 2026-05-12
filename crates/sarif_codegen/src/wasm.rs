@@ -71,7 +71,6 @@ mod runtime;
 pub use runtime::{run_function_wasm, run_main_wasm};
 
 pub fn emit_wat(program: &Program) -> Result<String, WasmError> {
-    reject_text_index_program(program)?;
     reject_runtime_input_program(program)?;
     let emitter = WasmEmitter::new(program)?;
     emitter.emit()
@@ -83,30 +82,6 @@ pub fn emit_wasm(program: &Program) -> Result<Vec<u8>, WasmError> {
         eprintln!("{wat}");
     }
     wat::parse_str(&wat).map_err(|error| WasmError::new(error.to_string()))
-}
-
-fn reject_text_index_program(program: &Program) -> Result<(), WasmError> {
-    for function in &program.functions {
-        let mut has_text_index_inst = false;
-        for_each_inst_recursive(&function.instructions, &mut |inst| {
-            if matches!(
-                inst,
-                Inst::TextIndexNew { .. }
-                    | Inst::TextIndexGet { .. }
-                    | Inst::TextIndexGetOrInsert { .. }
-                    | Inst::TextIndexSet { .. }
-                    | Inst::StdoutWriteBuilder { .. }
-            ) {
-                has_text_index_inst = true;
-            }
-        });
-        if has_text_index_inst {
-            return Err(WasmError::new(
-                "wasm backend does not yet support text index builtins in stage-0",
-            ));
-        }
-    }
-    Ok(())
 }
 
 fn reject_runtime_input_program(program: &Program) -> Result<(), WasmError> {
@@ -190,6 +165,11 @@ impl<'a> WasmEmitter<'a> {
     fn emit(&self) -> Result<String, WasmError> {
         let mut output = String::new();
         writeln!(output, "(module").expect("writing to a string cannot fail");
+        writeln!(
+            output,
+            "  (import \"wasi_snapshot_preview1\" \"fd_write\" (func $__wasi_fd_write (param i32 i32 i32 i32) (result i32)))"
+        )
+        .expect("writing to a string cannot fail");
         writeln!(output, "  (memory (export \"memory\") 1)")
             .expect("writing to a string cannot fail");
         writeln!(output, "  (global $heap_ptr (mut i32) (i32.const 0))")
@@ -2056,6 +2036,502 @@ impl<'a> WasmEmitter<'a> {
     local.get $data_ptr
     local.get $len
     call $__sarif_pack_text
+  )
+  (func $__sarif_stdout_write (param $text i64)
+    (local $ptr i32) (local $len i32) (local $iovec i32)
+    local.get $text
+    i32.wrap_i64
+    local.set $ptr
+    local.get $text
+    call $__sarif_text_len_i32
+    local.tee $len
+    i32.eqz
+    if
+      return
+    end
+    i32.const 8
+    call $alloc
+    local.tee $iovec
+    local.get $ptr
+    i32.store offset=0
+    local.get $iovec
+    local.get $len
+    i32.store offset=4
+    i32.const 1
+    local.get $iovec
+    i32.const 1
+    i32.const 0
+    call $__wasi_fd_write
+    drop
+  )
+  (func $__sarif_stdout_write_builder (param $state i32) (result i64)
+    (local $data_ptr i32) (local $len i32) (local $iovec i32)
+    local.get $state
+    i32.load offset=0
+    local.set $data_ptr
+    local.get $state
+    i32.load offset=4
+    local.set $len
+    local.get $len
+    i32.eqz
+    if
+      local.get $state
+      i64.extend_i32_u
+      return
+    end
+    i32.const 8
+    call $alloc
+    local.tee $iovec
+    local.get $data_ptr
+    i32.store offset=0
+    local.get $iovec
+    local.get $len
+    i32.store offset=4
+    i32.const 1
+    local.get $iovec
+    i32.const 1
+    i32.const 0
+    call $__wasi_fd_write
+    drop
+    local.get $state
+    i64.extend_i32_u
+  )
+  (func $__sarif_text_hash (param $text i64) (result i32)
+    (local $ptr i32) (local $len i32) (local $hash i32) (local $i i32)
+    local.get $text
+    i32.wrap_i64
+    local.set $ptr
+    local.get $text
+    call $__sarif_text_len_i32
+    local.set $len
+    i32.const -2128831035
+    local.set $hash
+    block $hash_done
+      i32.const 0
+      local.set $i
+      loop $hash_loop
+        local.get $i
+        local.get $len
+        i32.ge_u
+        br_if $hash_done
+        local.get $hash
+        local.get $ptr
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.xor
+        i32.const 16777619
+        i32.mul
+        local.set $hash
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $hash_loop
+      end
+    end
+    local.get $hash
+    local.get $len
+    i32.xor
+    local.tee $hash
+    i32.eqz
+    if
+      i32.const 1
+      return
+    end
+    local.get $hash
+  )
+  (func $__sarif_text_index_new (result i64)
+    (local $index i32) (local $cap i32) (local $entries i32) (local $i i32)
+    i32.const 12
+    call $alloc
+    local.tee $index
+    i32.const 0
+    i32.store offset=0
+    local.get $index
+    i32.const 8
+    i32.store offset=4
+    i32.const 8
+    i32.const 24
+    i32.mul
+    call $alloc
+    local.set $entries
+    local.get $index
+    local.get $entries
+    i32.store offset=8
+    i32.const 8
+    local.set $cap
+    block $zero_done
+      i32.const 0
+      local.set $i
+      loop $zero
+        local.get $i
+        local.get $cap
+        i32.ge_u
+        br_if $zero_done
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        i64.const 0
+        i64.store offset=0
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        i64.const 0
+        i64.store offset=8
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        i32.const 0
+        i32.store offset=16
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        i32.const 0
+        i32.store offset=20
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $zero
+      end
+    end
+    local.get $index
+    i64.extend_i32_u
+  )
+  (func $__sarif_text_index_ensure_capacity (param $index i32) (result i32)
+    (local $len i32) (local $cap i32) (local $entries i32) (local $new_cap i32)
+    (local $new_entries i32) (local $i i32) (local $idx i32) (local $hash i32)
+    local.get $index
+    i32.load offset=0
+    local.set $len
+    local.get $index
+    i32.load offset=4
+    local.tee $cap
+    local.set $new_cap
+    local.get $index
+    i32.load offset=8
+    local.set $entries
+    local.get $len
+    i32.const 4
+    i32.mul
+    local.get $cap
+    i32.const 3
+    i32.mul
+    i32.lt_u
+    if
+      i32.const 1
+      return
+    end
+    local.get $cap
+    i32.const 2
+    i32.mul
+    local.tee $new_cap
+    i32.const 24
+    i32.mul
+    call $alloc
+    local.set $new_entries
+    block $rehash_done
+      i32.const 0
+      local.set $i
+      loop $rehash
+        local.get $i
+        local.get $cap
+        i32.ge_u
+        br_if $rehash_done
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        local.tee $idx
+        i32.load offset=20
+        i32.eqz
+        if
+          local.get $i
+          i32.const 1
+          i32.add
+          local.set $i
+          br $rehash
+        end
+        local.get $idx
+        i32.load offset=16
+        local.set $hash
+        local.get $hash
+        local.get $new_cap
+        i32.rem_u
+        local.set $idx
+        block $probe_done
+          loop $probe
+            local.get $new_entries
+            local.get $idx
+            i32.const 24
+            i32.mul
+            i32.add
+            i32.load offset=20
+            i32.eqz
+            br_if $probe_done
+            local.get $idx
+            i32.const 1
+            i32.add
+            local.get $new_cap
+            i32.rem_u
+            local.set $idx
+            br $probe
+          end
+        end
+        local.get $new_entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        i64.load offset=0
+        i64.store offset=0
+        local.get $new_entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        local.get $entries
+        local.get $i
+        i32.const 24
+        i32.mul
+        i32.add
+        i64.load offset=8
+        i64.store offset=8
+        local.get $new_entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        local.get $hash
+        i32.store offset=16
+        local.get $new_entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        i32.const 1
+        i32.store offset=20
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $rehash
+      end
+    end
+    local.get $index
+    local.get $new_entries
+    i32.store offset=8
+    local.get $index
+    local.get $new_cap
+    i32.store offset=4
+    i32.const 1
+  )
+  (func $__sarif_text_index_find_entry
+    (param $index i32) (param $key i64) (param $hash i32) (result i32)
+    (local $cap i32) (local $entries i32) (local $idx i32) (local $start i32)
+    local.get $index
+    i32.load offset=4
+    local.set $cap
+    local.get $index
+    i32.load offset=8
+    local.set $entries
+    local.get $hash
+    local.get $cap
+    i32.rem_u
+    local.tee $idx
+    local.set $start
+    block $find_done
+      loop $find
+        local.get $entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        i32.load offset=20
+        i32.eqz
+        br_if $find_done
+        local.get $entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        i32.load offset=16
+        local.get $hash
+        i32.ne
+        if
+          local.get $idx
+          i32.const 1
+          i32.add
+          local.get $cap
+          i32.rem_u
+          local.set $idx
+          local.get $idx
+          local.get $start
+          i32.ne
+          br_if $find
+          br $find_done
+        end
+        local.get $entries
+        local.get $idx
+        i32.const 24
+        i32.mul
+        i32.add
+        i64.load offset=0
+        local.get $key
+        call $__sarif_text_eq
+        i32.wrap_i64
+        if
+          local.get $entries
+          local.get $idx
+          i32.const 24
+          i32.mul
+          i32.add
+          return
+        end
+        local.get $idx
+        i32.const 1
+        i32.add
+        local.get $cap
+        i32.rem_u
+        local.set $idx
+        local.get $idx
+        local.get $start
+        i32.ne
+        br_if $find
+      end
+    end
+    local.get $entries
+    local.get $idx
+    i32.const 24
+    i32.mul
+    i32.add
+  )
+  (func $__sarif_text_index_get
+    (param $index i64) (param $key i64) (result i64)
+    (local $entry i32)
+    local.get $index
+    i32.wrap_i64
+    local.get $key
+    local.get $key
+    call $__sarif_text_hash
+    call $__sarif_text_index_find_entry
+    local.tee $entry
+    i32.load offset=20
+    if
+      local.get $entry
+      i64.load offset=8
+      return
+    end
+    i64.const -1
+  )
+  (func $__sarif_text_index_set
+    (param $index i64) (param $key i64) (param $value i64) (result i64)
+    (local $ptr i32) (local $hash i32) (local $entry i32)
+    local.get $index
+    i32.wrap_i64
+    local.tee $ptr
+    call $__sarif_text_index_ensure_capacity
+    i32.eqz
+    if
+      i64.const -1
+      return
+    end
+    local.get $key
+    call $__sarif_text_hash
+    local.set $hash
+    local.get $ptr
+    local.get $key
+    local.get $hash
+    call $__sarif_text_index_find_entry
+    local.tee $entry
+    i32.load offset=20
+    if
+      local.get $entry
+      local.get $value
+      i64.store offset=8
+      local.get $index
+      return
+    end
+    local.get $entry
+    local.get $key
+    i64.store offset=0
+    local.get $entry
+    local.get $value
+    i64.store offset=8
+    local.get $entry
+    local.get $hash
+    i32.store offset=16
+    local.get $entry
+    i32.const 1
+    i32.store offset=20
+    local.get $ptr
+    local.get $ptr
+    i32.load offset=0
+    i32.const 1
+    i32.add
+    i32.store offset=0
+    local.get $index
+  )
+  (func $__sarif_text_index_get_or_insert
+    (param $index i64) (param $key i64) (param $default i64) (result i64)
+    (local $ptr i32) (local $hash i32) (local $entry i32)
+    local.get $index
+    i32.wrap_i64
+    local.tee $ptr
+    call $__sarif_text_index_ensure_capacity
+    i32.eqz
+    if
+      i64.const -1
+      return
+    end
+    local.get $key
+    call $__sarif_text_hash
+    local.set $hash
+    local.get $ptr
+    local.get $key
+    local.get $hash
+    call $__sarif_text_index_find_entry
+    local.tee $entry
+    i32.load offset=20
+    if
+      local.get $entry
+      i64.load offset=8
+      return
+    end
+    local.get $entry
+    local.get $key
+    i64.store offset=0
+    local.get $entry
+    local.get $default
+    i64.store offset=8
+    local.get $entry
+    local.get $hash
+    i32.store offset=16
+    local.get $entry
+    i32.const 1
+    i32.store offset=20
+    local.get $ptr
+    local.get $ptr
+    i32.load offset=0
+    i32.const 1
+    i32.add
+    i32.store offset=0
+    local.get $default
   )"#,
         );
 
@@ -2558,28 +3034,45 @@ impl<'a> WasmEmitter<'a> {
                 start,
                 end,
             } => {
-                writeln!(output, "    local.get ${}", wasm_id(*text))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*start))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.get ${}", wasm_id(*end))
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    call $__sarif_text_slice")
-                    .expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
-                    .expect("writing to a string cannot fail");
+                w_call(output, *dest, &[*text, *start, *end], "$__sarif_text_slice");
             }
             Inst::TextBuilderNew { dest } => {
                 w_call(output, *dest, &[], "$__sarif_text_builder_new");
             }
-            Inst::TextIndexNew { .. }
-            | Inst::StdoutWriteBuilder { .. }
-            | Inst::TextIndexGet { .. }
-            | Inst::TextIndexGetOrInsert { .. }
-            | Inst::TextIndexSet { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support text index builtins in stage-0",
-                ));
+            Inst::TextIndexNew { dest } => {
+                w_call(output, *dest, &[], "$__sarif_text_index_new");
+            }
+            Inst::TextIndexGet { dest, index, key } => {
+                w_call(output, *dest, &[*index, *key], "$__sarif_text_index_get");
+            }
+            Inst::TextIndexGetOrInsert {
+                dest,
+                index,
+                key,
+                next,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*index, *key, *next],
+                    "$__sarif_text_index_get_or_insert",
+                );
+            }
+            Inst::TextIndexSet {
+                dest,
+                index,
+                key,
+                value,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*index, *key, *value],
+                    "$__sarif_text_index_set",
+                );
+            }
+            Inst::StdoutWriteBuilder { dest, builder } => {
+                w_call(output, *dest, &[*builder], "$__sarif_stdout_write_builder");
             }
             Inst::TextBuilderAppend {
                 dest,
@@ -2661,10 +3154,11 @@ impl<'a> WasmEmitter<'a> {
                     "wasm backend does not yet support allocation scope builtins in stage-0",
                 ));
             }
-            Inst::StdoutWrite { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support runtime io builtins in stage-0",
-                ));
+            Inst::StdoutWrite { text } => {
+                writeln!(output, "    local.get ${}", wasm_id(*text))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_stdout_write")
+                    .expect("writing to a string cannot fail");
             }
             Inst::ParseI32 { dest, text } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
@@ -3470,14 +3964,14 @@ fn collect_inst_kinds(
             Inst::TextBuilderFinish { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::Text);
             }
-            Inst::TextIndexNew { .. }
-            | Inst::StdoutWriteBuilder { .. }
-            | Inst::TextIndexGet { .. }
-            | Inst::TextIndexGetOrInsert { .. }
-            | Inst::TextIndexSet { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support text index builtins in stage-0",
-                ));
+            Inst::TextIndexNew { dest } | Inst::TextIndexSet { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::TextIndex);
+            }
+            Inst::TextIndexGet { dest, .. } | Inst::TextIndexGetOrInsert { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::I32);
+            }
+            Inst::StdoutWriteBuilder { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::TextBuilder);
             }
             Inst::ListNew { dest, value, .. } => {
                 // Infer element kind from the value being used to fill the list
