@@ -2064,8 +2064,11 @@ impl<'a> WasmEmitter<'a> {
     call $__wasi_fd_write
     drop
   )
-  (func $__sarif_stdout_write_builder (param $state i32) (result i64)
-    (local $data_ptr i32) (local $len i32) (local $iovec i32)
+  (func $__sarif_stdout_write_builder (param $builder i64) (result i64)
+    (local $state i32) (local $data_ptr i32) (local $len i32) (local $iovec i32)
+    local.get $builder
+    i32.wrap_i64
+    local.set $state
     local.get $state
     i32.load offset=0
     local.set $data_ptr
@@ -2075,8 +2078,7 @@ impl<'a> WasmEmitter<'a> {
     local.get $len
     i32.eqz
     if
-      local.get $state
-      i64.extend_i32_u
+      local.get $builder
       return
     end
     i32.const 8
@@ -2094,7 +2096,9 @@ impl<'a> WasmEmitter<'a> {
     call $__wasi_fd_write
     drop
     local.get $state
-    i64.extend_i32_u
+    i32.const 0
+    i32.store offset=4
+    local.get $builder
   )
   (func $__sarif_text_hash (param $text i64) (result i32)
     (local $ptr i32) (local $len i32) (local $hash i32) (local $i i32)

@@ -6,7 +6,7 @@ use super::support::{
 use std::io::Write;
 use std::process::{Command, Stdio};
 #[cfg(feature = "wasm")]
-use wasmtime::{Caller, Engine, Extern, Instance, Linker, Module, Store, TypedFunc};
+use wasmtime::{Caller, Engine, Extern, Linker, Module, Store, TypedFunc};
 
 fn assert_run_parity(source: &str, expected: &str) {
     let path = temp_source(source);
@@ -44,13 +44,14 @@ fn link_fd_write(linker: &mut Linker<()>) -> Result<(), String> {
                 if fd != 1 {
                     return 8;
                 }
-                let memory = match caller.get_export("memory") {
-                    Some(Extern::Memory(m)) => m,
-                    _ => return 9,
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 9;
                 };
                 let data = memory.data(&caller);
-                for i in 0..iovs_len as usize {
-                    let base = (iovs as usize).wrapping_add(i.wrapping_mul(8));
+                let iov_len = u32::try_from(iovs_len).unwrap_or(0) as usize;
+                let iov_base = u32::try_from(iovs).unwrap_or(0) as usize;
+                for i in 0..iov_len {
+                    let base = iov_base.wrapping_add(i.wrapping_mul(8));
                     if base.wrapping_add(8) > data.len() {
                         return 21;
                     }
@@ -64,8 +65,8 @@ fn link_fd_write(linker: &mut Linker<()>) -> Result<(), String> {
                     if len < 0 {
                         return 21;
                     }
-                    let start = ptr as usize;
-                    let end = start.wrapping_add(len as usize);
+                    let start = u32::try_from(ptr).unwrap_or(0) as usize;
+                    let end = start.wrapping_add(u32::try_from(len).unwrap_or(0) as usize);
                     if end > data.len() {
                         return 21;
                     }
@@ -1256,6 +1257,29 @@ fn wasm_build_accepts_stdout_write_modules() {
     assert!(
         build.status.success(),
         "stdout_write should be accepted on the wasm backend:\n{}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+}
+
+#[cfg(feature = "wasm")]
+#[test]
+fn wasm_build_accepts_stdout_write_builder_modules() {
+    let path = temp_source(
+        "fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"a\"); b = stdout_write_builder(b); b = text_builder_append(b, \"b\"); b = stdout_write_builder(b); }",
+    );
+    let wasm_path = temp_output("stdout_write_builder_build", "wasm");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "wasm",
+        "-o",
+        wasm_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "stdout_write_builder should be accepted on the wasm backend:\n{}",
         String::from_utf8_lossy(&build.stderr)
     );
 }
