@@ -4488,6 +4488,10 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             };
         }
 
+        if arms.len() >= 3 && self.is_integer_only_match(arms) {
+            return self.lower_int_match_balanced(scrutinee, arms);
+        }
+
         let arm = &arms[0];
         let then_body = self.lower_match_arm_body(scrutinee, arm);
         let Some(condition) = self.lower_match_pattern_condition(scrutinee, &arm.pattern) else {
@@ -4514,6 +4518,158 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         BodyLowering {
             result: then_body.result.or(else_body.result).map(|_| dest),
             falls_through: then_body.falls_through || else_body.falls_through,
+        }
+    }
+
+    fn is_integer_only_match(&self, arms: &[sarif_frontend::hir::MatchArm]) -> bool {
+        arms.iter()
+            .all(|arm| self.is_integer_match_pattern(&arm.pattern))
+    }
+
+    fn is_integer_match_pattern(&self, pattern: &sarif_frontend::hir::MatchPattern) -> bool {
+        match pattern {
+            sarif_frontend::hir::MatchPattern::Integer { .. } => true,
+            sarif_frontend::hir::MatchPattern::Wildcard { .. } => true,
+            sarif_frontend::hir::MatchPattern::Or { patterns, .. } => {
+                patterns.iter().all(|p| self.is_integer_match_pattern(p))
+            }
+            _ => false,
+        }
+    }
+
+    fn min_int_for_pattern(&self, pattern: &sarif_frontend::hir::MatchPattern) -> Option<i64> {
+        match pattern {
+            sarif_frontend::hir::MatchPattern::Integer { value, .. } => Some(*value),
+            sarif_frontend::hir::MatchPattern::Wildcard { .. } => None,
+            sarif_frontend::hir::MatchPattern::Or { patterns, .. } => patterns
+                .iter()
+                .filter_map(|p| self.min_int_for_pattern(p))
+                .min(),
+            _ => None,
+        }
+    }
+
+    fn lower_lt_const(&mut self, scrutinee: ValueId, value: i64) -> ValueId {
+        let right = self.fresh_value();
+        self.instructions
+            .push(Inst::ConstInt { dest: right, value });
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::Lt {
+            dest,
+            left: scrutinee,
+            right,
+        });
+        dest
+    }
+
+    fn lower_int_match_balanced(
+        &mut self,
+        scrutinee: ValueId,
+        arms: &[sarif_frontend::hir::MatchArm],
+    ) -> BodyLowering {
+        let int_arms: Vec<(i64, usize)> = arms
+            .iter()
+            .enumerate()
+            .filter_map(|(i, arm)| self.min_int_for_pattern(&arm.pattern).map(|v| (v, i)))
+            .collect();
+
+        let wild_idx: Option<usize> = arms.iter().position(|arm| {
+            matches!(
+                arm.pattern,
+                sarif_frontend::hir::MatchPattern::Wildcard { .. }
+            )
+        });
+
+        let mut sorted: Vec<_> = int_arms.into_iter().collect();
+        sorted.sort_by_key(|(val, _)| *val);
+
+        self.build_int_btree(scrutinee, &sorted, wild_idx, arms)
+    }
+
+    fn build_int_btree(
+        &mut self,
+        scrutinee: ValueId,
+        arms: &[(i64, usize)],
+        wild_idx: Option<usize>,
+        all_arms: &[sarif_frontend::hir::MatchArm],
+    ) -> BodyLowering {
+        match arms.len() {
+            0 => {
+                if let Some(idx) = wild_idx {
+                    let body = self.lower_match_arm_body(scrutinee, &all_arms[idx]);
+                    self.instructions.extend(body.instructions);
+                    BodyLowering {
+                        result: body.result,
+                        falls_through: body.falls_through,
+                    }
+                } else {
+                    BodyLowering {
+                        result: None,
+                        falls_through: true,
+                    }
+                }
+            }
+            1 => {
+                let arm_idx = arms[0].1;
+                let arm = &all_arms[arm_idx];
+                let then_body = self.lower_match_arm_body(scrutinee, arm);
+                let condition = self
+                    .lower_match_pattern_condition(scrutinee, &arm.pattern)
+                    .unwrap();
+
+                let else_body = if let Some(idx) = wild_idx {
+                    self.lower_match_arm_body(scrutinee, &all_arms[idx])
+                } else {
+                    NestedBodyLowering {
+                        instructions: Vec::new(),
+                        result: None,
+                        falls_through: true,
+                    }
+                };
+
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::If {
+                    dest,
+                    condition,
+                    then_insts: then_body.instructions,
+                    then_result: then_body.result,
+                    else_insts: else_body.instructions,
+                    else_result: else_body.result,
+                });
+                BodyLowering {
+                    result: then_body.result.or(else_body.result).map(|_| dest),
+                    falls_through: then_body.falls_through || else_body.falls_through,
+                }
+            }
+            _ => {
+                let mid = arms.len() / 2;
+                let pivot = arms[mid].0;
+                let condition = self.lower_lt_const(scrutinee, pivot);
+
+                let left_saved = std::mem::take(&mut self.instructions);
+                let left_body = self.build_int_btree(scrutinee, &arms[..mid], wild_idx, all_arms);
+                let left_insts = std::mem::take(&mut self.instructions);
+                self.instructions = left_saved;
+
+                let right_saved = std::mem::take(&mut self.instructions);
+                let right_body = self.build_int_btree(scrutinee, &arms[mid..], wild_idx, all_arms);
+                let right_insts = std::mem::take(&mut self.instructions);
+                self.instructions = right_saved;
+
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::If {
+                    dest,
+                    condition,
+                    then_insts: left_insts,
+                    then_result: left_body.result,
+                    else_insts: right_insts,
+                    else_result: right_body.result,
+                });
+                BodyLowering {
+                    result: left_body.result.or(right_body.result).map(|_| dest),
+                    falls_through: left_body.falls_through || right_body.falls_through,
+                }
+            }
         }
     }
 
