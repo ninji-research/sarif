@@ -97,6 +97,13 @@ struct ObjectBackend<'a> {
     native_enums: BTreeMap<String, NativeEnum>,
 }
 
+fn declare_fn<T>(
+    module: &mut ObjectModule,
+    f: impl FnOnce(&mut ObjectModule, &str) -> Result<T, String>,
+) -> Result<T, ObjectError> {
+    f(module, "object").map_err(ObjectError::new)
+}
+
 impl<'a> ObjectBackend<'a> {
     fn new(program: &'a Program, module_name: &str) -> Result<Self, ObjectError> {
         let mut flag_builder = settings::builder();
@@ -116,119 +123,90 @@ impl<'a> ObjectBackend<'a> {
             })?;
         let mut module = ObjectModule::new(builder);
         let features = RuntimeFeatures::detect(program);
-        let allocator_id =
-            declare_record_allocator(&mut module, "object").map_err(ObjectError::new)?;
-        let alloc_push_id = declare_alloc_push(&mut module, "object").map_err(ObjectError::new)?;
-        let alloc_pop_id = declare_alloc_pop(&mut module, "object").map_err(ObjectError::new)?;
+        let allocator_id = declare_fn(&mut module, declare_record_allocator)?;
+        let alloc_push_id = declare_fn(&mut module, declare_alloc_push)?;
+        let alloc_pop_id = declare_fn(&mut module, declare_alloc_pop)?;
 
         let text_builder_new_id = features
             .text_builder
-            .then(|| declare_text_builder_new(&mut module, "object").map_err(ObjectError::new))
+            .then(|| declare_fn(&mut module, declare_text_builder_new))
             .transpose()?;
         let text_builder_append_id = features
             .text_builder
-            .then(|| declare_text_builder_append(&mut module, "object").map_err(ObjectError::new))
+            .then(|| declare_fn(&mut module, declare_text_builder_append))
             .transpose()?;
         let text_builder_append_codepoint_id = features
             .text_builder
-            .then(|| {
-                declare_text_builder_append_codepoint(&mut module, "object")
-                    .map_err(ObjectError::new)
-            })
+            .then(|| declare_fn(&mut module, declare_text_builder_append_codepoint))
             .transpose()?;
         let text_builder_append_ascii_id = features
             .text_builder
-            .then(|| {
-                declare_text_builder_append_ascii(&mut module, "object").map_err(ObjectError::new)
-            })
+            .then(|| declare_fn(&mut module, declare_text_builder_append_ascii))
             .transpose()?;
         let text_builder_append_slice_id = features
             .text_builder
-            .then(|| {
-                declare_text_builder_append_slice(&mut module, "object").map_err(ObjectError::new)
-            })
+            .then(|| declare_fn(&mut module, declare_text_builder_append_slice))
             .transpose()?;
         let text_builder_append_i32_id = features
             .text_builder
-            .then(|| {
-                declare_text_builder_append_i32(&mut module, "object").map_err(ObjectError::new)
-            })
+            .then(|| declare_fn(&mut module, declare_text_builder_append_i32))
             .transpose()?;
         let text_builder_finish_id = features
             .text_builder
-            .then(|| declare_text_builder_finish(&mut module, "object").map_err(ObjectError::new))
+            .then(|| declare_fn(&mut module, declare_text_builder_finish))
             .transpose()?;
         let stdout_write_builder_id = features
             .text_builder
-            .then(|| declare_stdout_write_builder(&mut module, "object").map_err(ObjectError::new))
+            .then(|| declare_fn(&mut module, declare_stdout_write_builder))
             .transpose()?;
 
-        let text_index_new_id = features
-            .text_index
-            .then(|| declare_text_index_new(&mut module, "object").map_err(ObjectError::new))
-            .transpose()?;
-        let text_index_get_id = features
-            .text_index
-            .then(|| declare_text_index_get(&mut module, "object").map_err(ObjectError::new))
-            .transpose()?;
-        let text_index_get_or_insert_id = features
-            .text_index
-            .then(|| {
-                declare_text_index_get_or_insert(&mut module, "object").map_err(ObjectError::new)
-            })
-            .transpose()?;
-        let text_index_set_id = features
-            .text_index
-            .then(|| declare_text_index_set(&mut module, "object").map_err(ObjectError::new))
-            .transpose()?;
         let text_index_helpers = TextIndexHelperIds {
-            new_id: text_index_new_id,
-            get_id: text_index_get_id,
-            get_or_insert_id: text_index_get_or_insert_id,
-            set_id: text_index_set_id,
+            new_id: features
+                .text_index
+                .then(|| declare_fn(&mut module, declare_text_index_new))
+                .transpose()?,
+            get_id: features
+                .text_index
+                .then(|| declare_fn(&mut module, declare_text_index_get))
+                .transpose()?,
+            get_or_insert_id: features
+                .text_index
+                .then(|| declare_fn(&mut module, declare_text_index_get_or_insert))
+                .transpose()?,
+            set_id: features
+                .text_index
+                .then(|| declare_fn(&mut module, declare_text_index_set))
+                .transpose()?,
         };
-        let list_new_id = declare_list_new(&mut module, "object").map_err(ObjectError::new)?;
-        let list_push_id = declare_list_push(&mut module, "object").map_err(ObjectError::new)?;
+        let list_new_id = declare_fn(&mut module, declare_list_new)?;
+        let list_push_id = declare_fn(&mut module, declare_list_push)?;
         let list_sort_text_id = features
             .sort
-            .then(|| declare_list_sort_text(&mut module, "object").map_err(ObjectError::new))
+            .then(|| declare_fn(&mut module, declare_list_sort_text))
             .transpose()?;
         let list_sort_by_text_field_id = features
             .sort
-            .then(|| {
-                declare_list_sort_by_text_field(&mut module, "object").map_err(ObjectError::new)
-            })
+            .then(|| declare_fn(&mut module, declare_list_sort_by_text_field))
             .transpose()?;
-        let text_concat_id =
-            declare_text_concat(&mut module, "object").map_err(ObjectError::new)?;
-        let text_slice_id = declare_text_slice(&mut module, "object").map_err(ObjectError::new)?;
-        let bytes_slice_id =
-            declare_bytes_slice(&mut module, "object").map_err(ObjectError::new)?;
-        let text_eq_range_id =
-            declare_text_eq_range(&mut module, "object").map_err(ObjectError::new)?;
-        let text_find_byte_range_id =
-            declare_text_find_byte_range(&mut module, "object").map_err(ObjectError::new)?;
-        let text_line_end_id =
-            declare_text_line_end(&mut module, "object").map_err(ObjectError::new)?;
-        let text_next_line_id =
-            declare_text_next_line(&mut module, "object").map_err(ObjectError::new)?;
-        let text_field_end_id =
-            declare_text_field_end(&mut module, "object").map_err(ObjectError::new)?;
-        let text_next_field_id =
-            declare_text_next_field(&mut module, "object").map_err(ObjectError::new)?;
-        let text_from_f64_fixed_id =
-            declare_text_from_f64_fixed(&mut module, "object").map_err(ObjectError::new)?;
-        let parse_i32_id = declare_parse_i32(&mut module, "object").map_err(ObjectError::new)?;
-        let parse_i32_range_id =
-            declare_parse_i32_range(&mut module, "object").map_err(ObjectError::new)?;
-        let parse_f64_id = declare_parse_f64(&mut module, "object").map_err(ObjectError::new)?;
-        let arg_count_id = declare_arg_count(&mut module, "object").map_err(ObjectError::new)?;
-        let arg_text_id = declare_arg_text(&mut module, "object").map_err(ObjectError::new)?;
-        let stdin_text_id = declare_stdin_text(&mut module, "object").map_err(ObjectError::new)?;
-        let stdout_write_id =
-            declare_stdout_write(&mut module, "object").map_err(ObjectError::new)?;
-        let text_eq_id = declare_text_eq(&mut module, "object").map_err(ObjectError::new)?;
-        let text_cmp_id = declare_text_cmp(&mut module, "object").map_err(ObjectError::new)?;
+        let text_concat_id = declare_fn(&mut module, declare_text_concat)?;
+        let text_slice_id = declare_fn(&mut module, declare_text_slice)?;
+        let bytes_slice_id = declare_fn(&mut module, declare_bytes_slice)?;
+        let text_eq_range_id = declare_fn(&mut module, declare_text_eq_range)?;
+        let text_find_byte_range_id = declare_fn(&mut module, declare_text_find_byte_range)?;
+        let text_line_end_id = declare_fn(&mut module, declare_text_line_end)?;
+        let text_next_line_id = declare_fn(&mut module, declare_text_next_line)?;
+        let text_field_end_id = declare_fn(&mut module, declare_text_field_end)?;
+        let text_next_field_id = declare_fn(&mut module, declare_text_next_field)?;
+        let text_from_f64_fixed_id = declare_fn(&mut module, declare_text_from_f64_fixed)?;
+        let parse_i32_id = declare_fn(&mut module, declare_parse_i32)?;
+        let parse_i32_range_id = declare_fn(&mut module, declare_parse_i32_range)?;
+        let parse_f64_id = declare_fn(&mut module, declare_parse_f64)?;
+        let arg_count_id = declare_fn(&mut module, declare_arg_count)?;
+        let arg_text_id = declare_fn(&mut module, declare_arg_text)?;
+        let stdin_text_id = declare_fn(&mut module, declare_stdin_text)?;
+        let stdout_write_id = declare_fn(&mut module, declare_stdout_write)?;
+        let text_eq_id = declare_fn(&mut module, declare_text_eq)?;
+        let text_cmp_id = declare_fn(&mut module, declare_text_cmp)?;
 
         Ok(Self {
             program,

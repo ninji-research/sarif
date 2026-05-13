@@ -164,58 +164,7 @@ impl<'a> WasmEmitter<'a> {
 
     fn emit(&self) -> Result<String, WasmError> {
         let mut output = String::new();
-        writeln!(output, "(module").expect("writing to a string cannot fail");
-        writeln!(
-            output,
-            "  (import \"wasi_snapshot_preview1\" \"fd_write\" (func $__wasi_fd_write (param i32 i32 i32 i32) (result i32)))"
-        )
-        .expect("writing to a string cannot fail");
-        writeln!(output, "  (memory (export \"memory\") 1)")
-            .expect("writing to a string cannot fail");
-        writeln!(output, "  (global $heap_ptr (mut i32) (i32.const 0))")
-            .expect("writing to a string cannot fail");
-
-        writeln!(
-            output,
-            "  (func $alloc (param $size i32) (result i32) (local $ptr i32) (local $new_end i32) (local $pages i32)"
-        )
-        .expect("writing to a string cannot fail");
-        writeln!(output, "    global.get $heap_ptr").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.const 7").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.add").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.const -8").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.and").expect("writing to a string cannot fail");
-        writeln!(output, "    local.tee $ptr").expect("writing to a string cannot fail");
-        writeln!(output, "    local.get $size").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.add").expect("writing to a string cannot fail");
-        writeln!(output, "    local.tee $new_end").expect("writing to a string cannot fail");
-        writeln!(output, "    memory.size").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.const 16").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.shl").expect("writing to a string cannot fail");
-        writeln!(output, "    i32.gt_u").expect("writing to a string cannot fail");
-        writeln!(output, "    if").expect("writing to a string cannot fail");
-        writeln!(output, "      local.get $new_end").expect("writing to a string cannot fail");
-        writeln!(output, "      memory.size").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.const 16").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.shl").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.sub").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.const 65535").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.add").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.const 16").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.shr_u").expect("writing to a string cannot fail");
-        writeln!(output, "      local.set $pages").expect("writing to a string cannot fail");
-        writeln!(output, "      local.get $pages").expect("writing to a string cannot fail");
-        writeln!(output, "      memory.grow").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.const -1").expect("writing to a string cannot fail");
-        writeln!(output, "      i32.eq").expect("writing to a string cannot fail");
-        writeln!(output, "      if").expect("writing to a string cannot fail");
-        writeln!(output, "        unreachable").expect("writing to a string cannot fail");
-        writeln!(output, "      end").expect("writing to a string cannot fail");
-        writeln!(output, "    end").expect("writing to a string cannot fail");
-        writeln!(output, "    local.get $new_end").expect("writing to a string cannot fail");
-        writeln!(output, "    global.set $heap_ptr").expect("writing to a string cannot fail");
-        writeln!(output, "    local.get $ptr").expect("writing to a string cannot fail");
-        writeln!(output, "  )").expect("writing to a string cannot fail");
+        output.push_str(include_str!("wasm/preamble.wat"));
 
         self.emit_support_functions(&mut output)?;
 
