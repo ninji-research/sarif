@@ -4175,16 +4175,48 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 dest
             }
             Expr::Repeat(expr) => {
-                let count = self.lower_expr(&expr.count);
-                let (index_slot, body) = self.lower_repeat_body(expr);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::Repeat {
-                    dest,
-                    count,
-                    index_slot,
-                    body_insts: body.instructions,
-                });
-                dest
+                if let Some(n) = self.repeat_static_count(&expr.count) {
+                    let saved_instructions = std::mem::take(&mut self.instructions);
+                    let saved_locals = self.locals.clone();
+                    let saved_local_types = self.local_types.clone();
+                    let saved_trusted = self.trusted_repeat_bounds.clone();
+                    let mut unrolled_insts = Vec::new();
+                    for k in 0..n {
+                        self.locals = saved_locals.clone();
+                        self.local_types = saved_local_types.clone();
+                        self.trusted_repeat_bounds = saved_trusted.clone();
+                        if let Some(binding) = &expr.binding {
+                            let const_value = self.fresh_value();
+                            self.instructions.push(Inst::ConstInt {
+                                dest: const_value,
+                                value: k as i64,
+                            });
+                            self.locals
+                                .insert(binding.clone(), LocalBinding::Value(const_value));
+                            self.local_types.insert(binding.clone(), LowerType::I32);
+                            self.trusted_repeat_bounds.insert(binding.clone(), n);
+                        }
+                        self.lower_body(&expr.body, false);
+                        unrolled_insts.append(&mut self.instructions);
+                    }
+                    self.instructions = saved_instructions;
+                    self.locals = saved_locals;
+                    self.local_types = saved_local_types;
+                    self.trusted_repeat_bounds = saved_trusted;
+                    self.instructions.extend(unrolled_insts);
+                    self.emit_unit_value()
+                } else {
+                    let count = self.lower_expr(&expr.count);
+                    let (index_slot, body) = self.lower_repeat_body(expr);
+                    let dest = self.fresh_value();
+                    self.instructions.push(Inst::Repeat {
+                        dest,
+                        count,
+                        index_slot,
+                        body_insts: body.instructions,
+                    });
+                    dest
+                }
             }
             Expr::Record(expr) => {
                 let dest = self.fresh_value();
