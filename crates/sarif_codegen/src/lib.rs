@@ -4177,14 +4177,14 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             Expr::Repeat(expr) => {
                 if let Some(n) = self.repeat_static_count(&expr.count) {
                     let saved_instructions = std::mem::take(&mut self.instructions);
-                    let saved_locals = self.locals.clone();
-                    let saved_local_types = self.local_types.clone();
-                    let saved_trusted = self.trusted_repeat_bounds.clone();
+                    let saved_locals = std::mem::take(&mut self.locals);
+                    let saved_local_types = std::mem::take(&mut self.local_types);
+                    let saved_trusted = std::mem::take(&mut self.trusted_repeat_bounds);
                     let mut unrolled_insts = Vec::new();
                     for k in 0..n {
-                        self.locals = saved_locals.clone();
-                        self.local_types = saved_local_types.clone();
-                        self.trusted_repeat_bounds = saved_trusted.clone();
+                        self.locals.clone_from(&saved_locals);
+                        self.local_types.clone_from(&saved_local_types);
+                        self.trusted_repeat_bounds.clone_from(&saved_trusted);
                         if let Some(binding) = &expr.binding {
                             let const_value = self.fresh_value();
                             self.instructions.push(Inst::ConstInt {
@@ -4691,26 +4691,26 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let mid = arms.len() / 2;
                 let pivot = arms[mid].0;
                 let condition = self.lower_lt_const(scrutinee, pivot);
+                let condition_instrs = std::mem::take(&mut self.instructions);
 
-                let left_saved = std::mem::take(&mut self.instructions);
                 let left_body = self.build_int_btree(scrutinee, &arms[..mid], wild_idx, all_arms);
                 let left_insts = std::mem::take(&mut self.instructions);
-                self.instructions = left_saved;
 
-                let right_saved = std::mem::take(&mut self.instructions);
                 let right_body = self.build_int_btree(scrutinee, &arms[mid..], wild_idx, all_arms);
                 let right_insts = std::mem::take(&mut self.instructions);
-                self.instructions = right_saved;
 
                 let dest = self.fresh_value();
-                self.instructions.push(Inst::If {
+                let if_inst = Inst::If {
                     dest,
                     condition,
                     then_insts: left_insts,
                     then_result: left_body.result,
                     else_insts: right_insts,
                     else_result: right_body.result,
-                });
+                };
+
+                self.instructions = condition_instrs;
+                self.instructions.push(if_inst);
                 BodyLowering {
                     result: left_body.result.or(right_body.result).map(|_| dest),
                     falls_through: left_body.falls_through || right_body.falls_through,
