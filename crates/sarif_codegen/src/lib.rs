@@ -4648,12 +4648,19 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
             }
             1 => {
-                let arm_idx = arms[0].1;
+                let (val, arm_idx) = arms[0];
                 let arm = &all_arms[arm_idx];
                 let then_body = self.lower_match_arm_body(scrutinee, arm);
-                let condition = self
-                    .lower_match_pattern_condition(scrutinee, &arm.pattern)
-                    .unwrap();
+
+                let right = self.fresh_value();
+                self.instructions
+                    .push(Inst::ConstInt { dest: right, value: val });
+                let condition = self.fresh_value();
+                self.instructions.push(Inst::Eq {
+                    dest: condition,
+                    left: scrutinee,
+                    right,
+                });
 
                 let else_body = if let Some(idx) = wild_idx {
                     self.lower_match_arm_body(scrutinee, &all_arms[idx])
