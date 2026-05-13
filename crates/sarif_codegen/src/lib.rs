@@ -4537,18 +4537,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         }
     }
 
-    fn min_int_for_pattern(&self, pattern: &sarif_frontend::hir::MatchPattern) -> Option<i64> {
-        match pattern {
-            sarif_frontend::hir::MatchPattern::Integer { value, .. } => Some(*value),
-            sarif_frontend::hir::MatchPattern::Wildcard { .. } => None,
-            sarif_frontend::hir::MatchPattern::Or { patterns, .. } => patterns
-                .iter()
-                .filter_map(|p| self.min_int_for_pattern(p))
-                .min(),
-            _ => None,
-        }
-    }
-
     fn lower_lt_const(&mut self, scrutinee: ValueId, value: i64) -> ValueId {
         let right = self.fresh_value();
         self.instructions
@@ -4562,28 +4550,78 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn collect_int_values(
+        &self,
+        pattern: &sarif_frontend::hir::MatchPattern,
+        arm_idx: usize,
+        out: &mut Vec<(i64, usize)>,
+    ) {
+        match pattern {
+            sarif_frontend::hir::MatchPattern::Integer { value, .. } => {
+                out.push((*value, arm_idx));
+            }
+            sarif_frontend::hir::MatchPattern::Wildcard { .. } => {}
+            sarif_frontend::hir::MatchPattern::Or { patterns, .. } => {
+                for p in patterns {
+                    self.collect_int_values(p, arm_idx, out);
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn lower_int_match_balanced(
         &mut self,
         scrutinee: ValueId,
         arms: &[sarif_frontend::hir::MatchArm],
     ) -> BodyLowering {
-        let int_arms: Vec<(i64, usize)> = arms
-            .iter()
-            .enumerate()
-            .filter_map(|(i, arm)| self.min_int_for_pattern(&arm.pattern).map(|v| (v, i)))
-            .collect();
+        let mut int_arms: Vec<(i64, usize)> = Vec::new();
+        for (i, arm) in arms.iter().enumerate() {
+            self.collect_int_values(&arm.pattern, i, &mut int_arms);
+        }
 
-        let wild_idx: Option<usize> = arms.iter().position(|arm| {
-            matches!(
-                arm.pattern,
-                sarif_frontend::hir::MatchPattern::Wildcard { .. }
-            )
-        });
+        if int_arms.is_empty() {
+            let arm = &arms[0];
+            let body = self.lower_match_arm_body(scrutinee, arm);
+            let condition = self
+                .lower_match_pattern_condition(scrutinee, &arm.pattern);
+            if let Some(condition) = condition {
+                let else_body = if arms.len() == 1 {
+                    self.lower_match_arm_body(scrutinee, arm)
+                } else {
+                    self.lower_match_nested(scrutinee, &arms[1..])
+                };
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::If {
+                    dest,
+                    condition,
+                    then_insts: body.instructions,
+                    then_result: body.result,
+                    else_insts: else_body.instructions,
+                    else_result: else_body.result,
+                });
+                BodyLowering {
+                    result: body.result.or(else_body.result).map(|_| dest),
+                    falls_through: body.falls_through || else_body.falls_through,
+                }
+            } else {
+                self.instructions.extend(body.instructions);
+                BodyLowering {
+                    result: body.result,
+                    falls_through: body.falls_through,
+                }
+            }
+        } else {
+            let wild_idx: Option<usize> = arms.iter().position(|arm| {
+                matches!(
+                    arm.pattern,
+                    sarif_frontend::hir::MatchPattern::Wildcard { .. }
+                )
+            });
 
-        let mut sorted: Vec<_> = int_arms.into_iter().collect();
-        sorted.sort_by_key(|(val, _)| *val);
-
-        self.build_int_btree(scrutinee, &sorted, wild_idx, arms)
+            int_arms.sort_by_key(|(val, _)| *val);
+            self.build_int_btree(scrutinee, &int_arms, wild_idx, arms)
+        }
     }
 
     fn build_int_btree(
