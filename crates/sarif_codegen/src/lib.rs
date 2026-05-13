@@ -4583,8 +4583,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         if int_arms.is_empty() {
             let arm = &arms[0];
             let body = self.lower_match_arm_body(scrutinee, arm);
-            let condition = self
-                .lower_match_pattern_condition(scrutinee, &arm.pattern);
+            let condition = self.lower_match_pattern_condition(scrutinee, &arm.pattern);
             if let Some(condition) = condition {
                 let else_body = if arms.len() == 1 {
                     self.lower_match_arm_body(scrutinee, arm)
@@ -4653,8 +4652,10 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let then_body = self.lower_match_arm_body(scrutinee, arm);
 
                 let right = self.fresh_value();
-                self.instructions
-                    .push(Inst::ConstInt { dest: right, value: val });
+                self.instructions.push(Inst::ConstInt {
+                    dest: right,
+                    value: val,
+                });
                 let condition = self.fresh_value();
                 self.instructions.push(Inst::Eq {
                     dest: condition,
