@@ -2019,6 +2019,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
+### fn is_builtin_fn
+
+- signature: `fn is_builtin_fn(name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn check_body_outline_calls
 
 - signature: `fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text`
