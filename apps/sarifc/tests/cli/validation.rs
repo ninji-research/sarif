@@ -344,10 +344,7 @@ fn check_rejects_repeat_arrays_of_affine_values() {
 
 #[test]
 fn bootstrap_check_accepts_shipped_and_bootstrap_inputs() {
-    for path in [
-        const_control_flow_example(),
-        multi_file_package_dir(),
-    ] {
+    for path in [const_control_flow_example(), multi_file_package_dir()] {
         let output = run_path_profiled("bootstrap-check", &path, "core");
         assert!(
             output.status.success(),
@@ -357,8 +354,6 @@ fn bootstrap_check_accepts_shipped_and_bootstrap_inputs() {
         assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok [core]");
     }
 }
-
-
 
 #[test]
 fn bootstrap_check_rejects_duplicate_definitions() {
