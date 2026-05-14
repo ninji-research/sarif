@@ -142,15 +142,16 @@ fn indent_text(width: I32) -> Text {
 }
 
 fn find_operator_index(source: Text, op: Text, index: I32) -> I32 {
-    if index + text_len(op) > text_len(source) {
-        -1
-    } else {
-        if text_starts_with_at(source, op, index) {
-            index
-        } else {
-            find_operator_index(source, op, index + 1)
-        }
-    }
+    let limit = text_len(source) - text_len(op);
+    let mut i = index;
+    let mut found_at = -1;
+    while i <= limit and found_at < 0 {
+        if text_starts_with_at(source, op, i) {
+            found_at = i;
+        };
+        i = i + 1;
+    };
+    found_at
 }
 
 fn format_chain_content(content: Text, op: Text, indent_width: I32) -> Text {
@@ -207,15 +208,16 @@ fn rewrite_chain_line(line: Text) -> Text {
 }
 
 fn find_byte_index(source: Text, byte: I32, index: I32) -> I32 {
-    if index >= text_len(source) {
-        -1
-    } else {
-        if text_byte(source, index) == byte {
-            index
-        } else {
-            find_byte_index(source, byte, index + 1)
-        }
-    }
+    let len = text_len(source);
+    let mut i = index;
+    let mut found_at = -1;
+    while i < len and found_at < 0 {
+        if text_byte(source, i) == byte {
+            found_at = i;
+        };
+        i = i + 1;
+    };
+    found_at
 }
 
 fn rewrite_body_lines_from(source: Text, index: I32) -> Text {
@@ -857,19 +859,27 @@ fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Te
     }
 }
 
+fn is_builtin_fn(name: Text) -> Bool {
+    name_table_has("text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_get_or_insert\ntext_index_set\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\nlen", name)
+}
+
 fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text {
     if index >= 5 {
         ""
     } else {
         let entry = block_item_entry_at(outline, index);
-        let diag = if entry.present and entry.entry.expr_kind == ExprKind.Call and entry.entry.expr_span.present {
+        let d = if entry.present and entry.entry.expr_kind == ExprKind.Call and entry.entry.expr_span.present {
             let expr_text = text_slice(source, entry.entry.expr_span.span.start, entry.entry.expr_span.span.end);
             let callee = extract_call_callee(expr_text);
             if not is_empty(callee) and callee != "_" {
                 if name_table_has(known, callee) {
                     ""
                 } else {
-                    text_concat("error: unknown function `", text_concat(callee, "`\n"))
+                    if is_builtin_fn(callee) {
+                        ""
+                    } else {
+                        text_concat("error: unknown function `", text_concat(callee, "`\n"))
+                    }
                 }
             } else {
                 ""
@@ -878,10 +888,10 @@ fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, kno
             ""
         };
         let rest = check_body_outline_calls(source, outline, index + 1, known);
-        if is_empty(diag) {
+        if is_empty(d) {
             rest
         } else {
-            text_concat(diag, rest)
+            text_concat(d, rest)
         }
     }
 }

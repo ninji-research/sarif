@@ -2360,7 +2360,7 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
         let expr_kind = classify_expr_kind(source, current);
         let parsed_expr = parse_expr_bp(source, current, 0);
         let with_semi = parse_expect(source, parsed_expr, TokenKind.Semicolon);
-        make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Let, name_spanned.span, present_span(expr_start, expr_start + 1), expr_kind))
+        make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Let, name_spanned.span, present_span(expr_start, parsed_expr.last_end), expr_kind))
     } else {
         if starts_assign(source, state) {
             let target_start = state.cursor.start;
@@ -2371,16 +2371,16 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
             let expr_kind = classify_expr_kind(source, current);
             let parsed_expr = parse_expr_bp(source, current, 0);
             let with_semi = parse_expect(source, parsed_expr, TokenKind.Semicolon);
-            make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Assign, present_span(target_start, target_end), present_span(expr_start, expr_start + 1), expr_kind))
+            make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.Assign, present_span(target_start, target_end), present_span(expr_start, parsed_expr.last_end), expr_kind))
         } else {
             let expr_start = state.cursor.start;
             let expr_kind = classify_expr_kind(source, state);
             let current = parse_expr_bp(source, state, 0);
             if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Semicolon {
                 let with_semi = parse_expect(source, current, TokenKind.Semicolon);
-                make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.ExprStmt, missing_span(), present_span(expr_start, expr_start + 1), expr_kind))
+                make_block_entry_with_item(with_semi, false, present_block_item_entry(BlockItemKind.ExprStmt, missing_span(), present_span(expr_start, current.last_end), expr_kind))
             } else {
-                make_block_entry_with_item(current, true, present_block_item_entry(BlockItemKind.TailExpr, missing_span(), present_span(expr_start, expr_start + 1), expr_kind))
+                make_block_entry_with_item(current, true, present_block_item_entry(BlockItemKind.TailExpr, missing_span(), present_span(expr_start, current.last_end), expr_kind))
             }
         }
     }
@@ -2390,10 +2390,14 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
     match state.cursor.kind {
         TokenKind.Ident => {
             let after_name = parse_named_type(source, state);
-            if starts_record_literal(source, after_name) {
-                ExprKind.Record
+            if after_name.cursor.kind == TokenKind.LParen {
+                ExprKind.Call
             } else {
-                ExprKind.Name
+                if starts_record_literal(source, after_name) {
+                    ExprKind.Record
+                } else {
+                    ExprKind.Name
+                }
             }
         },
         TokenKind.Integer => {

@@ -370,7 +370,15 @@ fn bootstrap_check_rejects_duplicate_definitions() {
     assert!(stderr.contains("error: duplicate definition"));
 }
 
-
+#[test]
+fn bootstrap_check_rejects_unknown_function_calls() {
+    let source = "fn main() -> I32 { undefined_func(42) }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("error: unknown function `undefined_func`"));
+}
 
 #[test]
 fn check_emits_stable_diagnostics_for_retained_invalid_inputs() {
