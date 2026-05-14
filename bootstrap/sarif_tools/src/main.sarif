@@ -751,7 +751,72 @@ fn name_table_has(table: Text, name: Text) -> Bool {
     }
 }
 
-fn check_top_level_names_from(source: Text, state: ParseState, seen: Text) -> Text {
+fn name_table_count(table: Text, name: Text) -> I32 {
+    if is_empty(table) {
+        0
+    } else {
+        let match_here = if text_starts_with_at(table, name, 0) {
+            let end = text_len(name);
+            if end == text_len(table) or text_byte(table, end) == 10 {
+                1
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+        let nxt = find_byte_index(table, 10, 0);
+        let rest = if nxt >= 0 {
+            text_slice(table, nxt + 1, text_len(table))
+        } else {
+            ""
+        };
+        match_here + name_table_count(rest, name)
+    }
+}
+
+fn extract_call_callee(expr_text: Text) -> Text {
+    let paren = find_byte_index(expr_text, 40, 0);
+    if paren > 0 {
+        text_slice(expr_text, 0, paren)
+    } else {
+        expr_text
+    }
+}
+
+fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        names
+    } else {
+        let name_span = top_level_name_span(source, state);
+        let next = if state.cursor.kind == TokenKind.KwStruct {
+            parse_struct_item(source, state)
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, state)
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    parse_const_item(source, state)
+                } else {
+                    parse_fn_item_with_shape(source, state).state
+                }
+            }
+        };
+        let cur_name = name_text(source, name_span);
+        let new_names = if not is_empty(cur_name) and cur_name != "_" {
+            name_table_add(names, cur_name)
+        } else {
+            names
+        };
+        collect_all_names_from(source, next, new_names)
+    }
+}
+
+fn collect_all_names(source: Text) -> Text {
+    collect_all_names_from(source, parse_state_new(source), "")
+}
+
+fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text {
     if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
         ""
     } else {
@@ -772,7 +837,7 @@ fn check_top_level_names_from(source: Text, state: ParseState, seen: Text) -> Te
         let diag = if name_span.present {
             let name = text_slice(source, name_span.span.start, name_span.span.end);
             if not is_empty(name) and name != "_" {
-                if name_table_has(seen, name) {
+                if name_table_count(names, name) > 1 {
                     text_concat("error: duplicate definition `", text_concat(name, "`\n"))
                 } else {
                     ""
@@ -783,11 +848,68 @@ fn check_top_level_names_from(source: Text, state: ParseState, seen: Text) -> Te
         } else {
             ""
         };
-        let rest_text = check_top_level_names_from(source, next, name_table_add(seen, name_text(source, name_span)));
+        let rest = check_duplicate_defs_from(source, next, names);
         if is_empty(diag) {
-            rest_text
+            rest
         } else {
-            text_concat(diag, rest_text)
+            text_concat(diag, rest)
+        }
+    }
+}
+
+fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text {
+    if index >= 5 {
+        ""
+    } else {
+        let entry = block_item_entry_at(outline, index);
+        let diag = if entry.present and entry.entry.expr_kind == ExprKind.Call and entry.entry.expr_span.present {
+            let expr_text = text_slice(source, entry.entry.expr_span.span.start, entry.entry.expr_span.span.end);
+            let callee = extract_call_callee(expr_text);
+            if not is_empty(callee) and callee != "_" {
+                if name_table_has(known, callee) {
+                    ""
+                } else {
+                    text_concat("error: unknown function `", text_concat(callee, "`\n"))
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        };
+        let rest = check_body_outline_calls(source, outline, index + 1, known);
+        if is_empty(diag) {
+            rest
+        } else {
+            text_concat(diag, rest)
+        }
+    }
+}
+
+fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        if state.cursor.kind == TokenKind.KwFn {
+            let parsed = parse_fn_item_with_shape(source, state);
+            let body_diag = check_body_outline_calls(source, parsed.shape.body_outline, 0, known);
+            let rest = check_body_calls_from(source, parsed.state, known);
+            if is_empty(body_diag) {
+                rest
+            } else {
+                text_concat(body_diag, rest)
+            }
+        } else {
+            let next = if state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, state)
+            } else {
+                if state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, state)
+                } else {
+                    parse_const_item(source, state)
+                }
+            };
+            check_body_calls_from(source, next, known)
         }
     }
 }
@@ -797,11 +919,14 @@ fn check_text(source: Text) -> Text {
     if not report.ok {
         report.diagnostics
     } else {
-        let name_diag = check_top_level_names_from(source, parse_state_new(source), "");
-        if is_empty(name_diag) {
+        let all_names = collect_all_names(source);
+        let dup_diag = check_duplicate_defs_from(source, parse_state_new(source), all_names);
+        let call_diag = check_body_calls_from(source, parse_state_new(source), all_names);
+        let combined = text_concat(dup_diag, call_diag);
+        if is_empty(combined) {
             "ok [core]\n"
         } else {
-            name_diag
+            combined
         }
     }
 }

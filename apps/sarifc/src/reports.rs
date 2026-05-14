@@ -94,7 +94,7 @@ pub fn render_bootstrap_format(loaded: &LoadedSource) -> Result<String, String> 
 }
 
 #[cfg(feature = "codegen")]
-fn bootstrap_format_program() -> Result<&'static Program, String> {
+fn bootstrap_tools_program() -> Result<&'static Program, String> {
     static BOOTSTRAP_PROGRAM: std::sync::OnceLock<Result<Program, String>> =
         std::sync::OnceLock::new();
     let cached = BOOTSTRAP_PROGRAM.get_or_init(|| {
@@ -106,11 +106,56 @@ fn bootstrap_format_program() -> Result<&'static Program, String> {
         let diags = loaded.mir_diagnostics(Profile::Core);
         loaded.ensure_no_diagnostics(
             &LoadedSource::blocking_diagnostics(&diags, Profile::Core),
-            "bootstrap format failed",
+            "bootstrap tools failed",
         )?;
         Ok(loaded.mir().program.clone())
     });
     cached.as_ref().map_err(Clone::clone)
+}
+
+#[cfg(feature = "codegen")]
+fn bootstrap_format_program() -> Result<&'static Program, String> {
+    bootstrap_tools_program()
+}
+
+#[cfg(feature = "codegen")]
+pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
+    loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap check failed")?;
+    let program = bootstrap_tools_program()?;
+    let mut all_diagnostics = String::new();
+    for segment in &loaded.segments {
+        let check_output = run_function(
+            program,
+            "check_text",
+            &[RuntimeValue::Text(segment.source.clone())],
+        )
+        .map_err(|error| {
+            let message = match error {
+                RuntimeError::Message(m) => m,
+                RuntimeError::EffectUnwind {
+                    effect, operation, ..
+                } => format!("unhandled effect {effect}.{operation}"),
+            };
+            format!("runtime error: {message}")
+        })?;
+        let check_output = match check_output {
+            RuntimeValue::Text(text) => text,
+            other => {
+                return Err(format!(
+                    "bootstrap checker must return Text, found {}",
+                    other.render()
+                ));
+            }
+        };
+        if check_output != "ok [core]\n" {
+            all_diagnostics.push_str(&check_output);
+        }
+    }
+    if all_diagnostics.is_empty() {
+        Ok("ok [core]\n".to_owned())
+    } else {
+        Err(all_diagnostics)
+    }
 }
 
 pub fn render_package_diagnostics(

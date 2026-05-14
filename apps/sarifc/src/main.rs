@@ -11,7 +11,7 @@ use artifact::link_executable;
 use command::{BuildTarget, CommandKind, parse_command, usage};
 use input::resolve_input;
 #[cfg(feature = "codegen")]
-use reports::render_bootstrap_format;
+use reports::{render_bootstrap_check, render_bootstrap_format};
 use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
@@ -245,17 +245,34 @@ fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
 }
 
 fn run_bootstrap_check(command: &command::Command) -> Result<(), String> {
-    // bootstrap-check uses the Rust semantic checker (Sarif bootstrap doesn't
-    // have full semantic analysis parity yet; only format is flipped).
-    print_loaded_render(command, |loaded| {
-        emit_requested_dump(loaded, command)?;
-        render_semantic_check(loaded, command.profile)
-    })
+    let loaded = LoadedSource::load(&command.path)?;
+    emit_requested_dump(&loaded, command)?;
+    #[cfg(feature = "codegen")]
+    {
+        let path = command.path.clone();
+        let result = std::thread::Builder::new()
+            .name("bootstrap-check".to_owned())
+            .stack_size(48 * 1024 * 1024)
+            .spawn(move || {
+                let mem_loaded = LoadedSource::load(&path)?;
+                render_bootstrap_check(&mem_loaded)
+            })
+            .map_err(|e| format!("failed to spawn bootstrap thread: {e}"))?
+            .join()
+            .map_err(|_| "bootstrap check thread panicked".to_owned())?;
+        print!("{}", result?);
+        Ok(())
+    }
+    #[cfg(not(feature = "codegen"))]
+    {
+        let _ = loaded;
+        Err("bootstrap check requires the `codegen` feature".to_owned())
+    }
 }
 
 fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
     // bootstrap-doc uses the Rust doc generator (Sarif bootstrap doesn't
-    // have full doc parity yet; only format is flipped).
+    // have full doc parity yet; format and basic check are flipped).
     print_loaded_render(command, |loaded| {
         emit_requested_dump(loaded, command)?;
         render_semantic_doc(loaded, command.profile)

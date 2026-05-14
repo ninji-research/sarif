@@ -1977,6 +1977,60 @@
 - ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 
+### fn name_table_add
+
+- signature: `fn name_table_add(table: Text, name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn name_table_has
+
+- signature: `fn name_table_has(table: Text, name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn name_table_count
+
+- signature: `fn name_table_count(table: Text, name: Text) -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn extract_call_callee
+
+- signature: `fn extract_call_callee(expr_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn collect_all_names_from
+
+- signature: `fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn collect_all_names
+
+- signature: `fn collect_all_names(source: Text) -> Text`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn check_duplicate_defs_from
+
+- signature: `fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_body_outline_calls
+
+- signature: `fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_body_calls_from
+
+- signature: `fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn check_text
 
 - signature: `fn check_text(source: Text) -> Text`

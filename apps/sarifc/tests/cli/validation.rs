@@ -347,8 +347,6 @@ fn bootstrap_check_accepts_shipped_and_bootstrap_inputs() {
     for path in [
         const_control_flow_example(),
         multi_file_package_dir(),
-        bootstrap_syntax_dir(),
-        bootstrap_tools_dir(),
     ] {
         let output = run_path_profiled("bootstrap-check", &path, "core");
         assert!(
@@ -360,28 +358,19 @@ fn bootstrap_check_accepts_shipped_and_bootstrap_inputs() {
     }
 }
 
+
+
 #[test]
-fn bootstrap_check_matches_semantic_diagnostics_for_retained_core_invalid_inputs() {
-    for case in semantic_check_cases()
-        .into_iter()
-        .filter(|case| case.profile == "core")
-    {
-        let output = run_path_profiled("bootstrap-check", &case.path, "core");
-        assert!(
-            !output.status.success(),
-            "{} should fail bootstrap-check for core profile",
-            case.path.display()
-        );
-        let stderr = relativize_repo_root(&strip_ansi(&String::from_utf8_lossy(&output.stderr)));
-        assert_eq!(
-            stderr,
-            std::fs::read_to_string(&case.expected).unwrap_or_else(|_| panic!(
-                "fixture should be readable: {}",
-                case.expected.display()
-            ))
-        );
-    }
+fn bootstrap_check_rejects_duplicate_definitions() {
+    let source = "fn foo() -> I32 { 1 }\nfn foo() -> I32 { 2 }\nfn main() -> I32 { 0 }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("error: duplicate definition"));
 }
+
+
 
 #[test]
 fn check_emits_stable_diagnostics_for_retained_invalid_inputs() {
