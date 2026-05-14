@@ -723,12 +723,86 @@ fn doc_text(source: Text) -> Text {
     }
 }
 
+fn name_table_add(table: Text, name: Text) -> Text {
+    if is_empty(table) {
+        name
+    } else {
+        text_concat(table, text_concat("\n", name))
+    }
+}
+
+fn name_table_has(table: Text, name: Text) -> Bool {
+    if is_empty(table) {
+        false
+    } else {
+        if text_starts_with_at(table, name, 0) {
+            let end = text_len(name);
+            end == text_len(table) or text_byte(table, end) == 10
+        } else {
+            let search = text_concat("\n", name);
+            let idx = find_operator_index(table, search, 0);
+            if idx < 0 {
+                false
+            } else {
+                let after = idx + text_len(search);
+                after >= text_len(table) or text_byte(table, after) == 10
+            }
+        }
+    }
+}
+
+fn check_top_level_names_from(source: Text, state: ParseState, seen: Text) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        let name_span = top_level_name_span(source, state);
+        let next = if state.cursor.kind == TokenKind.KwStruct {
+            parse_struct_item(source, state)
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, state)
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    parse_const_item(source, state)
+                } else {
+                    parse_fn_item_with_shape(source, state).state
+                }
+            }
+        };
+        let diag = if name_span.present {
+            let name = text_slice(source, name_span.span.start, name_span.span.end);
+            if not is_empty(name) and name != "_" {
+                if name_table_has(seen, name) {
+                    text_concat("error: duplicate definition `", text_concat(name, "`\n"))
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        };
+        let rest_text = check_top_level_names_from(source, next, name_table_add(seen, name_text(source, name_span)));
+        if is_empty(diag) {
+            rest_text
+        } else {
+            text_concat(diag, rest_text)
+        }
+    }
+}
+
 fn check_text(source: Text) -> Text {
     let report = parse_module_report(source);
-    if report.ok {
-        "ok [core]\n"
-    } else {
+    if not report.ok {
         report.diagnostics
+    } else {
+        let name_diag = check_top_level_names_from(source, parse_state_new(source), "");
+        if is_empty(name_diag) {
+            "ok [core]\n"
+        } else {
+            name_diag
+        }
     }
 }
 
