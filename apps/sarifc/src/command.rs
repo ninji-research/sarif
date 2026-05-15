@@ -63,7 +63,51 @@ pub fn usage() -> String {
     usage
 }
 
-pub fn parse_command(args: &[String]) -> Result<Command, String> {
+const COMMAND_NAMES: &[&str] = &[
+    "check",
+    "doc",
+    "format",
+    "bootstrap-check",
+    "bootstrap-doc",
+    "bootstrap-format",
+    "run",
+    "build",
+];
+
+fn edit_distance(a: &str, b: &str) -> usize {
+    let la = a.len();
+    let lb = b.len();
+    let mut prev: Vec<usize> = (0..=la).collect();
+    let mut curr = vec![0; la + 1];
+    for i in 1..=lb {
+        curr[0] = i;
+        for j in 1..=la {
+            let cost = usize::from(a.as_bytes().get(j - 1) != b.as_bytes().get(i - 1));
+            curr[j] = (curr[j - 1] + 1).min(prev[j] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[la]
+}
+
+fn closest_command(name: &str) -> Option<&'static str> {
+    const THRESHOLD: usize = 3;
+    let mut best: Option<(&str, usize)> = None;
+    for &cmd in COMMAND_NAMES {
+        let dist = edit_distance(name, cmd);
+        if dist <= THRESHOLD {
+            best = match best {
+                None => Some((cmd, dist)),
+                Some((_, d)) if dist < d => Some((cmd, dist)),
+                _ => best,
+            };
+        }
+    }
+    best.map(|(cmd, _)| cmd)
+}
+
+#[allow(clippy::too_many_lines)]
+fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut kind = None;
     let mut path = None;
     let mut profile = Profile::Core;
@@ -112,16 +156,17 @@ pub fn parse_command(args: &[String]) -> Result<Command, String> {
                     };
                 }
             }
-            "-o" => {
-                output_path = iter.next().cloned();
-            }
-            "--print-main" => {
-                print_main = true;
-            }
+            "-o" => output_path = iter.next().cloned(),
+            "--print-main" => print_main = true,
             other if other.starts_with("--dump-ir=") => {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
             other if !other.starts_with('-') => {
+                if kind.is_none() && let Some(suggestion) = closest_command(other) {
+                    return Err(format!(
+                        "unknown command `{other}` (did you mean `{suggestion}`?)"
+                    ));
+                }
                 if path.replace(other.to_owned()).is_some() {
                     return Err(format!("unexpected positional argument `{other}`"));
                 }
@@ -130,7 +175,13 @@ pub fn parse_command(args: &[String]) -> Result<Command, String> {
         }
     }
 
-    let kind = kind.unwrap_or(CommandKind::Check);
+    let kind = kind.unwrap_or_else(|| {
+        if path.is_none() && args.is_empty() {
+            CommandKind::Help
+        } else {
+            CommandKind::Check
+        }
+    });
     if matches!(kind, CommandKind::Help | CommandKind::Version) {
         return Ok(Command {
             kind,
@@ -162,6 +213,10 @@ pub fn parse_command(args: &[String]) -> Result<Command, String> {
         output_path,
         dump_ir,
     })
+}
+
+pub fn parse_command(args: &[String]) -> Result<Command, String> {
+    parse_command_inner(args)
 }
 
 #[cfg(test)]
@@ -239,5 +294,19 @@ mod tests {
         ])
         .expect_err("only build should accept --print-main");
         assert_eq!(error, "`--print-main` is only supported for `build`");
+    }
+
+    #[test]
+    fn unknown_command_shows_suggestion() {
+        let error =
+            parse_command(&["chek".to_owned(), "foo.sarif".to_owned()]).expect_err("should reject");
+        assert!(error.contains("unknown command `chek`"));
+        assert!(error.contains("did you mean `check`?"));
+    }
+
+    #[test]
+    fn empty_args_shows_help() {
+        let command = parse_command(&[]).expect("empty args should not error");
+        assert_eq!(command.kind, CommandKind::Help);
     }
 }

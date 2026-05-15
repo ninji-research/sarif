@@ -11,22 +11,31 @@ use wasmtime::{Caller, Engine, Extern, Linker, Module, Store, TypedFunc};
 fn assert_run_parity(source: &str, expected: &str) {
     let path = temp_source(source);
     let output = run_profiled("run", &path);
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
+}
+
+fn assert_run_succeeds(source: &str) {
+    let path = temp_source(source);
+    let output = run_profiled("run", &path);
     assert!(
         output.status.success(),
         "run should succeed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
 }
 
 fn assert_run_path(path: &std::path::Path, expected: &str) {
+    let output = run_path_profiled("run", path, "core");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
+}
+
+fn assert_run_path_succeeds(path: &std::path::Path) {
     let output = run_path_profiled("run", path, "core");
     assert!(
         output.status.success(),
         "{} should run successfully",
         path.display()
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
 }
 
 #[cfg(feature = "wasm")]

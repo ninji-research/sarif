@@ -161,10 +161,20 @@ impl LoadedSource {
     }
 }
 
+fn exit_code_from_result(result: Result<(), String>) -> ExitCode {
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(msg) => {
+            eprintln!("{msg}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
-    match run(&args[1..]) {
-        Ok(()) => ExitCode::SUCCESS,
+    match parse_command(&args[1..]) {
+        Ok(command) => run_command(command),
         Err(message) => {
             eprintln!("{message}");
             ExitCode::FAILURE
@@ -172,28 +182,24 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(args: &[String]) -> Result<(), String> {
-    run_command(parse_command(args)?)
-}
-
-fn run_command(command: command::Command) -> Result<(), String> {
+fn run_command(command: command::Command) -> ExitCode {
     match command.kind {
         CommandKind::Help => {
             println!("{}", usage());
-            Ok(())
+            ExitCode::SUCCESS
         }
         CommandKind::Version => {
             println!("sarifc {}", env!("CARGO_PKG_VERSION"));
-            Ok(())
+            ExitCode::SUCCESS
         }
-        CommandKind::Check => run_check(&command),
-        CommandKind::Format => run_format(&command),
-        CommandKind::BootstrapFormat => run_bootstrap_format(&command),
-        CommandKind::Doc => run_doc(&command),
-        CommandKind::BootstrapCheck => run_bootstrap_check(&command),
-        CommandKind::BootstrapDoc => run_bootstrap_doc(&command),
+        CommandKind::Check => exit_code_from_result(run_check(&command)),
+        CommandKind::Format => exit_code_from_result(run_format(&command)),
+        CommandKind::BootstrapFormat => exit_code_from_result(run_bootstrap_format(&command)),
+        CommandKind::Doc => exit_code_from_result(run_doc(&command)),
+        CommandKind::BootstrapCheck => exit_code_from_result(run_bootstrap_check(&command)),
+        CommandKind::BootstrapDoc => exit_code_from_result(run_bootstrap_doc(&command)),
         CommandKind::Run => run_program(command),
-        CommandKind::Build => build_program(&command),
+        CommandKind::Build => exit_code_from_result(build_program(&command)),
     }
 }
 
@@ -280,49 +286,96 @@ fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
 }
 
 #[cfg(feature = "codegen")]
-fn run_program(command: command::Command) -> Result<(), String> {
-    let loaded = LoadedSource::load(&command.path)?;
+fn run_program(command: command::Command) -> ExitCode {
+    let loaded = match LoadedSource::load(&command.path) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
     let diagnostics = loaded.mir_diagnostics(command.profile);
-    loaded.ensure_no_diagnostics(
+    if let Err(msg) = loaded.ensure_no_diagnostics(
         &LoadedSource::blocking_diagnostics(&diagnostics, command.profile),
         "execution failed",
-    )?;
-    emit_requested_dump(&loaded, &command)?;
+    ) {
+        eprintln!("{msg}");
+        return ExitCode::FAILURE;
+    }
+    if let Err(e) = emit_requested_dump(&loaded, &command) {
+        eprintln!("{e}");
+        return ExitCode::FAILURE;
+    }
 
     let mut program_args = vec![command.path];
     program_args.extend(command.program_args);
     let mut stdin_text = String::new();
-    std::io::stdin()
-        .read_to_string(&mut stdin_text)
-        .map_err(|error| format!("failed to read stdin: {error}"))?;
+    if let Err(e) = std::io::stdin().read_to_string(&mut stdin_text) {
+        eprintln!("failed to read stdin: {e}");
+        return ExitCode::FAILURE;
+    }
 
     let program = loaded.mir().program.clone();
-    let (result, stdout_text) = std::thread::Builder::new()
+    let (result, stdout_text) = match std::thread::Builder::new()
         .name("sarif-run".to_owned())
         .stack_size(16 * 1024 * 1024)
         .spawn(move || sarif_codegen::run_main_with_io_capture(&program, &program_args, stdin_text))
-        .map_err(|error| format!("failed to start run thread: {error}"))?
-        .join()
-        .map_err(|_| "runtime error: run thread panicked".to_owned())?
-        .map_err(|error| {
-            let message = match error {
-                RuntimeError::Message(m) => m,
-                RuntimeError::EffectUnwind {
-                    effect, operation, ..
-                } => format!("unhandled effect {effect}.{operation}"),
-            };
-            format!("runtime error: {message}")
-        })?;
+    {
+        Ok(handle) => match handle.join() {
+            Ok(Ok((result, stdout_text))) => (result, stdout_text),
+            Ok(Err(e)) => {
+                let message = match e {
+                    RuntimeError::Message(m) => m,
+                    RuntimeError::EffectUnwind {
+                        effect, operation, ..
+                    } => format!("unhandled effect {effect}.{operation}"),
+                };
+                eprintln!("runtime error: {message}");
+                return ExitCode::FAILURE;
+            }
+            Err(_) => {
+                eprintln!("runtime error: run thread panicked");
+                return ExitCode::FAILURE;
+            }
+        },
+        Err(e) => {
+            eprintln!("failed to start run thread: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     print!("{stdout_text}");
     if !matches!(result, RuntimeValue::Unit) {
         println!("{}", result.render());
     }
-    Ok(())
+    runtime_value_to_exit_code(&result)
+}
+
+fn runtime_value_to_exit_code(value: &RuntimeValue) -> ExitCode {
+    match value {
+        RuntimeValue::Int(i) => ExitCode::from(*i as u8),
+        RuntimeValue::Bool(b) => {
+            if *b {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        RuntimeValue::F64(_)
+        | RuntimeValue::Text(_)
+        | RuntimeValue::Bytes(_)
+        | RuntimeValue::TextIndex(_)
+        | RuntimeValue::TextBuilder(_)
+        | RuntimeValue::List(_)
+        | RuntimeValue::Enum(_)
+        | RuntimeValue::Record(_)
+        | RuntimeValue::Unit => ExitCode::SUCCESS,
+    }
 }
 
 #[cfg(not(feature = "codegen"))]
-fn run_program(_command: command::Command) -> Result<(), String> {
-    Err("run requires the `codegen` feature".to_owned())
+fn run_program(_command: command::Command) -> ExitCode {
+    eprintln!("run requires the `codegen` feature");
+    ExitCode::FAILURE
 }
 
 #[cfg(feature = "codegen")]
