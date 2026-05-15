@@ -206,7 +206,7 @@
 
 ### enum TokenKind
 
-- variants: `57`
+- variants: `61`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -859,6 +859,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
+### fn parse_expect_assign
+
+- signature: `fn parse_expect_assign(source: Text, state: ParseState) -> ParseState`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn parse_finished
 
 - signature: `fn parse_finished(state: ParseState) -> Bool`
@@ -894,6 +900,12 @@
 - signature: `fn next_after_name(source: Text, cursor: Token) -> Token`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
+
+### fn is_assign_op
+
+- signature: `fn is_assign_op(kind: TokenKind) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
 
 ### fn starts_assign
 
@@ -1126,6 +1138,12 @@
 ### fn parse_optional_ensures_clause
 
 - signature: `fn parse_optional_ensures_clause(source: Text, state: ParseState) -> SpannedParse`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn parse_tuple_pattern
+
+- signature: `fn parse_tuple_pattern(source: Text, state: ParseState) -> SpannedParse`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 

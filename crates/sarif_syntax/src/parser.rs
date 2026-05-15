@@ -693,7 +693,11 @@ impl<'a> Parser<'a> {
             children.push(Element::Token(self.bump()));
             self.collect_trivia(&mut children);
         }
-        children.push(Element::Token(self.expect(TokenKind::Ident)));
+        if self.at(TokenKind::LParen) {
+            self.parse_tuple_destructure_pattern(&mut children);
+        } else {
+            children.push(Element::Token(self.expect(TokenKind::Ident)));
+        }
         self.collect_trivia(&mut children);
         children.push(Element::Token(self.expect(TokenKind::Eq)));
         self.collect_trivia(&mut children);
@@ -701,6 +705,22 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
         children.push(Element::Token(self.expect(TokenKind::Semicolon)));
         Node::new(NodeKind::LetStmt, children)
+    }
+
+    fn parse_tuple_destructure_pattern(&mut self, children: &mut Vec<Element>) {
+        children.push(Element::Token(self.expect(TokenKind::LParen)));
+        self.collect_trivia(children);
+        loop {
+            children.push(Element::Token(self.expect(TokenKind::Ident)));
+            self.collect_trivia(children);
+            if self.at(TokenKind::Comma) {
+                children.push(Element::Token(self.bump()));
+                self.collect_trivia(children);
+            } else {
+                break;
+            }
+        }
+        children.push(Element::Token(self.expect(TokenKind::RParen)));
     }
 
     fn parse_assign_stmt(&mut self) -> Node {

@@ -447,14 +447,18 @@ enum TokenKind {
     Lt,
     LParen,
     Minus,
+    MinusEq,
     NotEq,
     Plus,
+    PlusEq,
     RBrace,
     RBracket,
     RParen,
     Slash,
+    SlashEq,
     Semicolon,
     Star,
+    StarEq,
     Underscore,
     Invalid,
     Eof,
@@ -1585,22 +1589,30 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
         41 => {
             make_single(TokenKind.RParen, offset)
         },
-        45 => {
+         45 => {
             if next_is(source, offset, len, 62) {
                 make_double(TokenKind.Arrow, offset)
+            } else if next_is(source, offset, len, 61) {
+                make_double(TokenKind.MinusEq, offset)
             } else {
                 make_single(TokenKind.Minus, offset)
             }
         },
-        47 => {
+         47 => {
             if next_is(source, offset, len, 47) {
                 make_token(TokenKind.Comment, offset, scan_comment(source, offset, len))
+            } else if next_is(source, offset, len, 61) {
+                make_double(TokenKind.SlashEq, offset)
             } else {
                 make_single(TokenKind.Slash, offset)
             }
         },
-        42 => {
-            make_single(TokenKind.Star, offset)
+         42 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.StarEq, offset)
+            } else {
+                make_single(TokenKind.Star, offset)
+            }
         },
         58 => {
             make_single(TokenKind.Colon, offset)
@@ -1614,8 +1626,12 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
         59 => {
             make_single(TokenKind.Semicolon, offset)
         },
-        43 => {
-            make_single(TokenKind.Plus, offset)
+         43 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.PlusEq, offset)
+            } else {
+                make_single(TokenKind.Plus, offset)
+            }
         },
         61 => {
             if next_is(source, offset, len, 61) {
@@ -1771,6 +1787,23 @@ fn parse_expect(source: Text, state: ParseState, kind: TokenKind) -> ParseState 
     }
 }
 
+fn parse_expect_assign(source: Text, state: ParseState) -> ParseState {
+    match state.status {
+        ParseStatus.Ok => {
+            if is_assign_op(state.cursor.kind) {
+                let advanced = parse_advance(source, state);
+                let with_end = with_last_end(advanced, state.cursor.end);
+                with_parse_state(with_end, with_end.cursor, ParseStatus.Ok)
+            } else {
+                with_parse_state(state, state.cursor, ParseStatus.Err)
+            }
+        },
+        ParseStatus.Err => {
+            state
+        },
+    }
+}
+
 fn parse_finished(state: ParseState) -> Bool {
     state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.Eof
 }
@@ -1893,9 +1926,17 @@ fn next_after_name(source: Text, cursor: Token) -> Token {
     current
 }
 
+fn is_assign_op(kind: TokenKind) -> Bool {
+    kind == TokenKind.Eq
+        or kind == TokenKind.PlusEq
+        or kind == TokenKind.MinusEq
+        or kind == TokenKind.StarEq
+        or kind == TokenKind.SlashEq
+}
+
 fn starts_assign(source: Text, state: ParseState) -> Bool {
     if state.cursor.kind == TokenKind.Ident {
-        next_after_name(source, state.cursor).kind == TokenKind.Eq
+        is_assign_op(next_after_name(source, state.cursor).kind)
     } else {
         false
     }
@@ -2365,6 +2406,24 @@ fn parse_optional_ensures_clause(source: Text, state: ParseState) -> SpannedPars
     }
 }
 
+fn parse_tuple_pattern(source: Text, state: ParseState) -> SpannedParse {
+    let start = state.cursor.start;
+    let mut current = parse_expect(source, state, TokenKind.LParen);
+    while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RParen and current.cursor.kind != TokenKind.Eof {
+        if current.cursor.kind == TokenKind.Ident {
+            current = parse_expect(source, current, TokenKind.Ident);
+        } else if current.cursor.kind == TokenKind.Comma {
+            current = parse_expect(source, current, TokenKind.Comma);
+        } else {
+            current = with_parse_state(current, current.cursor, ParseStatus.Err);
+        };
+    };
+    if current.status == ParseStatus.Ok {
+        current = parse_expect(source, current, TokenKind.RParen);
+    };
+    make_spanned_parse(current, present_span(start, current.last_end))
+}
+
 fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
     if state.cursor.kind == TokenKind.KwLet {
         let binding_start = state.cursor.start;
@@ -2372,7 +2431,11 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
         if current.cursor.kind == TokenKind.KwMut {
             current = parse_expect(source, current, TokenKind.KwMut);
         };
-        let name_spanned = parse_ident_span(source, current);
+        let name_spanned = if current.cursor.kind == TokenKind.LParen {
+            parse_tuple_pattern(source, current)
+        } else {
+            parse_ident_span(source, current)
+        };
         current = name_spanned.state;
         current = parse_expect(source, current, TokenKind.Eq);
         let expr_start = current.cursor.start;
@@ -2385,7 +2448,7 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
             let target_start = state.cursor.start;
             let mut current = parse_named_type(source, state);
             let target_end = current.last_end;
-            current = parse_expect(source, current, TokenKind.Eq);
+            current = parse_expect_assign(source, current);
             let expr_start = current.cursor.start;
             let expr_kind = classify_expr_kind(source, current);
             let parsed_expr = parse_expr_bp(source, current, 0);

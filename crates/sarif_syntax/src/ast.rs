@@ -1248,7 +1248,11 @@ impl Lowerer {
         for child in &node.children {
             match child {
                 Element::Node(child) if child.kind == NodeKind::LetStmt => {
-                    if let Some(binding) = self.lower_let_binding(child) {
+                    if Self::let_is_destructure(child) {
+                        if let Some(bindings) = self.lower_let_destructure(child) {
+                            statements.extend(bindings.into_iter().map(Stmt::Let));
+                        }
+                    } else if let Some(binding) = self.lower_let_binding(child) {
                         statements.push(Stmt::Let(binding));
                     }
                 }
@@ -1272,6 +1276,61 @@ impl Lowerer {
             statements,
             tail,
             span: node.span,
+        }
+    }
+
+    fn let_is_destructure(node: &Node) -> bool {
+        node.children
+            .iter()
+            .any(|child| matches!(child, Element::Token(token) if token.kind == TokenKind::LParen))
+    }
+
+    fn lower_let_destructure(&mut self, node: &Node) -> Option<Vec<LetBinding>> {
+        let mut idents = Vec::new();
+        let mut found_lparen = false;
+        let mut value = None;
+        for child in &node.children {
+            match child {
+                Element::Token(token) if token.kind == TokenKind::LParen => {
+                    found_lparen = true;
+                }
+                Element::Token(token)
+                    if token.kind == TokenKind::Ident && found_lparen && value.is_none() =>
+                {
+                    idents.push(token.lexeme.clone());
+                }
+                Element::Node(expr) if found_lparen && value.is_none() => {
+                    value = self.lower_expr(expr);
+                }
+                _ => {}
+            }
+        }
+        let value = value?;
+        let mutable = node.children.iter().any(|child| {
+            matches!(
+                child,
+                Element::Token(token) if token.kind == TokenKind::KwMut
+            )
+        });
+        let span = node.span;
+        let bindings: Vec<LetBinding> = idents
+            .iter()
+            .enumerate()
+            .map(|(i, name)| LetBinding {
+                mutable,
+                name: name.clone(),
+                value: Expr::Field(FieldExpr {
+                    base: Box::new(value.clone()),
+                    field: i.to_string(),
+                    span,
+                }),
+                span,
+            })
+            .collect();
+        if bindings.is_empty() {
+            None
+        } else {
+            Some(bindings)
         }
     }
 
