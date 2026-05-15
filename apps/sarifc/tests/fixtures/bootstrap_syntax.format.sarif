@@ -1089,7 +1089,30 @@ fn module_report_from_state(state: ParseState, top_level: TopLevelReport, outlin
     let diagnostics = if ok {
         ""
     } else {
-        "invalid\n"
+        let start = state.cursor.start;
+        let raw_end = state.cursor.end;
+        let end = if raw_end > start {
+            raw_end
+        } else {
+            start + 1
+        };
+        let clamped_end = if end > text_len(source) {
+            text_len(source)
+        } else {
+            end
+        };
+        let lexeme = text_slice(source, start, clamped_end);
+        let ctx_start = if start > 40 {
+            start - 40
+        } else {
+            0
+        };
+        let context = text_slice(source, ctx_start, start);
+        if text_len(lexeme) == 0 {
+            text_concat("invalid: unexpected end of input after `", text_concat(context, "`\n"))
+        } else {
+            text_concat("invalid: unexpected `", text_concat(lexeme, text_concat("` before `", text_concat(context, "`\n"))))
+        }
     };
     make_module_report(ok, top_level, outline, fn_outline, build_event_stream(outline, fn_outline), make_span(0, text_len(source)), diagnostics)
 }
@@ -1805,6 +1828,9 @@ fn infix_left_bp(kind: TokenKind) -> I32 {
         },
         TokenKind.Slash => {
             9
+        },
+        TokenKind.Dot => {
+            11
         },
         _ => {
             0
