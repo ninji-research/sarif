@@ -2045,8 +2045,8 @@
 
 ### fn check_text
 
-- signature: `fn check_text(source: Text, package_source: Text) -> Text`
-- ownership: `affine-safe in stage-0`
+- signature: `fn check_text(source: Text, package_names: Text) -> Text`
+- ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
 ### fn format_float_token

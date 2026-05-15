@@ -119,15 +119,26 @@ fn bootstrap_format_program() -> Result<&'static Program, String> {
 }
 
 #[cfg(feature = "codegen")]
+fn collect_package_names(loaded: &LoadedSource) -> String {
+    use sarif_syntax::ast::Item;
+    let ast = loaded.database.ast(loaded.source_id);
+    let mut names: Vec<&str> = Vec::new();
+    for item in &ast.file.items {
+        match item {
+            Item::Function(f) => names.push(&f.name),
+            Item::Struct(s) => names.push(&s.name),
+            Item::Enum(e) => names.push(&e.name),
+            Item::Const(c) => names.push(&c.name),
+            Item::Effect(e) => names.push(&e.name),
+        }
+    }
+    names.join("\n")
+}
+
 pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
     loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap check failed")?;
     let program = bootstrap_tools_program()?;
-    let package_source = loaded
-        .segments
-        .iter()
-        .map(|s| s.source.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let package_names = collect_package_names(loaded);
     let mut all_diagnostics = String::new();
     for segment in &loaded.segments {
         let check_output = run_function(
@@ -135,7 +146,7 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
             "check_text",
             &[
                 RuntimeValue::Text(segment.source.clone()),
-                RuntimeValue::Text(package_source.clone()),
+                RuntimeValue::Text(package_names.clone()),
             ],
         )
         .map_err(|error| {

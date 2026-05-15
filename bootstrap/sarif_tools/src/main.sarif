@@ -787,31 +787,25 @@ fn extract_call_callee(expr_text: Text) -> Text {
 }
 
 fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text {
-    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
-        names
-    } else {
-        let name_span = top_level_name_span(source, state);
-        let next = if state.cursor.kind == TokenKind.KwStruct {
-            parse_struct_item(source, state)
+    let mut cur_state = state;
+    let mut cur_names = names;
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        let name_span = top_level_name_span(source, cur_state);
+        cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+            parse_struct_item(source, cur_state)
+        } else if cur_state.cursor.kind == TokenKind.KwEnum {
+            parse_enum_item(source, cur_state)
+        } else if cur_state.cursor.kind == TokenKind.KwConst {
+            parse_const_item(source, cur_state)
         } else {
-            if state.cursor.kind == TokenKind.KwEnum {
-                parse_enum_item(source, state)
-            } else {
-                if state.cursor.kind == TokenKind.KwConst {
-                    parse_const_item(source, state)
-                } else {
-                    parse_fn_item_with_shape(source, state).state
-                }
-            }
+            parse_fn_item(source, cur_state)
         };
         let cur_name = name_text(source, name_span);
-        let new_names = if not is_empty(cur_name) and cur_name != "_" {
-            name_table_add(names, cur_name)
-        } else {
-            names
+        if not is_empty(cur_name) and cur_name != "_" {
+            cur_names = name_table_add(cur_names, cur_name);
         };
-        collect_all_names_from(source, next, new_names)
-    }
+    };
+    cur_names
 }
 
 fn collect_all_names(source: Text) -> Text {
@@ -819,44 +813,30 @@ fn collect_all_names(source: Text) -> Text {
 }
 
 fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text {
-    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
-        ""
-    } else {
-        let name_span = top_level_name_span(source, state);
-        let next = if state.cursor.kind == TokenKind.KwStruct {
-            parse_struct_item(source, state)
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        let name_span = top_level_name_span(source, cur_state);
+        cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+            parse_struct_item(source, cur_state)
+        } else if cur_state.cursor.kind == TokenKind.KwEnum {
+            parse_enum_item(source, cur_state)
+        } else if cur_state.cursor.kind == TokenKind.KwConst {
+            parse_const_item(source, cur_state)
         } else {
-            if state.cursor.kind == TokenKind.KwEnum {
-                parse_enum_item(source, state)
-            } else {
-                if state.cursor.kind == TokenKind.KwConst {
-                    parse_const_item(source, state)
-                } else {
-                    parse_fn_item_with_shape(source, state).state
-                }
-            }
+            parse_fn_item(source, cur_state)
         };
-        let diag = if name_span.present {
+        if name_span.present {
             let name = text_slice(source, name_span.span.start, name_span.span.end);
             if not is_empty(name) and name != "_" {
                 if name_table_count(names, name) > 1 {
-                    text_concat("error: duplicate definition `", text_concat(name, "`\n"))
-                } else {
-                    ""
-                }
-            } else {
-                ""
-            }
-        } else {
-            ""
+                    let diag = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                    out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                };
+            };
         };
-        let rest = check_duplicate_defs_from(source, next, names);
-        if is_empty(diag) {
-            rest
-        } else {
-            text_concat(diag, rest)
-        }
-    }
+    };
+    out
 }
 
 fn is_builtin_fn(name: Text) -> Bool {
@@ -938,48 +918,39 @@ fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, kno
 }
 
 fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text {
-    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
-        ""
-    } else {
-        if state.cursor.kind == TokenKind.KwFn {
-            let parsed = parse_fn_item_with_shape(source, state);
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let parsed = parse_fn_item_with_shape(source, cur_state);
             let body_diag = check_body_outline_calls(source, parsed.shape.body_outline, 0, known);
-            let rest = check_body_calls_from(source, parsed.state, known);
-            if is_empty(body_diag) {
-                rest
-            } else {
-                text_concat(body_diag, rest)
-            }
-        } else {
-            let next = if state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, state)
-            } else {
-                if state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, state)
-                } else {
-                    parse_const_item(source, state)
-                }
+            cur_state = parsed.state;
+            if not is_empty(body_diag) {
+                out = if is_empty(out) { body_diag } else { text_concat(out, body_diag) };
             };
-            check_body_calls_from(source, next, known)
-        }
-    }
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                parse_const_item(source, cur_state)
+            };
+        };
+    };
+    out
 }
 
-fn check_text(source: Text, package_source: Text) -> Text {
+fn check_text(source: Text, package_names: Text) -> Text {
     let report = parse_module_report(source);
     if not report.ok {
         report.diagnostics
     } else {
         let all_names = collect_all_names(source);
-        let extra_names = if is_empty(package_source) {
-            ""
-        } else {
-            collect_all_names(package_source)
-        };
-        let known = if is_empty(extra_names) {
+        let known = if is_empty(package_names) {
             all_names
         } else {
-            text_concat(all_names, text_concat("\n", extra_names))
+            text_concat(all_names, text_concat("\n", package_names))
         };
         let dup_diag = check_duplicate_defs_from(source, parse_state_new(source), all_names);
         let call_diag = check_body_calls_from(source, parse_state_new(source), known);
