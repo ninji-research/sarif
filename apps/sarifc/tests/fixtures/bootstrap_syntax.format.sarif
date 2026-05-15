@@ -2095,7 +2095,12 @@ fn parse_prefix_expr(source: Text, state: ParseState) -> ParseState {
         let with_not = parse_expect(source, state, TokenKind.KwNot);
         parse_prefix_expr(source, with_not)
     } else {
-        parse_primary_expr(source, state)
+        if state.status == ParseStatus.Ok and state.cursor.kind == TokenKind.Minus {
+            let with_minus = parse_expect(source, state, TokenKind.Minus);
+            parse_prefix_expr(source, with_minus)
+        } else {
+            parse_primary_expr(source, state)
+        }
     }
 }
 

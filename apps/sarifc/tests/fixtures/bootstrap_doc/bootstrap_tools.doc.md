@@ -2025,6 +2025,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
+### fn check_expr_for_calls
+
+- signature: `fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
 ### fn check_body_outline_calls
 
 - signature: `fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text`
@@ -2039,7 +2045,7 @@
 
 ### fn check_text
 
-- signature: `fn check_text(source: Text) -> Text`
+- signature: `fn check_text(source: Text, package_source: Text) -> Text`
 - ownership: `affine-safe in stage-0`
 - rt status: `blocked in rt`
 

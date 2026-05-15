@@ -122,12 +122,21 @@ fn bootstrap_format_program() -> Result<&'static Program, String> {
 pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
     loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap check failed")?;
     let program = bootstrap_tools_program()?;
+    let package_source = loaded
+        .segments
+        .iter()
+        .map(|s| s.source.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     let mut all_diagnostics = String::new();
     for segment in &loaded.segments {
         let check_output = run_function(
             program,
             "check_text",
-            &[RuntimeValue::Text(segment.source.clone())],
+            &[
+                RuntimeValue::Text(segment.source.clone()),
+                RuntimeValue::Text(package_source.clone()),
+            ],
         )
         .map_err(|error| {
             let message = match error {

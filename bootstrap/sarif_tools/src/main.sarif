@@ -863,26 +863,67 @@ fn is_builtin_fn(name: Text) -> Bool {
     name_table_has("text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_get_or_insert\ntext_index_set\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\nlen", name)
 }
 
+fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
+    if expr_span.start >= expr_span.end {
+        ""
+    } else {
+        let text = text_slice(source, expr_span.start, expr_span.end);
+        let mut pos = find_byte_index(text, 40, 0);
+        let mut out = "";
+        while pos > 0 {
+            let mut name_end = pos;
+            let mut name_start = name_end;
+            let mut searching = true;
+            while name_start > 0 and searching {
+                let b = text_byte(text, name_start - 1);
+                if (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95 {
+                    name_start = name_start - 1;
+                } else {
+                    searching = false;
+                };
+            };
+            if name_start < name_end {
+                let callee = text_slice(text, name_start, name_end);
+                if callee != "_" and not name_table_has(known, callee) and not is_builtin_fn(callee) {
+                    let err = text_concat("error: unknown function `", text_concat(callee, "`\n"));
+                    out = if is_empty(out) { err } else { text_concat(out, err) };
+                };
+            };
+            let next_pos = find_byte_index(text, 40, pos + 1);
+            if next_pos >= 0 {
+                pos = next_pos;
+            } else {
+                pos = -1;
+            };
+        };
+        out
+    }
+}
+
 fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text {
     if index >= 5 {
         ""
     } else {
         let entry = block_item_entry_at(outline, index);
-        let d = if entry.present and entry.entry.expr_kind == ExprKind.Call and entry.entry.expr_span.present {
-            let expr_text = text_slice(source, entry.entry.expr_span.span.start, entry.entry.expr_span.span.end);
-            let callee = extract_call_callee(expr_text);
-            if not is_empty(callee) and callee != "_" {
-                if name_table_has(known, callee) {
-                    ""
-                } else {
-                    if is_builtin_fn(callee) {
+        let d = if entry.present and entry.entry.expr_span.present {
+            if entry.entry.expr_kind == ExprKind.Call {
+                let expr_text = text_slice(source, entry.entry.expr_span.span.start, entry.entry.expr_span.span.end);
+                let callee = extract_call_callee(expr_text);
+                if not is_empty(callee) and callee != "_" {
+                    if name_table_has(known, callee) {
                         ""
                     } else {
-                        text_concat("error: unknown function `", text_concat(callee, "`\n"))
+                        if is_builtin_fn(callee) {
+                            ""
+                        } else {
+                            text_concat("error: unknown function `", text_concat(callee, "`\n"))
+                        }
                     }
+                } else {
+                    ""
                 }
             } else {
-                ""
+                check_expr_for_calls(source, entry.entry.expr_span.span, known)
             }
         } else {
             ""
@@ -924,14 +965,24 @@ fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text {
     }
 }
 
-fn check_text(source: Text) -> Text {
+fn check_text(source: Text, package_source: Text) -> Text {
     let report = parse_module_report(source);
     if not report.ok {
         report.diagnostics
     } else {
         let all_names = collect_all_names(source);
+        let extra_names = if is_empty(package_source) {
+            ""
+        } else {
+            collect_all_names(package_source)
+        };
+        let known = if is_empty(extra_names) {
+            all_names
+        } else {
+            text_concat(all_names, text_concat("\n", extra_names))
+        };
         let dup_diag = check_duplicate_defs_from(source, parse_state_new(source), all_names);
-        let call_diag = check_body_calls_from(source, parse_state_new(source), all_names);
+        let call_diag = check_body_calls_from(source, parse_state_new(source), known);
         let combined = text_concat(dup_diag, call_diag);
         if is_empty(combined) {
             "ok [core]\n"
