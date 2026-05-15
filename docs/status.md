@@ -7,13 +7,13 @@ As of May 10, 2026 (updated frequently), Sarif is still in the bootstrap window.
 - `cargo test` passes
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passes
 - `cargo build --release -p sarifc` passes
-- `~/bnch` manifest validation and harness unit tests pass
-- `~/bnch` full 70-case main-track run completes cleanly with no excluded build-fail, run-fail, or mismatch rows
+- `bnch` manifest validation and harness unit tests pass
+- `bnch` full 70-case main-track run completes cleanly with no excluded build-fail, run-fail, or mismatch rows
 - `sarifc run` now executes retained bootstrap packages without the prior interpreter stack-overflow failure
 
 ## Benchmark Snapshot
 
-Latest local `~/bnch` run on this machine:
+Latest local `bnch` run on this machine:
 
 - overall rank: `1/7`
 - speed rank: `1/7`
@@ -37,7 +37,7 @@ That is a real current measurement, not a roadmap claim.
 
 ## Source Concision Snapshot
 
-Latest local `~/bnch` source totals for the retained 10-benchmark set:
+Latest local `bnch` source totals for the retained 10-benchmark set:
 
 - Nim: `560` lines / `15821` chars
 - Go: `846` lines / `17701` chars
@@ -49,8 +49,8 @@ Sarif is still materially behind the best concise baselines on source size. The 
 
 - **Conditional runtime compilation**: `RuntimeFeatures::detect()` scans the program for text builder, text index, and sort usage. The native object backend only declares runtime helpers for features the program actually uses. The C runtime has `#ifndef` guards (`SARIF_NO_TEXT_BUILDER`, `SARIF_NO_TEXT_INDEX`, `SARIF_NO_SORT`) so unused subsystems are excluded from compiled runtime objects, reducing binary size for programs that don't use text builders, text indices, or sort.
 - **AllocPush/AllocPop wired up**: The MIR interpreter now properly delegates `AllocPush`/`AllocPop` to `self.alloc_push()` / `self.alloc_pop()`. The C runtime's arena allocator correctly pushes and pops allocation scopes, validated by CLI regression tests.
-- Sarif now covers the full retained main-track benchmark suite in `~/bnch`
-- Sarif is currently first overall, first on speed, first on memory, first on build time, and second on deploy size in the latest local clean `~/bnch` run
+- Sarif now covers the full retained main-track benchmark suite in `bnch`
+- Sarif is currently first overall, first on speed, first on memory, first on build time, and second on deploy size in the latest local clean `bnch` run
 - Sarif is currently first on build time; the native artifact path now reuses cached runtime objects instead of recompiling the static runtime every build, compiles the shared C runtime with a size-oriented flag set while leaving generated code on the maintained performance-oriented path, skips record/enum metadata glue entirely for scalar `main` results, compiles out structured-result pretty-printing when scalar mains do not need it, avoids libc integer formatting on the scalar print path, routes stage-0 text/int/bool/record/enum output through one direct-write runtime path instead of the wider stdio surface, removes extra runtime hardening/ident baggage Sarif does not need in release mode, and the native linker path garbage-collects unused sections so stage-0 artifacts stay lean by default
 - maintained integer bitwise operators `&`, `|`, `^`, `<<`, and `>>` are now available in stage-0 and remove arithmetic-emulation overhead from hot integer/text kernels
 - MIR-level constant folding for integer and float binary operations reduces runtime arithmetic in numeric workloads; 21 tests cover add, sub, mul, div, bitwise ops, and comparisons at compile time
@@ -72,7 +72,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 - fixed-array slot selection and update now lower through balanced decision trees instead of linear `index == k` ladders, shrinking retained native code for array-heavy kernels
 - fixed-array accesses driven by proven `repeat` indices now skip redundant bounds-assert MIR scaffolding, so retained numeric kernels no longer pay dynamic safety code for statically safe loop-indexed accesses
 - fixed-array accesses with compile-time constant indices now lower directly to slot/field operations instead of flowing through the generic decision-tree path
-- retained `nbody` now benefits from that slot-backed, balanced, bounds-eliding, constant-folded fixed-array path; in the latest clean `~/bnch` run it remains correct at `1.5511s`, `89.85 MiB`, and `18.84 KiB`
+- retained `nbody` now benefits from that slot-backed, balanced, bounds-eliding, constant-folded fixed-array path; in the latest clean `bnch` run it remains correct at `1.5511s`, `89.85 MiB`, and `18.84 KiB`
 - the stage-0 object backend now exports only the runtime entrypoint symbol instead of every user helper function, keeping native symbol policy closer to the actual execution model
 - the stage-0 object backend now emits with Cranelift `speed` tuning (was `speed_and_size`) and the `regalloc_algorithm` override was removed, letting Cranelift use its default register allocator for better generated code quality. The `speed_and_size` setting was originally chosen to improve build time and reduce artifact size, but caused a material regression in the memory profile; reverting to `speed` restored first place on memory without sacrificing build or speed rank
 - Sarif still materially trails Nim and Go on retained benchmark source concision; canonical formatting discipline restored (947 lines vs the prior minified 10-line snapshot) to keep concision metrics honest

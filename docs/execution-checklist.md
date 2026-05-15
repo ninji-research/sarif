@@ -4,7 +4,7 @@ This checklist records the highest-leverage remaining work across language desig
 
 ## Hard Current Truth
 
-- Sarif is currently first on the retained `~/bnch` main track for overall score, speed, memory, and build time on this machine, and second on deploy size (0.9241 overall).
+- Sarif is currently first on the retained `bnch` main track for overall score, speed, memory, and build time on this machine, and second on deploy size (0.9241 overall).
 - Sarif is still materially behind Nim and Go on retained source concision (947 canonical lines vs Nim's 560).
 - The maintained compiler is still Rust-hosted and the maintained native runtime still depends on C.
 - The reactive zero-copy DAG direction is now documented as a runtime-layer direction, not a language fork.

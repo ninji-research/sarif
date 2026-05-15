@@ -45,13 +45,13 @@ These are current implementation facts, not an abstract wish list.
 
 ## Benchmark And Runtime Position
 
-Performance work is driven by retained outputs and `~/bnch`, not one-off microbenchmarks.
+Performance work is driven by retained outputs and `bnch`, not one-off microbenchmarks.
 
 Current verified state:
 
-- the Sarif lane in `~/bnch` covers the full retained main-track suite
+- the Sarif lane in `bnch` covers the full retained main-track suite
 - allocation-scope builtins now exist so short-lived native allocations can be reclaimed deterministically
-- the latest local `~/bnch` report places Sarif `1/7` overall, `1/7` speed, `1/7` memory, `1/7` build, and `2/7` deploy size on this machine
+- the latest local `bnch` report places Sarif `1/7` overall, `1/7` speed, `1/7` memory, `1/7` build, and `2/7` deploy size on this machine
 - native owned text-producing helpers now use the scoped arena for common `Text` results, reducing leak pressure in repeated scoped allocation workflows while preserving the small native runtime model
 
 ## Reactive Runtime Performance Boundary

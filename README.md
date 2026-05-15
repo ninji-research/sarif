@@ -11,7 +11,7 @@ The repository is organized around one compiler pipeline and one maintained sema
 - one syntax and one canonical formatting style
 - one semantic oracle: the MIR interpreter
 - one maintained stage-0 CLI: `sarifc`
-- one benchmark discipline: clean results in `~/bnch`
+- one benchmark discipline: clean results in `bnch`
 
 ## Current State
 
@@ -23,7 +23,7 @@ What is real today:
 - the MIR interpreter is the normative semantic oracle for backend correctness
 - native Linux builds are the primary deployment path
 - Wasm output exists with explicit builtin exclusions
-- `~/bnch` carries a full main-track Sarif lane across the retained benchmark suite
+- `bnch` carries a full main-track Sarif lane across the retained benchmark suite
 
 What is not complete today:
 - self-hosted release authority for `check` or `doc` (format is flipped and Sarif-hosted)

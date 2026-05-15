@@ -29,7 +29,7 @@ This document records the standing engineering directives for Sarif work so they
 
 ## Benchmark Discipline
 
-- benchmark all performance-relevant Sarif changes in `~/bnch`
+- benchmark all performance-relevant Sarif changes in `bnch`
 - keep Sarif honest against the full retained suite rather than narrow wins
 - add regression coverage for every fixed performance or correctness issue
 - maintain competitiveness across speed, memory, build, and deploy size
