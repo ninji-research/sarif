@@ -352,7 +352,7 @@ fn run_program(command: command::Command) -> ExitCode {
 
 fn runtime_value_to_exit_code(value: &RuntimeValue) -> ExitCode {
     match value {
-        RuntimeValue::Int(i) => ExitCode::from(*i as u8),
+        RuntimeValue::Int(i) => ExitCode::from(u8::try_from(*i).unwrap_or(0)),
         RuntimeValue::Bool(b) => {
             if *b {
                 ExitCode::SUCCESS

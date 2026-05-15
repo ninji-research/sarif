@@ -14,7 +14,7 @@ fn assert_run_parity(source: &str, expected: &str) {
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
 }
 
-fn assert_run_succeeds(source: &str) {
+fn _assert_run_succeeds(source: &str) {
     let path = temp_source(source);
     let output = run_profiled("run", &path);
     assert!(
@@ -29,7 +29,7 @@ fn assert_run_path(path: &std::path::Path, expected: &str) {
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
 }
 
-fn assert_run_path_succeeds(path: &std::path::Path) {
+fn _assert_run_path_succeeds(path: &std::path::Path) {
     let output = run_path_profiled("run", path, "core");
     assert!(
         output.status.success(),

@@ -162,7 +162,9 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
             other if !other.starts_with('-') => {
-                if kind.is_none() && let Some(suggestion) = closest_command(other) {
+                if kind.is_none()
+                    && let Some(suggestion) = closest_command(other)
+                {
                     return Err(format!(
                         "unknown command `{other}` (did you mean `{suggestion}`?)"
                     ));
