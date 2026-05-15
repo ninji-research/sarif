@@ -39,5 +39,10 @@ The following are expressly excluded from the open source licenses and are stric
 - Photographs of employees, founders, or associates
 - Any other assets explicitly marked as proprietary or copyrighted
 
+## Creator
+
+**Sarif** was designed and created by [Waleed Khan](https://github.com/wkwc).
+
 ---
-&copy; 2026 NINJI. 
+
+&copy; 2026 NINJI.

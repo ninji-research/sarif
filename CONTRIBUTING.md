@@ -30,7 +30,7 @@ cargo test -p sarifc         # CLI integration tests
 1. **Fork and Branch:** Fork the repository and create a descriptive branch name.
 2. **Ensure Code Quality:** All changes must pass the full verification suite: `cargo fmt --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo test`, and `cargo build --release -p sarifc`.
 3. **Follow Architecture:** Read `docs/compiler-architecture.md` for the three-layer model (Syntax, Frontend, Codegen). Read `docs/directives.md` for standing engineering directives.
-4. **Benchmark Discipline:** If changes affect codegen or runtime, run `~/bnch` to verify no regressions against the retained 70-case suite.
+4. **Benchmark Discipline:** If changes affect codegen or runtime, run `~/bnch` to verify no regressions against the retained 70-case suite. The `bnch` tool lives in a sibling repository (`git clone https://github.com/ninji-research/bnch ~/bnch`).
 5. **Submit PR:** Open a pull request against the `main` branch detailing the intent, design rationale, and testing strategy.
 
 ## Reporting Bugs
