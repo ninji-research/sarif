@@ -2247,7 +2247,7 @@ pub(super) fn infer_binary_expr(
             );
             Type::Bool
         }
-            crate::hir::BinaryOp::Add
+        crate::hir::BinaryOp::Add
         | crate::hir::BinaryOp::Sub
         | crate::hir::BinaryOp::Mul
         | crate::hir::BinaryOp::Div => {

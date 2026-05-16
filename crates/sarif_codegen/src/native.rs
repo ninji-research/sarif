@@ -396,7 +396,7 @@ fn infer_inst_kinds(
             Inst::ConstF64 { dest, .. } | Inst::Sqrt { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::F64);
             }
-             Inst::Add { dest, left, .. }
+            Inst::Add { dest, left, .. }
             | Inst::Sub { dest, left, .. }
             | Inst::Mul { dest, left, .. }
             | Inst::Div { dest, left, .. }
@@ -2495,9 +2495,9 @@ pub fn lower_inst<M: Module>(
         Inst::EnumToI32 { dest, value } => {
             let src = native_value(values, *value, function, "enum value", backend)?;
             let src = if let Some(NativeValueKind::Enum(enum_name)) = value_kinds.get(value) {
-                let enum_ty = enums.get(enum_name).ok_or_else(|| {
-                    format!("missing native enum metadata for `{enum_name}`")
-                })?;
+                let enum_ty = enums
+                    .get(enum_name)
+                    .ok_or_else(|| format!("missing native enum metadata for `{enum_name}`"))?;
                 if native_enum_is_payload_free(enum_ty) {
                     src
                 } else {
@@ -2517,9 +2517,9 @@ pub fn lower_inst<M: Module>(
         } => {
             let src = native_value(values, *value, function, "enum value", backend)?;
             let src = if let Some(NativeValueKind::Enum(enum_name)) = value_kinds.get(value) {
-                let enum_ty = enums.get(enum_name).ok_or_else(|| {
-                    format!("missing native enum metadata for `{enum_name}`")
-                })?;
+                let enum_ty = enums
+                    .get(enum_name)
+                    .ok_or_else(|| format!("missing native enum metadata for `{enum_name}`"))?;
                 if native_enum_is_payload_free(enum_ty) {
                     src
                 } else {
@@ -2531,7 +2531,10 @@ pub fn lower_inst<M: Module>(
             let mut result: Option<cranelift_codegen::ir::Value> = None;
             for (i, name) in variant_names.iter().enumerate() {
                 let data_id = data_ids.get(name).ok_or_else(|| {
-                    format!("{backend} is missing text data for variant `{name}` in `{}`", function.name)
+                    format!(
+                        "{backend} is missing text data for variant `{name}` in `{}`",
+                        function.name
+                    )
                 })?;
                 let global = module.declare_data_in_func(*data_id, builder.func);
                 let text_ptr = builder.ins().symbol_value(types::I64, global);
@@ -4230,9 +4233,7 @@ pub fn declare_text_data_for_insts<M: Module>(
                     })?;
                 data_ids.insert(value.clone(), id);
             }
-            Inst::EnumToText {
-                variant_names, ..
-            } => {
+            Inst::EnumToText { variant_names, .. } => {
                 for variant_name in variant_names {
                     if data_ids.contains_key(variant_name) {
                         continue;

@@ -8787,9 +8787,10 @@ impl<'a> Interpreter<'a> {
                                 enum_value.variant, enum_value.name
                             ))
                         })?;
-                    values[dest.0 as usize] = RuntimeValue::Int(i64::try_from(index).map_err(|_| {
-                        RuntimeError::new("enum variant index exceeds stage-0 limits")
-                    })?);
+                    values[dest.0 as usize] =
+                        RuntimeValue::Int(i64::try_from(index).map_err(|_| {
+                            RuntimeError::new("enum variant index exceeds stage-0 limits")
+                        })?);
                 }
                 Inst::EnumToText { dest, value, .. } => {
                     let value = extract_value(values, *value)?;

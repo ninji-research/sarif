@@ -942,7 +942,9 @@ impl<'a> WasmEmitter<'a> {
                     .expect("writing to a string cannot fail");
             }
             Inst::EnumToText {
-                dest, value, variant_names,
+                dest,
+                value,
+                variant_names,
             } => {
                 writeln!(output, "    local.get ${}", wasm_id(*value))
                     .expect("writing to a string cannot fail");
@@ -960,32 +962,40 @@ impl<'a> WasmEmitter<'a> {
                     writeln!(output, "    i32.const {}", bytes.len())
                         .expect("writing to a string cannot fail");
                     writeln!(output, "    call $alloc").expect("writing to a string cannot fail");
-                    writeln!(output, "    i64.extend_i32_u").expect("writing to a string cannot fail");
+                    writeln!(output, "    i64.extend_i32_u")
+                        .expect("writing to a string cannot fail");
                     writeln!(output, "    local.set ${}", text_dest)
                         .expect("writing to a string cannot fail");
                     for (index, byte) in bytes.iter().copied().enumerate() {
                         writeln!(output, "    local.get ${}", text_dest)
                             .expect("writing to a string cannot fail");
-                        writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.wrap_i64")
+                            .expect("writing to a string cannot fail");
                         writeln!(output, "    i32.const {}", index)
                             .expect("writing to a string cannot fail");
                         writeln!(output, "    i32.add").expect("writing to a string cannot fail");
                         writeln!(output, "    i32.const {}", byte)
                             .expect("writing to a string cannot fail");
-                        writeln!(output, "    i32.store8").expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.store8")
+                            .expect("writing to a string cannot fail");
                     }
                     text_ids.push(text_dest);
                 }
                 for (i, text_id) in text_ids.iter().enumerate().rev() {
-                    writeln!(output, "    i64.const {}", i64::try_from(i).expect("variant index fits i64"))
-                        .expect("writing to a string cannot fail");
+                    writeln!(
+                        output,
+                        "    i64.const {}",
+                        i64::try_from(i).expect("variant index fits i64")
+                    )
+                    .expect("writing to a string cannot fail");
                     writeln!(output, "    local.get ${}", wasm_id(*value))
                         .expect("writing to a string cannot fail");
                     let WasmValueKind::Enum(enum_name) = &kinds[value] else {
                         return Err(WasmError::new("expected enum kind for enum_to_text"));
                     };
                     if !enum_is_payload_free(&self.enums[enum_name]) {
-                        writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.wrap_i64")
+                            .expect("writing to a string cannot fail");
                         writeln!(output, "    i64.load").expect("writing to a string cannot fail");
                     }
                     writeln!(output, "    i64.eq").expect("writing to a string cannot fail");
