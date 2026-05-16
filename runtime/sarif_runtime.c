@@ -408,9 +408,11 @@ __attribute__((always_inline)) void* sarif_text_builder_append_ascii(void* raw_b
     if (builder == NULL || byte < 0 || byte > 0x7f) {
         return NULL;
     }
-    builder = sarif_text_builder_reserve(builder, 1);
-    if (builder == NULL) {
-        return NULL;
+    if (builder->len + 1 > builder->cap) {
+        builder = sarif_text_builder_reserve(builder, 1);
+        if (builder == NULL) {
+            return NULL;
+        }
     }
     builder->bytes[builder->len] = (unsigned char)byte;
     builder->len += 1;
