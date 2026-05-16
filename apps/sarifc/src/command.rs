@@ -72,6 +72,8 @@ const COMMAND_NAMES: &[&str] = &[
     "bootstrap-format",
     "run",
     "build",
+    "help",
+    "version",
 ];
 
 fn edit_distance(a: &str, b: &str) -> usize {
@@ -161,18 +163,20 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             other if other.starts_with("--dump-ir=") => {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
-            other if !other.starts_with('-') => {
-                if kind.is_none()
-                    && let Some(suggestion) = closest_command(other)
-                {
-                    return Err(format!(
-                        "unknown command `{other}` (did you mean `{suggestion}`?)"
-                    ));
-                }
-                if path.replace(other.to_owned()).is_some() {
-                    return Err(format!("unexpected positional argument `{other}`"));
-                }
-            }
+             other if !other.starts_with('-') => {
+                 if kind.is_none() {
+                     if let Some(suggestion) = closest_command(other) {
+                         return Err(format!(
+                             "unknown command `{other}` (did you mean `{suggestion}`?)"
+                         ));
+                     } else {
+                         return Err(format!("unknown command `{other}`"));
+                     }
+                 }
+                 if path.replace(other.to_owned()).is_some() {
+                     return Err(format!("unexpected positional argument `{other}`"));
+                 }
+             }
             other => return Err(format!("unknown option `{other}`")),
         }
     }
