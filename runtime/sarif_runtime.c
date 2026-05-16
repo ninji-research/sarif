@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
 #ifndef SARIF_MAIN_KIND
 #define SARIF_MAIN_KIND 0
@@ -1090,7 +1091,8 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
         precision = digits > 1000 ? 1000 : (int)digits;
     }
     // Fast path for integer values - avoid snprintf overhead
-    if (precision == 0 && value == (double)(int64_t)value && value >= -1000000000000.0 && value <= 1000000000000.0) {
+    // Note: isfinite() must come before the comparison to avoid UB when value is NaN/Inf
+    if (precision == 0 && isfinite(value) && value >= -1000000000000.0 && value <= 1000000000000.0 && value == (double)(int64_t)value) {
         int64_t int_part = (int64_t)value;
         char scratch[32];
         int idx = 32;

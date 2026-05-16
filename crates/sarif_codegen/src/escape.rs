@@ -155,7 +155,6 @@ impl Env<'_> {
             | Inst::ListPush { dest, .. }
             | Inst::TextConcat { dest, .. }
             | Inst::TextSlice { dest, .. }
-            | Inst::BytesSlice { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgText { dest, .. }
             | Inst::StdinText { dest }
@@ -175,6 +174,12 @@ impl Env<'_> {
             | Inst::TextBuilderFinish { dest, .. }
             | Inst::Perform { dest, .. } => {
                 self.mark(*dest);
+            }
+
+            Inst::BytesSlice { dest, bytes, .. } => {
+                if self.is_escaped(*bytes) {
+                    self.mark(*dest);
+                }
             }
 
             Inst::ListGet { dest, list, .. } => {
