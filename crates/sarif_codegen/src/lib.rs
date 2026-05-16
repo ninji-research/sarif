@@ -4549,7 +4549,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         }
 
         if arms.len() >= 3 && self.is_integer_only_match(arms) {
-            return self.lower_int_match_balanced(scrutinee, arms);
+            let mut int_arms: Vec<(i64, usize)> = Vec::new();
+            for (i, arm) in arms.iter().enumerate() {
+                self.collect_int_values(&arm.pattern, i, &mut int_arms);
+            }
+            if int_arms.len() <= arms.len() * 3 / 2 {
+                return self.lower_int_match_balanced(scrutinee, arms);
+            }
         }
 
         let arm = &arms[0];
