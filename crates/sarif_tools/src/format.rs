@@ -492,7 +492,7 @@ const fn precedence(op: BinaryOp) -> u8 {
         }
         BinaryOp::Shl | BinaryOp::Shr => 7,
         BinaryOp::Add | BinaryOp::Sub => 8,
-        BinaryOp::Mul | BinaryOp::Div => 9,
+        BinaryOp::Mul | BinaryOp::Div | BinaryOp::Rem => 9,
     }
 }
 

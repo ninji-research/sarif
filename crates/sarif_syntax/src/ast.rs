@@ -740,6 +740,7 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Rem,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -777,6 +778,7 @@ impl BinaryOp {
             Self::Sub => "-",
             Self::Mul => "*",
             Self::Div => "/",
+            Self::Rem => "%",
         }
     }
 }
@@ -2031,6 +2033,7 @@ impl Lowerer {
                 TokenKind::Minus => Some(BinaryOp::Sub),
                 TokenKind::Star => Some(BinaryOp::Mul),
                 TokenKind::Slash => Some(BinaryOp::Div),
+                TokenKind::Percent => Some(BinaryOp::Rem),
                 _ => None,
             },
             Element::Node(_) => None,
@@ -2129,6 +2132,7 @@ const fn compound_assign_op(kind: TokenKind) -> Option<BinaryOp> {
         TokenKind::MinusEq => Some(BinaryOp::Sub),
         TokenKind::StarEq => Some(BinaryOp::Mul),
         TokenKind::SlashEq => Some(BinaryOp::Div),
+        TokenKind::PercentEq => Some(BinaryOp::Rem),
         _ => None,
     }
 }

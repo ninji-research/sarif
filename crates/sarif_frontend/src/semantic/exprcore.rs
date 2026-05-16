@@ -1999,6 +1999,50 @@ must have type `Text`, found `{}`",
         };
     }
 
+    if expr.callee == "enum_to_i32" && !functions.contains_key("enum_to_i32") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.enum_to_i32-arity",
+                format!(
+                    "builtin `enum_to_i32` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `enum_to_i32(value)` with an enum value.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "enum_to_text" && !functions.contains_key("enum_to_text") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.enum_to_text-arity",
+                format!(
+                    "builtin `enum_to_text` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `enum_to_text(value)` with an enum value.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
     if let Some((enum_name, variant)) = enum_variant_info(&expr.callee, enum_variants) {
         let expected_arity = usize::from(variant.payload.is_some());
         if args.len() != expected_arity {
@@ -2203,7 +2247,7 @@ pub(super) fn infer_binary_expr(
             );
             Type::Bool
         }
-        crate::hir::BinaryOp::Add
+            crate::hir::BinaryOp::Add
         | crate::hir::BinaryOp::Sub
         | crate::hir::BinaryOp::Mul
         | crate::hir::BinaryOp::Div => {
@@ -2230,6 +2274,27 @@ pub(super) fn infer_binary_expr(
                 }
                 Type::Error
             }
+        }
+        crate::hir::BinaryOp::Rem => {
+            expect_type(
+                diagnostics,
+                &expr.left,
+                &left.ty,
+                &Type::I32,
+                expr.op.symbol(),
+                "left",
+                "Use `I32` operands with `%`.",
+            );
+            expect_type(
+                diagnostics,
+                &expr.right,
+                &right.ty,
+                &Type::I32,
+                expr.op.symbol(),
+                "right",
+                "Use `I32` operands with `%`.",
+            );
+            Type::I32
         }
         crate::hir::BinaryOp::BitAnd
         | crate::hir::BinaryOp::BitOr

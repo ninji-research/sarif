@@ -594,6 +594,15 @@ pub enum Inst {
         value: ValueId,
         payload_type: String,
     },
+    EnumToI32 {
+        dest: ValueId,
+        value: ValueId,
+    },
+    EnumToText {
+        dest: ValueId,
+        value: ValueId,
+        variant_names: Vec<String>,
+    },
     If {
         dest: ValueId,
         condition: ValueId,
@@ -630,6 +639,11 @@ pub enum Inst {
         right: ValueId,
     },
     Div {
+        dest: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
+    Rem {
         dest: ValueId,
         left: ValueId,
         right: ValueId,
@@ -1132,6 +1146,12 @@ impl Inst {
                     payload_type
                 )
             }
+            Self::EnumToI32 { dest, value } => {
+                format!("{} = enum-to-i32 {}", dest.render(), value.render())
+            }
+            Self::EnumToText { dest, value, .. } => {
+                format!("{} = enum-to-text {}", dest.render(), value.render())
+            }
             Self::If {
                 dest,
                 condition,
@@ -1219,6 +1239,14 @@ impl Inst {
             Self::Div { dest, left, right } => {
                 format!(
                     "{} = div {}, {}",
+                    dest.render(),
+                    left.render(),
+                    right.render()
+                )
+            }
+            Self::Rem { dest, left, right } => {
+                format!(
+                    "{} = rem {}, {}",
                     dest.render(),
                     left.render(),
                     right.render()
@@ -2801,6 +2829,26 @@ impl ConstEvaluator<'_, '_> {
                     ));
                 }
             },
+            BinaryOp::Rem => match (&left, &right) {
+                (RuntimeValue::Int(left), RuntimeValue::Int(right)) => {
+                    if *right == 0 {
+                        return Err(ConstEvalError::new(expr.span, "modulo by zero"));
+                    }
+                    RuntimeValue::Int(left % right)
+                }
+                (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
+                    if *right == 0.0 {
+                        return Err(ConstEvalError::new(expr.span, "modulo by zero"));
+                    }
+                    RuntimeValue::F64(left % right)
+                }
+                _ => {
+                    return Err(ConstEvalError::new(
+                        expr.span,
+                        "compile-time arithmetic operands must both be `I32` or both be `F64`",
+                    ));
+                }
+            },
             BinaryOp::BitAnd => RuntimeValue::Int(
                 ((expect_const_int(&left, expr.left.span())? as i32)
                     & (expect_const_int(&right, expr.right.span())? as i32)) as i64,
@@ -3198,10 +3246,13 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Field { .. }
             | Inst::EnumTagEq { .. }
             | Inst::EnumPayload { .. }
+            | Inst::EnumToI32 { .. }
+            | Inst::EnumToText { .. }
             | Inst::Add { .. }
             | Inst::Sub { .. }
             | Inst::Mul { .. }
             | Inst::Div { .. }
+            | Inst::Rem { .. }
             | Inst::BitAnd { .. }
             | Inst::BitOr { .. }
             | Inst::BitXor { .. }
@@ -3625,6 +3676,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "stdout_write_builder" if self.builtin_is_available("stdout_write_builder") => {
                 self.lower_stdout_write_builder_expr(expr)
             }
+            "enum_to_i32" if self.builtin_is_available("enum_to_i32") => {
+                self.lower_enum_to_i32_expr(expr)
+            }
+            "enum_to_text" if self.builtin_is_available("enum_to_text") => {
+                self.lower_enum_to_text_expr(expr)
+            }
             _ => return None,
         };
         Some(lowered)
@@ -3739,6 +3796,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "parse_i32" if self.builtin_is_available("parse_i32") => LowerType::I32,
             "parse_i32_range" if self.builtin_is_available("parse_i32_range") => LowerType::I32,
             "parse_f64" if self.builtin_is_available("parse_f64") => LowerType::F64,
+            "enum_to_i32" if self.builtin_is_available("enum_to_i32") => LowerType::I32,
+            "enum_to_text" if self.builtin_is_available("enum_to_text") => LowerType::Text,
             _ => return None,
         };
         Some(ty)
@@ -4352,6 +4411,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     BinaryOp::Sub => Inst::Sub { dest, left, right },
                     BinaryOp::Mul => Inst::Mul { dest, left, right },
                     BinaryOp::Div => Inst::Div { dest, left, right },
+                    BinaryOp::Rem => Inst::Rem { dest, left, right },
                     BinaryOp::BitAnd => Inst::BitAnd { dest, left, right },
                     BinaryOp::BitOr => Inst::BitOr { dest, left, right },
                     BinaryOp::BitXor => Inst::BitXor { dest, left, right },
@@ -5074,6 +5134,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         LowerType::TextBuilder
                     }
                     (LowerType::F64, LowerType::F64) => LowerType::F64,
+                    (LowerType::I32, LowerType::I32) => LowerType::I32,
+                    _ => LowerType::Error,
+                },
+                BinaryOp::Rem => match (
+                    self.infer_expr_type(&expr.left),
+                    self.infer_expr_type(&expr.right),
+                ) {
                     (LowerType::I32, LowerType::I32) => LowerType::I32,
                     _ => LowerType::Error,
                 },
@@ -6458,6 +6525,38 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let text = self.lower_expr(arg);
         let dest = self.fresh_value();
         self.instructions.push(Inst::TextLen { dest, text });
+        dest
+    }
+
+    fn lower_enum_to_i32_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let value = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::EnumToI32 { dest, value });
+        dest
+    }
+
+    fn lower_enum_to_text_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let value = self.lower_expr(arg);
+        let enum_type = match self.infer_expr_type(arg) {
+            LowerType::Named(name) => name,
+            _ => return self.emit_unit_value(),
+        };
+        let variant_names = match self.enum_variants.get(&enum_type) {
+            Some(variants) => variants.iter().map(|v| v.name.clone()).collect(),
+            None => return self.emit_unit_value(),
+        };
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::EnumToText {
+            dest,
+            value,
+            variant_names,
+        });
         dest
     }
 
@@ -8662,6 +8761,37 @@ impl<'a> Interpreter<'a> {
                         .ok_or_else(|| RuntimeError::new("enum variant has no payload"))?;
                     values[dest.0 as usize] = payload;
                 }
+                Inst::EnumToI32 { dest, value } => {
+                    let value = extract_value(values, *value)?;
+                    let RuntimeValue::Enum(enum_value) = value else {
+                        return Err(RuntimeError::new("expected enum value for enum_to_i32"));
+                    };
+                    let index = self
+                        .enums
+                        .get(enum_value.name.as_str())
+                        .and_then(|enum_type| {
+                            enum_type
+                                .variants
+                                .iter()
+                                .position(|v| v.name == enum_value.variant)
+                        })
+                        .ok_or_else(|| {
+                            RuntimeError::new(format!(
+                                "unknown enum variant `{}` for `{}`",
+                                enum_value.variant, enum_value.name
+                            ))
+                        })?;
+                    values[dest.0 as usize] = RuntimeValue::Int(i64::try_from(index).map_err(|_| {
+                        RuntimeError::new("enum variant index exceeds stage-0 limits")
+                    })?);
+                }
+                Inst::EnumToText { dest, value, .. } => {
+                    let value = extract_value(values, *value)?;
+                    let RuntimeValue::Enum(enum_value) = value else {
+                        return Err(RuntimeError::new("expected enum value for enum_to_text"));
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Text(enum_value.variant.clone());
+                }
                 Inst::If {
                     dest,
                     condition,
@@ -8769,6 +8899,17 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::Div { dest, left, right } => {
                     run_div(values, *dest, *left, *right)?;
+                }
+                Inst::Rem { dest, left, right } => {
+                    run_arithmetic!(
+                        values,
+                        *dest,
+                        *left,
+                        *right,
+                        |l, r| l % r,
+                        |l, r| l % r,
+                        "rem"
+                    )?;
                 }
                 Inst::BitAnd { dest, left, right } => {
                     run_bitwise(values, *dest, *left, *right, |l, r| l & r)?;

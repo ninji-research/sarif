@@ -396,10 +396,11 @@ fn infer_inst_kinds(
             Inst::ConstF64 { dest, .. } | Inst::Sqrt { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::F64);
             }
-            Inst::Add { dest, left, .. }
+             Inst::Add { dest, left, .. }
             | Inst::Sub { dest, left, .. }
             | Inst::Mul { dest, left, .. }
-            | Inst::Div { dest, left, .. } => {
+            | Inst::Div { dest, left, .. }
+            | Inst::Rem { dest, left, .. } => {
                 let Some(kind) = kinds.get(left).cloned() else {
                     return Err(format!(
                         "native arithmetic input {} has unknown kind in `{}`",
@@ -448,6 +449,12 @@ fn infer_inst_kinds(
                 dest, payload_type, ..
             } => {
                 kinds.insert(*dest, native_value_kind(payload_type, records, enums)?);
+            }
+            Inst::EnumToI32 { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::I32);
+            }
+            Inst::EnumToText { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::Text);
             }
             Inst::MakeRecord { dest, name, .. } => {
                 kinds.insert(*dest, NativeValueKind::Record(name.clone()));
@@ -2485,6 +2492,60 @@ pub fn lower_inst<M: Module>(
             backend,
         )
         .map(|()| true),
+        Inst::EnumToI32 { dest, value } => {
+            let src = native_value(values, *value, function, "enum value", backend)?;
+            let src = if let Some(NativeValueKind::Enum(enum_name)) = value_kinds.get(value) {
+                let enum_ty = enums.get(enum_name).ok_or_else(|| {
+                    format!("missing native enum metadata for `{enum_name}`")
+                })?;
+                if native_enum_is_payload_free(enum_ty) {
+                    src
+                } else {
+                    builder.ins().load(types::I64, MemFlags::new(), src, 0)
+                }
+            } else {
+                src
+            };
+            let native = builder.ins().ireduce(types::I32, src);
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
+        Inst::EnumToText {
+            dest,
+            value,
+            variant_names,
+        } => {
+            let src = native_value(values, *value, function, "enum value", backend)?;
+            let src = if let Some(NativeValueKind::Enum(enum_name)) = value_kinds.get(value) {
+                let enum_ty = enums.get(enum_name).ok_or_else(|| {
+                    format!("missing native enum metadata for `{enum_name}`")
+                })?;
+                if native_enum_is_payload_free(enum_ty) {
+                    src
+                } else {
+                    builder.ins().load(types::I64, MemFlags::new(), src, 0)
+                }
+            } else {
+                src
+            };
+            let mut result: Option<cranelift_codegen::ir::Value> = None;
+            for (i, name) in variant_names.iter().enumerate() {
+                let data_id = data_ids.get(name).ok_or_else(|| {
+                    format!("{backend} is missing text data for variant `{name}` in `{}`", function.name)
+                })?;
+                let global = module.declare_data_in_func(*data_id, builder.func);
+                let text_ptr = builder.ins().symbol_value(types::I64, global);
+                let tag = builder.ins().iconst(types::I64, i as i64);
+                let cond = builder.ins().icmp(IntCC::Equal, src, tag);
+                result = Some(match result {
+                    Some(prev) => builder.ins().select(cond, text_ptr, prev),
+                    None => text_ptr,
+                });
+            }
+            let native = result.unwrap_or_else(|| builder.ins().iconst(types::I64, 0));
+            values.insert(*dest, NativeValueRepr::Native(native));
+            Ok(true)
+        }
         Inst::MakeRecord { dest, name, fields } => {
             let record = records
                 .get(name)
@@ -2603,6 +2664,24 @@ pub fn lower_inst<M: Module>(
             "div",
             |b, l, r| b.ins().fdiv(l, r),
             |b, l, r| b.ins().sdiv(l, r),
+        ),
+        Inst::Rem { dest, left, right } => lower_arithmetic(
+            values,
+            value_kinds,
+            function,
+            builder,
+            backend,
+            *dest,
+            *left,
+            *right,
+            "rem",
+            |b, l, r| {
+                let div = b.ins().fdiv(l, r);
+                let trunc = b.ins().trunc(div);
+                let prod = b.ins().fmul(trunc, r);
+                b.ins().fsub(l, prod)
+            },
+            |b, l, r| b.ins().srem(l, r),
         ),
         Inst::BitAnd { dest, left, right } => lower_binary_int(
             values,
@@ -3403,6 +3482,8 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::Field { dest, .. }
             | Inst::EnumTagEq { dest, .. }
             | Inst::EnumPayload { dest, .. }
+            | Inst::EnumToI32 { dest, .. }
+            | Inst::EnumToText { dest, .. }
             | Inst::If { dest, .. }
             | Inst::While { dest, .. }
             | Inst::Repeat { dest, .. }
@@ -3410,6 +3491,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::Sub { dest, .. }
             | Inst::Mul { dest, .. }
             | Inst::Div { dest, .. }
+            | Inst::Rem { dest, .. }
             | Inst::BitAnd { dest, .. }
             | Inst::BitOr { dest, .. }
             | Inst::BitXor { dest, .. }
@@ -4147,6 +4229,23 @@ pub fn declare_text_data_for_insts<M: Module>(
                         format!("failed to declare {backend} text object `{name}`: {error}")
                     })?;
                 data_ids.insert(value.clone(), id);
+            }
+            Inst::EnumToText {
+                variant_names, ..
+            } => {
+                for variant_name in variant_names {
+                    if data_ids.contains_key(variant_name) {
+                        continue;
+                    }
+                    let name = format!("{prefix}_{}", *next_index);
+                    *next_index += 1;
+                    let id = module
+                        .declare_data(&name, Linkage::Local, false, false)
+                        .map_err(|error| {
+                            format!("failed to declare {backend} text object `{name}`: {error}")
+                        })?;
+                    data_ids.insert(variant_name.clone(), id);
+                }
             }
             Inst::If {
                 then_insts,

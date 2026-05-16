@@ -344,10 +344,13 @@ impl Env<'_> {
             | Inst::ConstBool { .. }
             | Inst::ConstText { .. }
             | Inst::EnumTagEq { .. }
+            | Inst::EnumToI32 { .. }
+            | Inst::EnumToText { .. }
             | Inst::Add { .. }
             | Inst::Sub { .. }
             | Inst::Mul { .. }
             | Inst::Div { .. }
+            | Inst::Rem { .. }
             | Inst::BitAnd { .. }
             | Inst::BitOr { .. }
             | Inst::BitXor { .. }

@@ -142,6 +142,10 @@ enum RawTokenKind {
     Shr,
     #[token("*")]
     Star,
+    #[token("%")]
+    Percent,
+    #[token("%=")]
+    PercentEq,
     #[token("_")]
     Underscore,
     #[regex(r"[0-9]+\.[0-9]+(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+")]
@@ -287,6 +291,8 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::Slash => TokenKind::Slash,
         RawTokenKind::Shr => TokenKind::Shr,
         RawTokenKind::Star => TokenKind::Star,
+        RawTokenKind::Percent => TokenKind::Percent,
+        RawTokenKind::PercentEq => TokenKind::PercentEq,
         RawTokenKind::Underscore => TokenKind::Underscore,
         RawTokenKind::Float => TokenKind::Float,
         RawTokenKind::Integer => TokenKind::Integer,

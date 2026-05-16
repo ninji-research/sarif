@@ -483,6 +483,8 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::Field { dest, .. }
                 | Inst::EnumTagEq { dest, .. }
                 | Inst::EnumPayload { dest, .. }
+                | Inst::EnumToI32 { dest, .. }
+                | Inst::EnumToText { dest, .. }
                 | Inst::ListNew { dest, .. }
                 | Inst::ListLen { dest, .. }
                 | Inst::ListGet { dest, .. }
@@ -494,6 +496,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::Sub { dest, .. }
                 | Inst::Mul { dest, .. }
                 | Inst::Div { dest, .. }
+                | Inst::Rem { dest, .. }
                 | Inst::BitAnd { dest, .. }
                 | Inst::BitOr { dest, .. }
                 | Inst::BitXor { dest, .. }
@@ -924,6 +927,79 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
+            Inst::EnumToI32 { dest, value } => {
+                writeln!(output, "    local.get ${}", wasm_id(*value))
+                    .expect("writing to a string cannot fail");
+                let WasmValueKind::Enum(enum_name) = &kinds[value] else {
+                    return Err(WasmError::new("expected enum kind for enum_to_i32"));
+                };
+                if !enum_is_payload_free(&self.enums[enum_name]) {
+                    writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                    writeln!(output, "    i64.load").expect("writing to a string cannot fail");
+                }
+                writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::EnumToText {
+                dest, value, variant_names,
+            } => {
+                writeln!(output, "    local.get ${}", wasm_id(*value))
+                    .expect("writing to a string cannot fail");
+                let WasmValueKind::Enum(enum_name) = &kinds[value] else {
+                    return Err(WasmError::new("expected enum kind for enum_to_text"));
+                };
+                if !enum_is_payload_free(&self.enums[enum_name]) {
+                    writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                    writeln!(output, "    i64.load").expect("writing to a string cannot fail");
+                }
+                let mut text_ids: Vec<String> = Vec::new();
+                for name in variant_names.iter() {
+                    let text_dest = format!("__text_{:?}", name);
+                    let bytes = name.as_bytes();
+                    writeln!(output, "    i32.const {}", bytes.len())
+                        .expect("writing to a string cannot fail");
+                    writeln!(output, "    call $alloc").expect("writing to a string cannot fail");
+                    writeln!(output, "    i64.extend_i32_u").expect("writing to a string cannot fail");
+                    writeln!(output, "    local.set ${}", text_dest)
+                        .expect("writing to a string cannot fail");
+                    for (index, byte) in bytes.iter().copied().enumerate() {
+                        writeln!(output, "    local.get ${}", text_dest)
+                            .expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.const {}", index)
+                            .expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.add").expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.const {}", byte)
+                            .expect("writing to a string cannot fail");
+                        writeln!(output, "    i32.store8").expect("writing to a string cannot fail");
+                    }
+                    text_ids.push(text_dest);
+                }
+                for (i, text_id) in text_ids.iter().enumerate().rev() {
+                    writeln!(output, "    i64.const {}", i64::try_from(i).expect("variant index fits i64"))
+                        .expect("writing to a string cannot fail");
+                    writeln!(output, "    local.get ${}", wasm_id(*value))
+                        .expect("writing to a string cannot fail");
+                    let WasmValueKind::Enum(enum_name) = &kinds[value] else {
+                        return Err(WasmError::new("expected enum kind for enum_to_text"));
+                    };
+                    if !enum_is_payload_free(&self.enums[enum_name]) {
+                        writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+                        writeln!(output, "    i64.load").expect("writing to a string cannot fail");
+                    }
+                    writeln!(output, "    i64.eq").expect("writing to a string cannot fail");
+                    writeln!(output, "    local.get ${}", text_id)
+                        .expect("writing to a string cannot fail");
+                    if i < text_ids.len() - 1 {
+                        writeln!(output, "    local.get ${}", wasm_id(*dest))
+                            .expect("writing to a string cannot fail");
+                        writeln!(output, "    select").expect("writing to a string cannot fail");
+                    }
+                }
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
             Inst::ListNew { .. }
             | Inst::ListLen { .. }
             | Inst::ListGet { .. }
@@ -946,6 +1022,9 @@ impl<'a> WasmEmitter<'a> {
             }
             Inst::Div { dest, left, right } => {
                 self.emit_binary(output, "div", *dest, *left, *right, kinds)?;
+            }
+            Inst::Rem { dest, left, right } => {
+                self.emit_binary(output, "rem", *dest, *left, *right, kinds)?;
             }
             Inst::BitAnd { dest, left, right } => {
                 self.emit_binary(output, "and", *dest, *left, *right, kinds)?;
@@ -1688,10 +1767,17 @@ fn collect_inst_kinds(
                     wasm_value_kind_from_name(payload_type, structs, enums)?,
                 );
             }
+            Inst::EnumToI32 { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::I32);
+            }
+            Inst::EnumToText { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::Text);
+            }
             Inst::Add { dest, left, .. }
             | Inst::Sub { dest, left, .. }
             | Inst::Mul { dest, left, .. }
-            | Inst::Div { dest, left, .. } => {
+            | Inst::Div { dest, left, .. }
+            | Inst::Rem { dest, left, .. } => {
                 kinds.insert(*dest, kinds[left].clone());
             }
             Inst::BitAnd { dest, .. }

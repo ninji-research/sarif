@@ -605,6 +605,7 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Rem,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -642,6 +643,7 @@ impl BinaryOp {
             Self::Sub => "-",
             Self::Mul => "*",
             Self::Div => "/",
+            Self::Rem => "%",
         }
     }
 }
@@ -1160,6 +1162,7 @@ const fn lower_binary_op(op: ast::BinaryOp) -> BinaryOp {
         ast::BinaryOp::Sub => BinaryOp::Sub,
         ast::BinaryOp::Mul => BinaryOp::Mul,
         ast::BinaryOp::Div => BinaryOp::Div,
+        ast::BinaryOp::Rem => BinaryOp::Rem,
     }
 }
 

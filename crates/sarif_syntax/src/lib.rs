@@ -113,6 +113,8 @@ pub enum TokenKind {
     Slash,
     Shr,
     Star,
+    Percent,
+    PercentEq,
     Underscore,
     Invalid,
     Eof,

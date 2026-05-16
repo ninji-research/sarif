@@ -1416,7 +1416,7 @@ const fn infix_binding_power(kind: TokenKind) -> Option<(u8, u8)> {
         | TokenKind::Ge => Some((11, 12)),
         TokenKind::Shl | TokenKind::Shr => Some((13, 14)),
         TokenKind::Plus | TokenKind::Minus => Some((15, 16)),
-        TokenKind::Star | TokenKind::Slash => Some((17, 18)),
+        TokenKind::Star | TokenKind::Slash | TokenKind::Percent => Some((17, 18)),
         _ => None,
     }
 }
