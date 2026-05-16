@@ -352,7 +352,11 @@ fn run_program(command: command::Command) -> ExitCode {
 
 fn runtime_value_to_exit_code(value: &RuntimeValue) -> ExitCode {
     match value {
-        RuntimeValue::Int(i) => ExitCode::from(u8::try_from(*i).unwrap_or(0)),
+        RuntimeValue::Int(i) => {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let exit = *i as u8;
+            ExitCode::from(exit)
+        }
         RuntimeValue::Bool(b) => {
             if *b {
                 ExitCode::SUCCESS
