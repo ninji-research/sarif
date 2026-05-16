@@ -59,7 +59,7 @@ pub fn usage() -> String {
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
     usage +=
-        "  --dump-ir=<pass> dump IR after specific pass (resolve, typecheck, lower, codegen)\n";
+        "  --dump-ir=<pass>  dump IR after specific pass (resolve, typecheck, lower, codegen)\n";
     usage
 }
 
