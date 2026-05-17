@@ -5320,15 +5320,26 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         if let Expr::Name(base) = expr.base.as_ref()
             && let Some(LocalBinding::ArraySlots(slots)) = self.locals.get(&base.name).cloned()
         {
-            if let Some(index) = self.const_index_expr_value(&expr.index)
-                && index < slots.len()
-            {
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::LoadLocal {
-                    dest,
-                    slot: slots[index],
-                });
-                return dest;
+            if let Some(index) = self.const_index_expr_value(&expr.index) {
+                if index < slots.len() {
+                    let dest = self.fresh_value();
+                    self.instructions.push(Inst::LoadLocal {
+                        dest,
+                        slot: slots[index],
+                    });
+                    return dest;
+                }
+                self.diagnostics.push(Diagnostic::new(
+                    "codegen.array-index-out-of-bounds",
+                    format!(
+                        "constant array index {} is out of bounds (array has {} elements)",
+                        index,
+                        slots.len()
+                    ),
+                    expr.index.span(),
+                    None,
+                ));
+                return self.emit_unit_value();
             }
             let index = self.lower_expr(&expr.index);
             if !self.index_expr_is_in_bounds(&expr.index, slots.len()) {
@@ -5339,16 +5350,26 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         match self.infer_expr_type(&expr.base) {
             LowerType::Array(_, len) => {
                 let base = self.lower_expr(&expr.base);
-                if let Some(index) = self.const_index_expr_value(&expr.index)
-                    && index < len
-                {
-                    let dest = self.fresh_value();
-                    self.instructions.push(Inst::Field {
-                        dest,
-                        base,
-                        name: array_field_name(index),
-                    });
-                    return dest;
+                if let Some(index) = self.const_index_expr_value(&expr.index) {
+                    if index < len {
+                        let dest = self.fresh_value();
+                        self.instructions.push(Inst::Field {
+                            dest,
+                            base,
+                            name: array_field_name(index),
+                        });
+                        return dest;
+                    }
+                    self.diagnostics.push(Diagnostic::new(
+                        "codegen.array-index-out-of-bounds",
+                        format!(
+                            "constant array index {} is out of bounds (array has {} elements)",
+                            index, len
+                        ),
+                        expr.index.span(),
+                        None,
+                    ));
+                    return self.emit_unit_value();
                 }
                 let index = self.lower_expr(&expr.index);
                 if !self.index_expr_is_in_bounds(&expr.index, len) {

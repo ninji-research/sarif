@@ -58,8 +58,7 @@ pub fn usage() -> String {
     usage += "  -o <path>         output path for build\n";
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
-    usage +=
-        "  --dump-ir=<pass>  dump IR after specific pass (resolve, typecheck, lower, clif, codegen)\n";
+    usage += "  --dump-ir=<pass>  dump IR after specific pass (resolve, typecheck, lower, clif, codegen)\n";
     usage
 }
 
