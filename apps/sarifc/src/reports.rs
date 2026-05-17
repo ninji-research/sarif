@@ -288,7 +288,7 @@ fn render_segment_failure(
 }
 
 fn semantic_check_diagnostics(target: &LoadedSource, profile: Profile) -> Vec<Diagnostic> {
-    target.semantic_diagnostics(profile)
+    target.mir_diagnostics(profile)
 }
 
 #[cfg(feature = "codegen")]
