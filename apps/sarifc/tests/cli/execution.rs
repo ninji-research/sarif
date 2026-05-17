@@ -90,6 +90,7 @@ fn link_fd_write(linker: &mut Linker<()>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "wasm")]
 fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
     let bytes =
         std::fs::read(path).map_err(|error| format!("failed to read wasm artifact: {error}"))?;
@@ -437,12 +438,15 @@ fn run_executes_repeat_array_literals_consistently() {
 }
 
 #[test]
-fn run_reports_array_bounds_failures() {
+fn check_reports_array_bounds_failures() {
     let path = temp_source("fn main() -> I32 { let xs = [20, 22]; xs[2] }");
-    let output = run_profiled("run", &path);
+    let output = run_profiled("check", &path);
 
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("bounds assertion failed"));
+    assert!(
+        !output.status.success(),
+        "check should fail for out-of-bounds array access"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("array-index-out-of-bounds"));
 }
 
 #[test]
@@ -1493,7 +1497,7 @@ fn wasm_build_accepts_text_slice_programs() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_preserves_runtime_traps() {
-    let path = temp_source("fn main() -> I32 { let xs = [20, 22]; xs[2] }");
+    let path = temp_source("fn main() -> I32 { let xs = [20, 22]; let i = 2; xs[i] }");
     let wasm_path = temp_output("bounds_failure", "wasm");
     let build = run_sarif(&[
         "build",

@@ -16,4 +16,13 @@
    │ 
    │ Help: Use matching numeric operand types for arithmetic.
 ───╯
+[mir.contract-result] Error: failed to lower `result` because no executable result is available in `main`
+   ╭─[ examples/invalid/contract_failures.sarif:1:37 ]
+   │
+ 1 │ fn main(flag: Bool) -> I32 requires result ensures result + flag { 3 }
+   │                                     ───┬──  
+   │                                        ╰──── failed to lower `result` because no executable result is available in `main`
+   │ 
+   │ Help: Keep `result` inside executable `ensures` clauses only.
+───╯
 check failed
