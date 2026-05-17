@@ -32,6 +32,12 @@ pub struct ObjectError {
     pub message: String,
 }
 
+impl std::fmt::Display for ObjectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
 impl ObjectError {
     fn new(message: impl Into<String>) -> Self {
         Self {

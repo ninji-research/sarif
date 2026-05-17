@@ -403,7 +403,7 @@ fn build_program(command: &command::Command) -> Result<(), String> {
             {
                 let stem = loaded.package.symbol_stem();
                 let object_bytes = emit_object(&loaded.mir().program, &stem)
-                    .map_err(|error| format!("failed to emit object file: {error:?}"))?;
+                    .map_err(|error| format!("failed to emit object file: {error}"))?;
 
                 link_executable(
                     &loaded.mir().program,

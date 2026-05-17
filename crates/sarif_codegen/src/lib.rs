@@ -6631,6 +6631,63 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
         };
+        // Validate compile-time-known codepoint values
+        if let sarif_frontend::hir::Expr::Integer(int_expr) = arg {
+            let codepoint = u32::try_from(int_expr.value).unwrap_or(u32::MAX);
+            if char::from_u32(codepoint).is_none() {
+                self.diagnostics.push(Diagnostic::new(
+                    "semantic.codepoint_to_text-invalid-literal",
+                    format!(
+                        "codepoint value {} is not a valid Unicode scalar value",
+                        int_expr.value,
+                    ),
+                    int_expr.span,
+                    Some(
+                        "Valid codepoints are 0..=0x10FFFF \
+                         excluding surrogate range 0xD800..0xDFFF."
+                            .to_owned(),
+                    ),
+                ));
+                return self.emit_unit_value();
+            }
+        }
+        // If the argument is enum_to_i32(x), validate all discriminant values
+        // are valid Unicode codepoints at compile time.
+        if let sarif_frontend::hir::Expr::Call(inner) = arg
+            && inner.callee == "enum_to_i32"
+            && let Some(inner_arg) = inner.args.first()
+        {
+            let enum_type = match self.infer_expr_type(inner_arg) {
+                LowerType::Named(name) => name,
+                _ => return self.emit_unit_value(),
+            };
+            let discriminants = self.compute_effective_discriminants(&enum_type);
+            for (i, &disc) in discriminants.iter().enumerate() {
+                if char::from_u32(disc).is_none() {
+                    self.diagnostics.push(Diagnostic::new(
+                        "semantic.codepoint_to_text-invalid-discriminant",
+                        format!(
+                            "discriminant value {} for variant {} of `{}` is \
+                             not a valid Unicode scalar value",
+                            disc,
+                            self.enum_variants
+                                .get(&enum_type)
+                                .and_then(|v| v.get(i))
+                                .map(|v| v.name.as_str())
+                                .unwrap_or("?"),
+                            enum_type,
+                        ),
+                        inner_arg.span(),
+                        Some(
+                            "Valid codepoints are 0..=0x10FFFF \
+                             excluding surrogate range 0xD800..0xDFFF."
+                                .to_owned(),
+                        ),
+                    ));
+                    return self.emit_unit_value();
+                }
+            }
+        }
         let value = self.lower_expr(arg);
         let builder = self.fresh_value();
         self.instructions
