@@ -18,7 +18,7 @@ pub use native::{
     collect_native_records, native_enum_is_payload_free,
 };
 #[cfg(feature = "backend-native")]
-pub use object::{ENTRYPOINT_SYMBOL, ObjectError, emit_object};
+pub use object::{ENTRYPOINT_SYMBOL, ObjectError, emit_clif, emit_object};
 #[cfg(feature = "backend-wasm")]
 pub use wasm::{WasmError, emit_wasm, emit_wat, run_function_wasm, run_main_wasm};
 

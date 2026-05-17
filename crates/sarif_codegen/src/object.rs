@@ -58,6 +58,16 @@ pub fn emit_object(program: &Program, module_name: &str) -> Result<Vec<u8>, Obje
     backend.emit()
 }
 
+/// Emit Cranelift CLIF (Cranelift Intermediate Representation) as text.
+///
+/// This is useful for debugging and inspecting the native codegen output.
+/// Unlike `emit_object`, this does not produce an object file - it returns
+/// the CLIF text representation of each function.
+pub fn emit_clif(program: &Program) -> Result<String, ObjectError> {
+    let mut backend = ClifDumper::new(program)?;
+    backend.emit()
+}
+
 struct ObjectBackend<'a> {
     program: &'a Program,
     module: Option<ObjectModule>,
@@ -476,6 +486,399 @@ impl<'a> ObjectBackend<'a> {
         if falls_through {
             let result = match function.result {
                 Some(value) => value_repr(&values, value, function, "return")?,
+                None => ValueRepr::Unit,
+            };
+            match result {
+                ValueRepr::Native(value) => {
+                    builder.ins().return_(&[value]);
+                }
+                ValueRepr::Unit => {
+                    builder.ins().return_(&[]);
+                }
+            }
+        }
+        builder.finalize();
+        Ok(())
+    }
+}
+
+struct ClifDumper<'a> {
+    program: &'a Program,
+    isa: cranelift_codegen::isa::OwnedTargetIsa,
+    function_signatures: BTreeMap<String, Signature>,
+    records: BTreeMap<String, NativeRecord>,
+    native_enums: BTreeMap<String, NativeEnum>,
+    allocator_id: FuncId,
+    alloc_push_id: FuncId,
+    alloc_pop_id: FuncId,
+    text_builder_new_id: Option<FuncId>,
+    text_builder_append_id: Option<FuncId>,
+    text_builder_append_codepoint_id: Option<FuncId>,
+    text_builder_append_ascii_id: Option<FuncId>,
+    text_builder_append_slice_id: Option<FuncId>,
+    text_builder_append_i32_id: Option<FuncId>,
+    text_builder_finish_id: Option<FuncId>,
+    stdout_write_builder_id: Option<FuncId>,
+    text_index_helpers: TextIndexHelperIds,
+    list_new_id: FuncId,
+    list_push_id: FuncId,
+    list_sort_text_id: Option<FuncId>,
+    list_sort_by_text_field_id: Option<FuncId>,
+    text_concat_id: FuncId,
+    text_slice_id: FuncId,
+    bytes_slice_id: FuncId,
+    text_eq_range_id: FuncId,
+    text_find_byte_range_id: FuncId,
+    text_line_end_id: FuncId,
+    text_next_line_id: FuncId,
+    text_field_end_id: FuncId,
+    text_next_field_id: FuncId,
+    text_from_f64_fixed_id: FuncId,
+    parse_i32_id: FuncId,
+    parse_i32_range_id: FuncId,
+    parse_f64_id: FuncId,
+    arg_count_id: FuncId,
+    arg_text_id: FuncId,
+    stdin_text_id: FuncId,
+    stdout_write_id: FuncId,
+    text_eq_id: FuncId,
+    text_cmp_id: FuncId,
+}
+
+impl<'a> ClifDumper<'a> {
+    fn new(program: &'a Program) -> Result<Self, ObjectError> {
+        let mut flag_builder = settings::builder();
+        flag_builder.set("opt_level", "speed").map_err(|error| {
+            ObjectError::new(format!("failed to set cranelift opt_level: {error}"))
+        })?;
+        let isa_builder = cranelift_native::builder()
+            .map_err(|error| ObjectError::new(format!("failed to build native ISA: {error}")))?;
+        let isa = isa_builder
+            .finish(settings::Flags::new(flag_builder))
+            .map_err(|error| ObjectError::new(format!("failed to finish native ISA: {error}")))?;
+
+        let mut dummy_module = ObjectModule::new(
+            ObjectBuilder::new(isa.clone(), "clif_dummy", Box::new(default_libcall_names()))
+                .map_err(|error| {
+                    ObjectError::new(format!("failed to create dummy module: {error}"))
+                })?,
+        );
+
+        let features = RuntimeFeatures::detect(program);
+        let allocator_id = Self::declare_fn(&mut dummy_module, declare_record_allocator)?;
+        let alloc_push_id = Self::declare_fn(&mut dummy_module, declare_alloc_push)?;
+        let alloc_pop_id = Self::declare_fn(&mut dummy_module, declare_alloc_pop)?;
+
+        let text_builder_new_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_new))
+            .transpose()?;
+        let text_builder_append_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append))
+            .transpose()?;
+        let text_builder_append_codepoint_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_codepoint))
+            .transpose()?;
+        let text_builder_append_ascii_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_ascii))
+            .transpose()?;
+        let text_builder_append_slice_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_slice))
+            .transpose()?;
+        let text_builder_append_i32_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_i32))
+            .transpose()?;
+        let text_builder_finish_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_finish))
+            .transpose()?;
+        let stdout_write_builder_id = features
+            .text_builder
+            .then(|| Self::declare_fn(&mut dummy_module, declare_stdout_write_builder))
+            .transpose()?;
+
+        let text_index_helpers = TextIndexHelperIds {
+            new_id: features
+                .text_index
+                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_new))
+                .transpose()?,
+            get_id: features
+                .text_index
+                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_get))
+                .transpose()?,
+            get_or_insert_id: features
+                .text_index
+                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_get_or_insert))
+                .transpose()?,
+            set_id: features
+                .text_index
+                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_set))
+                .transpose()?,
+        };
+
+        let list_new_id = Self::declare_fn(&mut dummy_module, declare_list_new)?;
+        let list_push_id = Self::declare_fn(&mut dummy_module, declare_list_push)?;
+        let list_sort_text_id = features
+            .sort
+            .then(|| Self::declare_fn(&mut dummy_module, declare_list_sort_text))
+            .transpose()?;
+        let list_sort_by_text_field_id = features
+            .sort
+            .then(|| Self::declare_fn(&mut dummy_module, declare_list_sort_by_text_field))
+            .transpose()?;
+        let text_concat_id = Self::declare_fn(&mut dummy_module, declare_text_concat)?;
+        let text_slice_id = Self::declare_fn(&mut dummy_module, declare_text_slice)?;
+        let bytes_slice_id = Self::declare_fn(&mut dummy_module, declare_bytes_slice)?;
+        let text_eq_range_id = Self::declare_fn(&mut dummy_module, declare_text_eq_range)?;
+        let text_find_byte_range_id =
+            Self::declare_fn(&mut dummy_module, declare_text_find_byte_range)?;
+        let text_line_end_id = Self::declare_fn(&mut dummy_module, declare_text_line_end)?;
+        let text_next_line_id = Self::declare_fn(&mut dummy_module, declare_text_next_line)?;
+        let text_field_end_id = Self::declare_fn(&mut dummy_module, declare_text_field_end)?;
+        let text_next_field_id = Self::declare_fn(&mut dummy_module, declare_text_next_field)?;
+        let text_from_f64_fixed_id =
+            Self::declare_fn(&mut dummy_module, declare_text_from_f64_fixed)?;
+        let parse_i32_id = Self::declare_fn(&mut dummy_module, declare_parse_i32)?;
+        let parse_i32_range_id = Self::declare_fn(&mut dummy_module, declare_parse_i32_range)?;
+        let parse_f64_id = Self::declare_fn(&mut dummy_module, declare_parse_f64)?;
+        let arg_count_id = Self::declare_fn(&mut dummy_module, declare_arg_count)?;
+        let arg_text_id = Self::declare_fn(&mut dummy_module, declare_arg_text)?;
+        let stdin_text_id = Self::declare_fn(&mut dummy_module, declare_stdin_text)?;
+        let stdout_write_id = Self::declare_fn(&mut dummy_module, declare_stdout_write)?;
+        let text_eq_id = Self::declare_fn(&mut dummy_module, declare_text_eq)?;
+        let text_cmp_id = Self::declare_fn(&mut dummy_module, declare_text_cmp)?;
+
+        Ok(Self {
+            program,
+            isa,
+            function_signatures: BTreeMap::new(),
+            records: collect_native_records(program).map_err(ObjectError::new)?,
+            native_enums: collect_native_enums(program),
+            allocator_id,
+            alloc_push_id,
+            alloc_pop_id,
+            text_builder_new_id,
+            text_builder_append_id,
+            text_builder_append_codepoint_id,
+            text_builder_append_ascii_id,
+            text_builder_append_slice_id,
+            text_builder_append_i32_id,
+            text_builder_finish_id,
+            stdout_write_builder_id,
+            text_index_helpers,
+            list_new_id,
+            list_push_id,
+            list_sort_text_id,
+            list_sort_by_text_field_id,
+            text_concat_id,
+            text_slice_id,
+            bytes_slice_id,
+            text_eq_range_id,
+            text_find_byte_range_id,
+            text_line_end_id,
+            text_next_line_id,
+            text_field_end_id,
+            text_next_field_id,
+            text_from_f64_fixed_id,
+            parse_i32_id,
+            parse_i32_range_id,
+            parse_f64_id,
+            arg_count_id,
+            arg_text_id,
+            stdin_text_id,
+            stdout_write_id,
+            text_eq_id,
+            text_cmp_id,
+        })
+    }
+
+    fn declare_fn<T>(
+        module: &mut ObjectModule,
+        f: impl FnOnce(&mut ObjectModule, &str) -> Result<T, String>,
+    ) -> Result<T, ObjectError> {
+        f(module, "clif").map_err(ObjectError::new)
+    }
+
+    fn signature_for(&self, function: &Function) -> Result<Signature, ObjectError> {
+        let call_conv = CallConv::triple_default(self.isa.triple());
+        let mut signature = Signature::new(call_conv);
+
+        for param in &function.params {
+            signature.params.push(AbiParam::new(native_type(
+                &param.ty,
+                &self.records,
+                &self.native_enums,
+            )?));
+        }
+
+        if let Some(return_type) = function.return_type.as_deref() {
+            let native = native_type(return_type, &self.records, &self.native_enums)?;
+            if native != types::INVALID {
+                signature.returns.push(AbiParam::new(native));
+            }
+        }
+
+        Ok(signature)
+    }
+
+    fn emit(&mut self) -> Result<String, ObjectError> {
+        let mut dummy_module = ObjectModule::new(
+            ObjectBuilder::new(self.isa.clone(), "clif", Box::new(default_libcall_names()))
+                .map_err(|error| ObjectError::new(format!("failed to create module: {error}")))?,
+        );
+
+        let mut function_ids: BTreeMap<String, FuncId> = BTreeMap::new();
+        for function in &self.program.functions {
+            let signature = self.signature_for(function)?;
+            let id = dummy_module
+                .declare_function(&function.name, function_linkage(&function.name), &signature)
+                .map_err(|error| {
+                    ObjectError::new(format!("failed to declare `{}`: {error}", function.name))
+                })?;
+            function_ids.insert(function.name.clone(), id);
+            self.function_signatures
+                .insert(function.name.clone(), signature);
+        }
+
+        let mut builder_context = FunctionBuilderContext::new();
+        let mut clif_output = String::new();
+
+        for function in &self.program.functions {
+            let mut context = dummy_module.make_context();
+            context.func.signature = self.function_signatures[&function.name].clone();
+            context.func.name = UserFuncName::user(0, function_ids[&function.name].as_u32());
+
+            let data_ids: BTreeMap<String, DataId> = BTreeMap::new();
+
+            self.lower_into_context(
+                function,
+                &mut context,
+                &mut builder_context,
+                &data_ids,
+                &function_ids,
+                &mut dummy_module,
+            )
+            .map_err(ObjectError::new)?;
+
+            use std::fmt::Write;
+            writeln!(clif_output, "function \"{}\"() {{", function.name)
+                .map_err(|e| ObjectError::new(e.to_string()))?;
+            clif_output
+                .write_str(&context.func.display().to_string())
+                .map_err(|e| ObjectError::new(e.to_string()))?;
+            clif_output.push_str("}\n\n");
+        }
+
+        Ok(clif_output)
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn lower_into_context(
+        &mut self,
+        function: &Function,
+        context: &mut cranelift_codegen::Context,
+        builder_context: &mut FunctionBuilderContext,
+        data_ids: &BTreeMap<String, DataId>,
+        function_ids: &BTreeMap<String, FuncId>,
+        module: &mut ObjectModule,
+    ) -> Result<(), String> {
+        let mut builder = FunctionBuilder::new(&mut context.func, builder_context);
+        let entry = builder.create_block();
+        builder.append_block_params_for_function_params(entry);
+        builder.switch_to_block(entry);
+        builder.seal_block(entry);
+
+        let block_params = builder.block_params(entry).to_vec();
+        let mut values = BTreeMap::<ValueId, ValueRepr>::new();
+        let mut slot_vars = BTreeMap::<crate::LocalSlotId, Variable>::new();
+        let mut slot_types = BTreeMap::<crate::LocalSlotId, types::Type>::new();
+        let value_kinds = infer_value_kinds(
+            function,
+            &self.records,
+            &self.native_enums,
+            &self.program.functions,
+        )?;
+        for local in &function.mutable_locals {
+            let kind = native_value_kind(&local.ty, &self.records, &self.native_enums)?;
+            let var = builder.declare_var(match kind {
+                crate::CodegenValueKind::F64 => types::F64,
+                _ => types::I64,
+            });
+            slot_vars.insert(local.slot, var);
+            slot_types.insert(
+                local.slot,
+                match kind {
+                    crate::CodegenValueKind::F64 => types::F64,
+                    _ => types::I64,
+                },
+            );
+        }
+
+        let mut list_headers = BTreeMap::<cranelift_codegen::ir::Value, ListHeader>::new();
+        let _falls_through = lower_insts(
+            function_ids,
+            data_ids,
+            self.allocator_id,
+            self.alloc_push_id,
+            self.alloc_pop_id,
+            self.text_builder_new_id,
+            self.text_builder_append_id,
+            self.text_builder_append_codepoint_id,
+            self.text_builder_append_ascii_id,
+            self.text_builder_append_slice_id,
+            self.text_builder_append_i32_id,
+            self.text_builder_finish_id,
+            self.stdout_write_builder_id,
+            &self.text_index_helpers,
+            self.list_new_id,
+            self.list_push_id,
+            self.list_sort_text_id,
+            self.list_sort_by_text_field_id,
+            self.text_concat_id,
+            self.text_slice_id,
+            self.bytes_slice_id,
+            self.text_eq_range_id,
+            self.text_find_byte_range_id,
+            self.text_line_end_id,
+            self.text_next_line_id,
+            self.text_field_end_id,
+            self.text_next_field_id,
+            self.text_from_f64_fixed_id,
+            self.parse_i32_id,
+            self.parse_i32_range_id,
+            self.parse_f64_id,
+            self.arg_count_id,
+            self.arg_text_id,
+            self.stdin_text_id,
+            self.stdout_write_id,
+            self.text_eq_id,
+            self.text_cmp_id,
+            &self.records,
+            &self.native_enums,
+            &value_kinds,
+            module,
+            function,
+            &mut builder,
+            &block_params,
+            &slot_vars,
+            &slot_types,
+            &mut values,
+            &mut list_headers,
+            &TrustedListAccesses::default(),
+            &function.instructions,
+            "clif",
+        )?;
+
+        if _falls_through {
+            let result = match function.result {
+                Some(value) => {
+                    value_repr(&values, value, function, "return").map_err(|e| e.to_string())?
+                }
                 None => ValueRepr::Unit,
             };
             match result {

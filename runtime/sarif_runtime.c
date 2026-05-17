@@ -1490,7 +1490,10 @@ int main(int argc, char** argv) {
 #endif
 #elif SARIF_MAIN_KIND == 3
     const unsigned char* text = (const unsigned char*)(uintptr_t)sarif_user_main();
-    return sarif_write_text_blob(text, 0);
+    if (sarif_write_text_blob(text, 0) != 0) {
+        return 1;
+    }
+    return sarif_write_byte('\n') != 0 ? 1 : 0;
 #elif SARIF_MAIN_KIND == 4
     const unsigned char* record = (const unsigned char*)(uintptr_t)sarif_user_main();
     if (sarif_write_record(record, sarif_get_main_record_desc()) != 0) {

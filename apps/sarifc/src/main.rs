@@ -16,9 +16,9 @@ use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
 #[cfg(feature = "codegen")]
-use sarif_codegen::emit_object;
-#[cfg(feature = "codegen")]
 use sarif_codegen::{RuntimeError, RuntimeValue, analyze_escapes, lower as lower_mir};
+#[cfg(feature = "codegen")]
+use sarif_codegen::{emit_clif, emit_object};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
 use sarif_frontend::semantic::Profile;
@@ -464,10 +464,14 @@ fn emit_requested_dump(loaded: &LoadedSource, command: &command::Command) -> Res
         "lower" => render_lower_dump(loaded),
         #[cfg(not(feature = "codegen"))]
         "lower" => return Err("lower IR dumps require the `codegen` feature".to_owned()),
+        #[cfg(feature = "native-build")]
+        "clif" => emit_clif(&loaded.mir().program).map_err(|e| e.message)?,
+        #[cfg(not(feature = "native-build"))]
+        "clif" => return Err("clif IR dumps require the `native-build` feature".to_owned()),
         "codegen" => render_codegen_dump(loaded, command)?,
         other => {
             return Err(format!(
-                "unknown IR dump pass `{other}`; expected resolve, typecheck, lower, or codegen"
+                "unknown IR dump pass `{other}`; expected resolve, typecheck, lower, clif, or codegen"
             ));
         }
     };
