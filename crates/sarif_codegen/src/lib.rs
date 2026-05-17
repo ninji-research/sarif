@@ -3090,7 +3090,7 @@ impl ConstEvaluator<'_, '_> {
     }
 }
 
-fn expect_const_int(value: &RuntimeValue, span: Span) -> Result<i64, ConstEvalError> {
+pub(crate) fn expect_const_int(value: &RuntimeValue, span: Span) -> Result<i64, ConstEvalError> {
     match value {
         RuntimeValue::Int(value) => Ok(*value),
         other => Err(ConstEvalError::new(
@@ -3103,7 +3103,7 @@ fn expect_const_int(value: &RuntimeValue, span: Span) -> Result<i64, ConstEvalEr
     }
 }
 
-fn expect_const_bool(value: &RuntimeValue, span: Span) -> Result<bool, ConstEvalError> {
+pub(crate) fn expect_const_bool(value: &RuntimeValue, span: Span) -> Result<bool, ConstEvalError> {
     match value {
         RuntimeValue::Bool(value) => Ok(*value),
         other => Err(ConstEvalError::new(
@@ -3392,7 +3392,7 @@ struct BodyLowering {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum LowerType {
+pub(crate) enum LowerType {
     I32,
     F64,
     Bool,
@@ -3474,7 +3474,7 @@ fn parse_array_lower_type(name: &str, substitutions: &HashMap<String, usize>) ->
     ))
 }
 
-fn lower_type_name(ty: &LowerType) -> Option<String> {
+pub(crate) fn lower_type_name(ty: &LowerType) -> Option<String> {
     match ty {
         LowerType::Array(element, len) => Some(array_struct_name(&lower_type_name(element)?, *len)),
         _ => ty.type_name(),
@@ -7461,7 +7461,7 @@ fn resolve_const_eval_len_value(
     }
 }
 
-fn resolve_const_eval_len(
+pub(crate) fn resolve_const_eval_len(
     len: &sarif_frontend::hir::ConstExpr,
     env: &ConstEnv,
     span: Span,
@@ -7500,7 +7500,7 @@ fn body_returns_unit(body: &sarif_frontend::hir::Body) -> bool {
     body.tail.as_ref().is_none_or(expr_returns_unit)
 }
 
-fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
+pub(crate) fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
     match value {
         RuntimeValue::Int(_) => LowerType::I32,
         RuntimeValue::F64(_) => LowerType::F64,
@@ -7543,7 +7543,7 @@ fn render_runtime_record(record: &RuntimeRecord) -> String {
     )
 }
 
-fn synthetic_array_record_info(record: &RuntimeRecord) -> Option<(LowerType, usize)> {
+pub(crate) fn synthetic_array_record_info(record: &RuntimeRecord) -> Option<(LowerType, usize)> {
     if !record.name.starts_with("__Array_") || record.fields.is_empty() {
         return None;
     }
@@ -7564,7 +7564,7 @@ fn synthetic_array_record_info(record: &RuntimeRecord) -> Option<(LowerType, usi
     Some((element_ty, record.fields.len()))
 }
 
-fn update_runtime_array_index(
+pub(crate) fn update_runtime_array_index(
     value: RuntimeValue,
     index: i64,
     replacement: RuntimeValue,
@@ -7612,7 +7612,7 @@ fn update_runtime_record_field(
     Ok(RuntimeValue::Record(record))
 }
 
-fn update_runtime_array_record_field(
+pub(crate) fn update_runtime_array_record_field(
     value: RuntimeValue,
     index: i64,
     field: &str,
@@ -7644,7 +7644,7 @@ fn update_runtime_array_record_field(
     Ok(RuntimeValue::Record(record))
 }
 
-fn array_struct_name(element_ty: &str, len: usize) -> String {
+pub(crate) fn array_struct_name(element_ty: &str, len: usize) -> String {
     let sanitized = element_ty
         .chars()
         .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
@@ -7652,11 +7652,11 @@ fn array_struct_name(element_ty: &str, len: usize) -> String {
     format!("__Array_{sanitized}_{len}")
 }
 
-fn array_field_name(index: usize) -> String {
+pub(crate) fn array_field_name(index: usize) -> String {
     format!("slot{index}")
 }
 
-fn split_enum_variant_path(path: &str) -> Option<(&str, &str)> {
+pub(crate) fn split_enum_variant_path(path: &str) -> Option<(&str, &str)> {
     let (enum_name, variant) = path.rsplit_once('.')?;
     (!enum_name.is_empty() && !variant.is_empty()).then_some((enum_name, variant))
 }
@@ -9556,7 +9556,7 @@ fn run_equality(
     Ok(())
 }
 
-fn format_f64_fixed(value: f64, digits: i64) -> String {
+pub(crate) fn format_f64_fixed(value: f64, digits: i64) -> String {
     let digits = clamp_fixed_decimal_digits(digits);
     format!("{value:.digits$}")
 }
@@ -9571,7 +9571,7 @@ const fn clamp_fixed_decimal_digits(digits: i64) -> usize {
     }
 }
 
-fn slice_text(text: &str, start: i64, end: i64) -> String {
+pub(crate) fn slice_text(text: &str, start: i64, end: i64) -> String {
     let bytes = text.as_bytes();
     let start = clamp_text_slice_start(bytes, start);
     let end = clamp_text_slice_end(bytes, end);
