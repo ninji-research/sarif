@@ -216,6 +216,8 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
             }
             crate::hir::Item::Enum(enum_item) => {
                 let mut variants = Vec::new();
+                let mut used_discriminants: BTreeSet<u32> = BTreeSet::new();
+                let mut next_auto = 0u32;
                 for variant in &enum_item.variants {
                     if let Some(payload) = &variant.payload {
                         check_type_exists(
@@ -226,6 +228,23 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                             payload.span,
                             "variant payload type",
                         );
+                    }
+                    if let Some(crate::hir::ConstExpr::Literal(value)) = &variant.discriminant {
+                        if used_discriminants.contains(value) {
+                            diagnostics.push(Diagnostic::new(
+                                "semantic.enum-discriminant-duplicate",
+                                format!(
+                                    "enum variant `{}` has discriminant value {} which is already used by another variant",
+                                    variant.name, value
+                                ),
+                                variant.span,
+                                Some("Use unique discriminant values for each enum variant.".to_owned()),
+                            ));
+                        }
+                        used_discriminants.insert(*value);
+                        next_auto = value.wrapping_add(1);
+                    } else {
+                        next_auto = next_auto.wrapping_add(1);
                     }
                     variants.push(EnumVariantInfo {
                         name: variant.name.clone(),

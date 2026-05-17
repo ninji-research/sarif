@@ -445,6 +445,63 @@ pub(super) fn infer_call_expr(
         };
     }
 
+    if expr.callee == "const_assert" && !functions.contains_key("const_assert") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.const_assert-arity",
+                format!(
+                    "builtin `const_assert` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `const_assert(condition)` with exactly one Bool argument.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Bool && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.const_assert-type",
+                format!(
+                    "builtin `const_assert` expects Bool, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a Bool condition.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::Bool {
+            return ExprInfo {
+                ty: Type::Unit,
+                calls,
+            };
+        }
+        let Expr::Bool(bool_expr) = &expr.args[0] else {
+            return ExprInfo {
+                ty: Type::Unit,
+                calls,
+            };
+        };
+        if !bool_expr.value {
+            diagnostics.push(Diagnostic::new(
+                "semantic.const_assert-failed",
+                "const_assert failed: condition evaluated to false at compile time",
+                expr.args[0].span(),
+                None,
+            ));
+        }
+        return ExprInfo {
+            ty: Type::Unit,
+            calls,
+        };
+    }
+
     if expr.callee == "text_len" && !functions.contains_key("text_len") {
         return infer_fixed_builtin_expr(
             expr,

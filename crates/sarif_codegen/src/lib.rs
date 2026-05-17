@@ -2466,6 +2466,30 @@ impl ConstEvaluator<'_, '_> {
                 payload,
             })));
         }
+        if expr.callee == "const_assert" && !self.functions.contains_key("const_assert") {
+            let [arg] = expr.args.as_slice() else {
+                return Err(ConstEvalError::new(
+                    expr.span,
+                    "const_assert expects exactly one argument",
+                ));
+            };
+            let value = self.eval_expr_value(arg, env)?;
+            let RuntimeValue::Bool(condition) = value else {
+                return Err(ConstEvalError::new(
+                    expr.span,
+                    "const_assert expects a Bool",
+                ));
+            };
+            if !condition {
+                self.diagnostics.push(Diagnostic::new(
+                    "const_assert-failed",
+                    "const_assert failed: condition evaluated to false at compile time",
+                    arg.span(),
+                    None,
+                ));
+            }
+            return Ok(ConstFlow::Value(RuntimeValue::Unit));
+        }
         let args = expr
             .args
             .iter()
@@ -2593,12 +2617,27 @@ impl ConstEvaluator<'_, '_> {
         match base {
             RuntimeValue::Record(record) => {
                 let Some((_, len)) = synthetic_array_record_info(&record) else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "codegen.array-index-base",
+                        "compile-time indexing requires an internal array value",
+                        expr.base.span(),
+                        None,
+                    ));
                     return Err(ConstEvalError::new(
                         expr.base.span(),
                         "compile-time indexing requires an internal array value",
                     ));
                 };
                 let Some((_, value)) = record.fields.get(index) else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "codegen.array-index-out-of-bounds",
+                        format!(
+                            "constant array index {} is out of bounds (array has {} elements)",
+                            index, len
+                        ),
+                        expr.span,
+                        None,
+                    ));
                     return Err(ConstEvalError::new(
                         expr.span,
                         format!(
@@ -2611,6 +2650,16 @@ impl ConstEvaluator<'_, '_> {
             RuntimeValue::Text(text) => {
                 let bytes = text.as_bytes();
                 let Some(byte) = bytes.get(index) else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "codegen.text-index-out-of-bounds",
+                        format!(
+                            "constant text index {} is out of bounds (text has {} bytes)",
+                            index,
+                            bytes.len()
+                        ),
+                        expr.span,
+                        None,
+                    ));
                     return Err(ConstEvalError::new(
                         expr.span,
                         format!(
@@ -2621,10 +2670,18 @@ impl ConstEvaluator<'_, '_> {
                 };
                 Ok(ConstFlow::Value(RuntimeValue::Int(i64::from(*byte))))
             }
-            _ => Err(ConstEvalError::new(
-                expr.base.span(),
-                "compile-time indexing requires an internal array or Text value",
-            )),
+            _ => {
+                self.diagnostics.push(Diagnostic::new(
+                    "codegen.array-index-base",
+                    "compile-time indexing requires an internal array or Text value",
+                    expr.base.span(),
+                    None,
+                ));
+                Err(ConstEvalError::new(
+                    expr.base.span(),
+                    "compile-time indexing requires an internal array or Text value",
+                ))
+            }
         }
     }
 
@@ -3698,6 +3755,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "codepoint_to_text" if self.builtin_is_available("codepoint_to_text") => {
                 self.lower_codepoint_to_text_expr(expr)
             }
+            "const_assert" if self.builtin_is_available("const_assert") => {
+                self.lower_const_assert_expr(expr)
+            }
             _ => return None,
         };
         Some(lowered)
@@ -3817,6 +3877,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "codepoint_to_text" if self.builtin_is_available("codepoint_to_text") => {
                 LowerType::Text
             }
+            "const_assert" if self.builtin_is_available("const_assert") => LowerType::Unit,
             _ => return None,
         };
         Some(ty)
@@ -4031,7 +4092,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     active_functions: Vec::new(),
                     next_slot: 0,
                     contract_result: None,
-                    diagnostics: &mut Vec::new(),
+                    diagnostics: &mut self.diagnostics,
                 };
                 let mut env = ConstEnv::default();
                 // Comptime should probably not capture locals unless they are const.
@@ -7309,6 +7370,46 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
 
     fn lower_alloc_pop_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         self.instructions.push(Inst::AllocPop);
+        self.emit_unit_value()
+    }
+
+    fn lower_const_assert_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            self.diagnostics.push(Diagnostic::new(
+                "codegen.const_assert",
+                "const_assert requires exactly one argument",
+                expr.span,
+                Some("Usage: const_assert(condition)".to_owned()),
+            ));
+            return self.emit_unit_value();
+        };
+        let is_true = match arg {
+            Expr::Bool(b) => Some(b.value),
+            Expr::Name(name) => match self.evaluated_consts.get(&name.name) {
+                Some(RuntimeValue::Bool(b)) => Some(*b),
+                _ => None,
+            },
+            _ => None,
+        };
+        match is_true {
+            Some(true) => {}
+            Some(false) => {
+                self.diagnostics.push(Diagnostic::new(
+                    "codegen.const_assert-failed",
+                    "const_assert failed: condition evaluated to false at compile time",
+                    arg.span(),
+                    None,
+                ));
+            }
+            None => {
+                self.diagnostics.push(Diagnostic::new(
+                    "codegen.const_assert",
+                    "const_assert requires a compile-time constant boolean argument",
+                    arg.span(),
+                    Some("Use a literal boolean or a const value.".to_owned()),
+                ));
+            }
+        }
         self.emit_unit_value()
     }
 
