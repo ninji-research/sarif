@@ -207,27 +207,27 @@ impl NodeKind {
     pub const fn is_expr(&self) -> bool {
         matches!(
             self,
-            NodeKind::ExprBinary
-                | NodeKind::ExprBool
-                | NodeKind::ExprCall
-                | NodeKind::ExprArray
-                | NodeKind::ExprContractResult
-                | NodeKind::ExprField
-                | NodeKind::ExprIndex
-                | NodeKind::ExprIf
-                | NodeKind::ExprMatch
-                | NodeKind::ExprRepeat
-                | NodeKind::ExprWhile
-                | NodeKind::ExprGroup
-                | NodeKind::ExprInteger
-                | NodeKind::ExprFloat
-                | NodeKind::ExprName
-                | NodeKind::ExprRecord
-                | NodeKind::ExprUnary
-                | NodeKind::ExprString
-                | NodeKind::ExprComptime
-                | NodeKind::ExprPerform
-                | NodeKind::ExprHandle
+            Self::ExprBinary
+                | Self::ExprBool
+                | Self::ExprCall
+                | Self::ExprArray
+                | Self::ExprContractResult
+                | Self::ExprField
+                | Self::ExprIndex
+                | Self::ExprIf
+                | Self::ExprMatch
+                | Self::ExprRepeat
+                | Self::ExprWhile
+                | Self::ExprGroup
+                | Self::ExprInteger
+                | Self::ExprFloat
+                | Self::ExprName
+                | Self::ExprRecord
+                | Self::ExprUnary
+                | Self::ExprString
+                | Self::ExprComptime
+                | Self::ExprPerform
+                | Self::ExprHandle
         )
     }
 }

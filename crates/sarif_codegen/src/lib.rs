@@ -8875,10 +8875,7 @@ impl<'a> Interpreter<'a> {
                             ))
                         })?;
                     let discriminant = discriminants.get(index).copied().unwrap_or(index as u32);
-                    values[dest.0 as usize] =
-                        RuntimeValue::Int(i64::try_from(discriminant).map_err(|_| {
-                            RuntimeError::new("enum discriminant exceeds stage-0 limits")
-                        })?);
+                    values[dest.0 as usize] = RuntimeValue::Int(i64::from(discriminant));
                 }
                 Inst::EnumToText { dest, value, .. } => {
                     let value = extract_value(values, *value)?;

@@ -942,10 +942,7 @@ fn lower_enum(item: &ast::Enum) -> Enum {
                     .payload
                     .as_ref()
                     .map(|payload| lower_type(payload, variant.span)),
-                discriminant: variant
-                    .discriminant
-                    .as_ref()
-                    .and_then(|expr| lower_const_expr(expr)),
+                discriminant: variant.discriminant.as_ref().and_then(lower_const_expr),
                 span: variant.span,
             })
             .collect(),
