@@ -1149,10 +1149,10 @@ impl Inst {
                 )
             }
             Self::EnumToI32 {
-                        dest,
-                        value,
-                        discriminants,
-                    } => {
+                dest,
+                value,
+                discriminants,
+            } => {
                 format!(
                     "{} = enum-to-i32 {} ({:?})",
                     dest.render(),
@@ -3814,7 +3814,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "parse_f64" if self.builtin_is_available("parse_f64") => LowerType::F64,
             "enum_to_i32" if self.builtin_is_available("enum_to_i32") => LowerType::I32,
             "enum_to_text" if self.builtin_is_available("enum_to_text") => LowerType::Text,
-            "codepoint_to_text" if self.builtin_is_available("codepoint_to_text") => LowerType::Text,
+            "codepoint_to_text" if self.builtin_is_available("codepoint_to_text") => {
+                LowerType::Text
+            }
             _ => return None,
         };
         Some(ty)
@@ -6562,8 +6564,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         };
         let discriminants = self.compute_effective_discriminants(&enum_type);
         let dest = self.fresh_value();
-        self.instructions
-            .push(Inst::EnumToI32 { dest, value, discriminants });
+        self.instructions.push(Inst::EnumToI32 {
+            dest,
+            value,
+            discriminants,
+        });
         dest
     }
 
@@ -6628,7 +6633,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         };
         let value = self.lower_expr(arg);
         let builder = self.fresh_value();
-        self.instructions.push(Inst::TextBuilderNew { dest: builder });
+        self.instructions
+            .push(Inst::TextBuilderNew { dest: builder });
         let after_append = self.fresh_value();
         self.instructions.push(Inst::TextBuilderAppendCodepoint {
             dest: after_append,
@@ -6636,8 +6642,10 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             codepoint: value,
         });
         let dest = self.fresh_value();
-        self.instructions
-            .push(Inst::TextBuilderFinish { dest, builder: after_append });
+        self.instructions.push(Inst::TextBuilderFinish {
+            dest,
+            builder: after_append,
+        });
         dest
     }
 
@@ -8843,10 +8851,10 @@ impl<'a> Interpreter<'a> {
                     values[dest.0 as usize] = payload;
                 }
                 Inst::EnumToI32 {
-                        dest,
-                        value,
-                        discriminants,
-                    } => {
+                    dest,
+                    value,
+                    discriminants,
+                } => {
                     let value = extract_value(values, *value)?;
                     let RuntimeValue::Enum(enum_value) = value else {
                         return Err(RuntimeError::new("expected enum value for enum_to_i32"));

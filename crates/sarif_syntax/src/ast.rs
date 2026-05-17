@@ -1141,12 +1141,14 @@ impl Lowerer {
                                             if matches!(
                                                 node.kind,
                                                 NodeKind::TypePath | NodeKind::TypeArray
-                                            ) && payload.is_none() && !after_eq =>
+                                            ) && payload.is_none()
+                                                && !after_eq =>
                                         {
                                             payload = self.lower_type_path(node);
                                         }
                                         Element::Node(node)
-                                            if node.kind.is_expr() && after_eq
+                                            if node.kind.is_expr()
+                                                && after_eq
                                                 && discriminant.is_none() =>
                                         {
                                             discriminant = self.lower_expr(node);

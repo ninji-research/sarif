@@ -927,11 +927,11 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-Inst::EnumToI32 {
-                        dest,
-                        value,
-                        discriminants,
-                    } => {
+            Inst::EnumToI32 {
+                dest,
+                value,
+                discriminants,
+            } => {
                 writeln!(output, "    local.get ${}", wasm_id(*value))
                     .expect("writing to a string cannot fail");
                 let WasmValueKind::Enum(enum_name) = &kinds[value] else {
@@ -949,8 +949,7 @@ Inst::EnumToI32 {
                 for (i, &disc) in discriminants.iter().enumerate().rev() {
                     writeln!(output, "    local.get ${}", tag_reg)
                         .expect("writing to string cannot fail");
-                    writeln!(output, "    i32.const {}", i)
-                        .expect("writing to string cannot fail");
+                    writeln!(output, "    i32.const {}", i).expect("writing to string cannot fail");
                     writeln!(output, "    i32.eq").expect("writing to string cannot fail");
                     writeln!(output, "    i32.const {}", disc)
                         .expect("writing to string cannot fail");
@@ -967,7 +966,7 @@ Inst::EnumToI32 {
                 }
                 writeln!(output, "    local.get ${}", result_reg)
                     .expect("writing to string cannot fail");
-writeln!(output, "    local.set ${}", wasm_id(*dest))
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to string cannot fail");
             }
             Inst::EnumToText {

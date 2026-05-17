@@ -2493,10 +2493,10 @@ pub fn lower_inst<M: Module>(
         )
         .map(|()| true),
         Inst::EnumToI32 {
-                        dest,
-                        value,
-                        discriminants,
-                    } => {
+            dest,
+            value,
+            discriminants,
+        } => {
             let src = native_value(values, *value, function, "enum value", backend)?;
             let src = if let Some(NativeValueKind::Enum(enum_name)) = value_kinds.get(value) {
                 let enum_ty = enums

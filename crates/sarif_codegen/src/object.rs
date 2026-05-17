@@ -110,20 +110,6 @@ impl<'a> ObjectBackend<'a> {
         flag_builder.set("opt_level", "speed").map_err(|error| {
             ObjectError::new(format!("failed to set cranelift opt_level: {error}"))
         })?;
-        flag_builder
-            .set("enable_alias_analysis", "true")
-            .map_err(|error| {
-                ObjectError::new(format!(
-                    "failed to set cranelift enable_alias_analysis: {error}"
-                ))
-            })?;
-        flag_builder
-            .set("enable_llvm_abi_extensions", "true")
-            .map_err(|error| {
-                ObjectError::new(format!(
-                    "failed to set cranelift enable_llvm_abi_extensions: {error}"
-                ))
-            })?;
         let isa_builder = cranelift_native::builder()
             .map_err(|error| ObjectError::new(format!("failed to build native ISA: {error}")))?;
         let isa = isa_builder
