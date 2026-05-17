@@ -1183,9 +1183,7 @@ fn lower_array_len(len: &ast::ArrayLen) -> ConstExpr {
 
 fn lower_const_expr(expr: &ast::Expr) -> Option<ConstExpr> {
     match expr {
-        ast::Expr::Integer(expr) => {
-            Some(ConstExpr::Literal(u32::try_from(expr.value).unwrap_or(0)))
-        }
+        ast::Expr::Integer(expr) => Some(ConstExpr::Literal(u32::try_from(expr.value).ok()?)),
         ast::Expr::Name(expr) => Some(ConstExpr::Param(expr.name.clone())),
         ast::Expr::Binary(expr) => {
             let op = match expr.op {

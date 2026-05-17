@@ -573,4 +573,56 @@ fn main() -> Text effects [alloc] { outer() }",
             "allocating callee should trigger on caller"
         );
     }
+
+    #[test]
+    fn negative_enum_discriminant_does_not_collide_with_explicit() {
+        let mir = lower_source(
+            "\
+enum Color {
+    ExplicitZero = 0,
+    Negative = -1,
+    Next,
+}
+fn main() -> I32 effects [alloc] { enum_to_i32(Color.Next {}) }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        let result = crate::run_main(&mir.program).unwrap();
+        // Old bug: Negative = 0 (truncated from -1), colliding with ExplicitZero = 0.
+        // Then Next = 1 (auto-increment from 0), so Next would return 1.
+        // After fix: Negative auto-increments to 1 (skipping 0), Next = 2.
+        assert_eq!(
+            result,
+            crate::RuntimeValue::Int(2),
+            "Next should auto-increment to 2 (ExplicitZero=0, Negative=1, Next=2)"
+        );
+    }
+
+    #[test]
+    fn positive_enum_discriminants_still_work() {
+        let mir = lower_source(
+            "\
+enum Color {
+    Red = 10,
+    Blue,
+    Green = 20,
+    Yellow,
+}
+fn main() -> I32 effects [alloc] { enum_to_i32(Color.Yellow {}) }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        let result = crate::run_main(&mir.program).unwrap();
+        assert_eq!(
+            result,
+            crate::RuntimeValue::Int(21),
+            "Yellow should be 21 (Green=20, auto-increment)"
+        );
+    }
 }
