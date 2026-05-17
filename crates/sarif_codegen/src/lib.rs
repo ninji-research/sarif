@@ -3695,6 +3695,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "enum_to_text" if self.builtin_is_available("enum_to_text") => {
                 self.lower_enum_to_text_expr(expr)
             }
+            "codepoint_to_text" if self.builtin_is_available("codepoint_to_text") => {
+                self.lower_codepoint_to_text_expr(expr)
+            }
             _ => return None,
         };
         Some(lowered)
@@ -3811,6 +3814,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "parse_f64" if self.builtin_is_available("parse_f64") => LowerType::F64,
             "enum_to_i32" if self.builtin_is_available("enum_to_i32") => LowerType::I32,
             "enum_to_text" if self.builtin_is_available("enum_to_text") => LowerType::Text,
+            "codepoint_to_text" if self.builtin_is_available("codepoint_to_text") => LowerType::Text,
             _ => return None,
         };
         Some(ty)
@@ -6615,6 +6619,25 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             value,
             variant_names,
         });
+        dest
+    }
+
+    fn lower_codepoint_to_text_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let value = self.lower_expr(arg);
+        let builder = self.fresh_value();
+        self.instructions.push(Inst::TextBuilderNew { dest: builder });
+        let after_append = self.fresh_value();
+        self.instructions.push(Inst::TextBuilderAppendCodepoint {
+            dest: after_append,
+            builder,
+            codepoint: value,
+        });
+        let dest = self.fresh_value();
+        self.instructions
+            .push(Inst::TextBuilderFinish { dest, builder: after_append });
         dest
     }
 

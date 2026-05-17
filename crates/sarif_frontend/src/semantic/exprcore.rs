@@ -2043,6 +2043,49 @@ must have type `Text`, found `{}`",
         };
     }
 
+    if expr.callee == "codepoint_to_text" && !functions.contains_key("codepoint_to_text") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.codepoint_to_text-arity",
+                format!(
+                    "builtin `codepoint_to_text` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `codepoint_to_text(value)` with an I32 codepoint.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let Some(first_arg) = args.first() else {
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        };
+        if first_arg.ty != Type::I32 && first_arg.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.codepoint_to_text-type",
+                format!(
+                    "builtin `codepoint_to_text` expects I32 argument but got `{}`",
+                    first_arg.ty.render()
+                ),
+                expr.span,
+                Some("Pass an I32 Unicode codepoint to `codepoint_to_text`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
     if let Some((enum_name, variant)) = enum_variant_info(&expr.callee, enum_variants) {
         let expected_arity = usize::from(variant.payload.is_some());
         if args.len() != expected_arity {
