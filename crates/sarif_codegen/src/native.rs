@@ -2592,7 +2592,7 @@ pub fn lower_inst<M: Module>(
                         )
                     })?;
                 builder.ins().store(
-                    MemFlags::new(),
+                    MemFlags::trusted(),
                     native_value(values, source, function, "record field", backend)?,
                     ptr,
                     i32::try_from(field.offset)
@@ -2626,7 +2626,7 @@ pub fn lower_inst<M: Module>(
             let base = native_value(values, *base, function, "field base", backend)?;
             let native = builder.ins().load(
                 native_kind_type(&field.kind),
-                MemFlags::new(),
+                MemFlags::trusted(),
                 base,
                 i32::try_from(field.offset)
                     .map_err(|_| format!("{backend} record offset exceeds backend limits"))?,
