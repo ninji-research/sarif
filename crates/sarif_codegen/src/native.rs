@@ -2492,7 +2492,11 @@ pub fn lower_inst<M: Module>(
             backend,
         )
         .map(|()| true),
-        Inst::EnumToI32 { dest, value } => {
+        Inst::EnumToI32 {
+                        dest,
+                        value,
+                        discriminants,
+                    } => {
             let src = native_value(values, *value, function, "enum value", backend)?;
             let src = if let Some(NativeValueKind::Enum(enum_name)) = value_kinds.get(value) {
                 let enum_ty = enums
@@ -2506,7 +2510,21 @@ pub fn lower_inst<M: Module>(
             } else {
                 src
             };
-            let native = builder.ins().ireduce(types::I32, src);
+            let native = if discriminants.len() == 1 {
+                builder.ins().iconst(types::I32, discriminants[0] as i64)
+            } else {
+                let mut result: Option<cranelift_codegen::ir::Value> = None;
+                for (i, &disc) in discriminants.iter().enumerate() {
+                    let tag = builder.ins().iconst(types::I32, i as i64);
+                    let cond = builder.ins().icmp(IntCC::Equal, src, tag);
+                    let disc_val = builder.ins().iconst(types::I32, disc as i64);
+                    result = Some(match result {
+                        Some(prev) => builder.ins().select(cond, disc_val, prev),
+                        None => disc_val,
+                    });
+                }
+                result.unwrap_or_else(|| builder.ins().iconst(types::I32, 0))
+            };
             values.insert(*dest, NativeValueRepr::Native(native));
             Ok(true)
         }

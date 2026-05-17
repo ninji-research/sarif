@@ -101,6 +101,7 @@ pub struct ConstSignature {
 pub struct EnumVariantInfo {
     pub name: String,
     pub payload: Option<Type>,
+    pub discriminant: Option<crate::hir::ConstExpr>,
 }
 
 #[derive(Clone, Debug)]

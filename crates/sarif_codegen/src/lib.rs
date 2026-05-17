@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
-use sarif_frontend::hir::{BinaryOp, Expr, Item, Module, Stmt};
+use sarif_frontend::hir::{BinaryOp, ConstExpr, Expr, Item, Module, Stmt};
 use sarif_syntax::{Diagnostic, Span};
 
 #[cfg(feature = "backend-native")]
@@ -172,6 +172,7 @@ pub struct EnumType {
 pub struct EnumVariantType {
     pub name: String,
     pub payload_type: Option<String>,
+    pub discriminant: Option<ConstExpr>,
 }
 
 #[derive(Clone, Debug)]
@@ -597,6 +598,7 @@ pub enum Inst {
     EnumToI32 {
         dest: ValueId,
         value: ValueId,
+        discriminants: Vec<u32>,
     },
     EnumToText {
         dest: ValueId,
@@ -1146,8 +1148,17 @@ impl Inst {
                     payload_type
                 )
             }
-            Self::EnumToI32 { dest, value } => {
-                format!("{} = enum-to-i32 {}", dest.render(), value.render())
+            Self::EnumToI32 {
+                        dest,
+                        value,
+                        discriminants,
+                    } => {
+                format!(
+                    "{} = enum-to-i32 {} ({:?})",
+                    dest.render(),
+                    value.render(),
+                    discriminants
+                )
             }
             Self::EnumToText { dest, value, .. } => {
                 format!("{} = enum-to-text {}", dest.render(), value.render())
@@ -1504,6 +1515,7 @@ pub fn lower(module: &Module) -> MirLowering {
                     .map(|variant| EnumVariantType {
                         name: variant.name.clone(),
                         payload_type: variant.payload.as_ref().map(|payload| payload.path.clone()),
+                        discriminant: variant.discriminant.clone(),
                     })
                     .collect::<Vec<_>>(),
             )),
@@ -1609,6 +1621,7 @@ pub fn lower(module: &Module) -> MirLowering {
                                 .payload
                                 .as_ref()
                                 .map(|payload| payload.path.clone()),
+                            discriminant: variant.discriminant.clone(),
                         })
                         .collect(),
                 });
@@ -6539,9 +6552,48 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             return self.emit_unit_value();
         };
         let value = self.lower_expr(arg);
+        let enum_type = match self.infer_expr_type(arg) {
+            LowerType::Named(name) => name,
+            _ => return self.emit_unit_value(),
+        };
+        let discriminants = self.compute_effective_discriminants(&enum_type);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::EnumToI32 { dest, value });
+        self.instructions
+            .push(Inst::EnumToI32 { dest, value, discriminants });
         dest
+    }
+
+    fn compute_effective_discriminants(&self, enum_type: &str) -> Vec<u32> {
+        let Some(variants) = self.enum_variants.get(enum_type) else {
+            return Vec::new();
+        };
+        let mut result = Vec::new();
+        let mut next_auto = 0u32;
+        for variant in variants {
+            let disc = match variant.discriminant.as_ref() {
+                Some(cd) => {
+                    let eval_result = cd.eval(&BTreeMap::new());
+                    match eval_result {
+                        Some(v) => {
+                            next_auto = v.wrapping_add(1);
+                            v
+                        }
+                        None => {
+                            let v = next_auto;
+                            next_auto = next_auto.wrapping_add(1);
+                            v
+                        }
+                    }
+                }
+                None => {
+                    let v = next_auto;
+                    next_auto = next_auto.wrapping_add(1);
+                    v
+                }
+            };
+            result.push(disc);
+        }
+        result
     }
 
     fn lower_enum_to_text_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
@@ -8767,7 +8819,11 @@ impl<'a> Interpreter<'a> {
                         .ok_or_else(|| RuntimeError::new("enum variant has no payload"))?;
                     values[dest.0 as usize] = payload;
                 }
-                Inst::EnumToI32 { dest, value } => {
+                Inst::EnumToI32 {
+                        dest,
+                        value,
+                        discriminants,
+                    } => {
                     let value = extract_value(values, *value)?;
                     let RuntimeValue::Enum(enum_value) = value else {
                         return Err(RuntimeError::new("expected enum value for enum_to_i32"));
@@ -8787,9 +8843,10 @@ impl<'a> Interpreter<'a> {
                                 enum_value.variant, enum_value.name
                             ))
                         })?;
+                    let discriminant = discriminants.get(index).copied().unwrap_or(index as u32);
                     values[dest.0 as usize] =
-                        RuntimeValue::Int(i64::try_from(index).map_err(|_| {
-                            RuntimeError::new("enum variant index exceeds stage-0 limits")
+                        RuntimeValue::Int(i64::try_from(discriminant).map_err(|_| {
+                            RuntimeError::new("enum discriminant exceeds stage-0 limits")
                         })?);
                 }
                 Inst::EnumToText { dest, value, .. } => {

@@ -927,7 +927,11 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::EnumToI32 { dest, value } => {
+Inst::EnumToI32 {
+                        dest,
+                        value,
+                        discriminants,
+                    } => {
                 writeln!(output, "    local.get ${}", wasm_id(*value))
                     .expect("writing to a string cannot fail");
                 let WasmValueKind::Enum(enum_name) = &kinds[value] else {
@@ -938,8 +942,33 @@ impl<'a> WasmEmitter<'a> {
                     writeln!(output, "    i64.load").expect("writing to a string cannot fail");
                 }
                 writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
-                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                let tag_reg = format!("__tag_{}", dest.0);
+                writeln!(output, "    local.set ${}", tag_reg)
                     .expect("writing to a string cannot fail");
+                let result_reg = format!("__result_{}", dest.0);
+                for (i, &disc) in discriminants.iter().enumerate().rev() {
+                    writeln!(output, "    local.get ${}", tag_reg)
+                        .expect("writing to string cannot fail");
+                    writeln!(output, "    i32.const {}", i)
+                        .expect("writing to string cannot fail");
+                    writeln!(output, "    i32.eq").expect("writing to string cannot fail");
+                    writeln!(output, "    i32.const {}", disc)
+                        .expect("writing to string cannot fail");
+                    if i == discriminants.len() - 1 {
+                        writeln!(output, "    local.set ${}", result_reg)
+                            .expect("writing to string cannot fail");
+                    } else {
+                        writeln!(output, "    local.get ${}", result_reg)
+                            .expect("writing to string cannot fail");
+                        writeln!(output, "    select").expect("writing to string cannot fail");
+                        writeln!(output, "    local.set ${}", result_reg)
+                            .expect("writing to string cannot fail");
+                    }
+                }
+                writeln!(output, "    local.get ${}", result_reg)
+                    .expect("writing to string cannot fail");
+writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to string cannot fail");
             }
             Inst::EnumToText {
                 dest,

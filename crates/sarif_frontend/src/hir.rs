@@ -148,6 +148,7 @@ pub struct Enum {
 pub struct EnumVariant {
     pub name: String,
     pub payload: Option<TypeRef>,
+    pub discriminant: Option<ConstExpr>,
     pub span: Span,
 }
 
@@ -941,6 +942,10 @@ fn lower_enum(item: &ast::Enum) -> Enum {
                     .payload
                     .as_ref()
                     .map(|payload| lower_type(payload, variant.span)),
+                discriminant: variant
+                    .discriminant
+                    .as_ref()
+                    .and_then(|expr| lower_const_expr(expr)),
                 span: variant.span,
             })
             .collect(),
@@ -1176,6 +1181,27 @@ fn lower_array_len(len: &ast::ArrayLen) -> ConstExpr {
     match len {
         ast::ArrayLen::Literal(len) => ConstExpr::Literal(u32::try_from(*len).unwrap_or(0)),
         ast::ArrayLen::Name(name) => ConstExpr::Param(name.clone()),
+    }
+}
+
+fn lower_const_expr(expr: &ast::Expr) -> Option<ConstExpr> {
+    match expr {
+        ast::Expr::Integer(expr) => Some(ConstExpr::Literal(
+            u32::try_from(expr.value).unwrap_or(0),
+        )),
+        ast::Expr::Name(expr) => Some(ConstExpr::Param(expr.name.clone())),
+        ast::Expr::Binary(expr) => {
+            let op = match expr.op {
+                ast::BinaryOp::Add => ConstExpr::Add,
+                ast::BinaryOp::Sub => ConstExpr::Sub,
+                ast::BinaryOp::Mul => ConstExpr::Mul,
+                _ => return None,
+            };
+            let left = lower_const_expr(&expr.left)?;
+            let right = lower_const_expr(&expr.right)?;
+            Some(op(Box::new(left), Box::new(right)))
+        }
+        _ => None,
     }
 }
 

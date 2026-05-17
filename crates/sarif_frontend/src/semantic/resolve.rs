@@ -233,6 +233,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                             .payload
                             .as_ref()
                             .map(|payload| type_from_ref(payload, &BTreeSet::new())),
+                        discriminant: variant.discriminant.clone(),
                     });
                 }
                 enum_variants.insert(enum_item.name.clone(), variants);

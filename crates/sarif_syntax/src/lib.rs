@@ -202,6 +202,36 @@ pub enum NodeKind {
     Error,
 }
 
+impl NodeKind {
+    #[must_use]
+    pub const fn is_expr(&self) -> bool {
+        matches!(
+            self,
+            NodeKind::ExprBinary
+                | NodeKind::ExprBool
+                | NodeKind::ExprCall
+                | NodeKind::ExprArray
+                | NodeKind::ExprContractResult
+                | NodeKind::ExprField
+                | NodeKind::ExprIndex
+                | NodeKind::ExprIf
+                | NodeKind::ExprMatch
+                | NodeKind::ExprRepeat
+                | NodeKind::ExprWhile
+                | NodeKind::ExprGroup
+                | NodeKind::ExprInteger
+                | NodeKind::ExprFloat
+                | NodeKind::ExprName
+                | NodeKind::ExprRecord
+                | NodeKind::ExprUnary
+                | NodeKind::ExprString
+                | NodeKind::ExprComptime
+                | NodeKind::ExprPerform
+                | NodeKind::ExprHandle
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Element {
     Node(Node),

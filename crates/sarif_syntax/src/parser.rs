@@ -329,6 +329,12 @@ impl<'a> Parser<'a> {
                 self.collect_trivia(&mut variant_children);
                 variant_children.push(Element::Token(self.expect(TokenKind::RParen)));
             }
+            self.collect_trivia(&mut variant_children);
+            if self.at(TokenKind::Eq) {
+                variant_children.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut variant_children);
+                variant_children.push(Element::Node(self.parse_expr_bp(0)));
+            }
             children.push(Element::Node(Node::new(
                 NodeKind::Variant,
                 variant_children,

@@ -245,6 +245,7 @@ pub struct Enum {
 pub struct EnumVariant {
     pub name: String,
     pub payload: Option<TypePath>,
+    pub discriminant: Option<Expr>,
     pub span: Span,
 }
 
@@ -1119,28 +1120,46 @@ impl Lowerer {
                         .iter()
                         .filter_map(|element| match element {
                             Element::Node(variant) if variant.kind == NodeKind::Variant => {
-                                variant.children.iter().find_map(|entry| match entry {
-                                    Element::Token(token) if token.kind == TokenKind::Ident => {
-                                        Some(EnumVariant {
-                                            name: token.lexeme.clone(),
-                                            payload: variant.children.iter().find_map(|child| {
-                                                match child {
-                                                    Element::Node(child)
-                                                        if matches!(
-                                                            child.kind,
-                                                            NodeKind::TypePath
-                                                                | NodeKind::TypeArray
-                                                        ) =>
-                                                    {
-                                                        self.lower_type_path(child)
-                                                    }
-                                                    _ => None,
-                                                }
-                                            }),
-                                            span: token.span,
-                                        })
+                                let mut name: Option<String> = None;
+                                let mut payload: Option<TypePath> = None;
+                                let mut discriminant: Option<Expr> = None;
+                                let mut span: Span = Span::default();
+                                let mut after_eq = false;
+
+                                for child in &variant.children {
+                                    match child {
+                                        Element::Token(token)
+                                            if token.kind == TokenKind::Ident && name.is_none() =>
+                                        {
+                                            name = Some(token.lexeme.clone());
+                                            span = token.span;
+                                        }
+                                        Element::Token(token) if token.kind == TokenKind::Eq => {
+                                            after_eq = true;
+                                        }
+                                        Element::Node(node)
+                                            if matches!(
+                                                node.kind,
+                                                NodeKind::TypePath | NodeKind::TypeArray
+                                            ) && payload.is_none() && !after_eq =>
+                                        {
+                                            payload = self.lower_type_path(node);
+                                        }
+                                        Element::Node(node)
+                                            if node.kind.is_expr() && after_eq
+                                                && discriminant.is_none() =>
+                                        {
+                                            discriminant = self.lower_expr(node);
+                                        }
+                                        _ => {}
                                     }
-                                    _ => None,
+                                }
+
+                                name.map(|name| EnumVariant {
+                                    name,
+                                    payload,
+                                    discriminant,
+                                    span,
                                 })
                             }
                             _ => None,
