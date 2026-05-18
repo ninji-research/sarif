@@ -275,6 +275,12 @@ impl ContractKind {
     }
 }
 
+const DIAG_ARRAY_INDEX_OUT_OF_BOUNDS: &str = "codegen.array-index-out-of-bounds";
+const DIAG_TEXT_INDEX_OUT_OF_BOUNDS: &str = "codegen.text-index-out-of-bounds";
+const DIAG_ARRAY_INDEX_BASE: &str = "codegen.array-index-base";
+const DIAG_CONST_ASSERT: &str = "codegen.const_assert";
+const DIAG_CONST_ASSERT_FAILED: &str = "codegen.const_assert-failed";
+
 #[derive(Clone, Debug)]
 pub struct Param {
     pub name: String,
@@ -2618,7 +2624,7 @@ impl ConstEvaluator<'_, '_> {
             RuntimeValue::Record(record) => {
                 let Some((_, len)) = synthetic_array_record_info(&record) else {
                     self.diagnostics.push(Diagnostic::new(
-                        "codegen.array-index-base",
+                        DIAG_ARRAY_INDEX_BASE,
                         "compile-time indexing requires an internal array value",
                         expr.base.span(),
                         None,
@@ -2630,7 +2636,7 @@ impl ConstEvaluator<'_, '_> {
                 };
                 let Some((_, value)) = record.fields.get(index) else {
                     self.diagnostics.push(Diagnostic::new(
-                        "codegen.array-index-out-of-bounds",
+                        DIAG_ARRAY_INDEX_OUT_OF_BOUNDS,
                         format!(
                             "constant array index {} is out of bounds (array has {} elements)",
                             index, len
@@ -2651,7 +2657,7 @@ impl ConstEvaluator<'_, '_> {
                 let bytes = text.as_bytes();
                 let Some(byte) = bytes.get(index) else {
                     self.diagnostics.push(Diagnostic::new(
-                        "codegen.text-index-out-of-bounds",
+                        DIAG_TEXT_INDEX_OUT_OF_BOUNDS,
                         format!(
                             "constant text index {} is out of bounds (text has {} bytes)",
                             index,
@@ -2672,7 +2678,7 @@ impl ConstEvaluator<'_, '_> {
             }
             _ => {
                 self.diagnostics.push(Diagnostic::new(
-                    "codegen.array-index-base",
+                    DIAG_ARRAY_INDEX_BASE,
                     "compile-time indexing requires an internal array or Text value",
                     expr.base.span(),
                     None,
@@ -5391,7 +5397,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     return dest;
                 }
                 self.diagnostics.push(Diagnostic::new(
-                    "codegen.array-index-out-of-bounds",
+                    DIAG_ARRAY_INDEX_OUT_OF_BOUNDS,
                     format!(
                         "constant array index {} is out of bounds (array has {} elements)",
                         index,
@@ -5422,7 +5428,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         return dest;
                     }
                     self.diagnostics.push(Diagnostic::new(
-                        "codegen.array-index-out-of-bounds",
+                        DIAG_ARRAY_INDEX_OUT_OF_BOUNDS,
                         format!(
                             "constant array index {} is out of bounds (array has {} elements)",
                             index, len
@@ -5430,6 +5436,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         expr.index.span(),
                         None,
                     ));
+                    let index_val = self.fresh_value();
+                    self.instructions.push(Inst::ConstInt {
+                        dest: index_val,
+                        value: i64::try_from(index).expect("index fits in i64"),
+                    });
+                    self.emit_bounds_assert(index_val, len);
                     return self.emit_unit_value();
                 }
                 let index = self.lower_expr(&expr.index);
@@ -7376,7 +7388,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     fn lower_const_assert_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             self.diagnostics.push(Diagnostic::new(
-                "codegen.const_assert",
+                DIAG_CONST_ASSERT,
                 "const_assert requires exactly one argument",
                 expr.span,
                 Some("Usage: const_assert(condition)".to_owned()),
@@ -7395,7 +7407,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             Some(true) => {}
             Some(false) => {
                 self.diagnostics.push(Diagnostic::new(
-                    "codegen.const_assert-failed",
+                    DIAG_CONST_ASSERT_FAILED,
                     "const_assert failed: condition evaluated to false at compile time",
                     arg.span(),
                     None,
@@ -7403,7 +7415,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             None => {
                 self.diagnostics.push(Diagnostic::new(
-                    "codegen.const_assert",
+                    DIAG_CONST_ASSERT,
                     "const_assert requires a compile-time constant boolean argument",
                     arg.span(),
                     Some("Use a literal boolean or a const value.".to_owned()),
