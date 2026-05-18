@@ -202,15 +202,16 @@ pub fn emit_runtime_module(
     exports.export("__sarif_text_index_ensure_capacity", ExportKind::Func, 38);
     exports.export("__sarif_text_index_find_entry", ExportKind::Func, 39);
     exports.export("__sarif_text_index_get", ExportKind::Func, 40);
-    exports.export("__sarif_text_index_set", ExportKind::Func, 41);
-    exports.export("__sarif_text_index_get_or_insert", ExportKind::Func, 42);
-    exports.export("__sarif_list_new", ExportKind::Func, 43);
-    exports.export("__sarif_list_len", ExportKind::Func, 44);
-    exports.export("__sarif_list_get", ExportKind::Func, 45);
-    exports.export("__sarif_list_set", ExportKind::Func, 46);
-    exports.export("__sarif_list_push", ExportKind::Func, 47);
-    exports.export("__sarif_list_sort_text", ExportKind::Func, 48);
-    exports.export("__sarif_list_sort_record_text_field", ExportKind::Func, 49);
+    exports.export("__sarif_text_index_contains", ExportKind::Func, 41);
+    exports.export("__sarif_text_index_set", ExportKind::Func, 42);
+    exports.export("__sarif_text_index_get_or_insert", ExportKind::Func, 43);
+    exports.export("__sarif_list_new", ExportKind::Func, 44);
+    exports.export("__sarif_list_len", ExportKind::Func, 45);
+    exports.export("__sarif_list_get", ExportKind::Func, 46);
+    exports.export("__sarif_list_set", ExportKind::Func, 47);
+    exports.export("__sarif_list_push", ExportKind::Func, 48);
+    exports.export("__sarif_list_sort_text", ExportKind::Func, 49);
+    exports.export("__sarif_list_sort_record_text_field", ExportKind::Func, 50);
     module.section(&exports);
 
     // === Code Section ===
@@ -2509,8 +2510,20 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::I64Const(-1));
     f.instruction(&Instruction::End);
     code.function(&f);
+    // Function 41: __sarif_text_index_contains
+    let mut f = Function::new([(2, ValType::I32)]);
+    f.instruction(&Instruction::LocalGet(0));
+    f.instruction(&Instruction::I32WrapI64);
+    f.instruction(&Instruction::LocalGet(1));
+    f.instruction(&Instruction::LocalGet(1));
+    f.instruction(&Instruction::Call(36));
+    f.instruction(&Instruction::Call(39));
+    f.instruction(&Instruction::LocalTee(0));
+    f.instruction(&Instruction::I32Load(memarg(20)));
+    f.instruction(&Instruction::End);
+    code.function(&f);
 
-    // Function 41: __sarif_text_index_set
+    // Function 42: __sarif_text_index_set
     let mut f = Function::new([(3, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2559,7 +2572,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 42: __sarif_text_index_get_or_insert
+    // Function 43: __sarif_text_index_get_or_insert
     let mut f = Function::new([(3, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2606,7 +2619,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 43: __sarif_list_new
+    // Function 44: __sarif_list_new
     let mut f = Function::new([(6, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2665,7 +2678,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 44: __sarif_list_len
+    // Function 45: __sarif_list_len
     let mut f = Function::new(Vec::<(u32, ValType)>::new());
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2674,7 +2687,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 45: __sarif_list_get
+    // Function 46: __sarif_list_get
     let mut f = Function::new([(4, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2711,7 +2724,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 46: __sarif_list_set
+    // Function 47: __sarif_list_set
     let mut f = Function::new([(2, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2749,7 +2762,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 47: __sarif_list_push
+    // Function 48: __sarif_list_push
     let mut f = Function::new([(7, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2863,7 +2876,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 48: __sarif_list_sort_text
+    // Function 49: __sarif_list_sort_text
     let mut f = Function::new([(4, ValType::I32), (2, ValType::I64)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2974,7 +2987,7 @@ pub fn emit_runtime_module(
     f.instruction(&Instruction::End);
     code.function(&f);
 
-    // Function 49: __sarif_list_sort_record_text_field
+    // Function 50: __sarif_list_sort_record_text_field
     let mut f = Function::new([(6, ValType::I32), (2, ValType::I64)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);

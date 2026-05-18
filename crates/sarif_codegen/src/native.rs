@@ -1143,9 +1143,11 @@ pub fn lower_enum_tag_eq(
 }
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub struct TextIndexHelperIds {
     pub new_id: Option<FuncId>,
     pub get_id: Option<FuncId>,
+    pub contains_id: Option<FuncId>,
     pub get_or_insert_id: Option<FuncId>,
     pub set_id: Option<FuncId>,
 }
@@ -3982,6 +3984,20 @@ pub fn declare_text_index_get<M: Module>(module: &mut M, backend: &str) -> Resul
         "text index get helper",
         &[types::I64, types::I64],
         &[types::I64],
+    )
+}
+
+pub fn declare_text_index_contains<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_text_index_contains",
+        backend,
+        "text index contains helper",
+        &[types::I64, types::I64],
+        &[types::I32],
     )
 }
 

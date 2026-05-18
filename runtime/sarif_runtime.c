@@ -842,6 +842,21 @@ int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
     return -1;
 }
 
+int sarif_text_index_contains(void* index_ptr, uint64_t key) {
+    SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    int found = 0;
+    if (index == NULL || index->entries == NULL) {
+        return 0;
+    }
+    sarif_text_index_find_entry(
+        index,
+        key,
+        sarif_text_hash_handle(key),
+        &found
+    );
+    return found;
+}
+
 int64_t sarif_text_index_get_or_insert(void* index_ptr, uint64_t key, int64_t next) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
     int found = 0;

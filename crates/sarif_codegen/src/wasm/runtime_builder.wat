@@ -1023,6 +1023,18 @@
     end
     i64.const -1
   )
+  (func $__sarif_text_index_contains
+    (param $index i64) (param $key i64) (result i32)
+    (local $entry i32)
+    local.get $index
+    i32.wrap_i64
+    local.get $key
+    local.get $key
+    call $__sarif_text_hash
+    call $__sarif_text_index_find_entry
+    local.tee $entry
+    i32.load offset=20
+  )
   (func $__sarif_text_index_set
     (param $index i64) (param $key i64) (param $value i64) (result i64)
     (local $ptr i32) (local $hash i32) (local $entry i32)
