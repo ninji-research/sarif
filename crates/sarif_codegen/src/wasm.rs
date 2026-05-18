@@ -67,6 +67,7 @@ pub(crate) fn enum_is_payload_free(enum_ty: &WasmEnum) -> bool {
 
 mod memory;
 mod runtime;
+mod runtime_gen;
 
 pub use runtime::{run_function_wasm, run_main_wasm};
 
@@ -85,23 +86,17 @@ pub fn emit_wasm(program: &Program) -> Result<Vec<u8>, WasmError> {
 }
 
 fn reject_runtime_input_program(program: &Program) -> Result<(), WasmError> {
-    const RUNTIME_INPUT_UNSUPPORTED_MESSAGE: &str =
-        "wasm backend does not yet support runtime input builtins in stage-0";
     for function in &program.functions {
         let mut has_runtime_input_inst = false;
         for_each_inst_recursive(&function.instructions, &mut |inst| {
-            if matches!(
-                inst,
-                Inst::ArgCount { .. }
-                    | Inst::ArgText { .. }
-                    | Inst::StdinText { .. }
-                    | Inst::StdinBytes { .. }
-            ) {
+            if matches!(inst, Inst::StdinText { .. } | Inst::StdinBytes { .. }) {
                 has_runtime_input_inst = true;
             }
         });
         if has_runtime_input_inst {
-            return Err(WasmError::new(RUNTIME_INPUT_UNSUPPORTED_MESSAGE));
+            return Err(WasmError::new(
+                "wasm backend does not yet support stdin builtins in stage-0",
+            ));
         }
     }
     Ok(())
@@ -180,6 +175,20 @@ impl<'a> WasmEmitter<'a> {
         output.push_str(include_str!("wasm/runtime_text.wat"));
 
         output.push_str(include_str!("wasm/runtime_builder.wat"));
+
+        output.push_str(include_str!("wasm/runtime_list.wat"));
+
+        output.push_str(
+            "  (func $__sarif_arg_count (result i64)\n    call $__host_argc\n  )\n\
+             (func $__sarif_arg_text (param $index i64) (result i64)\n\
+               (local $buf i32) (local $written i32)\n\
+               local.get $index\n\
+               i32.const 4096\n    call $alloc\n    local.tee $buf\n\
+               i32.const 4096\n    call $__host_argv\n\
+               local.tee $written\n    i32.const 0\n    i32.lt_s\n    if\n\
+                 i64.const 0\n      return\n    end\n\
+               local.get $buf\n    local.get $written\n    call $__sarif_pack_text\n  )\n",
+        );
 
         for (name, record) in &self.records {
             self.emit_record_eq_helper(output, name, record)?;
@@ -428,6 +437,7 @@ impl<'a> WasmEmitter<'a> {
         Ok(())
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn collect_locals(
         &self,
         function: &Function,
@@ -627,6 +637,11 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
+            Inst::StdinBytes { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not yet support stdin builtins in stage-0",
+                ));
+            }
             Inst::TextLen { dest, text } | Inst::BytesLen { dest, bytes: text } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
                     .expect("writing to a string cannot fail");
@@ -635,11 +650,6 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    i64.extend_i32_u").expect("writing to a string cannot fail");
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
-            }
-            Inst::StdinBytes { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support runtime input builtins in stage-0",
-                ));
             }
             Inst::BytesByte { dest, bytes, index } => {
                 w_call(output, *dest, &[*bytes, *index], "$__sarif_text_byte");
@@ -788,21 +798,36 @@ impl<'a> WasmEmitter<'a> {
             Inst::TextBuilderFinish { dest, builder } => {
                 w_call(output, *dest, &[*builder], "$__sarif_text_builder_finish");
             }
-            Inst::TextFromF64Fixed { .. } => {
+            Inst::TextFromF64Fixed { dest, value, digits } => {
+                writeln!(output, "    local.get ${}", wasm_id(*value))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*digits))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_text_from_f64_fixed")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ArgCount { dest } => {
+                writeln!(output, "    call $__sarif_arg_count")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ArgText { dest, index } => {
+                writeln!(output, "    local.get ${}", wasm_id(*index))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_arg_text")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::StdinText { .. } => {
                 return Err(WasmError::new(
-                    "wasm backend does not yet support `text_from_f64_fixed` in stage-0",
+                    "wasm backend does not yet support stdin builtins in stage-0",
                 ));
             }
-            Inst::ArgCount { .. } | Inst::ArgText { .. } | Inst::StdinText { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support runtime input builtins in stage-0",
-                ));
-            }
-            Inst::AllocPush | Inst::AllocPop => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support allocation scope builtins in stage-0",
-                ));
-            }
+            Inst::AllocPush | Inst::AllocPop => {}
             Inst::StdoutWrite { text } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
                     .expect("writing to a string cannot fail");
@@ -1038,16 +1063,85 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::ListNew { .. }
-            | Inst::ListLen { .. }
-            | Inst::ListGet { .. }
-            | Inst::ListSet { .. }
-            | Inst::ListPush { .. }
-            | Inst::ListSortText { .. }
-            | Inst::ListSortRecordTextField { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support list values in stage-0",
-                ));
+            Inst::ListNew { dest, len, value } => {
+                w_call(output, *dest, &[*len, *value], "$__sarif_list_new");
+            }
+            Inst::ListLen { dest, list } => {
+                w_call(output, *dest, &[*list], "$__sarif_list_len");
+            }
+            Inst::ListGet { dest, list, index } => {
+                w_call(output, *dest, &[*list, *index], "$__sarif_list_get");
+            }
+            Inst::ListSet {
+                dest,
+                list,
+                index,
+                value,
+            } => {
+                w_call(output, *dest, &[*list, *index, *value], "$__sarif_list_set");
+            }
+            Inst::ListPush {
+                dest,
+                list,
+                len,
+                value,
+            } => {
+                w_call(output, *dest, &[*list, *len, *value], "$__sarif_list_push");
+            }
+            Inst::ListSortText { dest, list, len } => {
+                w_call(output, *dest, &[*list, *len], "$__sarif_list_sort_text");
+            }
+            Inst::ListSortRecordTextField {
+                dest,
+                list,
+                len,
+                field,
+            } => {
+                let Some(WasmValueKind::List(element)) = kinds.get(list) else {
+                    return Err(WasmError::new(format!(
+                        "wasm list_sort_record_text_field input {} is not a list in `{}`",
+                        list.render(),
+                        function.name
+                    )));
+                };
+                let WasmValueKind::Record(record_name) = element.as_ref() else {
+                    return Err(WasmError::new(format!(
+                        "wasm list_sort_record_text_field requires List[record], found `{:?}` in `{}`",
+                        element, function.name
+                    )));
+                };
+                let record = self.records.get(record_name.as_str()).ok_or_else(|| {
+                    WasmError::new(format!(
+                        "missing wasm record metadata for `{record_name}`"
+                    ))
+                })?;
+                let field_desc = record
+                    .fields
+                    .iter()
+                    .find(|candidate| candidate.name == *field)
+                    .ok_or_else(|| {
+                        WasmError::new(format!(
+                            "record `{record_name}` has no wasm field `{field}` in `{}`",
+                            function.name
+                        ))
+                    })?;
+                if field_desc.kind != WasmValueKind::Text {
+                    return Err(WasmError::new(format!(
+                        "wasm list_sort_record_text_field requires a Text field, but `{record_name}.{field}` is `{:?}` in `{}`",
+                        field_desc.kind, function.name
+                    )));
+                }
+                let offset = i64::from(field_desc.offset);
+                writeln!(output, "    local.get ${}", wasm_id(*list))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*len))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    i64.const {offset}")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_list_sort_record_text_field")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
             Inst::Add { dest, left, right } => {
                 self.emit_binary(output, "add", *dest, *left, *right, kinds)?;

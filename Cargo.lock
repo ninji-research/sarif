@@ -669,6 +669,7 @@ dependencies = [
  "sarif_frontend",
  "sarif_syntax",
  "target-lexicon",
+ "wasm-encoder 0.249.0",
  "wasmtime",
  "wat",
 ]

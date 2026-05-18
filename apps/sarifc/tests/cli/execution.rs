@@ -1375,7 +1375,7 @@ fn wasm_build_accepts_list_f64_modules() {
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_text_from_f64_fixed_modules() {
+fn wasm_build_accepts_text_from_f64_fixed_modules() {
     let path = temp_source("fn main() -> Text { text_from_f64_fixed(3.5, 2) }");
     let wasm_path = temp_output("text_from_f64_fixed_build", "wasm");
     let build = run_sarif(&[
@@ -1388,13 +1388,8 @@ fn wasm_build_rejects_text_from_f64_fixed_modules() {
     ]);
 
     assert!(
-        !build.status.success(),
-        "text_from_f64_fixed should be rejected on the wasm backend for now"
-    );
-    assert!(
-        String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support `text_from_f64_fixed` in stage-0"),
-        "wasm rejection should explain the current stage-0 float limitation"
+        build.status.success(),
+        "text_from_f64_fixed should be accepted on the wasm backend"
     );
 }
 

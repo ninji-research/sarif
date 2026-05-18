@@ -1183,3 +1183,291 @@
     end
     local.get $result
   )
+  (func $__sarif_text_from_f64_fixed (param $value f64) (param $digits i64) (result i64)
+    (local $precision i32) (local $negative i32) (local $scratch i32) (local $pos i32)
+    (local $int_val i64) (local $mult f64) (local $i i32) (local $digit i32)
+    (local $dest i32) (local $len i32) (local $frac_scaled i64) (local $frac_len i32)
+    (local $frac_start i32)
+    local.get $digits
+    i32.wrap_i64
+    local.tee $precision
+    i32.const 0
+    i32.lt_s
+    if
+      i32.const 0
+      local.set $precision
+    end
+    local.get $precision
+    i32.const 20
+    i32.gt_s
+    if
+      i32.const 20
+      local.set $precision
+    end
+    local.get $value
+    local.get $value
+    f64.ne
+    if
+      i32.const 3
+      call $alloc
+      local.tee $scratch
+      i32.const 78
+      i32.store8
+      local.get $scratch
+      i32.const 97
+      i32.store8 offset=1
+      local.get $scratch
+      i32.const 78
+      i32.store8 offset=2
+      local.get $scratch
+      i64.extend_i32_u
+      i64.const 3
+      i64.const 32
+      i64.shl
+      i64.or
+      return
+    end
+    local.get $value
+    f64.const 0
+    f64.lt
+    local.set $negative
+    local.get $negative
+    if
+      local.get $value
+      f64.neg
+      local.set $value
+    end
+    local.get $value
+    i64.trunc_f64_s
+    local.set $int_val
+    i32.const 64
+    call $alloc
+    local.set $scratch
+    i32.const 63
+    local.set $pos
+    local.get $precision
+    i32.const 0
+    i32.gt_s
+    if
+      f64.const 1
+      local.set $mult
+      i32.const 0
+      local.set $i
+      block $scale_loop_end
+        loop $scale_loop
+          local.get $i
+          local.get $precision
+          i32.ge_s
+          br_if $scale_loop_end
+          local.get $mult
+          f64.const 10
+          f64.mul
+          local.set $mult
+          local.get $i
+          i32.const 1
+          i32.add
+          local.set $i
+          br $scale_loop
+        end
+      end
+      local.get $value
+      local.get $int_val
+      f64.convert_i64_s
+      f64.sub
+      local.get $mult
+      f64.mul
+      f64.nearest
+      i64.trunc_f64_s
+      local.tee $frac_scaled
+      local.get $mult
+      i64.trunc_f64_s
+      i64.ge_s
+      if
+        local.get $int_val
+        i64.const 1
+        i64.add
+        local.set $int_val
+        local.get $frac_scaled
+        local.get $mult
+        i64.trunc_f64_s
+        i64.sub
+        local.set $frac_scaled
+      end
+      local.get $frac_scaled
+      i64.const 0
+      i64.lt_s
+      if
+        i64.const 0
+        local.set $frac_scaled
+      end
+      local.get $precision
+      local.set $frac_len
+      local.get $pos
+      local.set $frac_start
+      local.get $frac_scaled
+      i64.const 0
+      i64.eq
+      if
+        local.get $frac_start
+        local.set $pos
+      else
+        block $frac_digits_end
+          loop $frac_digits
+            local.get $frac_scaled
+            i64.const 0
+            i64.eq
+            br_if $frac_digits_end
+            local.get $frac_scaled
+            i64.const 10
+            i64.rem_u
+            i64.const 48
+            i64.add
+            i32.wrap_i64
+            local.set $digit
+            local.get $scratch
+            local.get $pos
+            i32.add
+            local.get $digit
+            i32.store8
+            local.get $frac_scaled
+            i64.const 10
+            i64.div_u
+            local.set $frac_scaled
+            local.get $pos
+            i32.const 1
+            i32.sub
+            local.set $pos
+            br $frac_digits
+          end
+        end
+      end
+      block $pad_end
+        loop $pad_loop
+          local.get $pos
+          local.get $frac_start
+          local.get $frac_len
+          i32.sub
+          i32.ge_s
+          br_if $pad_end
+          local.get $scratch
+          local.get $pos
+          i32.add
+          i32.const 48
+          i32.store8
+          local.get $pos
+          i32.const 1
+          i32.sub
+          local.set $pos
+          br $pad_loop
+        end
+      end
+      local.get $scratch
+      local.get $pos
+      i32.add
+      i32.const 46
+      i32.store8
+      local.get $pos
+      i32.const 1
+      i32.sub
+      local.set $pos
+    end
+    local.get $int_val
+    i64.const 0
+    i64.eq
+    if
+      local.get $scratch
+      local.get $pos
+      i32.add
+      i32.const 48
+      i32.store8
+      local.get $pos
+      i32.const 1
+      i32.sub
+      local.set $pos
+    else
+      block $int_digits_end
+        loop $int_digits
+          local.get $int_val
+          i64.const 0
+          i64.eq
+          br_if $int_digits_end
+          local.get $int_val
+          i64.const 10
+          i64.rem_u
+          i64.const 48
+          i64.add
+          i32.wrap_i64
+          local.set $digit
+          local.get $scratch
+          local.get $pos
+          i32.add
+          local.get $digit
+          i32.store8
+          local.get $int_val
+          i64.const 10
+          i64.div_u
+          local.set $int_val
+          local.get $pos
+          i32.const 1
+          i32.sub
+          local.set $pos
+          br $int_digits
+        end
+      end
+    end
+    local.get $negative
+    if
+      local.get $scratch
+      local.get $pos
+      i32.add
+      i32.const 45
+      i32.store8
+      local.get $pos
+      i32.const 1
+      i32.sub
+      local.set $pos
+    end
+    local.get $pos
+    i32.const 1
+    i32.add
+    local.set $pos
+    i32.const 63
+    local.get $pos
+    i32.sub
+    i32.const 1
+    i32.add
+    local.tee $len
+    call $alloc
+    local.set $dest
+    i32.const 0
+    local.set $i
+    block $copy_end
+      loop $copy
+        local.get $i
+        local.get $len
+        i32.ge_s
+        br_if $copy_end
+        local.get $dest
+        local.get $i
+        i32.add
+        local.get $scratch
+        local.get $pos
+        local.get $i
+        i32.add
+        i32.load8_u
+        i32.store8
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $copy
+      end
+    end
+    local.get $dest
+    i64.extend_i32_u
+    local.get $len
+    i64.extend_i32_u
+    i64.const 32
+    i64.shl
+    i64.or
+  )

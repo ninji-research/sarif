@@ -1,4 +1,3 @@
-#![allow(clippy::only_used_in_recursion)]
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
@@ -3249,7 +3248,7 @@ pub fn run_function(
     interpreter.run_function(name, args)
 }
 
-#[cfg(any(feature = "backend-native", feature = "backend-wasm"))]
+#[cfg(feature = "backend-native")]
 pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
     for inst in instructions {
         match inst {

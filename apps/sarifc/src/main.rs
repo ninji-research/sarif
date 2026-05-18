@@ -502,7 +502,7 @@ fn render_codegen_dump(
     _loaded: &LoadedSource,
     _command: &command::Command,
 ) -> Result<String, String> {
-    Err("codegen IR dumps require the `wasm` feature".to_owned())
+    Err("codegen IR dumps are currently supported only with `--target wasm`".to_owned())
 }
 
 #[cfg(not(feature = "codegen"))]
