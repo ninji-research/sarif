@@ -265,6 +265,20 @@ fn mutation_diagnostics_are_specific() {
     let affine_output = run_path_profiled("check", &affine, "core");
     assert!(affine_output.status.success());
 
+    let wrapped_affine = temp_source(
+        "struct Store { rows: List[I32], len: I32 }\n\
+         fn main() -> I32 effects [alloc] { let mut store = Store { rows: list_new(4, 0), len: 0 }; store = Store { rows: list_push(store.rows, store.len, 1), len: store.len + 1 }; store.len }",
+    );
+    let wrapped_affine_output = run_path_profiled("check", &wrapped_affine, "core");
+    assert!(!wrapped_affine_output.status.success());
+    let wrapped_affine_stderr = String::from_utf8_lossy(&wrapped_affine_output.stderr);
+    assert!(wrapped_affine_stderr.contains("semantic.mutable-affine"));
+    assert!(wrapped_affine_stderr.contains("direct mutable locals"));
+    assert!(
+        !wrapped_affine_stderr.contains("semantic.assign-immutable"),
+        "wrapped affine mutation should report the root mutable-affine error without a follow-on immutable assignment cascade"
+    );
+
     let nested = temp_source(
         "fn main() -> I32 { let mut total = 20; if true { total = total + 22; }; total }",
     );

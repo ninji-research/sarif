@@ -11,7 +11,7 @@ Current maintained authority:
 - Rust-hosted compiler and CLI
 - MIR interpreter as oracle
 - native backend
-- stage-0 Wasm backend with explicit builtin exclusions
+- stage-0 Wasm backend with explicit host-input imports and remaining builtin exclusions
 
 ## Stage 1
 
@@ -132,4 +132,4 @@ Sarif does not yet ship:
 
 Format is flipped and self-hosted (`bootstrap-format` is the default `sarifc format` path).
 
-Platform reality is tracked separately in [platforms.md](platforms.md): Linux native is the maintained host target, macOS native is feasible but less exercised, wasm is maintained with explicit exclusions, and Windows/mobile/cross-compilation remain future work rather than implied support.
+Platform reality is tracked separately in [platforms.md](platforms.md): Linux native is the maintained host target, macOS native is feasible but less exercised, wasm is maintained with explicit host-input imports and remaining exclusions, and Windows/mobile/cross-compilation remain future work rather than implied support.

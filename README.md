@@ -22,7 +22,7 @@ What is real today:
 - the stage-0 language includes expression-bodied functions, record-field punning, compound assignments, fixed arrays, bitwise operators, richer `match` patterns, `Bytes`, and maintained text/list helpers
 - the MIR interpreter is the normative semantic oracle for backend correctness
 - native Linux builds are the primary deployment path
-- Wasm output exists with explicit builtin exclusions
+- Wasm output exists with explicit host-input imports for argument/stdin builtins and remaining explicit builtin exclusions
 - `bnch` carries a full main-track Sarif lane across the retained benchmark suite
 
 What is not complete today:

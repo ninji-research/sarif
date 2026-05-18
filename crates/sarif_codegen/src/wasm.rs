@@ -72,34 +72,25 @@ mod runtime_gen;
 pub use runtime::{run_function_wasm, run_main_wasm};
 
 pub fn emit_wat(program: &Program) -> Result<String, WasmError> {
-    reject_runtime_input_program(program)?;
     let emitter = WasmEmitter::new(program)?;
     emitter.emit()
 }
 
 pub fn emit_wasm(program: &Program) -> Result<Vec<u8>, WasmError> {
-    let wat = emit_wat(program)?;
+    let emitter = WasmEmitter::new(program)?;
+
+    if std::env::var("SARIF_DEBUG_RUNTIME").is_ok() {
+        let runtime_binary =
+            runtime_gen::emit_runtime_module(program, &emitter.records, &emitter.enums)?;
+        eprintln!("[runtime_gen produced {} bytes]", runtime_binary.len());
+    }
+
+    let wat = emitter.emit()?;
+
     if std::env::var("SARIF_DEBUG_WASM").is_ok() {
         eprintln!("{wat}");
     }
     wat::parse_str(&wat).map_err(|error| WasmError::new(error.to_string()))
-}
-
-fn reject_runtime_input_program(program: &Program) -> Result<(), WasmError> {
-    for function in &program.functions {
-        let mut has_runtime_input_inst = false;
-        for_each_inst_recursive(&function.instructions, &mut |inst| {
-            if matches!(inst, Inst::StdinText { .. } | Inst::StdinBytes { .. }) {
-                has_runtime_input_inst = true;
-            }
-        });
-        if has_runtime_input_inst {
-            return Err(WasmError::new(
-                "wasm backend does not yet support stdin builtins in stage-0",
-            ));
-        }
-    }
-    Ok(())
 }
 
 struct WasmEmitter<'a> {
@@ -185,9 +176,26 @@ impl<'a> WasmEmitter<'a> {
                local.get $index\n\
                i32.const 4096\n    call $alloc\n    local.tee $buf\n\
                i32.const 4096\n    call $__host_argv\n\
-               local.tee $written\n    i32.const 0\n    i32.lt_s\n    if\n\
+               local.tee $written\n\
+               i32.const 0\n    i32.lt_s\n    if\n\
                  i64.const 0\n      return\n    end\n\
-               local.get $buf\n    local.get $written\n    call $__sarif_pack_text\n  )\n",
+               local.get $buf\n    local.get $written\n    call $__sarif_pack_text\n  )\n\
+             (func $__sarif_stdin_text (result i64)\n\
+               (local $buf i32) (local $read i32)\n\
+               i32.const 8192\n    call $alloc\n    local.tee $buf\n\
+               i32.const 8192\n    call $__host_stdin_read\n\
+               local.tee $read\n\
+               i32.const 0\n    i32.lt_s\n    if\n\
+                 i64.const 0\n      return\n    end\n\
+               local.get $buf\n    local.get $read\n    call $__sarif_pack_text\n  )\n\
+             (func $__sarif_stdin_bytes (result i64)\n\
+               (local $buf i32) (local $read i32)\n\
+               i32.const 8192\n    call $alloc\n    local.tee $buf\n\
+               i32.const 8192\n    call $__host_stdin_read\n\
+               local.tee $read\n\
+               i32.const 0\n    i32.lt_s\n    if\n\
+                 i64.const 0\n      return\n    end\n\
+               local.get $buf\n    local.get $read\n    call $__sarif_pack_text\n  )\n",
         );
 
         for (name, record) in &self.records {
@@ -637,10 +645,11 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::StdinBytes { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support stdin builtins in stage-0",
-                ));
+            Inst::StdinBytes { dest } => {
+                writeln!(output, "    call $__sarif_stdin_bytes")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
             Inst::TextLen { dest, text } | Inst::BytesLen { dest, bytes: text } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
@@ -798,7 +807,11 @@ impl<'a> WasmEmitter<'a> {
             Inst::TextBuilderFinish { dest, builder } => {
                 w_call(output, *dest, &[*builder], "$__sarif_text_builder_finish");
             }
-            Inst::TextFromF64Fixed { dest, value, digits } => {
+            Inst::TextFromF64Fixed {
+                dest,
+                value,
+                digits,
+            } => {
                 writeln!(output, "    local.get ${}", wasm_id(*value))
                     .expect("writing to a string cannot fail");
                 writeln!(output, "    local.get ${}", wasm_id(*digits))
@@ -822,10 +835,11 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::StdinText { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support stdin builtins in stage-0",
-                ));
+            Inst::StdinText { dest } => {
+                writeln!(output, "    call $__sarif_stdin_text")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
             }
             Inst::AllocPush | Inst::AllocPop => {}
             Inst::StdoutWrite { text } => {
@@ -1111,9 +1125,7 @@ impl<'a> WasmEmitter<'a> {
                     )));
                 };
                 let record = self.records.get(record_name.as_str()).ok_or_else(|| {
-                    WasmError::new(format!(
-                        "missing wasm record metadata for `{record_name}`"
-                    ))
+                    WasmError::new(format!("missing wasm record metadata for `{record_name}`"))
                 })?;
                 let field_desc = record
                     .fields
@@ -1805,10 +1817,8 @@ fn collect_inst_kinds(
             Inst::BytesSlice { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::Bytes);
             }
-            Inst::StdinBytes { .. } => {
-                return Err(WasmError::new(
-                    "wasm backend does not yet support runtime input builtins in stage-0",
-                ));
+            Inst::StdinBytes { dest } => {
+                kinds.insert(*dest, WasmValueKind::Bytes);
             }
             Inst::TextBuilderNew { dest }
             | Inst::TextBuilderAppend { dest, .. }

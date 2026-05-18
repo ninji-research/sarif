@@ -8,7 +8,7 @@ Sarif does not yet ship a full standard library. The maintained surface today is
 - text construction and slicing
 - direct parse helpers
 - list allocation and indexed access
-- deterministic runtime input/output builtins on native/interpreter paths
+- deterministic runtime input/output builtins on native/interpreter paths and wasm host-import paths
 - deterministic allocation scopes for temporary native allocations
 
 ## Planned Standard Library Layers

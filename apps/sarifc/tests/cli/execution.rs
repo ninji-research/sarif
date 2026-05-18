@@ -1,7 +1,9 @@
+#[cfg(feature = "wasm")]
+use super::support::temp_output;
 use super::support::{
     bootstrap_syntax_dir, bootstrap_tools_dir, const_control_flow_example, multi_file_package_dir,
     multi_file_package_manifest, package_dir, package_manifest, run_build_profiled,
-    run_path_profiled, run_profiled, run_sarif, temp_output, temp_source,
+    run_path_profiled, run_profiled, run_sarif, temp_source,
 };
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -91,7 +93,54 @@ fn link_fd_write(linker: &mut Linker<()>) -> Result<(), String> {
 }
 
 #[cfg(feature = "wasm")]
-fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
+fn link_env(linker: &mut Linker<()>, stdin: &[u8]) -> Result<(), String> {
+    let stdin = stdin.to_vec();
+    linker
+        .func_wrap("env", "__host_argc", || -> i64 { 0 })
+        .map_err(|error| format!("failed to link env __host_argc: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__host_argv",
+            |_caller: Caller<'_, ()>, _index: i64, _buf_ptr: i32, _buf_len: i32| -> i32 { -1 },
+        )
+        .map_err(|error| format!("failed to link env __host_argv: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__host_stdin_read",
+            move |mut caller: Caller<'_, ()>, buf_ptr: i32, buf_len: i32| -> i32 {
+                if buf_ptr < 0 || buf_len < 0 {
+                    return -1;
+                }
+                let Ok(buf_ptr) = usize::try_from(buf_ptr) else {
+                    return -1;
+                };
+                let Ok(buf_len) = usize::try_from(buf_len) else {
+                    return -1;
+                };
+                let to_copy = stdin.len().min(buf_len);
+                if to_copy == 0 {
+                    return 0;
+                }
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return -1;
+                };
+                if memory
+                    .write(&mut caller, buf_ptr, &stdin[..to_copy])
+                    .is_err()
+                {
+                    return -1;
+                }
+                i32::try_from(to_copy).unwrap_or(-1)
+            },
+        )
+        .map_err(|error| format!("failed to link env __host_stdin_read: {error}"))?;
+    Ok(())
+}
+
+#[cfg(feature = "wasm")]
+fn run_wasm_main_with_stdin(path: &std::path::Path, stdin: &[u8]) -> Result<i64, String> {
     let bytes =
         std::fs::read(path).map_err(|error| format!("failed to read wasm artifact: {error}"))?;
     let engine = Engine::default();
@@ -100,6 +149,7 @@ fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
     let mut store = Store::new(&engine, ());
     let mut linker = Linker::new(&engine);
     link_fd_write(&mut linker).map_err(|e| format!("failed to link fd_write: {e}"))?;
+    link_env(&mut linker, stdin).map_err(|e| format!("failed to link env: {e}"))?;
     let instance = linker
         .instantiate(&mut store, &module)
         .map_err(|error| format!("failed to instantiate wasm artifact: {error}"))?;
@@ -108,6 +158,11 @@ fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
         .map_err(|error| format!("failed to load wasm `main`: {error}"))?;
     main.call(&mut store, ())
         .map_err(|error| format!("wasm call failed: {error}"))
+}
+
+#[cfg(feature = "wasm")]
+fn run_wasm_main(path: &std::path::Path) -> Result<i64, String> {
+    run_wasm_main_with_stdin(path, &[])
 }
 
 #[test]
@@ -1187,8 +1242,8 @@ fn wasm_build_accepts_text_kernel_modules() {
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_runtime_argument_builtins() {
-    let path = temp_source("fn main() -> Text { arg_text(1) }");
+fn wasm_build_accepts_runtime_argument_builtins() {
+    let path = temp_source("fn main() -> I32 { arg_count() }");
     let wasm_path = temp_output("arg_text_build", "wasm");
     let build = run_sarif(&[
         "build",
@@ -1199,21 +1254,14 @@ fn wasm_build_rejects_runtime_argument_builtins() {
         wasm_path.to_str().expect("utf-8 path"),
     ]);
 
-    assert!(
-        !build.status.success(),
-        "arg_text should be rejected on the wasm backend for now"
-    );
-    assert!(
-        String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support runtime input builtins"),
-        "wasm rejection should explain the current stage-0 backend limitation"
-    );
+    assert!(build.status.success(), "arg_count should build on wasm");
+    assert_eq!(run_wasm_main(&wasm_path).expect("built wasm should run"), 0);
 }
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_stdin_text_modules() {
-    let path = temp_source("fn main() -> Text { stdin_text() }");
+fn wasm_build_accepts_stdin_text_modules() {
+    let path = temp_source("fn main() -> I32 { stdin_text().len }");
     let wasm_path = temp_output("stdin_text_build", "wasm");
     let build = run_sarif(&[
         "build",
@@ -1224,22 +1272,18 @@ fn wasm_build_rejects_stdin_text_modules() {
         wasm_path.to_str().expect("utf-8 path"),
     ]);
 
-    assert!(
-        !build.status.success(),
-        "stdin_text should be rejected on the wasm backend for now"
-    );
-    assert!(
-        String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support runtime input builtins"),
-        "wasm rejection should explain the current stage-0 backend limitation"
+    assert!(build.status.success(), "stdin_text should build on wasm");
+    assert_eq!(
+        run_wasm_main_with_stdin(&wasm_path, b"sarif").expect("built wasm should run"),
+        5
     );
 }
 
 #[cfg(feature = "wasm")]
 #[test]
-fn wasm_build_rejects_stdin_bytes_modules() {
+fn wasm_build_accepts_stdin_bytes_modules() {
     let path = temp_source(
-        "fn main() -> Bool { let xs = stdin_bytes(); bytes_len(xs) == 0 and bytes_len(bytes_slice(xs, 0, 0)) == 0 }",
+        "fn main() -> Bool { let xs = stdin_bytes(); bytes_len(xs) == 5 and bytes_byte(xs, 0) == 115 and bytes_len(bytes_slice(xs, 1, 4)) == 3 }",
     );
     let wasm_path = temp_output("stdin_bytes_build", "wasm");
     let build = run_sarif(&[
@@ -1251,14 +1295,10 @@ fn wasm_build_rejects_stdin_bytes_modules() {
         wasm_path.to_str().expect("utf-8 path"),
     ]);
 
-    assert!(
-        !build.status.success(),
-        "stdin_bytes should be rejected on the wasm backend for now"
-    );
-    assert!(
-        String::from_utf8_lossy(&build.stderr)
-            .contains("wasm backend does not yet support runtime input builtins"),
-        "wasm rejection should explain the current runtime input backend limitation"
+    assert!(build.status.success(), "stdin_bytes should build on wasm");
+    assert_eq!(
+        run_wasm_main_with_stdin(&wasm_path, b"sarif").expect("built wasm should run"),
+        1
     );
 }
 

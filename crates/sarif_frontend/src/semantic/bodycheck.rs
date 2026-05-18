@@ -81,6 +81,7 @@ fn infer_body_statements(
     let mut state = BodyStmtState {
         locals: initial_locals.clone(),
         mutable_locals: initial_mutable_locals.clone(),
+        rejected_mutable_affine_locals: HashSet::new(),
         calls: Vec::new(),
     };
     let mut context = BodyCheckContext {
@@ -110,6 +111,7 @@ fn infer_body_statements(
 struct BodyStmtState {
     locals: HashMap<String, Type>,
     mutable_locals: HashSet<String>,
+    rejected_mutable_affine_locals: HashSet<String>,
     calls: Vec<CallSite>,
 }
 
@@ -172,10 +174,13 @@ fn handle_let_statement(
             ),
             binding.span,
             Some(
-                "Keep mutable locals plain in stage-0, or use an immutable `let` binding unless the type is one of the maintained slot-backed affine builtins."
+                "Keep mutable locals plain in stage-0. For evolving state, keep `List`, `TextIndex`, `TextBuilder`, `Text`, or `Bytes` as direct mutable locals instead of wrapping them in a mutable record."
                     .to_owned(),
             ),
         ));
+        state
+            .rejected_mutable_affine_locals
+            .insert(binding.name.clone());
     } else if binding.mutable {
         state.mutable_locals.insert(binding.name.clone());
     }
@@ -468,7 +473,26 @@ fn handle_assign_statement(
         }
     };
 
+    if state.rejected_mutable_affine_locals.contains(&name) {
+        return;
+    }
+
     if !state.mutable_locals.contains(&name) {
+        let help = state.locals.get(&name).map_or_else(
+            || "Declare the local with `let mut name = ...;` to allow `name = ...;`.".to_owned(),
+            |root_ty| {
+                if type_contains_affine_values(
+                    root_ty,
+                    context.struct_layouts,
+                    context.enum_variants,
+                ) && !mutable_local_allows_affine_values(root_ty)
+                {
+                    "This local was not made mutable because its type contains wrapped affine values. Keep affine handles such as `List` or `TextIndex` as direct mutable locals, or rebuild the record through immutable bindings.".to_owned()
+                } else {
+                    "Declare the local with `let mut name = ...;` to allow `name = ...;`.".to_owned()
+                }
+            },
+        );
         context.diagnostics.push(Diagnostic::new(
             "semantic.assign-immutable",
             format!(
@@ -476,7 +500,7 @@ fn handle_assign_statement(
                 name, context.fn_name
             ),
             statement.span,
-            Some("Declare the local with `let mut name = ...;` to allow `name = ...;`.".to_owned()),
+            Some(help),
         ));
     } else if info.ty != Type::Error && expected_ty != Type::Error {
         if info.ty != expected_ty {

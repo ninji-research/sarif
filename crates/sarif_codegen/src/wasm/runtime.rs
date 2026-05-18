@@ -196,6 +196,7 @@ fn link_fd_write(linker: &mut Linker<()>) -> Result<(), WasmError> {
 fn link_env(linker: &mut Linker<()>, args: &[String]) -> Result<(), WasmError> {
     let args: Vec<String> = args.to_vec();
     let args_for_argv = args.clone();
+    let stdin: Vec<u8> = Vec::new();
     linker
         .func_wrap("env", "__host_argc", move || -> i64 {
             i64::try_from(args.len()).unwrap_or(0)
@@ -221,13 +222,43 @@ fn link_env(linker: &mut Linker<()>, args: &[String]) -> Result<(), WasmError> {
                 let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
                     return -1;
                 };
-                if memory.write(&mut caller, buf_ptr as usize, &arg_bytes[..to_copy]).is_err() {
+                if memory
+                    .write(&mut caller, buf_ptr as usize, &arg_bytes[..to_copy])
+                    .is_err()
+                {
                     return -1;
                 }
                 i32::try_from(to_copy).unwrap_or(-1)
             },
         )
         .map_err(|error| WasmError::new(format!("failed to link env __host_argv: {error}")))?;
+    linker
+        .func_wrap(
+            "env",
+            "__host_stdin_read",
+            move |mut caller: Caller<'_, ()>, buf_ptr: i32, buf_len: i32| -> i32 {
+                if buf_ptr < 0 || buf_len < 0 {
+                    return -1;
+                }
+                let to_copy = stdin.len().min(buf_len as usize);
+                if to_copy == 0 {
+                    return 0;
+                }
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return -1;
+                };
+                if memory
+                    .write(&mut caller, buf_ptr as usize, &stdin[..to_copy])
+                    .is_err()
+                {
+                    return -1;
+                }
+                i32::try_from(to_copy).unwrap_or(-1)
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __host_stdin_read: {error}"))
+        })?;
     Ok(())
 }
 
@@ -453,11 +484,11 @@ mod tests {
     use sarif_syntax::lexer::lex;
     use sarif_syntax::parser::parse;
 
+    use super::super::memory::{read_text_from_memory, unpack_text_value};
     use super::{
         call_main_i64, instantiate_wasm_module, instantiate_wasm_module_with_args, link_env,
         link_fd_write, run_function_wasm, run_main_wasm,
     };
-    use super::super::memory::{read_text_from_memory, unpack_text_value};
     use crate::{RuntimeValue, emit_wasm, lower};
     use wasmtime::{Engine, Linker, Module, Store};
 
@@ -606,47 +637,40 @@ mod tests {
 
     #[test]
     fn wasm_arg_count_with_args() {
-        let program = lower_program(
-            "fn main() -> I32 effects [alloc] { arg_count() }",
-        );
+        let program = lower_program("fn main() -> I32 effects [alloc] { arg_count() }");
         let wasm = emit_wasm(&program).expect("wasm arg_count program should emit");
-        let (mut store, instance) = instantiate_wasm_module_with_args(&wasm, &["hello".into(), "world".into()])
-            .expect("wasm arg_count module should instantiate");
-        let result = call_main_i64(&instance, &mut store)
-            .expect("wasm arg_count should return");
+        let (mut store, instance) =
+            instantiate_wasm_module_with_args(&wasm, &["hello".into(), "world".into()])
+                .expect("wasm arg_count module should instantiate");
+        let result = call_main_i64(&instance, &mut store).expect("wasm arg_count should return");
         assert_eq!(result, 2);
     }
 
     #[test]
     fn wasm_arg_text_with_args() {
-        let program = lower_program(
-            "fn main() -> Text effects [alloc] { arg_text(1) }",
-        );
+        let program = lower_program("fn main() -> Text effects [alloc] { arg_text(1) }");
         let wasm = emit_wasm(&program).expect("wasm arg_text program should emit");
-        let (mut store, instance) = instantiate_wasm_module_with_args(&wasm, &["hello".into(), "world".into()])
-            .expect("wasm arg_text module should instantiate");
-        let memory = instance.get_memory(&mut store, "memory")
+        let (mut store, instance) =
+            instantiate_wasm_module_with_args(&wasm, &["hello".into(), "world".into()])
+                .expect("wasm arg_text module should instantiate");
+        let memory = instance
+            .get_memory(&mut store, "memory")
             .expect("missing exported wasm memory for arg_text result");
-        let packed = call_main_i64(&instance, &mut store)
-            .expect("wasm arg_text should return");
-        let (ptr, len) = unpack_text_value(packed)
-            .expect("wasm arg_text packed value should be valid");
+        let packed = call_main_i64(&instance, &mut store).expect("wasm arg_text should return");
+        let (ptr, len) =
+            unpack_text_value(packed).expect("wasm arg_text packed value should be valid");
         let bytes = read_text_from_memory(&memory, &mut store, ptr, len)
             .expect("wasm arg_text should read from memory");
-        let text = String::from_utf8(bytes)
-            .expect("wasm arg_text result should be valid utf-8");
+        let text = String::from_utf8(bytes).expect("wasm arg_text result should be valid utf-8");
         assert_eq!(text, "world");
     }
 
     #[test]
     fn wasm_binary_roundtrip_validate() {
-        let program = lower_program(
-            "fn main() -> I32 { 42 }",
-        );
+        let program = lower_program("fn main() -> I32 { 42 }");
         let wasm = emit_wasm(&program).expect("wasm should emit");
         let engine = Engine::default();
-        let module = Module::new(&engine, wasm)
-            .expect("emitted wasm should be valid");
+        let module = Module::new(&engine, wasm).expect("emitted wasm should be valid");
         let mut store = Store::new(&engine, ());
         let mut linker = Linker::new(&engine);
         link_fd_write(&mut linker).expect("fd_write should link");
@@ -654,8 +678,7 @@ mod tests {
         let instance = linker
             .instantiate(&mut store, &module)
             .expect("wasm should instantiate");
-        let result = call_main_i64(&instance, &mut store)
-            .expect("wasm main should return");
+        let result = call_main_i64(&instance, &mut store).expect("wasm main should return");
         assert_eq!(result, 42);
     }
 }

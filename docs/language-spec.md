@@ -101,6 +101,21 @@ Sarif keeps one declaration order:
 
 `TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. Misses return `-1`; `text_index_get_or_insert(...)` returns the existing slot or inserts `next`; and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
 
+## Stage-0 Affine State Pattern
+
+Owned runtime handles such as `Text`, `Bytes`, `List[T]`, `TextBuilder`, and `TextIndex` are affine. Stage-0 permits the maintained slot-backed handles as direct mutable locals:
+
+```sarif
+let mut rows = list_new(8, 0);
+let mut len = 0;
+rows = list_push(rows, len, 42);
+len += 1;
+```
+
+Do not wrap those handles in a mutable record and repeatedly assign the record. Keep the affine handle as its own mutable local, then keep scalar metadata such as lengths, counters, and heat scores as separate mutable locals. Immutable records may still be useful as one-shot return values or snapshots.
+
+See `examples/affine_state.sarif` for a complete list/index state example.
+
 ## Profiles
 
 - `Core`: maintained base language

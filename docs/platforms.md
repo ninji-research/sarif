@@ -8,7 +8,7 @@ This document records the real current platform contract for Sarif stage-0 artif
 | --- | --- | --- |
 | Linux native executable | maintained | Primary stage-0 deployment path. Requires a working C toolchain and linker on the host. |
 | macOS native executable | feasible, lightly exercised | The native runtime is POSIX/C-oriented and the linker path now uses Mach-O dead-strip flags, but this host is not covered by the same regression volume as Linux. |
-| Wasm artifact (`--target wasm`) | maintained with explicit exclusions | Emits runnable `.wasm` modules for the supported stage-0 builtin surface. Runtime-input builtins remain excluded. |
+| Wasm artifact (`--target wasm`) | maintained with explicit host imports and exclusions | Emits runnable `.wasm` modules for the supported stage-0 builtin surface. Argument and stdin builtins use explicit `env` imports; current stdin imports perform one bounded host read up to 8192 bytes; unsupported builtins remain explicitly excluded. |
 
 ## Architecture Reality
 

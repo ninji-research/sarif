@@ -1,7 +1,8 @@
 (module
   (import "wasi_snapshot_preview1" "fd_write" (func $__wasi_fd_write (param i32 i32 i32 i32) (result i32)))
   (import "env" "__host_argc" (func $__host_argc (result i64)))
-  (import "env" "__host_argv" (func $__host_argv (param i64 i32 i32) (result i32)))
+  (import "env" "__host_argv" (func $__host_argv (param $index i64) (param $buf_ptr i32) (param $buf_len i32) (result i32)))
+  (import "env" "__host_stdin_read" (func $__host_stdin_read (param $buf_ptr i32) (param $buf_len i32) (result i32)))
   (memory (export "memory") 1)
   (global $heap_ptr (mut i32) (i32.const 0))
   (func $alloc (param $size i32) (result i32) (local $ptr i32) (local $new_end i32) (local $pages i32)

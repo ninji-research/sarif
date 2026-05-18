@@ -1,0 +1,81 @@
+struct Row {
+    ts: I32,
+    value: I32,
+}
+
+struct Block {
+    start: I32,
+    end: I32,
+    min_ts: I32,
+    max_ts: I32,
+}
+
+fn empty_row() -> Row {
+    Row { ts: 0, value: 0 }
+}
+
+fn empty_block() -> Block {
+    Block { start: 0, end: 0, min_ts: 0, max_ts: 0 }
+}
+
+fn push_row(rows: List[Row], len: I32, ts: I32, value: I32) -> List[Row] effects [alloc] {
+    list_push(rows, len, Row { ts, value })
+}
+
+fn build_blocks(rows: List[Row], len: I32, size: I32) -> List[Block] effects [alloc] {
+    let mut blocks = list_new(4, empty_block());
+    let mut block_len = 0;
+    let mut start = 0;
+    while start < len {
+        let mut end = start + size;
+        if end > len {
+            end = len;
+        };
+        let first = rows[start];
+        let mut min_ts = first.ts;
+        let mut max_ts = first.ts;
+        let mut index = start + 1;
+        while index < end {
+            let row = rows[index];
+            if row.ts < min_ts {
+                min_ts = row.ts;
+            };
+            if row.ts > max_ts {
+                max_ts = row.ts;
+            };
+            index += 1;
+        };
+        blocks = list_push(blocks, block_len, Block { start, end, min_ts, max_ts });
+        block_len += 1;
+        start = end;
+    };
+    blocks
+}
+
+fn touched_rows(blocks: List[Block], block_len: I32, low: I32, high: I32) -> I32 {
+    let mut touched = 0;
+    let mut index = 0;
+    while index < block_len {
+        let block = blocks[index];
+        if not (block.max_ts < low or block.min_ts > high) {
+            touched += block.end - block.start;
+        };
+        index += 1;
+    };
+    touched
+}
+
+fn main() -> I32 effects [alloc] {
+    let mut rows = list_new(8, empty_row());
+    let mut len = 0;
+    rows = push_row(rows, len, 1, 11); len += 1;
+    rows = push_row(rows, len, 2, 12); len += 1;
+    rows = push_row(rows, len, 3, 13); len += 1;
+    rows = push_row(rows, len, 4, 14); len += 1;
+    rows = push_row(rows, len, 5, 15); len += 1;
+    rows = push_row(rows, len, 6, 16); len += 1;
+    rows = push_row(rows, len, 7, 17); len += 1;
+    rows = push_row(rows, len, 8, 18); len += 1;
+    let blocks = build_blocks(rows, len, 2);
+    len - touched_rows(blocks, 4, 5, 6)
+}

@@ -1,0 +1,30 @@
+struct Row {
+    key: Text,
+    value: I32,
+}
+
+fn empty_row() -> Row {
+    Row { key: "", value: 0 }
+}
+
+fn main() -> Text effects [alloc] {
+    let mut rows = list_new(4, empty_row());
+    let mut len = 0;
+    let mut index = text_index_new();
+    rows = list_push(rows, len, Row { key: "north", value: 21 });
+    let north = text_index_get_or_insert(index, "north", len);
+    len += 1;
+    rows = list_push(rows, len, Row { key: "south", value: 19 });
+    let south = text_index_get_or_insert(index, "south", len);
+    len += 1;
+    let row = rows[north];
+    let mut out = text_builder_new();
+    out += row.key;
+    out += ",";
+    out += row.value;
+    out += ",";
+    out += len;
+    out += ",";
+    out += south;
+    text_builder_finish(out)
+}
