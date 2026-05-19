@@ -944,6 +944,345 @@ fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text {
     out
 }
 
+fn span_text_safe(source: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_slice(source, span.span.start, span.span.end)
+    } else {
+        ""
+    }
+}
+
+fn extract_type_text(type_text: Text) -> Text {
+    let trimmed = trim_text(type_text);
+    if is_empty(trimmed) {
+        ""
+    } else {
+        trimmed
+    }
+}
+
+fn is_builtin_type(name: Text) -> Bool {
+    name == "I32" or name == "F64" or name == "Bool" or name == "Text" or name == "Unit" or name == "Bytes" or name == "TextIndex" or name == "TextBuilder"
+}
+
+fn is_numeric_type(ty: Text) -> Bool {
+    ty == "I32" or ty == "F64"
+}
+
+fn type_table_lookup(table: Text, key: Text) -> Text {
+    if is_empty(table) {
+        ""
+    } else {
+        let sep = find_byte_index(table, 58, 0);
+        let eol = find_byte_index(table, 10, 0);
+        let entry_end = if eol >= 0 { eol } else { text_len(table) };
+        let entry_key = text_slice(table, 0, sep);
+        let entry_val = text_slice(table, sep + 1, entry_end);
+        if entry_key == key {
+            entry_val
+        } else {
+            if eol >= 0 {
+                type_table_lookup(text_slice(table, eol + 1, text_len(table)), key)
+            } else {
+                ""
+            }
+        }
+    }
+}
+
+fn type_table_extend(table: Text, key: Text, value: Text) -> Text {
+    if is_empty(table) {
+        text_concat(key, text_concat(":", value))
+    } else {
+        text_concat(table, text_concat("\n", text_concat(key, text_concat(":", value))))
+    }
+}
+
+fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let from_locals = type_table_lookup(locals, name);
+    if not is_empty(from_locals) {
+        from_locals
+    } else {
+        let from_consts = type_table_lookup(consts, name);
+        if not is_empty(from_consts) {
+            from_consts
+        } else {
+            let from_fns = type_table_lookup(fns, name);
+            if not is_empty(from_fns) {
+                from_fns
+            } else {
+                if is_builtin_fn(name) {
+                    ""
+                } else {
+                    ""
+                }
+            }
+        }
+    }
+}
+
+fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text {
+    let expr_text = text_slice(source, expr_span.start, expr_span.end);
+    let paren = find_byte_index(expr_text, 40, 0);
+    if paren > 0 {
+        let callee = trim_text(text_slice(expr_text, 0, paren));
+        let ret_type = type_table_lookup(fns, callee);
+        if is_empty(ret_type) {
+            if is_builtin_fn(callee) {
+                "I32"
+            } else {
+                ""
+            }
+        } else {
+            ret_type
+        }
+    } else {
+        ""
+    }
+}
+
+fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    if not expr_span.present {
+        ""
+    } else {
+        match expr_kind {
+            ExprKind.Integer => { "I32" },
+            ExprKind.Float => { "F64" },
+            ExprKind.Bool => { "Bool" },
+            ExprKind.String => { "Text" },
+            ExprKind.Name => {
+                let name_text_val = text_slice(source, expr_span.span.start, expr_span.span.end);
+                infer_name_type(name_text_val, locals, consts, fns)
+            },
+            ExprKind.Call => {
+                infer_call_ret_type(source, expr_span.span, fns)
+            },
+            _ => { "" },
+        }
+    }
+}
+
+fn format_type_diag(source: Text, span: Span, message: Text) -> Text {
+    let line_start = find_line_end(text_slice(source, 0, span.start), 0);
+    let line_start_abs = if line_start >= 0 { line_start } else { 0 };
+    let line_end = find_line_end(source, span.start);
+    let line_text = text_slice(source, line_start_abs, line_end);
+    text_concat("error: ", text_concat(message, text_concat("\n  at >", text_concat(line_text, "\n"))))
+}
+
+fn extract_param_types_from(source: Text, span: OptionalSpan) -> Text {
+    if not span.present {
+        ""
+    } else {
+        let raw = text_slice(source, span.span.start, span.span.end);
+        let trimmed = trim_text(raw);
+        if is_empty(trimmed) {
+            ""
+        } else {
+            let open = find_byte_index(trimmed, 40, 0);
+            let close = if open >= 0 { find_byte_index(trimmed, 41, open + 1) } else { -1 };
+            if open >= 0 and close > open {
+                let content = trim_text(text_slice(trimmed, open + 1, close));
+                parse_params_from(content, 0)
+            } else {
+                ""
+            }
+        }
+    }
+}
+
+fn parse_params_from(content: Text, index: I32) -> Text {
+    if index >= text_len(content) {
+        ""
+    } else {
+        let colon = find_byte_index(content, 58, index);
+        if colon < 0 {
+            ""
+        } else {
+            let name = trim_text(text_slice(content, index, colon));
+            let comma = find_byte_index(content, 44, colon + 1);
+            let type_end = if comma >= 0 { comma } else { text_len(content) };
+            let type_text = trim_text(text_slice(content, colon + 1, type_end));
+            let entry = text_concat(name, text_concat(":", type_text));
+            let rest = if comma >= 0 {
+                parse_params_from(content, comma + 1)
+            } else {
+                ""
+            };
+            if is_empty(rest) {
+                entry
+            } else {
+                text_concat(entry, text_concat("\n", rest))
+            }
+        }
+    }
+}
+
+fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let parsed = parse_fn_item_with_shape(source, state);
+    let shape = parsed.shape;
+    let outline = shape.body_outline;
+    let return_span = shape.return_span;
+    let return_type_text = extract_type_text(span_text_safe(source, return_span));
+    let mut locals = extract_param_types_from(source, shape.params_span);
+    let mut tail_type = "";
+    let mut out = "";
+    let mut index = 0;
+    while index < 5 {
+        let item = block_item_entry_at(outline, index);
+        if item.present {
+            let entry = item.entry;
+            let entry_kind = entry.kind;
+            let entry_binding = entry.binding_span;
+            let entry_expr = entry.expr_span;
+            let entry_expr_kind = entry.expr_kind;
+            if entry_kind == BlockItemKind.Let {
+                if entry_binding.present {
+                    let binding_name = text_slice(source, entry_binding.span.start, entry_binding.span.end);
+                    if not is_empty(type_table_lookup(locals, binding_name)) {
+                        let diag = format_type_diag(source, entry_binding.span, text_concat("duplicate local `", text_concat(binding_name, "`")));
+                        out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                    } else {
+                        let inferred = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                        if not is_empty(inferred) {
+                            locals = type_table_extend(locals, binding_name, inferred);
+                        };
+                    };
+                };
+            };
+            if entry_kind == BlockItemKind.TailExpr {
+                tail_type = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
+            };
+        };
+        index = index + 1;
+    };
+    let return_diag = if is_empty(return_type_text) {
+        if is_empty(tail_type) {
+            ""
+        } else {
+            if tail_type == "Unit" {
+                ""
+            } else {
+                format_type_diag(source, shape.body_span.span, text_concat("tail expression type `", text_concat(tail_type, text_concat("` does not match implicit Unit return type", ""))))
+            }
+        }
+    } else {
+        if is_empty(tail_type) {
+            ""
+        } else {
+            if return_type_text == tail_type or (is_numeric_type(return_type_text) and is_numeric_type(tail_type)) {
+                ""
+            } else {
+                format_type_diag(source, shape.body_span.span, text_concat("expected return type `", text_concat(return_type_text, text_concat("` but tail expression has type `", text_concat(tail_type, "`")))))
+            }
+        }
+    };
+    if is_empty(out) {
+        return_diag
+    } else {
+        if is_empty(return_diag) {
+            out
+        } else {
+            text_concat(out, return_diag)
+        }
+    }
+}
+
+fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let diag = check_fn_return_type(source, cur_state, consts, fns, known);
+            let parsed = parse_fn_item_with_shape(source, cur_state);
+            cur_state = parsed.state;
+            if not is_empty(diag) {
+                out = if is_empty(out) { diag } else { text_concat(out, diag) };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                parse_const_item(source, cur_state)
+            };
+        };
+    };
+    out
+}
+
+fn collect_const_types(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut types = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwConst {
+            let name_span = top_level_name_span(source, cur_state);
+            let parsed = parse_const_item(source, cur_state);
+            cur_state = parsed;
+            if name_span.present {
+                let nspan = name_span.span;
+                let nend = nspan.end;
+                let cname = text_slice(source, nspan.start, nend);
+                if not is_empty(cname) {
+                    let colon_idx = find_byte_index(source, 58, nend);
+                    let semi_idx = find_byte_index(source, 59, nend);
+                    if colon_idx >= 0 and semi_idx >= 0 and colon_idx < semi_idx {
+                        let eq_idx = find_byte_index(source, 61, colon_idx);
+                        if eq_idx >= 0 and eq_idx < semi_idx {
+                            let type_text_v = trim_text(text_slice(source, colon_idx + 1, eq_idx));
+                            if not is_empty(type_text_v) {
+                                types = type_table_extend(types, cname, type_text_v);
+                            };
+                        };
+                    };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                parse_fn_item(source, cur_state)
+            };
+        };
+    };
+    types
+}
+
+fn collect_fn_sigs_from(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut sigs = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let name_span = top_level_name_span(source, cur_state);
+            let parsed = parse_fn_item_with_shape(source, cur_state);
+            cur_state = parsed.state;
+            if name_span.present {
+                let fn_name = text_slice(source, name_span.span.start, name_span.span.end);
+                if not is_empty(fn_name) {
+                    let ret_text = extract_type_text(span_text_safe(source, parsed.shape.return_span));
+                    if is_empty(ret_text) {
+                        sigs = type_table_extend(sigs, fn_name, "Unit");
+                    } else {
+                        sigs = type_table_extend(sigs, fn_name, ret_text);
+                    };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                parse_const_item(source, cur_state)
+            };
+        };
+    };
+    sigs
+}
+
 fn check_text(source: Text, package_names: Text) -> Text {
     let report = parse_module_report(source);
     if not report.ok {
@@ -983,22 +1322,17 @@ fn check_text(source: Text, package_names: Text) -> Text {
             text_concat(all_names, text_concat("\n", package_names))
         };
         let call_diag = check_body_calls_from(source, parse_state_new(source), known);
-        let combined = text_concat(dup_diag, call_diag);
+        
+        let const_types = collect_const_types(source, parse_state_new(source));
+        let fn_sigs = collect_fn_sigs_from(source, parse_state_new(source));
+        let fn_type_diag = check_fn_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
+        
+        let combined = text_concat(dup_diag, text_concat(call_diag, fn_type_diag));
         if is_empty(combined) {
             "ok [core]\n"
         } else {
             combined
         }
-    }
-}
-
-fn format_float_token(source: Text, span: Span) -> Text {
-    let lexeme = text_slice(source, span.start, span.end);
-    let val = parse_f64(lexeme);
-    if val < 1.0 and val > 0.0 {
-        text_from_f64_fixed(val, 4)
-    } else {
-        lexeme
     }
 }
 

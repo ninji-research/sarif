@@ -2061,15 +2061,105 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
-### fn check_text
+### fn span_text_safe
 
-- signature: `fn check_text(source: Text, package_names: Text) -> Text`
+- signature: `fn span_text_safe(source: Text, span: OptionalSpan) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
-### fn format_float_token
+### fn extract_type_text
 
-- signature: `fn format_float_token(source: Text, span: Span) -> Text`
+- signature: `fn extract_type_text(type_text: Text) -> Text`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn is_builtin_type
+
+- signature: `fn is_builtin_type(name: Text) -> Bool`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn is_numeric_type
+
+- signature: `fn is_numeric_type(ty: Text) -> Bool`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn type_table_lookup
+
+- signature: `fn type_table_lookup(table: Text, key: Text) -> Text`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
+### fn type_table_extend
+
+- signature: `fn type_table_extend(table: Text, key: Text, value: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn infer_name_type
+
+- signature: `fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn infer_call_ret_type
+
+- signature: `fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn infer_expr_type_from_outline
+
+- signature: `fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn format_type_diag
+
+- signature: `fn format_type_diag(source: Text, span: Span, message: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn extract_param_types_from
+
+- signature: `fn extract_param_types_from(source: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn parse_params_from
+
+- signature: `fn parse_params_from(content: Text, index: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_fn_return_type
+
+- signature: `fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_fn_types_from
+
+- signature: `fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn collect_const_types
+
+- signature: `fn collect_const_types(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn collect_fn_sigs_from
+
+- signature: `fn collect_fn_sigs_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_text
+
+- signature: `fn check_text(source: Text, package_names: Text) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
