@@ -371,6 +371,11 @@ pub enum Inst {
         index: ValueId,
         key: ValueId,
     },
+    TextIndexContains {
+        dest: ValueId,
+        index: ValueId,
+        key: ValueId,
+    },
     TextIndexGetOrInsert {
         dest: ValueId,
         index: ValueId,
@@ -837,6 +842,12 @@ impl Inst {
             ),
             Self::TextIndexGet { dest, index, key } => format!(
                 "{} = text-index-get {}, {}",
+                dest.render(),
+                index.render(),
+                key.render()
+            ),
+            Self::TextIndexContains { dest, index, key } => format!(
+                "{} = text-index-contains {}, {}",
                 dest.render(),
                 index.render(),
                 key.render()
@@ -3279,6 +3290,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::TextIndexGet { .. }
+            | Inst::TextIndexContains { .. }
             | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. }
             | Inst::ListNew { .. }
@@ -3654,6 +3666,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_index_get" if self.builtin_is_available("text_index_get") => {
                 self.lower_text_index_get_expr(expr)
             }
+            "text_index_contains" if self.builtin_is_available("text_index_contains") => {
+                self.lower_text_index_contains_expr(expr)
+            }
             "text_index_get_or_insert" if self.builtin_is_available("text_index_get_or_insert") => {
                 self.lower_text_index_get_or_insert_expr(expr)
             }
@@ -3821,6 +3836,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 LowerType::Text
             }
             "text_index_get" if self.builtin_is_available("text_index_get") => LowerType::I32,
+            "text_index_contains" if self.builtin_is_available("text_index_contains") => {
+                LowerType::I32
+            }
             "text_index_get_or_insert" if self.builtin_is_available("text_index_get_or_insert") => {
                 LowerType::I32
             }
@@ -6959,6 +6977,21 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_index_contains_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let index = self.lower_expr(arg0);
+        let key = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions
+            .push(Inst::TextIndexContains { dest, index, key });
+        dest
+    }
+
     fn lower_text_index_get_or_insert_expr(
         &mut self,
         expr: &sarif_frontend::hir::CallExpr,
@@ -8194,6 +8227,22 @@ impl<'a> Interpreter<'a> {
                         .copied()
                         .unwrap_or(-1);
                     values[dest.0 as usize] = RuntimeValue::Int(value);
+                }
+                Inst::TextIndexContains { dest, index, key } => {
+                    let index_val = extract_value(values, *index)?;
+                    let key_val = extract_value(values, *key)?;
+                    let RuntimeValue::TextIndex(id) = index_val else {
+                        return Err(RuntimeError::new("expected TextIndex"));
+                    };
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let exists = self
+                        .text_indices
+                        .get(id as usize)
+                        .map(|index| index.contains_key(&key))
+                        .unwrap_or(false);
+                    values[dest.0 as usize] = RuntimeValue::Int(if exists { 1 } else { 0 });
                 }
                 Inst::TextIndexGetOrInsert {
                     dest,

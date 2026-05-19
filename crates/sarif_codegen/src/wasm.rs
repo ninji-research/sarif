@@ -486,6 +486,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextBuilderFinish { dest, .. }
                 | Inst::StdoutWriteBuilder { dest, .. }
                 | Inst::TextIndexGet { dest, .. }
+                | Inst::TextIndexContains { dest, .. }
                 | Inst::TextIndexGetOrInsert { dest, .. }
                 | Inst::TextIndexSet { dest, .. }
                 | Inst::TextFromF64Fixed { dest, .. }
@@ -712,6 +713,14 @@ impl<'a> WasmEmitter<'a> {
             }
             Inst::TextIndexGet { dest, index, key } => {
                 w_call(output, *dest, &[*index, *key], "$__sarif_text_index_get");
+            }
+            Inst::TextIndexContains { dest, index, key } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*index, *key],
+                    "$__sarif_text_index_contains",
+                );
             }
             Inst::TextIndexGetOrInsert {
                 dest,
@@ -1834,7 +1843,9 @@ fn collect_inst_kinds(
             Inst::TextIndexNew { dest } | Inst::TextIndexSet { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::TextIndex);
             }
-            Inst::TextIndexGet { dest, .. } | Inst::TextIndexGetOrInsert { dest, .. } => {
+            Inst::TextIndexGet { dest, .. }
+            | Inst::TextIndexContains { dest, .. }
+            | Inst::TextIndexGetOrInsert { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::I32);
             }
             Inst::StdoutWriteBuilder { dest, .. } => {

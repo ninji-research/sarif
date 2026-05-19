@@ -340,7 +340,7 @@ fn infer_inst_kinds(
                     },
                 );
             }
-            Inst::TextIndexGet { dest, .. } => {
+            Inst::TextIndexGet { dest, .. } | Inst::TextIndexContains { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
             }
             Inst::TextIndexGetOrInsert { dest, .. } => {
@@ -1633,6 +1633,34 @@ pub fn lower_inst<M: Module>(
                 _ => {
                     return Err(format!(
                         "{backend} text index get helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextIndexContains { dest, index, key } => {
+            let index_val = native_value(
+                values,
+                *index,
+                function,
+                "text_index_contains index",
+                backend,
+            )?;
+            let key_val = native_value(values, *key, function, "text_index_contains key", backend)?;
+            let helper = module.declare_func_in_func(
+                text_index_helpers
+                    .contains_id
+                    .expect("text index contains declared"),
+                builder.func,
+            );
+            let call = builder.ins().call(helper, &[index_val, key_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} text index contains helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
                 }
@@ -3538,6 +3566,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
             | Inst::TextIndexGet { dest, .. }
+            | Inst::TextIndexContains { dest, .. }
             | Inst::TextIndexGetOrInsert { dest, .. }
             | Inst::TextIndexSet { dest, .. }
             | Inst::ListSet { dest, .. }

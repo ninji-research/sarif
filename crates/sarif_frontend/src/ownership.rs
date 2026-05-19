@@ -38,6 +38,7 @@ fn is_borrow_only_builtin(callee: &str) -> bool {
             | "text_builder_append_ascii"
             | "text_builder_append_slice"
             | "text_index_get"
+            | "text_index_contains"
             | "text_index_set"
             | "text_index_get_or_insert"
             | "list_len"
@@ -1409,7 +1410,9 @@ fn expr_type_for_ownership(
             "list_sort_by_text_field" => expr.args.first().and_then(|list| {
                 expr_type_for_ownership(list, locals, struct_layouts, result_type)
             }),
-            "text_index_get" | "text_index_get_or_insert" => Some(Type::I32),
+            "text_index_get" | "text_index_contains" | "text_index_get_or_insert" => {
+                Some(Type::I32)
+            }
             "text_index_set" => Some(Type::TextIndex),
             "bytes_len" => Some(Type::I32),
             "bytes_byte" => Some(Type::I32),

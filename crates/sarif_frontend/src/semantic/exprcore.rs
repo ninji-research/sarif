@@ -1444,6 +1444,21 @@ must have type `Text`, found `{}`",
         );
     }
 
+    if expr.callee == "text_index_contains" && !functions.contains_key("text_index_contains") {
+        return infer_text_index_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            context,
+            "text_index_contains",
+            "semantic.text_index_contains-arity",
+            "semantic.text_index_contains-type",
+            Type::I32,
+            None,
+        );
+    }
+
     if expr.callee == "f64_from_i32" && !functions.contains_key("f64_from_i32") {
         if args.len() != 1 {
             diagnostics.push(Diagnostic::new(

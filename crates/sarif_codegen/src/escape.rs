@@ -166,6 +166,7 @@ impl Env<'_> {
             | Inst::TextBuilderAppendI32 { dest, .. }
             | Inst::StdoutWriteBuilder { dest, .. }
             | Inst::TextIndexGet { dest, .. }
+            | Inst::TextIndexContains { dest, .. }
             | Inst::TextIndexGetOrInsert { dest, .. }
             | Inst::TextIndexSet { dest, .. }
             | Inst::ListSortText { dest, .. }
