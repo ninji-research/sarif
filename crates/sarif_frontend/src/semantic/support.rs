@@ -158,7 +158,7 @@ fn type_contains_affine_values_inner(
             visiting.remove(name);
             true
         }
-        Type::TextIndex | Type::TextBuilder | Type::List(_) => true,
+        Type::TextIndex | Type::TextBuilder | Type::List(_) | Type::File => true,
         Type::Param(_) => false,
         Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => false,
     }

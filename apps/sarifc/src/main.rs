@@ -11,7 +11,7 @@ use artifact::link_executable;
 use command::{BuildTarget, CommandKind, parse_command, usage};
 use input::resolve_input;
 #[cfg(feature = "codegen")]
-use reports::{render_bootstrap_check, render_bootstrap_format};
+use reports::{render_bootstrap_check, render_bootstrap_doc, render_bootstrap_format};
 use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
@@ -277,11 +277,9 @@ fn run_bootstrap_check(command: &command::Command) -> Result<(), String> {
 }
 
 fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
-    // bootstrap-doc uses the Rust doc generator (Sarif bootstrap doesn't
-    // have full doc parity yet; format and basic check are flipped).
     print_loaded_render(command, |loaded| {
         emit_requested_dump(loaded, command)?;
-        render_semantic_doc(loaded, command.profile)
+        render_bootstrap_doc(loaded)
     })
 }
 
@@ -372,6 +370,7 @@ fn runtime_value_to_exit_code(value: &RuntimeValue) -> ExitCode {
         | RuntimeValue::List(_)
         | RuntimeValue::Enum(_)
         | RuntimeValue::Record(_)
+        | RuntimeValue::File(_)
         | RuntimeValue::Unit => ExitCode::SUCCESS,
     }
 }

@@ -173,7 +173,17 @@ impl Env<'_> {
             | Inst::ListSortRecordTextField { dest, .. }
             | Inst::ListSet { dest, .. }
             | Inst::TextBuilderFinish { dest, .. }
-            | Inst::Perform { dest, .. } => {
+            | Inst::Perform { dest, .. }
+            | Inst::FileOpen { dest, .. }
+            | Inst::BytesToText { dest, .. }
+            | Inst::FileIsValid { dest, .. }
+            | Inst::FileRead { dest, .. }
+            | Inst::FileReadToEnd { dest, .. }
+            | Inst::FileWrite { dest, .. }
+            | Inst::FileSeek { dest, .. }
+            | Inst::FileSize { dest, .. }
+            | Inst::FileExists { dest, .. }
+            | Inst::FileRemove { dest, .. } => {
                 self.mark(*dest);
             }
 
@@ -326,6 +336,7 @@ impl Env<'_> {
             | Inst::AllocPush
             | Inst::AllocPop
             | Inst::StdoutWrite { .. }
+            | Inst::FileClose { .. }
             | Inst::LoadParam { .. }
             | Inst::ArgCount { .. }
             | Inst::ParseI32 { .. }

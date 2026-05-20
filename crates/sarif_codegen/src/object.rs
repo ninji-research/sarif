@@ -10,7 +10,10 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use crate::native::{
     ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TextIndexHelperIds, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
-    declare_arg_count, declare_arg_text, declare_bytes_slice, declare_list_new, declare_list_push,
+    declare_arg_count, declare_arg_text, declare_bytes_slice, declare_bytes_to_text,
+    declare_file_close, declare_file_exists, declare_file_is_valid, declare_file_open,
+    declare_file_read, declare_file_read_to_end, declare_file_remove, declare_file_seek,
+    declare_file_size, declare_file_write, declare_list_new, declare_list_push,
     declare_list_sort_by_text_field, declare_list_sort_text, declare_parse_f64, declare_parse_i32,
     declare_parse_i32_range, declare_record_allocator, declare_stdin_text, declare_stdout_write,
     declare_stdout_write_builder, declare_text_builder_append, declare_text_builder_append_ascii,
@@ -108,6 +111,17 @@ struct ObjectBackend<'a> {
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
     stdout_write_id: FuncId,
+    file_open_id: FuncId,
+    file_close_id: FuncId,
+    file_read_id: FuncId,
+    file_read_to_end_id: FuncId,
+    file_write_id: FuncId,
+    file_seek_id: FuncId,
+    file_size_id: FuncId,
+    file_exists_id: FuncId,
+    file_remove_id: FuncId,
+    file_is_valid_id: FuncId,
+    bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
     records: BTreeMap<String, NativeRecord>,
@@ -226,6 +240,17 @@ impl<'a> ObjectBackend<'a> {
         let arg_text_id = declare_fn(&mut module, declare_arg_text)?;
         let stdin_text_id = declare_fn(&mut module, declare_stdin_text)?;
         let stdout_write_id = declare_fn(&mut module, declare_stdout_write)?;
+        let file_open_id = declare_fn(&mut module, declare_file_open)?;
+        let file_close_id = declare_fn(&mut module, declare_file_close)?;
+        let file_read_id = declare_fn(&mut module, declare_file_read)?;
+        let file_read_to_end_id = declare_fn(&mut module, declare_file_read_to_end)?;
+        let file_write_id = declare_fn(&mut module, declare_file_write)?;
+        let file_seek_id = declare_fn(&mut module, declare_file_seek)?;
+        let file_size_id = declare_fn(&mut module, declare_file_size)?;
+        let file_exists_id = declare_fn(&mut module, declare_file_exists)?;
+        let file_remove_id = declare_fn(&mut module, declare_file_remove)?;
+        let file_is_valid_id = declare_fn(&mut module, declare_file_is_valid)?;
+        let bytes_to_text_id = declare_fn(&mut module, declare_bytes_to_text)?;
         let text_eq_id = declare_fn(&mut module, declare_text_eq)?;
         let text_cmp_id = declare_fn(&mut module, declare_text_cmp)?;
 
@@ -267,6 +292,17 @@ impl<'a> ObjectBackend<'a> {
             arg_text_id,
             stdin_text_id,
             stdout_write_id,
+            file_open_id,
+            file_close_id,
+            file_read_id,
+            file_read_to_end_id,
+            file_write_id,
+            file_seek_id,
+            file_size_id,
+            file_exists_id,
+            file_remove_id,
+            file_is_valid_id,
+            bytes_to_text_id,
             text_eq_id,
             text_cmp_id,
             function_signatures: BTreeMap::new(),
@@ -357,6 +393,14 @@ impl<'a> ObjectBackend<'a> {
 
             let id = self.function_ids[&function.name];
             let module = self.module.as_mut().expect("module available");
+            // Verify before defining to get detailed error info
+            if let Err(errors) = cranelift_codegen::verify_function(&context.func, module.isa()) {
+                return Err(ObjectError::new(format!(
+                    "verifier failed for `{}`: {errors}",
+                    function.name,
+                )));
+            }
+
             module.define_function(id, &mut context).map_err(|error| {
                 ObjectError::new(format!(
                     "failed to define `{}` for object emission: {error}\n{}",
@@ -469,6 +513,17 @@ impl<'a> ObjectBackend<'a> {
             self.arg_text_id,
             self.stdin_text_id,
             self.stdout_write_id,
+            self.file_open_id,
+            self.file_close_id,
+            self.file_read_id,
+            self.file_read_to_end_id,
+            self.file_write_id,
+            self.file_seek_id,
+            self.file_size_id,
+            self.file_exists_id,
+            self.file_remove_id,
+            self.file_is_valid_id,
+            self.bytes_to_text_id,
             self.text_eq_id,
             self.text_cmp_id,
             &self.records,
@@ -546,6 +601,17 @@ struct ClifDumper<'a> {
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
     stdout_write_id: FuncId,
+    file_open_id: FuncId,
+    file_close_id: FuncId,
+    file_read_id: FuncId,
+    file_read_to_end_id: FuncId,
+    file_write_id: FuncId,
+    file_seek_id: FuncId,
+    file_size_id: FuncId,
+    file_exists_id: FuncId,
+    file_remove_id: FuncId,
+    file_is_valid_id: FuncId,
+    bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
 }
@@ -659,6 +725,17 @@ impl<'a> ClifDumper<'a> {
         let arg_text_id = Self::declare_fn(&mut dummy_module, declare_arg_text)?;
         let stdin_text_id = Self::declare_fn(&mut dummy_module, declare_stdin_text)?;
         let stdout_write_id = Self::declare_fn(&mut dummy_module, declare_stdout_write)?;
+        let file_open_id = Self::declare_fn(&mut dummy_module, declare_file_open)?;
+        let file_close_id = Self::declare_fn(&mut dummy_module, declare_file_close)?;
+        let file_read_id = Self::declare_fn(&mut dummy_module, declare_file_read)?;
+        let file_read_to_end_id = Self::declare_fn(&mut dummy_module, declare_file_read_to_end)?;
+        let file_write_id = Self::declare_fn(&mut dummy_module, declare_file_write)?;
+        let file_seek_id = Self::declare_fn(&mut dummy_module, declare_file_seek)?;
+        let file_size_id = Self::declare_fn(&mut dummy_module, declare_file_size)?;
+        let file_exists_id = Self::declare_fn(&mut dummy_module, declare_file_exists)?;
+        let file_remove_id = Self::declare_fn(&mut dummy_module, declare_file_remove)?;
+        let file_is_valid_id = Self::declare_fn(&mut dummy_module, declare_file_is_valid)?;
+        let bytes_to_text_id = Self::declare_fn(&mut dummy_module, declare_bytes_to_text)?;
         let text_eq_id = Self::declare_fn(&mut dummy_module, declare_text_eq)?;
         let text_cmp_id = Self::declare_fn(&mut dummy_module, declare_text_cmp)?;
 
@@ -701,6 +778,17 @@ impl<'a> ClifDumper<'a> {
             arg_text_id,
             stdin_text_id,
             stdout_write_id,
+            file_open_id,
+            file_close_id,
+            file_read_id,
+            file_read_to_end_id,
+            file_write_id,
+            file_seek_id,
+            file_size_id,
+            file_exists_id,
+            file_remove_id,
+            file_is_valid_id,
+            bytes_to_text_id,
             text_eq_id,
             text_cmp_id,
         })
@@ -865,6 +953,17 @@ impl<'a> ClifDumper<'a> {
             self.arg_text_id,
             self.stdin_text_id,
             self.stdout_write_id,
+            self.file_open_id,
+            self.file_close_id,
+            self.file_read_id,
+            self.file_read_to_end_id,
+            self.file_write_id,
+            self.file_seek_id,
+            self.file_size_id,
+            self.file_exists_id,
+            self.file_remove_id,
+            self.file_is_valid_id,
+            self.bytes_to_text_id,
             self.text_eq_id,
             self.text_cmp_id,
             &self.records,

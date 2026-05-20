@@ -251,6 +251,10 @@ static unsigned char* sarif_text_alloc(uint64_t len) {
     return text;
 }
 
+static unsigned char* sarif_bytes_alloc(uint64_t len) {
+    return sarif_text_alloc(len);
+}
+
 static unsigned char* sarif_text_alloc_extra(uint64_t len, uint64_t extra) {
     unsigned char* text = NULL;
     if (len > UINT64_MAX - extra || len + extra > (uint64_t)SIZE_MAX - 8u) {
@@ -1481,6 +1485,157 @@ static int sarif_write_value(
     }
 }
 #endif
+
+uint64_t sarif_file_open(const unsigned char* path_handle, const unsigned char* mode_handle) {
+    if (path_handle == NULL || mode_handle == NULL) {
+        return 0;
+    }
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    uint64_t mode_len = sarif_load_u64(mode_handle, 0);
+    char path[1024];
+    char mode[16];
+    if (path_len >= 1024 || mode_len >= 16) {
+        return 0;
+    }
+    memcpy(path, path_handle + 8, (size_t)path_len);
+    path[path_len] = '\0';
+    memcpy(mode, mode_handle + 8, (size_t)mode_len);
+    mode[mode_len] = '\0';
+    FILE* f = fopen(path, mode);
+    return (uint64_t)(uintptr_t)f;
+}
+
+void sarif_file_close(uint64_t handle) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f != NULL) {
+        fclose(f);
+    }
+}
+
+uint64_t sarif_file_read(uint64_t handle, int64_t len) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f == NULL || len < 0) {
+        return (uint64_t)NULL;
+    }
+    unsigned char* bytes = sarif_bytes_alloc((uint64_t)len);
+    if (bytes == NULL) {
+        return (uint64_t)NULL;
+    }
+    size_t n = fread(bytes + 8, 1, (size_t)len, f);
+    sarif_store_u64(bytes, 0, (uint64_t)n);
+    return (uint64_t)(uintptr_t)bytes;
+}
+
+uint64_t sarif_file_read_to_end(uint64_t handle) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f == NULL) {
+        return (uint64_t)NULL;
+    }
+    long current = ftell(f);
+    if (current < 0) {
+        return (uint64_t)NULL;
+    }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        return (uint64_t)NULL;
+    }
+    long end = ftell(f);
+    if (end < 0) {
+        return (uint64_t)NULL;
+    }
+    if (fseek(f, current, SEEK_SET) != 0) {
+        return (uint64_t)NULL;
+    }
+    long len = end - current;
+    if (len < 0) {
+        len = 0;
+    }
+    unsigned char* bytes = sarif_bytes_alloc((uint64_t)len);
+    if (bytes == NULL) {
+        return (uint64_t)NULL;
+    }
+    if (len > 0) {
+        size_t n = fread(bytes + 8, 1, (size_t)len, f);
+        sarif_store_u64(bytes, 0, (uint64_t)n);
+    } else {
+        sarif_store_u64(bytes, 0, 0);
+    }
+    return (uint64_t)(uintptr_t)bytes;
+}
+
+
+int64_t sarif_file_write(uint64_t handle, const unsigned char* data_handle) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f == NULL || data_handle == NULL) {
+        return -1;
+    }
+    uint64_t len = sarif_load_u64(data_handle, 0);
+    if (len == 0) {
+        return 0;
+    }
+    size_t n = fwrite(data_handle + 8, 1, (size_t)len, f);
+    return (int64_t)n;
+}
+
+int64_t sarif_file_seek(uint64_t handle, int64_t offset, int64_t whence) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f == NULL) {
+        return -1;
+    }
+    int w = SEEK_SET;
+    if (whence == 1) w = SEEK_CUR;
+    else if (whence == 2) w = SEEK_END;
+    if (fseek(f, (long)offset, w) != 0) {
+        return -1;
+    }
+    return (int64_t)ftell(f);
+}
+
+int64_t sarif_file_size(uint64_t handle) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f == NULL) {
+        return -1;
+    }
+    long current = ftell(f);
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, current, SEEK_SET);
+    return (int64_t)size;
+}
+
+int64_t sarif_file_exists(const unsigned char* path_handle) {
+    if (path_handle == NULL) return 0;
+    uint64_t len = sarif_load_u64(path_handle, 0);
+    char path[1024];
+    if (len >= 1024) return 0;
+    memcpy(path, path_handle + 8, (size_t)len);
+    path[len] = '\0';
+    return access(path, F_OK) == 0 ? 1 : 0;
+}
+
+int64_t sarif_file_remove(const unsigned char* path_handle) {
+    if (path_handle == NULL) return 0;
+    uint64_t len = sarif_load_u64(path_handle, 0);
+    char path[1024];
+    if (len >= 1024) return 0;
+    memcpy(path, path_handle + 8, (size_t)len);
+    path[len] = '\0';
+    return remove(path) == 0 ? 1 : 0;
+}
+
+int64_t sarif_file_is_valid(uint64_t handle) {
+    return handle != 0 ? 1 : 0;
+}
+
+void* sarif_bytes_to_text(const unsigned char* bytes) {
+    if (bytes == NULL) return NULL;
+    uint64_t len = sarif_load_u64(bytes, 0);
+    unsigned char* result = sarif_text_alloc(len);
+    if (result == NULL) return NULL;
+    if (len != 0) {
+        memcpy(result + 8, bytes + 8, (size_t)len);
+    }
+    return result;
+}
 
 int main(int argc, char** argv) {
     sarif_argc = argc;

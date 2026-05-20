@@ -540,6 +540,25 @@ pub(super) fn infer_call_expr(
         );
     }
 
+    if expr.callee == "bytes_to_text" && !functions.contains_key("bytes_to_text") {
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "bytes_to_text",
+            "semantic.bytes_to_text-arity",
+            "semantic.bytes_to_text-type",
+            Type::Text,
+            "Call `bytes_to_text(bytes)` with exactly one Bytes argument.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::Bytes,
+                help: "Pass a Bytes argument.",
+            }],
+        );
+    }
+
     if expr.callee == "text_byte" && !functions.contains_key("text_byte") {
         return infer_fixed_builtin_expr(
             expr,
@@ -1862,6 +1881,333 @@ must have type `Text`, found `{}`",
         };
     }
 
+    if expr.callee == "file_open" && !functions.contains_key("file_open") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_open-arity",
+                format!(
+                    "builtin `file_open` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_open(path, mode)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::Text,
+            "file_open",
+            "path",
+            "Pass a Text path to file_open",
+        );
+        expect_type(
+            diagnostics,
+            &expr.args[1],
+            &args[1].ty,
+            &Type::Text,
+            "file_open",
+            "mode",
+            "Pass a Text mode ('r', 'w', 'a') to file_open",
+        );
+        return ExprInfo {
+            ty: Type::File,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_close" && !functions.contains_key("file_close") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_close-arity",
+                format!(
+                    "builtin `file_close` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_close(handle)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::File,
+            "file_close",
+            "handle",
+            "Pass a File handle to file_close",
+        );
+        return ExprInfo {
+            ty: Type::Unit,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_read" && !functions.contains_key("file_read") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_read-arity",
+                format!(
+                    "builtin `file_read` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_read(handle, len)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::File,
+            "file_read",
+            "handle",
+            "Pass a File handle to file_read",
+        );
+        expect_type(
+            diagnostics,
+            &expr.args[1],
+            &args[1].ty,
+            &Type::I32,
+            "file_read",
+            "length",
+            "Pass an I32 length to file_read",
+        );
+        return ExprInfo {
+            ty: Type::Bytes,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_write" && !functions.contains_key("file_write") {
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_write-arity",
+                format!(
+                    "builtin `file_write` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_write(handle, data)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::File,
+            "file_write",
+            "handle",
+            "Pass a File handle to file_write",
+        );
+        // We allow both Text and Bytes for convenience
+        if args[1].ty != Type::Text && args[1].ty != Type::Bytes {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_write-type",
+                format!(
+                    "expected `Text` or `Bytes` for file_write, found `{}`",
+                    args[1].ty.pretty()
+                ),
+                expr.args[1].span(),
+                None,
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_size" && !functions.contains_key("file_size") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_size-arity",
+                format!(
+                    "builtin `file_size` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_size(handle)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::File,
+            "file_size",
+            "handle",
+            "Pass a File handle to file_size",
+        );
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_seek" && !functions.contains_key("file_seek") {
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_seek-arity",
+                format!(
+                    "builtin `file_seek` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_seek(handle, offset, whence)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::File,
+            "file_seek",
+            "handle",
+            "Pass a File handle to file_seek",
+        );
+        expect_type(
+            diagnostics,
+            &expr.args[1],
+            &args[1].ty,
+            &Type::I32,
+            "file_seek",
+            "offset",
+            "Pass an I32 offset to file_seek",
+        );
+        expect_type(
+            diagnostics,
+            &expr.args[2],
+            &args[2].ty,
+            &Type::I32,
+            "file_seek",
+            "whence",
+            "Pass an I32 whence (0: start, 1: cur, 2: end) to file_seek",
+        );
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_is_valid" && !functions.contains_key("file_is_valid") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_is_valid-arity",
+                format!(
+                    "builtin `file_is_valid` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_is_valid(handle)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::File,
+            "file_is_valid",
+            "handle",
+            "Pass a File handle to file_is_valid",
+        );
+        return ExprInfo {
+            ty: Type::Bool,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_exists" && !functions.contains_key("file_exists") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_exists-arity",
+                format!(
+                    "builtin `file_exists` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_exists(path)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::Text,
+            "file_exists",
+            "path",
+            "Pass a Text path to file_exists",
+        );
+        return ExprInfo {
+            ty: Type::Bool,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_remove" && !functions.contains_key("file_remove") {
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_remove-arity",
+                format!(
+                    "builtin `file_remove` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_remove(path)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        expect_type(
+            diagnostics,
+            &expr.args[0],
+            &args[0].ty,
+            &Type::Text,
+            "file_remove",
+            "path",
+            "Pass a Text path to file_remove",
+        );
+        return ExprInfo {
+            ty: Type::Bool,
+            calls,
+        };
+    }
+
     if expr.callee == "alloc_push" && !functions.contains_key("alloc_push") {
         if !args.is_empty() {
             diagnostics.push(Diagnostic::new(
@@ -2021,15 +2367,23 @@ must have type `Text`, found `{}`",
                 calls,
             };
         }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
+        if args[0].ty != Type::Text && args[0].ty != Type::Bytes && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
                 "semantic.stdout_write-type",
                 format!(
-                    "builtin `stdout_write` expects Text, found `{}`",
+                    "builtin `stdout_write` expects Text or Bytes, found `{}`",
                     args[0].ty.render(),
                 ),
                 expr.span,
-                Some("Pass a Text value.".to_owned()),
+                Some("Pass a Text or Bytes value.".to_owned()),
+            ));
+        }
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `stdout_write` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
             ));
         }
         return ExprInfo {
@@ -2156,6 +2510,285 @@ must have type `Text`, found `{}`",
             ty: Type::Text,
             calls,
         };
+    }
+
+    if expr.callee == "file_open" && !functions.contains_key("file_open") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_open` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_open",
+            "semantic.file_open-arity",
+            "semantic.file_open-type",
+            Type::File,
+            "Call `file_open(path, mode)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a file path as Text.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::Text,
+                    help: "Pass a mode string (\"r\", \"w\", \"a\").",
+                },
+            ],
+        );
+    }
+
+    if expr.callee == "file_read" && !functions.contains_key("file_read") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_read` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        if !caller_effects.contains(&Effect::Alloc) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.alloc-effect",
+                format!("builtin `file_read` requires `alloc` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect alloc` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_read",
+            "semantic.file_read-arity",
+            "semantic.file_read-type",
+            Type::Bytes,
+            "Call `file_read(handle, size)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::File,
+                    help: "Pass an open File handle.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass the number of bytes to read.",
+                },
+            ],
+        );
+    }
+
+    if expr.callee == "file_read_to_end" && !functions.contains_key("file_read_to_end") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_read_to_end` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        if !caller_effects.contains(&Effect::Alloc) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.alloc-effect",
+                format!("builtin `file_read_to_end` requires `alloc` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect alloc` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_read_to_end",
+            "semantic.file_read_to_end-arity",
+            "semantic.file_read_to_end-type",
+            Type::Bytes,
+            "Call `file_read_to_end(handle)`.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::File,
+                help: "Pass an open File handle.",
+            }],
+        );
+    }
+
+    if expr.callee == "file_write" && !functions.contains_key("file_write") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_write` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        if args.len() != 2 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_write-arity",
+                format!(
+                    "builtin `file_write` expects 2 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `file_write(handle, data)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::File && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_write-type",
+                format!(
+                    "builtin `file_write` first argument must be File, found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass an open File handle.".to_owned()),
+            ));
+        }
+        if args[1].ty != Type::Text && args[1].ty != Type::Bytes && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.file_write-type",
+                format!(
+                    "builtin `file_write` second argument must be Text or Bytes, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text or Bytes value to write.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: Type::I32,
+            calls,
+        };
+    }
+
+    if expr.callee == "file_size" && !functions.contains_key("file_size") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_size` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_size",
+            "semantic.file_size-arity",
+            "semantic.file_size-type",
+            Type::I32,
+            "Call `file_size(handle)`.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::File,
+                help: "Pass an open File handle.",
+            }],
+        );
+    }
+
+    if expr.callee == "file_close" && !functions.contains_key("file_close") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_close` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_close",
+            "semantic.file_close-arity",
+            "semantic.file_close-type",
+            Type::Unit,
+            "Call `file_close(handle)`.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::File,
+                help: "Pass an open File handle to close.",
+            }],
+        );
+    }
+
+    if expr.callee == "file_seek" && !functions.contains_key("file_seek") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_seek` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_seek",
+            "semantic.file_seek-arity",
+            "semantic.file_seek-type",
+            Type::I32,
+            "Call `file_seek(handle, offset, whence)`.".to_owned(),
+            &[
+                BuiltinArgSpec {
+                    ty: &Type::File,
+                    help: "Pass an open File handle.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass the seek offset.",
+                },
+                BuiltinArgSpec {
+                    ty: &Type::I32,
+                    help: "Pass whence (0: start, 1: current, 2: end).",
+                },
+            ],
+        );
+    }
+
+    if expr.callee == "file_tell" && !functions.contains_key("file_tell") {
+        if !caller_effects.contains(&Effect::Io) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.io-effect",
+                format!("builtin `file_tell` requires `io` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect io` to the function signature.".to_owned()),
+            ));
+        }
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            None,
+            "file_tell",
+            "semantic.file_tell-arity",
+            "semantic.file_tell-type",
+            Type::I32,
+            "Call `file_tell(handle)`.".to_owned(),
+            &[BuiltinArgSpec {
+                ty: &Type::File,
+                help: "Pass an open File handle.",
+            }],
+        );
     }
 
     if let Some((enum_name, variant)) = enum_variant_info(&expr.callee, enum_variants) {

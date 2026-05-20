@@ -1,0 +1,6 @@
+enum Flag {
+    off,
+    on,
+}
+
+const answer: I32 = compute(Flag.on);

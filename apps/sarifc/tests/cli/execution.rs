@@ -437,7 +437,7 @@ fn run_passes_runtime_arguments_to_argument_builtins() {
 
 #[test]
 fn run_executes_stdout_write_consistently() {
-    let path = temp_source("fn main() { stdout_write(\"sarif\") }");
+    let path = temp_source("fn main() effects [io] { stdout_write(\"sarif\") }");
     let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
 
     assert!(output.status.success(), "stdout_write run should succeed");
@@ -776,8 +776,9 @@ fn stable_build_prints_payload_enum_main_results() {
 #[cfg(feature = "native-build")]
 #[test]
 fn stable_build_passes_process_arguments_to_argument_builtins() {
-    let path =
-        temp_source("fn main() -> Text { if arg_count() > 1 { arg_text(1) } else { \"\" } }");
+    let path = temp_source(
+        "fn main() -> Text effects [io] { if arg_count() > 1 { arg_text(1) } else { \"\" } }",
+    );
     let binary_path = super::support::temp_artifact("arg_text_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
 
@@ -854,7 +855,7 @@ fn stable_build_executes_bytes_programs() {
 #[cfg(feature = "native-build")]
 #[test]
 fn stable_build_streams_stdout_write() {
-    let path = temp_source("fn main() { stdout_write(\"sarif\") }");
+    let path = temp_source("fn main() effects [io] { stdout_write(\"sarif\") }");
     let binary_path = super::support::temp_artifact("stdout_write_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
 

@@ -228,7 +228,16 @@ pub(super) fn decode_record_from_memory(
                 })?;
                 decode_record_from_memory(memory, store, child_ptr, child, records, enums)?
             }
-            WasmValueKind::Unit => RuntimeValue::Unit,
+            WasmValueKind::File => {
+                return Err(WasmError::new(
+                    "wasm backend does not yet support File values in stage-0",
+                ));
+            }
+            WasmValueKind::Unit => {
+                return Err(WasmError::new(
+                    "wasm backend does not yet support unit values in stage-0 records",
+                ));
+            }
         };
         fields.push((field.name.clone(), value));
     }
@@ -308,9 +317,14 @@ pub(super) fn decode_enum_from_memory(
                 }
                 WasmValueKind::Record(child) => {
                     let child_ptr = usize::try_from(raw).map_err(|_| {
-                        WasmError::new("wasm nested record pointer exceeds host limits")
+                        WasmError::new("wasm nested enum pointer exceeds host limits")
                     })?;
                     decode_record_from_memory(memory, store, child_ptr, child, records, enums)?
+                }
+                WasmValueKind::File => {
+                    return Err(WasmError::new(
+                        "wasm backend does not yet support File values in stage-0",
+                    ));
                 }
                 WasmValueKind::Unit => RuntimeValue::Unit,
             };

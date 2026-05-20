@@ -85,6 +85,7 @@ pub(super) fn type_exists(
         | Type::List(_)
         | Type::TextBuilder
         | Type::Unit
+        | Type::File
         | Type::Error => true,
     }
 }

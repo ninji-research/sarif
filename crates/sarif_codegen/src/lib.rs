@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom, Write as _};
+use std::path::Path;
 
 use sarif_frontend::hir::{BinaryOp, ConstExpr, Expr, Item, Module, Stmt};
 use sarif_syntax::{Diagnostic, Span};
@@ -251,6 +254,7 @@ pub enum CodegenValueKind {
     Bytes,
     TextIndex,
     TextBuilder,
+    File,
     List(Box<Self>),
     Enum(String),
     Record(String),
@@ -437,6 +441,10 @@ pub enum Inst {
         dest: ValueId,
         bytes: ValueId,
     },
+    BytesToText {
+        dest: ValueId,
+        bytes: ValueId,
+    },
     TextConcat {
         dest: ValueId,
         left: ValueId,
@@ -518,6 +526,50 @@ pub enum Inst {
         dest: ValueId,
         value: ValueId,
         digits: ValueId,
+    },
+    FileOpen {
+        dest: ValueId,
+        path: ValueId,
+        mode: ValueId,
+    },
+    FileIsValid {
+        dest: ValueId,
+        handle: ValueId,
+    },
+    FileRead {
+        dest: ValueId,
+        handle: ValueId,
+        len: ValueId,
+    },
+    FileReadToEnd {
+        dest: ValueId,
+        handle: ValueId,
+    },
+    FileWrite {
+        dest: ValueId,
+        handle: ValueId,
+        data: ValueId,
+    },
+    FileClose {
+        handle: ValueId,
+    },
+    FileSeek {
+        dest: ValueId,
+        handle: ValueId,
+        offset: ValueId,
+        whence: ValueId,
+    },
+    FileSize {
+        dest: ValueId,
+        handle: ValueId,
+    },
+    FileExists {
+        dest: ValueId,
+        path: ValueId,
+    },
+    FileRemove {
+        dest: ValueId,
+        path: ValueId,
     },
     ArgCount {
         dest: ValueId,
@@ -944,6 +996,9 @@ impl Inst {
             Self::BytesLen { dest, bytes } => {
                 format!("{} = bytes-len {}", dest.render(), bytes.render())
             }
+            Self::BytesToText { dest, bytes } => {
+                format!("{} = bytes-to-text {}", dest.render(), bytes.render())
+            }
             Self::TextConcat { dest, left, right } => format!(
                 "{} = text-concat {}, {}",
                 dest.render(),
@@ -1092,6 +1147,52 @@ impl Inst {
                 value.render(),
                 digits.render()
             ),
+            Self::FileOpen { dest, path, mode } => format!(
+                "{} = file-open {}, {}",
+                dest.render(),
+                path.render(),
+                mode.render()
+            ),
+            Self::FileIsValid { dest, handle } => {
+                format!("{} = file-is-valid {}", dest.render(), handle.render())
+            }
+            Self::FileRead { dest, handle, len } => format!(
+                "{} = file-read {}, {}",
+                dest.render(),
+                handle.render(),
+                len.render()
+            ),
+            Self::FileReadToEnd { dest, handle } => {
+                format!("{} = file-read-to-end {}", dest.render(), handle.render())
+            }
+            Self::FileWrite { dest, handle, data } => format!(
+                "{} = file-write {}, {}",
+                dest.render(),
+                handle.render(),
+                data.render()
+            ),
+            Self::FileClose { handle } => format!("file-close {}", handle.render()),
+            Self::FileSeek {
+                dest,
+                handle,
+                offset,
+                whence,
+            } => format!(
+                "{} = file-seek {}, {}, {}",
+                dest.render(),
+                handle.render(),
+                offset.render(),
+                whence.render()
+            ),
+            Self::FileSize { dest, handle } => {
+                format!("{} = file-size {}", dest.render(), handle.render())
+            }
+            Self::FileExists { dest, path } => {
+                format!("{} = file-exists {}", dest.render(), path.render())
+            }
+            Self::FileRemove { dest, path } => {
+                format!("{} = file-remove {}", dest.render(), path.render())
+            }
             Self::ArgCount { dest } => format!("{} = arg-count", dest.render()),
             Self::AllocPush => "alloc-push".to_owned(),
             Self::AllocPop => "alloc-pop".to_owned(),
@@ -1462,6 +1563,7 @@ pub enum RuntimeValue {
     Bytes(Vec<u8>),
     TextIndex(u64),
     TextBuilder(u64),
+    File(u64),
     List(u64),
     Enum(RuntimeEnum),
     Record(RuntimeRecord),
@@ -1492,6 +1594,7 @@ impl RuntimeValue {
             Self::Bytes(_) => "<bytes>".to_owned(),
             Self::TextIndex(_) => "<text-index>".to_owned(),
             Self::TextBuilder(_) => "<text-builder>".to_owned(),
+            Self::File(_) => "<file>".to_owned(),
             Self::List(_) => "<list>".to_owned(),
             Self::Enum(value) => value.payload.as_ref().map_or_else(
                 || format!("{}.{}", value.name, value.variant),
@@ -3360,7 +3463,18 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Call { .. }
             | Inst::Assert { .. }
             | Inst::Perform { .. }
-            | Inst::Handle { .. } => {}
+            | Inst::Handle { .. }
+            | Inst::FileOpen { .. }
+            | Inst::BytesToText { .. }
+            | Inst::FileIsValid { .. }
+            | Inst::FileRead { .. }
+            | Inst::FileReadToEnd { .. }
+            | Inst::FileWrite { .. }
+            | Inst::FileClose { .. }
+            | Inst::FileSeek { .. }
+            | Inst::FileSize { .. }
+            | Inst::FileExists { .. }
+            | Inst::FileRemove { .. } => {}
         }
     }
     true
@@ -3478,6 +3592,7 @@ pub(crate) enum LowerType {
     TextIndex,
     TextBuilder,
     List(Box<Self>),
+    File,
     Unit,
     Named(String),
     Array(Box<Self>, usize),
@@ -3494,6 +3609,7 @@ impl LowerType {
             "Bytes" => Self::Bytes,
             "TextIndex" => Self::TextIndex,
             "TextBuilder" => Self::TextBuilder,
+            "File" => Self::File,
             "Unit" => Self::Unit,
             other if other.starts_with("List[") && other.ends_with(']') => {
                 let inner = &other[5..other.len() - 1];
@@ -3515,6 +3631,7 @@ impl LowerType {
             Self::TextIndex => Some("TextIndex".to_owned()),
             Self::TextBuilder => Some("TextBuilder".to_owned()),
             Self::List(element) => Some(format!("List[{}]", lower_type_name(element)?)),
+            Self::File => Some("File".to_owned()),
             Self::Unit => Some("Unit".to_owned()),
             Self::Named(name) => Some(name.clone()),
             Self::Array(_, _) | Self::Error => None,
@@ -3697,6 +3814,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "bytes_len" if self.builtin_is_available("bytes_len") => {
                 self.lower_bytes_len_expr(expr)
             }
+            "bytes_to_text" if self.builtin_is_available("bytes_to_text") => {
+                self.lower_bytes_to_text_expr(expr)
+            }
             "text_concat" if self.builtin_is_available("text_concat") => {
                 self.lower_text_concat_expr(expr)
             }
@@ -3749,6 +3869,36 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             "arg_count" if self.builtin_is_available("arg_count") => {
                 self.lower_arg_count_expr(expr)
+            }
+            "file_open" if self.builtin_is_available("file_open") => {
+                self.lower_file_open_expr(expr)
+            }
+            "file_is_valid" if self.builtin_is_available("file_is_valid") => {
+                self.lower_file_is_valid_expr(expr)
+            }
+            "file_read_to_end" if self.builtin_is_available("file_read_to_end") => {
+                self.lower_file_read_to_end_expr(expr)
+            }
+            "file_read" if self.builtin_is_available("file_read") => {
+                self.lower_file_read_expr(expr)
+            }
+            "file_write" if self.builtin_is_available("file_write") => {
+                self.lower_file_write_expr(expr)
+            }
+            "file_close" if self.builtin_is_available("file_close") => {
+                self.lower_file_close_expr(expr)
+            }
+            "file_seek" if self.builtin_is_available("file_seek") => {
+                self.lower_file_seek_expr(expr)
+            }
+            "file_size" if self.builtin_is_available("file_size") => {
+                self.lower_file_size_expr(expr)
+            }
+            "file_exists" if self.builtin_is_available("file_exists") => {
+                self.lower_file_exists_expr(expr)
+            }
+            "file_remove" if self.builtin_is_available("file_remove") => {
+                self.lower_file_remove_expr(expr)
             }
             "alloc_push" if self.builtin_is_available("alloc_push") => {
                 self.lower_alloc_push_expr(expr)
@@ -3887,11 +4037,23 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_concat" if self.builtin_is_available("text_concat") => LowerType::Text,
             "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
             "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
+            "bytes_to_text" if self.builtin_is_available("bytes_to_text") => LowerType::Text,
             "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
                 LowerType::Text
             }
+            "file_is_valid" if self.builtin_is_available("file_is_valid") => LowerType::Bool,
+            "file_read_to_end" if self.builtin_is_available("file_read_to_end") => LowerType::Bytes,
             "alloc_push" if self.builtin_is_available("alloc_push") => LowerType::Unit,
             "alloc_pop" if self.builtin_is_available("alloc_pop") => LowerType::Unit,
+            "arg_text" if self.builtin_is_available("arg_text") => LowerType::Text,
+            "file_open" if self.builtin_is_available("file_open") => LowerType::File,
+            "file_read" if self.builtin_is_available("file_read") => LowerType::Bytes,
+            "file_write" if self.builtin_is_available("file_write") => LowerType::I32,
+            "file_close" if self.builtin_is_available("file_close") => LowerType::Unit,
+            "file_seek" if self.builtin_is_available("file_seek") => LowerType::I32,
+            "file_size" if self.builtin_is_available("file_size") => LowerType::I32,
+            "file_exists" if self.builtin_is_available("file_exists") => LowerType::Bool,
+            "file_remove" if self.builtin_is_available("file_remove") => LowerType::Bool,
             "stdin_text" if self.builtin_is_available("stdin_text") => LowerType::Text,
             "stdin_bytes" if self.builtin_is_available("stdin_bytes") => LowerType::Bytes,
             "sqrt" if self.builtin_is_available("sqrt") => LowerType::F64,
@@ -6658,6 +6820,18 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 });
                 dest
             }
+            RuntimeValue::File(_) => {
+                self.diagnostics.push(Diagnostic::new(
+                    "mir.file-const",
+                    format!(
+                        "failed to lower compile-time File value in `{}` because File handles are runtime-only",
+                        self.function.name
+                    ),
+                    self.function.span,
+                    Some("Construct File values at runtime with `file_open(...)`.".to_owned()),
+                ));
+                self.emit_unit_value()
+            }
             RuntimeValue::Unit => self.emit_unit_value(),
         }
     }
@@ -6832,6 +7006,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let bytes = self.lower_expr(arg);
         let dest = self.fresh_value();
         self.instructions.push(Inst::BytesLen { dest, bytes });
+        dest
+    }
+
+    fn lower_bytes_to_text_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let bytes = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::BytesToText { dest, bytes });
         dest
     }
 
@@ -7415,6 +7599,86 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_file_open_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let path = self.lower_expr(&expr.args[0]);
+        let mode = self.lower_expr(&expr.args[1]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileOpen { dest, path, mode });
+        dest
+    }
+
+    fn lower_file_is_valid_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileIsValid { dest, handle });
+        dest
+    }
+
+    fn lower_file_read_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        let len = self.lower_expr(&expr.args[1]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileRead { dest, handle, len });
+        dest
+    }
+
+    fn lower_file_read_to_end_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileReadToEnd { dest, handle });
+        dest
+    }
+
+    fn lower_file_write_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        let data = self.lower_expr(&expr.args[1]);
+        let dest = self.fresh_value();
+        self.instructions
+            .push(Inst::FileWrite { dest, handle, data });
+        dest
+    }
+
+    fn lower_file_close_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        self.instructions.push(Inst::FileClose { handle });
+        self.emit_unit_value()
+    }
+
+    fn lower_file_seek_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        let offset = self.lower_expr(&expr.args[1]);
+        let whence = self.lower_expr(&expr.args[2]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileSeek {
+            dest,
+            handle,
+            offset,
+            whence,
+        });
+        dest
+    }
+
+    fn lower_file_size_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let handle = self.lower_expr(&expr.args[0]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileSize { dest, handle });
+        dest
+    }
+
+    fn lower_file_exists_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let path = self.lower_expr(&expr.args[0]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileExists { dest, path });
+        dest
+    }
+
+    fn lower_file_remove_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let path = self.lower_expr(&expr.args[0]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileRemove { dest, path });
+        dest
+    }
+
     fn lower_alloc_push_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         self.instructions.push(Inst::AllocPush);
         self.emit_unit_value()
@@ -7689,6 +7953,7 @@ pub(crate) fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
             || LowerType::Named(value.name.clone()),
             |(element_ty, len)| LowerType::Array(Box::new(element_ty), len),
         ),
+        RuntimeValue::File(_) => LowerType::File,
         RuntimeValue::Unit => LowerType::Unit,
     }
 }
@@ -7862,6 +8127,7 @@ struct Interpreter<'a> {
     text_indices: Vec<HashMap<String, i64>>,
     lists: Vec<Vec<RuntimeValue>>,
     handlers: Vec<Vec<HandleArm>>,
+    files: Vec<Option<File>>,
 }
 
 macro_rules! run_arithmetic {
@@ -7926,6 +8192,7 @@ impl<'a> Interpreter<'a> {
             text_indices: Vec::new(),
             lists: Vec::new(),
             handlers: Vec::new(),
+            files: Vec::new(),
         }
     }
 
@@ -8901,6 +9168,14 @@ impl<'a> Interpreter<'a> {
                     }
                     values[dest.0 as usize] = RuntimeValue::Int(next as i64);
                 }
+                Inst::BytesToText { dest, bytes } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let RuntimeValue::Bytes(bytes) = bytes_val else {
+                        return Err(RuntimeError::new("expected Bytes"));
+                    };
+                    values[dest.0 as usize] =
+                        RuntimeValue::Text(String::from_utf8_lossy(&bytes).into_owned());
+                }
                 Inst::ParseI32 { dest, text } => {
                     let text_val = extract_value(values, *text)?;
                     let RuntimeValue::Text(text) = text_val else {
@@ -8967,6 +9242,183 @@ impl<'a> Interpreter<'a> {
                     };
                     values[dest.0 as usize] = RuntimeValue::Text(format_f64_fixed(value, digits));
                 }
+                Inst::FileOpen { dest, path, mode } => {
+                    let path_val = extract_value(values, *path)?;
+                    let mode_val = extract_value(values, *mode)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let RuntimeValue::Text(mode) = mode_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let mut options = std::fs::OpenOptions::new();
+                    match mode.as_str() {
+                        "r" => {
+                            options.read(true);
+                        }
+                        "w" => {
+                            options.write(true).create(true).truncate(true);
+                        }
+                        "a" => {
+                            options.write(true).create(true).append(true);
+                        }
+                        "r+" => {
+                            options.read(true).write(true);
+                        }
+                        "w+" => {
+                            options.read(true).write(true).create(true).truncate(true);
+                        }
+                        "a+" => {
+                            options.read(true).write(true).create(true).append(true);
+                        }
+                        _ => return Err(RuntimeError::new(format!("invalid file mode `{mode}`"))),
+                    }
+                    let file = options.open(&path).map_err(|e| {
+                        RuntimeError::new(format!("failed to open file `{path}`: {e}"))
+                    })?;
+                    let id = self.files.len();
+                    self.files.push(Some(file));
+                    values[dest.0 as usize] = RuntimeValue::File(id as u64);
+                }
+                Inst::FileIsValid { dest, handle } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    values[dest.0 as usize] =
+                        RuntimeValue::Bool(matches!(handle_val, RuntimeValue::File(_)));
+                }
+                Inst::FileClose { handle } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    if let Some(file) = self.files.get_mut(id as usize) {
+                        *file = None;
+                    }
+                }
+                Inst::FileRead { dest, handle, len } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let len_val = extract_value(values, *len)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    let RuntimeValue::Int(len) = len_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let file = self
+                        .files
+                        .get_mut(id as usize)
+                        .and_then(|f| f.as_mut())
+                        .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
+                    let mut buffer = vec![0u8; len.max(0) as usize];
+                    let n = file
+                        .read(&mut buffer)
+                        .map_err(|e| RuntimeError::new(format!("failed to read from file: {e}")))?;
+                    buffer.truncate(n);
+                    values[dest.0 as usize] = RuntimeValue::Bytes(buffer);
+                }
+                Inst::FileReadToEnd { dest, handle } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    let file = self
+                        .files
+                        .get_mut(id as usize)
+                        .and_then(|f| f.as_mut())
+                        .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
+                    let mut buffer = Vec::new();
+                    file.read_to_end(&mut buffer).map_err(|e| {
+                        RuntimeError::new(format!("failed to read from file to end: {e}"))
+                    })?;
+                    values[dest.0 as usize] = RuntimeValue::Bytes(buffer);
+                }
+                Inst::FileWrite { dest, handle, data } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let data_val = extract_value(values, *data)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    let file = self
+                        .files
+                        .get_mut(id as usize)
+                        .and_then(|f| f.as_mut())
+                        .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
+                    let bytes = match data_val {
+                        RuntimeValue::Text(t) => t.into_bytes(),
+                        RuntimeValue::Bytes(b) => b,
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                    };
+                    file.write_all(&bytes)
+                        .map_err(|e| RuntimeError::new(format!("failed to write to file: {e}")))?;
+                    values[dest.0 as usize] = RuntimeValue::Int(bytes.len() as i64);
+                }
+                Inst::FileSeek {
+                    dest,
+                    handle,
+                    offset,
+                    whence,
+                } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let offset_val = extract_value(values, *offset)?;
+                    let whence_val = extract_value(values, *whence)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    let RuntimeValue::Int(offset) = offset_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(whence) = whence_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let file = self
+                        .files
+                        .get_mut(id as usize)
+                        .and_then(|f| f.as_mut())
+                        .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
+                    let pos = match whence {
+                        0 => SeekFrom::Start(offset.max(0) as u64),
+                        1 => SeekFrom::Current(offset),
+                        2 => SeekFrom::End(offset),
+                        _ => {
+                            return Err(RuntimeError::new(format!(
+                                "invalid seek whence `{whence}`"
+                            )));
+                        }
+                    };
+                    let new_pos = file
+                        .seek(pos)
+                        .map_err(|e| RuntimeError::new(format!("failed to seek in file: {e}")))?;
+                    values[dest.0 as usize] = RuntimeValue::Int(new_pos as i64);
+                }
+                Inst::FileSize { dest, handle } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    let file = self
+                        .files
+                        .get_mut(id as usize)
+                        .and_then(|f| f.as_mut())
+                        .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
+                    let metadata = file.metadata().map_err(|e| {
+                        RuntimeError::new(format!("failed to get file metadata: {e}"))
+                    })?;
+                    values[dest.0 as usize] = RuntimeValue::Int(metadata.len() as i64);
+                }
+                Inst::FileExists { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Bool(Path::new(&path).exists());
+                }
+                Inst::FileRemove { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let success = std::fs::remove_file(&path).is_ok();
+                    values[dest.0 as usize] = RuntimeValue::Bool(success);
+                }
                 Inst::Sqrt { dest, value } => {
                     let value = extract_value(values, *value)?;
                     let RuntimeValue::F64(value) = value else {
@@ -9007,8 +9459,10 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::StdoutWrite { text } => {
                     let text_val = extract_value(values, *text)?;
-                    let RuntimeValue::Text(text) = text_val else {
-                        return Err(RuntimeError::new("expected Text"));
+                    let text = match text_val {
+                        RuntimeValue::Text(t) => t,
+                        RuntimeValue::Bytes(b) => String::from_utf8_lossy(&b).into_owned(),
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
                     };
                     self.stdout_text.push_str(&text);
                 }

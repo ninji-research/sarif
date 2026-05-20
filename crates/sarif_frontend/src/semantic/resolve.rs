@@ -34,6 +34,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         "Bytes".to_owned(),
         "TextIndex".to_owned(),
         "TextBuilder".to_owned(),
+        "File".to_owned(),
         "List".to_owned(),
         "Unit".to_owned(),
     ]);
@@ -325,6 +326,7 @@ fn collect_const_params_from_type(ty: &Type, params: &mut BTreeSet<String>) {
         | Type::Unit
         | Type::Named(_)
         | Type::Param(_)
+        | Type::File
         | Type::Error => {}
     }
 }

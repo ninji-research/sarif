@@ -178,6 +178,51 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
     }
 }
 
+pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
+    loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap doc failed")?;
+    let program = bootstrap_tools_program()?;
+    let sources: Vec<String> = loaded.segments.iter().map(|s| s.source.clone()).collect();
+    #[allow(clippy::items_after_statements)]
+    const STACK_SIZE: usize = 64 * 1024 * 1024;
+    let result: Result<Vec<String>, String> = std::thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(move || {
+            let mut outputs = Vec::with_capacity(sources.len());
+            for source in &sources {
+                let doc_output =
+                    run_function(program, "doc_text", &[RuntimeValue::Text(source.clone())])
+                        .map_err(|error| {
+                            let message = match error {
+                                RuntimeError::Message(m) => m,
+                                RuntimeError::EffectUnwind {
+                                    effect, operation, ..
+                                } => format!("unhandled effect {effect}.{operation}"),
+                            };
+                            format!("runtime error: {message}")
+                        })?;
+                let text = match doc_output {
+                    RuntimeValue::Text(text) => text,
+                    other => {
+                        return Err(format!(
+                            "bootstrap doc generator must return Text, found {}",
+                            other.render()
+                        ));
+                    }
+                };
+                outputs.push(text);
+            }
+            Ok(outputs)
+        })
+        .map_err(|e| format!("failed to spawn doc thread: {e}"))?
+        .join()
+        .map_err(|_| "bootstrap doc thread panicked".to_owned())?;
+    let mut output = String::new();
+    for text in result? {
+        append_formatted_segment(&mut output, &text);
+    }
+    Ok(output)
+}
+
 pub fn render_package_diagnostics(
     display_path: &str,
     source: &str,

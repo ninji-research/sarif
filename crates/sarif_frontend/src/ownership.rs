@@ -43,6 +43,15 @@ fn is_borrow_only_builtin(callee: &str) -> bool {
             | "text_index_get_or_insert"
             | "list_len"
             | "list_get"
+            | "stdout_write"
+            | "stdout_write_builder"
+            | "file_open"
+            | "file_read"
+            | "file_read_to_end"
+            | "file_write"
+            | "file_size"
+            | "file_seek"
+            | "file_tell"
     ) || is_text_scan_builtin(callee)
 }
 
@@ -1497,7 +1506,7 @@ fn is_affine_type_inner(
     visiting: &mut BTreeSet<String>,
 ) -> bool {
     match ty {
-        Type::Text | Type::Bytes | Type::TextIndex | Type::TextBuilder => true,
+        Type::Text | Type::Bytes | Type::TextIndex | Type::TextBuilder | Type::File => true,
         Type::List(_) => true,
         Type::Pair(left, right) => {
             is_affine_type_inner(left, struct_fields, enum_variants, visiting)

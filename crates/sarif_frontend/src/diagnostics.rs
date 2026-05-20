@@ -13,17 +13,16 @@ pub fn render_diagnostics(file_name: &str, source: &str, diagnostics: &[Diagnost
         } else {
             ReportKind::Error
         };
-        let mut report = Report::build(
-            report_kind,
-            (file_name, diagnostic.span.start..diagnostic.span.end),
-        )
-        .with_code(diagnostic.code)
-        .with_message(diagnostic.message.clone())
-        .with_label(
-            Label::new((file_name, diagnostic.span.start..diagnostic.span.end))
-                .with_message(diagnostic.message.clone())
-                .with_color(Color::Red),
-        );
+        let span_start = diagnostic.span.start;
+        let span_end = diagnostic.span.end.max(span_start);
+        let mut report = Report::build(report_kind, (file_name, span_start..span_end))
+            .with_code(diagnostic.code)
+            .with_message(diagnostic.message.clone())
+            .with_label(
+                Label::new((file_name, span_start..span_end))
+                    .with_message(diagnostic.message.clone())
+                    .with_color(Color::Red),
+            );
 
         if let Some(help) = &diagnostic.help {
             report = report.with_help(help.clone());

@@ -337,7 +337,8 @@ impl<'a> WasmEmitter<'a> {
             | WasmValueKind::Bool
             | WasmValueKind::TextIndex
             | WasmValueKind::TextBuilder
-            | WasmValueKind::List(_) => {
+            | WasmValueKind::List(_)
+            | WasmValueKind::File => {
                 self.emit_memory_load(output, left_base, offset, WasmType::I64);
                 self.emit_memory_load(output, right_base, offset, WasmType::I64);
                 writeln!(output, "    i64.eq").expect("writing to a string cannot fail");
@@ -568,7 +569,18 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::StdoutWrite { .. }
                 | Inst::Assert { .. }
                 | Inst::AllocPush
-                | Inst::AllocPop => {}
+                | Inst::AllocPop
+                | Inst::BytesToText { .. }
+                | Inst::FileOpen { .. }
+                | Inst::FileIsValid { .. }
+                | Inst::FileRead { .. }
+                | Inst::FileReadToEnd { .. }
+                | Inst::FileWrite { .. }
+                | Inst::FileClose { .. }
+                | Inst::FileSeek { .. }
+                | Inst::FileSize { .. }
+                | Inst::FileExists { .. }
+                | Inst::FileRemove { .. } => {}
             }
         }
         Ok(locals)
@@ -1490,6 +1502,47 @@ impl<'a> WasmEmitter<'a> {
                     "wasm backend does not yet support effect handlers",
                 ));
             }
+            Inst::BytesToText { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not support bytes-to-text conversion",
+                ));
+            }
+            Inst::FileOpen { .. } => {
+                return Err(WasmError::new("wasm backend does not support file open"));
+            }
+            Inst::FileIsValid { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not support file validity check",
+                ));
+            }
+            Inst::FileRead { .. } => {
+                return Err(WasmError::new("wasm backend does not support file read"));
+            }
+            Inst::FileReadToEnd { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not support file read to end",
+                ));
+            }
+            Inst::FileWrite { .. } => {
+                return Err(WasmError::new("wasm backend does not support file write"));
+            }
+            Inst::FileClose { .. } => {
+                return Err(WasmError::new("wasm backend does not support file close"));
+            }
+            Inst::FileSeek { .. } => {
+                return Err(WasmError::new("wasm backend does not support file seek"));
+            }
+            Inst::FileSize { .. } => {
+                return Err(WasmError::new("wasm backend does not support file size"));
+            }
+            Inst::FileExists { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not support file exists check",
+                ));
+            }
+            Inst::FileRemove { .. } => {
+                return Err(WasmError::new("wasm backend does not support file remove"));
+            }
         }
         Ok(())
     }
@@ -2010,7 +2063,19 @@ fn collect_inst_kinds(
                 collect_inst_kinds(function, body_insts, structs, enums, all_functions, kinds)?;
                 kinds.insert(*dest, WasmValueKind::Unit);
             }
-            Inst::StoreLocal { .. } | Inst::Assert { .. } => {}
+            Inst::StoreLocal { .. }
+            | Inst::Assert { .. }
+            | Inst::BytesToText { .. }
+            | Inst::FileOpen { .. }
+            | Inst::FileIsValid { .. }
+            | Inst::FileRead { .. }
+            | Inst::FileReadToEnd { .. }
+            | Inst::FileWrite { .. }
+            | Inst::FileClose { .. }
+            | Inst::FileSeek { .. }
+            | Inst::FileSize { .. }
+            | Inst::FileExists { .. }
+            | Inst::FileRemove { .. } => {}
         }
     }
     Ok(())

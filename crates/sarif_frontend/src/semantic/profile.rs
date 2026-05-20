@@ -72,7 +72,7 @@ fn type_is_rt_safe_inner(
         }
         Type::Param(_) => false,
         Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => true,
-        Type::TextIndex | Type::TextBuilder | Type::List(_) => false,
+        Type::TextIndex | Type::TextBuilder | Type::List(_) | Type::File => false,
     }
 }
 

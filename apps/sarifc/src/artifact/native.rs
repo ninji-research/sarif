@@ -259,6 +259,7 @@ fn child_record_expr(kind: &NativeValueKind) -> String {
         | NativeValueKind::Bytes
         | NativeValueKind::TextIndex
         | NativeValueKind::TextBuilder
+        | NativeValueKind::File
         | NativeValueKind::List(_)
         | NativeValueKind::Enum(_) => "0".to_owned(),
     }
@@ -275,6 +276,7 @@ fn child_enum_expr(kind: &NativeValueKind) -> String {
         | NativeValueKind::Bytes
         | NativeValueKind::TextIndex
         | NativeValueKind::TextBuilder
+        | NativeValueKind::File
         | NativeValueKind::List(_)
         | NativeValueKind::Record(_) => "0".to_owned(),
     }
@@ -353,6 +355,7 @@ const fn c_kind(kind: &NativeValueKind) -> u32 {
         NativeValueKind::TextBuilder => 7,
         NativeValueKind::List(_) => 8,
         NativeValueKind::TextIndex => 9,
+        NativeValueKind::File => 10,
     }
 }
 

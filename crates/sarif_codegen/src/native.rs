@@ -95,6 +95,7 @@ fn call_helper(
 
 fn native_kind_type(kind: &NativeValueKind) -> cranelift_codegen::ir::types::Type {
     match kind {
+        NativeValueKind::File => types::I64,
         NativeValueKind::Unit => types::I64,
         NativeValueKind::F64 => types::F64,
         _ => types::I64,
@@ -304,6 +305,11 @@ fn infer_inst_kinds(
             | Inst::TextNextField { dest, .. }
             | Inst::ArgCount { dest, .. }
             | Inst::ListLen { dest, .. }
+            | Inst::FileWrite { dest, .. }
+            | Inst::FileSeek { dest, .. }
+            | Inst::FileSize { dest, .. }
+            | Inst::FileExists { dest, .. }
+            | Inst::FileRemove { dest, .. }
             | Inst::ParseI32 { dest, .. }
             | Inst::ParseI32Range { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
@@ -386,10 +392,13 @@ fn infer_inst_kinds(
             | Inst::TextBuilderFinish { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgText { dest, .. }
+            | Inst::FileOpen { dest, .. }
+            | Inst::BytesToText { dest, .. }
+            | Inst::FileRead { dest, .. }
             | Inst::StdinText { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
             }
-            Inst::StdinBytes { dest } => {
+            Inst::StdinBytes { dest } | Inst::FileReadToEnd { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdoutWrite { .. } => {}
@@ -428,6 +437,7 @@ fn infer_inst_kinds(
                 kinds.insert(*dest, NativeValueKind::I32);
             }
             Inst::ConstBool { dest, .. }
+            | Inst::FileIsValid { dest, .. }
             | Inst::And { dest, .. }
             | Inst::Or { dest, .. }
             | Inst::Eq { dest, .. }
@@ -546,7 +556,7 @@ fn infer_inst_kinds(
             Inst::Repeat { body_insts, .. } => {
                 infer_inst_kinds(function, body_insts, records, enums, functions, kinds)?;
             }
-            Inst::StoreLocal { .. } | Inst::Assert { .. } => {}
+            Inst::StoreLocal { .. } | Inst::Assert { .. } | Inst::FileClose { .. } => {}
             Inst::Perform { .. } | Inst::Handle { .. } => {}
         }
     }
@@ -575,6 +585,7 @@ pub fn native_value_kind(
         "Bytes" => Ok(NativeValueKind::Bytes),
         "TextIndex" => Ok(NativeValueKind::TextIndex),
         "TextBuilder" => Ok(NativeValueKind::TextBuilder),
+        "File" => Ok(NativeValueKind::File),
         "List" => Ok(NativeValueKind::List(Box::new(NativeValueKind::F64))),
         "Unit" => Err("unit should be represented as an omitted native value type".to_owned()),
         other if enums.contains_key(other) => Ok(NativeValueKind::Enum(other.to_owned())),
@@ -853,6 +864,7 @@ fn lower_native_kind_equality<M: Module>(
         | NativeValueKind::Bool
         | NativeValueKind::TextIndex
         | NativeValueKind::TextBuilder
+        | NativeValueKind::File
         | NativeValueKind::List(_) => {
             let compare = builder.ins().icmp(IntCC::Equal, left, right);
             Ok(builder.ins().uextend(types::I64, compare))
@@ -1189,6 +1201,17 @@ pub fn lower_insts<M: Module>(
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
     stdout_write_id: FuncId,
+    file_open_id: FuncId,
+    file_close_id: FuncId,
+    file_read_id: FuncId,
+    file_read_to_end_id: FuncId,
+    file_write_id: FuncId,
+    file_seek_id: FuncId,
+    file_size_id: FuncId,
+    file_exists_id: FuncId,
+    file_remove_id: FuncId,
+    file_is_valid_id: FuncId,
+    bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
     records: &BTreeMap<String, NativeRecord>,
@@ -1243,6 +1266,17 @@ pub fn lower_insts<M: Module>(
             arg_text_id,
             stdin_text_id,
             stdout_write_id,
+            file_open_id,
+            file_close_id,
+            file_read_id,
+            file_read_to_end_id,
+            file_write_id,
+            file_seek_id,
+            file_size_id,
+            file_exists_id,
+            file_remove_id,
+            file_is_valid_id,
+            bytes_to_text_id,
             text_eq_id,
             text_cmp_id,
             records,
@@ -1303,6 +1337,17 @@ pub fn lower_inst<M: Module>(
     arg_text_id: FuncId,
     stdin_text_id: FuncId,
     stdout_write_id: FuncId,
+    file_open_id: FuncId,
+    file_close_id: FuncId,
+    file_read_id: FuncId,
+    file_read_to_end_id: FuncId,
+    file_write_id: FuncId,
+    file_seek_id: FuncId,
+    file_size_id: FuncId,
+    file_exists_id: FuncId,
+    file_remove_id: FuncId,
+    file_is_valid_id: FuncId,
+    bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
     records: &BTreeMap<String, NativeRecord>,
@@ -2416,6 +2461,169 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(value));
             Ok(true)
         }
+        Inst::FileOpen { dest, path, mode } => {
+            let path_val = native_value(values, *path, function, "file_open path", backend)?;
+            let mode_val = native_value(values, *mode, function, "file_open mode", backend)?;
+            let helper = module.declare_func_in_func(file_open_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[path_val, mode_val],
+                "file open",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::BytesToText { dest, bytes } => {
+            let bytes_val = native_value(values, *bytes, function, "bytes_to_text bytes", backend)?;
+            let helper = module.declare_func_in_func(bytes_to_text_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[bytes_val],
+                "bytes to text",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileClose { handle } => {
+            let handle_val = native_value(values, *handle, function, "file_close handle", backend)?;
+            let helper = module.declare_func_in_func(file_close_id, builder.func);
+            builder.ins().call(helper, &[handle_val]);
+            Ok(true)
+        }
+        Inst::FileRead { dest, handle, len } => {
+            let handle_val = native_value(values, *handle, function, "file_read handle", backend)?;
+            let len_val = native_value(values, *len, function, "file_read len", backend)?;
+            let helper = module.declare_func_in_func(file_read_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[handle_val, len_val],
+                "file read",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileReadToEnd { dest, handle } => {
+            let handle_val = native_value(
+                values,
+                *handle,
+                function,
+                "file_read_to_end handle",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(file_read_to_end_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[handle_val],
+                "file read to end",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileWrite { dest, handle, data } => {
+            let handle_val = native_value(values, *handle, function, "file_write handle", backend)?;
+            let data_val = native_value(values, *data, function, "file_write data", backend)?;
+            let helper = module.declare_func_in_func(file_write_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[handle_val, data_val],
+                "file write",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileSeek {
+            dest,
+            handle,
+            offset,
+            whence,
+        } => {
+            let handle_val = native_value(values, *handle, function, "file_seek handle", backend)?;
+            let offset_val = native_value(values, *offset, function, "file_seek offset", backend)?;
+            let whence_val = native_value(values, *whence, function, "file_seek whence", backend)?;
+            let helper = module.declare_func_in_func(file_seek_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[handle_val, offset_val, whence_val],
+                "file seek",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileSize { dest, handle } => {
+            let handle_val = native_value(values, *handle, function, "file_size handle", backend)?;
+            let helper = module.declare_func_in_func(file_size_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[handle_val],
+                "file size",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileIsValid { dest, handle } => {
+            let handle_val =
+                native_value(values, *handle, function, "file_is_valid handle", backend)?;
+            let helper = module.declare_func_in_func(file_is_valid_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[handle_val],
+                "file is valid",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileExists { dest, path } => {
+            let path_val = native_value(values, *path, function, "file_exists path", backend)?;
+            let helper = module.declare_func_in_func(file_exists_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[path_val],
+                "file exists",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::FileRemove { dest, path } => {
+            let path_val = native_value(values, *path, function, "file_remove path", backend)?;
+            let helper = module.declare_func_in_func(file_remove_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[path_val],
+                "file remove",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::ArgCount { dest } => {
             let helper = module.declare_func_in_func(arg_count_id, builder.func);
             let call = builder.ins().call(helper, &[]);
@@ -3019,6 +3227,17 @@ pub fn lower_inst<M: Module>(
                 arg_text_id,
                 stdin_text_id,
                 stdout_write_id,
+                file_open_id,
+                file_read_id,
+                file_read_to_end_id,
+                file_write_id,
+                file_close_id,
+                file_seek_id,
+                file_size_id,
+                file_exists_id,
+                file_remove_id,
+                file_is_valid_id,
+                bytes_to_text_id,
                 text_eq_id,
                 text_cmp_id,
                 records,
@@ -3087,6 +3306,17 @@ pub fn lower_inst<M: Module>(
                 arg_text_id,
                 stdin_text_id,
                 stdout_write_id,
+                file_open_id,
+                file_read_id,
+                file_read_to_end_id,
+                file_write_id,
+                file_close_id,
+                file_seek_id,
+                file_size_id,
+                file_exists_id,
+                file_remove_id,
+                file_is_valid_id,
+                bytes_to_text_id,
                 text_eq_id,
                 text_cmp_id,
                 records,
@@ -3257,6 +3487,17 @@ pub fn lower_inst<M: Module>(
                 arg_text_id,
                 stdin_text_id,
                 stdout_write_id,
+                file_open_id,
+                file_read_id,
+                file_read_to_end_id,
+                file_write_id,
+                file_close_id,
+                file_seek_id,
+                file_size_id,
+                file_exists_id,
+                file_remove_id,
+                file_is_valid_id,
+                bytes_to_text_id,
                 text_eq_id,
                 text_cmp_id,
                 records,
@@ -3340,6 +3581,17 @@ pub fn lower_inst<M: Module>(
                 arg_text_id,
                 stdin_text_id,
                 stdout_write_id,
+                file_open_id,
+                file_read_id,
+                file_read_to_end_id,
+                file_write_id,
+                file_close_id,
+                file_seek_id,
+                file_size_id,
+                file_exists_id,
+                file_remove_id,
+                file_is_valid_id,
+                bytes_to_text_id,
                 text_eq_id,
                 text_cmp_id,
                 records,
@@ -3417,6 +3669,17 @@ pub fn lower_inst<M: Module>(
                 arg_text_id,
                 stdin_text_id,
                 stdout_write_id,
+                file_open_id,
+                file_read_id,
+                file_read_to_end_id,
+                file_write_id,
+                file_close_id,
+                file_seek_id,
+                file_size_id,
+                file_exists_id,
+                file_remove_id,
+                file_is_valid_id,
+                bytes_to_text_id,
                 text_eq_id,
                 text_cmp_id,
                 records,
@@ -3542,6 +3805,16 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::ConstText { dest, .. }
             | Inst::MakeEnum { dest, .. }
             | Inst::MakeRecord { dest, .. }
+            | Inst::FileOpen { dest, .. }
+            | Inst::BytesToText { dest, .. }
+            | Inst::FileIsValid { dest, .. }
+            | Inst::FileRead { dest, .. }
+            | Inst::FileReadToEnd { dest, .. }
+            | Inst::FileWrite { dest, .. }
+            | Inst::FileSeek { dest, .. }
+            | Inst::FileSize { dest, .. }
+            | Inst::FileExists { dest, .. }
+            | Inst::FileRemove { dest, .. }
             | Inst::Field { dest, .. }
             | Inst::EnumTagEq { dest, .. }
             | Inst::EnumPayload { dest, .. }
@@ -3593,6 +3866,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             Inst::StoreLocal { .. }
             | Inst::StdoutWrite { .. }
             | Inst::Assert { .. }
+            | Inst::FileClose { .. }
             | Inst::AllocPush
             | Inst::AllocPop => {}
         }
@@ -4227,17 +4501,6 @@ pub fn declare_text_cmp<M: Module>(module: &mut M, backend: &str) -> Result<Func
     )
 }
 
-pub fn declare_arg_count<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    declare_runtime_fn(
-        module,
-        "sarif_arg_count",
-        backend,
-        "arg count helper",
-        &[],
-        &[types::I64],
-    )
-}
-
 pub fn declare_arg_text<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
     declare_runtime_fn(
         module,
@@ -4377,4 +4640,139 @@ pub const fn contract_trap_code(kind: crate::ContractKind) -> u8 {
         crate::ContractKind::Ensures => 2,
         crate::ContractKind::Bounds => 3,
     }
+}
+
+pub fn declare_file_open<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_open",
+        backend,
+        "file open helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_close<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_close",
+        backend,
+        "file close helper",
+        &[types::I64],
+        &[],
+    )
+}
+
+pub fn declare_file_read<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_read",
+        backend,
+        "file read helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_read_to_end<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_read_to_end",
+        backend,
+        "file read to end helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_write<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_write",
+        backend,
+        "file write helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_seek<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_seek",
+        backend,
+        "file seek helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_size<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_size",
+        backend,
+        "file size helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_exists<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_exists",
+        backend,
+        "file exists helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_remove<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_remove",
+        backend,
+        "file remove helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_arg_count<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_arg_count",
+        backend,
+        "arg count helper",
+        &[],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_is_valid<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_is_valid",
+        backend,
+        "file is valid helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_bytes_to_text<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_bytes_to_text",
+        backend,
+        "bytes to text helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }

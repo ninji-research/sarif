@@ -1,0 +1,7 @@
+fn compute() -> I32 {
+    let mut total = 0;
+    repeat 2 {
+        total = total + 20;
+    };
+    total
+}
