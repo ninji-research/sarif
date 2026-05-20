@@ -189,7 +189,7 @@ pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
     let segment_count = segments.len();
     let segments_for_thread = segments.clone();
     #[allow(clippy::items_after_statements)]
-    const STACK_SIZE: usize = 64 * 1024 * 1024;
+    const STACK_SIZE: usize = 256 * 1024 * 1024;
     let result: Result<Vec<String>, String> = std::thread::Builder::new()
         .stack_size(STACK_SIZE)
         .spawn(move || {
@@ -223,14 +223,14 @@ pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
         .join()
         .map_err(|_| "bootstrap doc thread panicked".to_owned())?;
 let mut output = String::new();
-    let is_multi_file = segment_count > 1;
-    if is_multi_file {
+    if segment_count > 1 {
         output.push_str("# Sarif Semantic Docs\n\n\n");
     }
     for (i, text) in result?.iter().enumerate() {
-        if is_multi_file {
+        if segment_count > 1 {
+            let path = &segments[i].0;
             output.push_str("## ");
-            output.push_str(&segments[i].0);
+            output.push_str(path);
             output.push_str("\n\n");
             let indented = text.replace("# Sarif Semantic Docs\n\n\n", "").replace("## ", "### ");
             output.push_str(&indented);
