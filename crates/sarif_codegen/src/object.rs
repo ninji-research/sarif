@@ -391,15 +391,9 @@ impl<'a> ObjectBackend<'a> {
 
             self.lower_into_context(function, &mut context, &mut builder_context)?;
 
+
             let id = self.function_ids[&function.name];
             let module = self.module.as_mut().expect("module available");
-            // Verify before defining to get detailed error info
-            if let Err(errors) = cranelift_codegen::verify_function(&context.func, module.isa()) {
-                return Err(ObjectError::new(format!(
-                    "verifier failed for `{}`: {errors}",
-                    function.name,
-                )));
-            }
 
             module.define_function(id, &mut context).map_err(|error| {
                 ObjectError::new(format!(
