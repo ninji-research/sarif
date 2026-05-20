@@ -1062,11 +1062,46 @@ fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind
     }
 }
 
+fn line_start_index(source: Text, pos: I32) -> I32 {
+    if pos <= 0 {
+        0
+    } else {
+        let mut start = 0;
+        let mut search = pos;
+        while search > 0 {
+            search = search - 1;
+            if text_byte(source, search) == 10 {
+                start = search + 1;
+                search = -1;
+            };
+        };
+        start
+    }
+}
+
+fn is_simple_name(text: Text) -> Bool {
+    if is_empty(text) {
+        false
+    } else {
+        let mut ok = true;
+        let mut i = 0;
+        while i < text_len(text) {
+            let b = text_byte(text, i);
+            let valid = (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95;
+            if not valid {
+                ok = false;
+                i = text_len(text);
+            };
+            i = i + 1;
+        };
+        ok
+    }
+}
+
 fn format_type_diag(source: Text, span: Span, message: Text) -> Text {
-    let line_start = find_line_end(text_slice(source, 0, span.start), 0);
-    let line_start_abs = if line_start >= 0 { line_start } else { 0 };
+    let line_start = line_start_index(source, span.start);
     let line_end = find_line_end(source, span.start);
-    let line_text = text_slice(source, line_start_abs, line_end);
+    let line_text = text_slice(source, line_start, line_end);
     text_concat("error: ", text_concat(message, text_concat("\n  at >", text_concat(line_text, "\n"))))
 }
 
@@ -1143,14 +1178,41 @@ fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text
                         let diag = format_type_diag(source, entry_binding.span, text_concat("duplicate local `", text_concat(binding_name, "`")));
                         out = if is_empty(out) { diag } else { text_concat(out, diag) };
                     } else {
+                        if entry_expr_kind == ExprKind.Name and entry_expr.present {
+                            let name_str = text_slice(source, entry_expr.span.start, entry_expr.span.end);
+                            if is_simple_name(name_str) {
+                                let is_known = not is_empty(type_table_lookup(locals, name_str))
+                                    or not is_empty(type_table_lookup(consts, name_str))
+                                    or not is_empty(type_table_lookup(fns, name_str))
+                                    or not is_empty(type_table_lookup(known, name_str))
+                                    or is_builtin_fn(name_str);
+                                if not is_known {
+                                    let diag = format_type_diag(source, entry_expr.span, text_concat("unknown name `", text_concat(name_str, "`")));
+                                    out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                                };
+                            };
+                        };
                         let inferred = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
                         if not is_empty(inferred) {
                             locals = type_table_extend(locals, binding_name, inferred);
                         };
                     };
                 };
-            };
-            if entry_kind == BlockItemKind.TailExpr {
+            } else if entry_kind == BlockItemKind.TailExpr {
+                if entry_expr_kind == ExprKind.Name and entry_expr.present {
+                    let name_str = text_slice(source, entry_expr.span.start, entry_expr.span.end);
+                    if is_simple_name(name_str) {
+                        let is_known = not is_empty(type_table_lookup(locals, name_str))
+                            or not is_empty(type_table_lookup(consts, name_str))
+                            or not is_empty(type_table_lookup(fns, name_str))
+                            or not is_empty(type_table_lookup(known, name_str))
+                            or is_builtin_fn(name_str);
+                        if not is_known {
+                            let diag = format_type_diag(source, entry_expr.span, text_concat("unknown name `", text_concat(name_str, "`")));
+                            out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                        };
+                    };
+                };
                 tail_type = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
             };
         };
@@ -1186,6 +1248,90 @@ fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text
             text_concat(out, return_diag)
         }
     }
+}
+
+fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let name_span = top_level_name_span(source, state);
+    if name_span.present {
+        let nspan = name_span.span;
+        let nend = nspan.end;
+        let cname = text_slice(source, nspan.start, nend);
+        if not is_empty(cname) {
+            let colon_idx = find_byte_index(source, 58, nend);
+            let semi_idx = find_byte_index(source, 59, nend);
+            if colon_idx >= 0 and semi_idx >= 0 and colon_idx < semi_idx {
+                let eq_idx = find_byte_index(source, 61, colon_idx);
+                if eq_idx >= 0 and eq_idx < semi_idx {
+                    let declared_type = trim_text(text_slice(source, colon_idx + 1, eq_idx));
+                    let expr_start = trim_start_index(source, eq_idx + 1);
+                    let expr_end = trim_end_index(source, semi_idx);
+                    if expr_end > expr_start {
+                        let expr_text = text_slice(source, expr_start, expr_end);
+                        let expr_state = parse_state_new(expr_text);
+                        let expr_kind = classify_expr_kind(expr_text, expr_state);
+                        let expr_span = OptionalSpan { present: true, span: Span { start: expr_start, end: expr_end } };
+                        let mut out = "";
+                        if expr_kind == ExprKind.Name {
+                            let name_str = text_slice(source, expr_start, expr_end);
+                            if is_simple_name(name_str) {
+                                let is_known = not is_empty(type_table_lookup(consts, name_str))
+                                    or not is_empty(type_table_lookup(fns, name_str))
+                                    or not is_empty(type_table_lookup(known, name_str))
+                                    or is_builtin_fn(name_str);
+                                if not is_known {
+                                    out = format_type_diag(source, Span { start: expr_start, end: expr_end }, text_concat("unknown name `", text_concat(name_str, "`")));
+                                };
+                            };
+                        };
+                        if not is_empty(declared_type) {
+                            let inferred = infer_expr_type_from_outline(source, expr_span, expr_kind, "", consts, fns);
+                            if not is_empty(inferred) {
+                                if declared_type != inferred and not (is_numeric_type(declared_type) and is_numeric_type(inferred)) {
+                                    let msg = text_concat("expected const type `", text_concat(declared_type, text_concat("` but initializer has type `", text_concat(inferred, "`"))));
+                                    let diag = format_type_diag(source, Span { start: expr_start, end: expr_end }, msg);
+                                    out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                                };
+                            };
+                        };
+                        out
+                    } else {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+    } else {
+        ""
+    }
+}
+
+fn check_const_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwConst {
+            let diag = check_const_type(source, cur_state, consts, fns, known);
+            cur_state = parse_const_item(source, cur_state);
+            if not is_empty(diag) {
+                out = if is_empty(out) { diag } else { text_concat(out, diag) };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                parse_fn_item(source, cur_state)
+            };
+        };
+    };
+    out
 }
 
 fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
@@ -1325,9 +1471,10 @@ fn check_text(source: Text, package_names: Text) -> Text {
         
         let const_types = collect_const_types(source, parse_state_new(source));
         let fn_sigs = collect_fn_sigs_from(source, parse_state_new(source));
+        let const_type_diag = check_const_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
         let fn_type_diag = check_fn_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
         
-        let combined = text_concat(dup_diag, text_concat(call_diag, fn_type_diag));
+        let combined = text_concat(dup_diag, text_concat(call_diag, text_concat(const_type_diag, fn_type_diag)));
         if is_empty(combined) {
             "ok [core]\n"
         } else {

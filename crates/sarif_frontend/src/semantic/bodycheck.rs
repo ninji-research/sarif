@@ -99,6 +99,21 @@ fn infer_body_statements(
             Stmt::Let(binding) => handle_let_statement(binding, &mut state, &mut context),
             Stmt::Assign(statement) => handle_assign_statement(statement, &mut state, &mut context),
             Stmt::Expr(stmt) => handle_expr_statement(stmt, &mut state, &mut context),
+            Stmt::WithArena(stmt) => {
+                let inner = infer_body_statements(
+                    &stmt.body,
+                    &state.locals,
+                    &state.mutable_locals,
+                    context.functions,
+                    context.consts,
+                    context.enum_variants,
+                    context.struct_layouts,
+                    context.diagnostics,
+                    context.fn_name,
+                    context.caller_effects,
+                );
+                state.calls = inner.calls;
+            }
         }
     }
 

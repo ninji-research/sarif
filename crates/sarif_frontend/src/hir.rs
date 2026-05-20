@@ -91,6 +91,7 @@ pub enum Stmt {
     Let(LetBinding),
     Assign(AssignStmt),
     Expr(ExprStmt),
+    WithArena(WithArenaStmt),
 }
 
 impl Stmt {
@@ -105,6 +106,7 @@ impl Stmt {
             ),
             Self::Assign(stmt) => format!("{} = {};", stmt.target.pretty(), stmt.value.pretty()),
             Self::Expr(stmt) => format!("{};", stmt.expr.pretty()),
+            Self::WithArena(stmt) => format!("with_arena {};", stmt.body.pretty()),
         }
     }
 }
@@ -127,6 +129,12 @@ pub struct AssignStmt {
 #[derive(Clone, Debug)]
 pub struct ExprStmt {
     pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct WithArenaStmt {
+    pub body: Body,
     pub span: Span,
 }
 
@@ -1219,6 +1227,10 @@ fn lower_body(body: &ast::Body) -> Body {
                 }),
                 ast::Stmt::Expr(stmt) => Stmt::Expr(ExprStmt {
                     expr: lower_expr(&stmt.expr),
+                    span: stmt.span,
+                }),
+                ast::Stmt::WithArena(stmt) => Stmt::WithArena(WithArenaStmt {
+                    body: lower_body(&stmt.body),
                     span: stmt.span,
                 }),
             })

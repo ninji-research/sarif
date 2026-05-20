@@ -172,6 +172,7 @@ pub enum NodeKind {
     LetStmt,
     AssignStmt,
     ExprStmt,
+    WithArenaStmt,
     ArgList,
     FieldInitList,
     FieldInit,

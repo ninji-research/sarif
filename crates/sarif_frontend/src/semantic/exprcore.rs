@@ -2847,6 +2847,7 @@ fn body_contains_forbidden_comptime_effect(body: &crate::hir::Body) -> bool {
         crate::hir::Stmt::Let(binding) => contains_forbidden_comptime_effect(&binding.value),
         crate::hir::Stmt::Assign(assign) => contains_forbidden_comptime_effect(&assign.value),
         crate::hir::Stmt::Expr(expr) => contains_forbidden_comptime_effect(&expr.expr),
+        crate::hir::Stmt::WithArena(stmt) => body_contains_forbidden_comptime_effect(&stmt.body),
     }) || body
         .tail
         .as_ref()

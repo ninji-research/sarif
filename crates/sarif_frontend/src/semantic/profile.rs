@@ -81,6 +81,7 @@ pub(super) fn body_contains_loop(body: &Body) -> bool {
         Stmt::Let(binding) => expr_contains_loop(&binding.value),
         Stmt::Assign(stmt) => expr_contains_loop(&stmt.value),
         Stmt::Expr(stmt) => expr_contains_loop(&stmt.expr),
+        Stmt::WithArena(stmt) => body_contains_loop(&stmt.body),
     }) || body.tail.as_ref().is_some_and(expr_contains_loop)
 }
 

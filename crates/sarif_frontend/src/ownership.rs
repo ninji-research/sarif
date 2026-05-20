@@ -1597,6 +1597,12 @@ fn collect_body_moves(checker: &mut AffineUseChecker<'_>, body: &Body) {
                     return;
                 }
             }
+            Stmt::WithArena(stmt) => {
+                collect_body_moves(checker, &stmt.body);
+                if !body_falls_through(&stmt.body) {
+                    return;
+                }
+            }
         }
     }
     if let Some(tail) = &body.tail {
@@ -1675,6 +1681,21 @@ fn collect_body_param_modes(
                     usages,
                 );
                 if !expr_falls_through(&stmt.expr) {
+                    return;
+                }
+            }
+            Stmt::WithArena(stmt) => {
+                collect_body_param_modes(
+                    &stmt.body,
+                    &locals,
+                    functions,
+                    enum_variants,
+                    struct_fields,
+                    struct_layouts,
+                    &aliases,
+                    usages,
+                );
+                if !body_falls_through(&stmt.body) {
                     return;
                 }
             }
@@ -1769,6 +1790,21 @@ fn collect_body_param_modes_borrow_only(
                     return;
                 }
             }
+            Stmt::WithArena(stmt) => {
+                collect_body_param_modes_borrow_only(
+                    &stmt.body,
+                    &locals,
+                    functions,
+                    enum_variants,
+                    struct_fields,
+                    struct_layouts,
+                    &aliases,
+                    usages,
+                );
+                if !body_falls_through(&stmt.body) {
+                    return;
+                }
+            }
         }
     }
     if let Some(tail) = &body.tail {
@@ -1860,6 +1896,11 @@ fn body_falls_through(body: &Body) -> bool {
                     return false;
                 }
             }
+            Stmt::WithArena(stmt) => {
+                if !body_falls_through(&stmt.body) {
+                    return false;
+                }
+            }
         }
     }
     body.tail.as_ref().is_none_or(expr_falls_through)
@@ -1919,6 +1960,9 @@ fn body_type_for_ownership(
             }
             Stmt::Expr(stmt) => {
                 let _ = expr_type_for_ownership(&stmt.expr, &locals, struct_layouts, result_type)?;
+            }
+            Stmt::WithArena(stmt) => {
+                let _ = body_type_for_ownership(&stmt.body, &locals, struct_layouts, result_type)?;
             }
         }
     }

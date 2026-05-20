@@ -188,6 +188,7 @@ pub enum Stmt {
     Let(LetBinding),
     Assign(AssignStmt),
     Expr(ExprStmt),
+    WithArena(WithArenaStmt),
 }
 
 impl Stmt {
@@ -202,6 +203,7 @@ impl Stmt {
             ),
             Self::Assign(stmt) => format!("{} = {};", stmt.target.pretty(), stmt.value.pretty()),
             Self::Expr(stmt) => format!("{};", stmt.expr.pretty()),
+            Self::WithArena(stmt) => format!("with_arena {};", stmt.body.pretty()),
         }
     }
 }
@@ -224,6 +226,12 @@ pub struct AssignStmt {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprStmt {
     pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WithArenaStmt {
+    pub body: Body,
     pub span: Span,
 }
 
@@ -1289,6 +1297,11 @@ impl Lowerer {
                         statements.push(Stmt::Expr(stmt));
                     }
                 }
+                Element::Node(child) if child.kind == NodeKind::WithArenaStmt => {
+                    if let Some(stmt) = self.lower_with_arena_stmt(child) {
+                        statements.push(Stmt::WithArena(stmt));
+                    }
+                }
                 Element::Node(child) if tail.is_none() => {
                     tail = self.lower_expr(child);
                 }
@@ -1436,6 +1449,17 @@ impl Lowerer {
         })?;
         Some(ExprStmt {
             expr,
+            span: node.span,
+        })
+    }
+
+    fn lower_with_arena_stmt(&mut self, node: &Node) -> Option<WithArenaStmt> {
+        let body = node.children.iter().find_map(|child| match child {
+            Element::Node(body) => Some(self.lower_body(body)),
+            Element::Token(_) => None,
+        })?;
+        Some(WithArenaStmt {
+            body,
             span: node.span,
         })
     }

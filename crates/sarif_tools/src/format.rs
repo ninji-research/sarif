@@ -162,6 +162,13 @@ fn format_body_with_indent(output: &mut String, body: &sarif_syntax::ast::Body, 
                 .expect("writing to string cannot fail");
                 output.push('\n');
             }
+            sarif_syntax::ast::Stmt::WithArena(stmt) => {
+                write_indent(output, indent);
+                writeln!(output, "with_arena {{").expect("writing to string cannot fail");
+                format_body_with_indent(output, &stmt.body, indent + 1);
+                write_indent(output, indent);
+                writeln!(output, "}};").expect("writing to string cannot fail");
+            }
         }
     }
     if let Some(tail) = &body.tail {

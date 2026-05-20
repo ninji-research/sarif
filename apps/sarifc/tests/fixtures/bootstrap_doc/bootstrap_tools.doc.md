@@ -2115,6 +2115,18 @@
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 
+### fn line_start_index
+
+- signature: `fn line_start_index(source: Text, pos: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn is_simple_name
+
+- signature: `fn is_simple_name(text: Text) -> Bool`
+- ownership: `affine-safe in stage-0`
+- rt status: `blocked in rt`
+
 ### fn format_type_diag
 
 - signature: `fn format_type_diag(source: Text, span: Span, message: Text) -> Text`
@@ -2136,6 +2148,18 @@
 ### fn check_fn_return_type
 
 - signature: `fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_const_type
+
+- signature: `fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `blocked in rt`
+
+### fn check_const_types_from
+
+- signature: `fn check_const_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `blocked in rt`
 

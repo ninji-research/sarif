@@ -1656,13 +1656,21 @@ pub fn lower_inst<M: Module>(
                 builder.func,
             );
             let call = builder.ins().call(helper, &[index_val, key_val]);
-            let value = match builder.inst_results(call) {
+            let raw_value = match builder.inst_results(call) {
                 [value] => *value,
                 _ => {
                     return Err(format!(
                         "{backend} text index contains helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
+                }
+            };
+            let value = {
+                let ty = builder.func.dfg.value_type(raw_value);
+                if ty == types::I32 {
+                    builder.ins().uextend(types::I64, raw_value)
+                } else {
+                    raw_value
                 }
             };
             values.insert(*dest, NativeValueRepr::Native(value));
@@ -2952,7 +2960,8 @@ pub fn lower_inst<M: Module>(
             else_result,
         } => {
             let condition = native_value(values, *condition, function, "if condition", backend)?;
-            let zero = builder.ins().iconst(types::I64, 0);
+            let ty = builder.func.dfg.value_type(condition);
+            let zero = builder.ins().iconst(ty, 0);
             let condition = builder.ins().icmp(IntCC::NotEqual, condition, zero);
             let then_block = builder.create_block();
             let else_block = builder.create_block();
@@ -3360,9 +3369,12 @@ pub fn lower_inst<M: Module>(
                 "while condition",
                 backend,
             )?;
+            let while_ty = builder.func.dfg.value_type(condition_value);
+            let zero = builder.ins().iconst(while_ty, 0);
+            let condition_bool = builder.ins().icmp(IntCC::NotEqual, condition_value, zero);
             builder
                 .ins()
-                .brif(condition_value, body_block, &[], exit_block, &[]);
+                .brif(condition_bool, body_block, &[], exit_block, &[]);
             builder.seal_block(body_block);
             builder.seal_block(exit_block);
 

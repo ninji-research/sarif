@@ -2179,6 +2179,9 @@ impl ConstEvaluator<'_, '_> {
                 Stmt::Expr(stmt) => {
                     let _ = self.eval_expr_value(&stmt.expr, env)?;
                 }
+                Stmt::WithArena(stmt) => {
+                    self.eval_body(&stmt.body, env)?;
+                }
             }
         }
         body.tail
@@ -3992,6 +3995,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
                 Stmt::Expr(stmt) => {
                     self.lower_expr(&stmt.expr);
+                }
+                Stmt::WithArena(stmt) => {
+                    self.instructions.push(Inst::AllocPush);
+                    self.lower_body(&stmt.body, false);
+                    self.instructions.push(Inst::AllocPop);
                 }
             }
         }

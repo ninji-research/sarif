@@ -515,6 +515,9 @@ impl<'a> Parser<'a> {
         loop {
             let statement = match self.current_non_trivia_kind() {
                 Some(TokenKind::KwLet) => Some(self.parse_let_stmt()),
+                Some(TokenKind::Ident) if self.tokens[self.cursor].lexeme == "with_arena" => {
+                    Some(self.parse_with_arena_stmt())
+                }
                 Some(TokenKind::Ident) if self.next_name_is_assign_statement() => {
                     Some(self.parse_assign_stmt())
                 }
@@ -790,6 +793,14 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
         children.push(Element::Token(self.expect(TokenKind::Semicolon)));
         Node::new(NodeKind::ExprStmt, children)
+    }
+
+    fn parse_with_arena_stmt(&mut self) -> Node {
+        let mut children = Vec::new();
+        children.push(Element::Token(self.bump()));
+        self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_expr_body()));
+        Node::new(NodeKind::WithArenaStmt, children)
     }
 
     fn parse_expr_bp(&mut self, min_bp: u8) -> Node {
