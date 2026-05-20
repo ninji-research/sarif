@@ -181,14 +181,20 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
 pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
     loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap doc failed")?;
     let program = bootstrap_tools_program()?;
-    let sources: Vec<String> = loaded.segments.iter().map(|s| s.source.clone()).collect();
+    let segments: Vec<(String, String)> = loaded
+        .segments
+        .iter()
+        .map(|s| (s.path.clone(), s.source.clone()))
+        .collect();
+    let segment_count = segments.len();
+    let segments_for_thread = segments.clone();
     #[allow(clippy::items_after_statements)]
     const STACK_SIZE: usize = 64 * 1024 * 1024;
     let result: Result<Vec<String>, String> = std::thread::Builder::new()
         .stack_size(STACK_SIZE)
         .spawn(move || {
-            let mut outputs = Vec::with_capacity(sources.len());
-            for source in &sources {
+            let mut outputs = Vec::with_capacity(segment_count);
+            for (_, source) in segments_for_thread {
                 let doc_output =
                     run_function(program, "doc_text", &[RuntimeValue::Text(source.clone())])
                         .map_err(|error| {
@@ -216,9 +222,21 @@ pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
         .map_err(|e| format!("failed to spawn doc thread: {e}"))?
         .join()
         .map_err(|_| "bootstrap doc thread panicked".to_owned())?;
-    let mut output = String::new();
-    for text in result? {
-        append_formatted_segment(&mut output, &text);
+let mut output = String::new();
+    let is_multi_file = segment_count > 1;
+    if is_multi_file {
+        output.push_str("# Sarif Semantic Docs\n\n\n");
+    }
+    for (i, text) in result?.iter().enumerate() {
+        if is_multi_file {
+            output.push_str("## ");
+            output.push_str(&segments[i].0);
+            output.push_str("\n\n");
+            let indented = text.replace("# Sarif Semantic Docs\n\n\n", "").replace("## ", "### ");
+            output.push_str(&indented);
+        } else {
+            append_formatted_segment(&mut output, text);
+        }
     }
     Ok(output)
 }

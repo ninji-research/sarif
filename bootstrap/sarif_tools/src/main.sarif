@@ -671,6 +671,36 @@ fn fn_has_blocked_effect(source: Text, shape: FnHeaderShape) -> Bool {
     contains_blocked_effect(source, shape.effects_span)
 }
 
+fn extract_const_value_from_span(source: Text, item_start: I32, item_end: I32) -> Text {
+    let item_text = text_slice(source, item_start, item_end);
+    let eq_pos = find_byte_index(item_text, 61, 0);
+    if eq_pos >= 0 {
+        let value_start = eq_pos + 1;
+        let value_text = text_slice(item_text, value_start, text_len(item_text));
+        let trimmed = trim_text(value_text);
+        let last_idx = text_len(trimmed) - 1;
+        if last_idx >= 0 and text_byte(trimmed, last_idx) == 59 {
+            text_slice(trimmed, 0, last_idx)
+        } else {
+            trimmed
+        }
+    } else {
+        "?"
+    }
+}
+
+fn struct_body_contains_affine(source: Text, body_start: I32, body_end: I32) -> Bool {
+    if body_end <= body_start {
+        false
+    } else {
+        let body_text = text_slice(source, body_start, body_end);
+        let has_file = find_operator_index(body_text, "File", 0) >= 0;
+        let has_bytes = find_operator_index(body_text, "Bytes", 0) >= 0;
+        let has_text = find_operator_index(body_text, "Text", 0) >= 0;
+        has_file or has_bytes or has_text
+    }
+}
+
 fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
     if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
         ""
@@ -680,7 +710,10 @@ fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
         if state.cursor.kind == TokenKind.KwStruct {
             let next = parse_struct_item(source, state);
             let name = name_text(source, name_span);
-            let current = text_concat("## struct ", text_concat(name, "\n\n- ownership: `contains affine fields`\n- rt status: `blocked in rt`\n\n"));
+            let has_affine = struct_body_contains_affine(source, item_start, next.cursor.start);
+            let ownership = if has_affine { "`contains affine fields`" } else { "`plain value`" };
+            let rt_status = "`profile-compatible`";
+            let current = text_concat("## struct ", text_concat(name, text_concat("\n\n- ownership: ", text_concat(ownership, text_concat("\n- rt status: ", text_concat(rt_status, "\n\n"))))));
             text_concat(current, outline_doc_text_from(source, next))
         } else {
             if state.cursor.kind == TokenKind.KwEnum {
@@ -692,7 +725,8 @@ fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
                 if state.cursor.kind == TokenKind.KwConst {
                     let next = parse_const_item(source, state);
                     let name = name_text(source, name_span);
-                    let current = text_concat("## const ", text_concat(name, "\n\n- type: `I32`\n- value: `42`\n"));
+                    let value = extract_const_value_from_span(source, item_start, next.cursor.start);
+                    let current = text_concat("## const ", text_concat(name, text_concat("\n\n- type: `I32`\n- value: `", text_concat(value, "`\n"))));
                     text_concat(current, outline_doc_text_from(source, next))
                 } else {
                     if state.cursor.kind == TokenKind.KwFn {

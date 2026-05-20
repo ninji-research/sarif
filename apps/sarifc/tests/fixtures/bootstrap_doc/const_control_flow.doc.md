@@ -10,7 +10,7 @@
 ## const answer
 
 - type: `I32`
-- value: `42`
+- value: `compute(Flag.on)`
 ## fn compute
 
 - signature: `fn compute(flag: Flag) -> I32`
