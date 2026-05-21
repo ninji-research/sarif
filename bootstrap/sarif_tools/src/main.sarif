@@ -1075,6 +1075,194 @@ fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text {
     }
 }
 
+fn find_matching_close_raw(source: Text, start: I32) -> I32 {
+    let open_byte = text_byte(source, start);
+    let close_byte = if open_byte == 40 {
+        41
+    } else {
+        if open_byte == 91 {
+            93
+        } else {
+            if open_byte == 123 {
+                125
+            } else {
+                0
+            }
+        }
+    };
+    if close_byte == 0 {
+        text_len(source)
+    } else {
+        let mut depth = 1;
+        let mut i = start + 1;
+        while i < text_len(source) and depth > 0 {
+            let b = text_byte(source, i);
+            if b == open_byte {
+                depth = depth + 1;
+            } else if b == close_byte {
+                depth = depth - 1;
+            };
+            i = i + 1;
+        };
+        i
+    }
+}
+
+fn skip_expr_text(source: Text, start: I32) -> I32 {
+    let mut i = start;
+    let mut done = false;
+    while i < text_len(source) and not done {
+        let b = text_byte(source, i);
+        let is_space = b == 32 or b == 9 or b == 10 or b == 13;
+        let is_open = b == 40 or b == 91 or b == 123;
+        let is_stop = b == 41 or b == 93 or b == 125 or b == 44 or b == 59;
+        if is_space {
+            i = i + 1;
+        } else if is_open {
+            i = find_matching_close_raw(source, i) + 1;
+        } else if is_stop {
+            done = true;
+        } else {
+            i = i + 1;
+        };
+    };
+    i
+}
+
+fn find_operator_in_expr(source: Text, span: Span) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let len = text_len(expr_text);
+    let mut op = "";
+    let mut i = 0;
+    while i < len and is_empty(op) {
+        let b = text_byte(expr_text, i);
+        if b == 61 {
+            let is_eq = i + 1 < len and text_byte(expr_text, i + 1) == 61;
+            if is_eq {
+                op = "Bool";
+            };
+        } else if b == 33 {
+            let is_ne = i + 1 < len and text_byte(expr_text, i + 1) == 61;
+            if is_ne {
+                op = "Bool";
+            };
+        } else if b == 60 {
+            op = "Bool";
+        } else if b == 62 {
+            op = "Bool";
+        } else if b == 97 or b == 111 {
+            if b == 97 {
+                let is_and = i + 1 < len and text_byte(expr_text, i + 1) == 110 and i + 2 < len and text_byte(expr_text, i + 2) == 100;
+                if is_and {
+                    op = "Bool";
+                };
+            } else {
+                let is_or = i + 1 < len and text_byte(expr_text, i + 1) == 114;
+                if is_or {
+                    op = "Bool";
+                };
+            };
+        } else if b == 43 {
+            op = "Add";
+        } else if b == 45 or b == 42 or b == 47 or b == 37 {
+            op = "I32";
+        };
+        i = i + 1;
+    };
+    if op == "Add" {
+        let mut has_text = false;
+        let mut j = 0;
+        while j < len and not has_text {
+            let b2 = text_byte(expr_text, j);
+            if b2 == 34 {
+                has_text = true;
+            };
+            j = j + 1;
+        };
+        if has_text {
+            "Text"
+        } else {
+            "I32"
+        }
+    } else {
+        if is_empty(op) {
+            ""
+        } else {
+            op
+        }
+    }
+}
+
+fn infer_binary_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    find_operator_in_expr(source, span)
+}
+
+fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let else_pos = find_byte_index(expr_text, 101, 0);
+    if else_pos < 0 {
+        "Unit"
+    } else {
+        let after_else = else_pos + 4;
+        if after_else < text_len(expr_text) {
+            let else_expr = text_slice(expr_text, after_else, text_len(expr_text));
+            let else_trimmed = trim_text(else_expr);
+            if is_empty(else_trimmed) {
+                "Unit"
+            } else {
+                let else_state = parse_state_new(else_trimmed);
+                let else_kind = classify_expr_kind(else_trimmed, else_state);
+                if else_kind == ExprKind.Integer {
+                    "I32"
+                } else if else_kind == ExprKind.Float {
+                    "F64"
+                } else if else_kind == ExprKind.Bool {
+                    "Bool"
+                } else if else_kind == ExprKind.String {
+                    "Text"
+                } else if else_kind == ExprKind.Name {
+                    let name_text_val = text_slice(else_trimmed, 0, text_len(else_trimmed));
+                    infer_name_type(name_text_val, locals, consts, fns)
+                } else {
+                    ""
+                }
+            }
+        } else {
+            "Unit"
+        }
+    }
+}
+
+fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    match kind {
+        ExprKind.Binary => {
+            infer_binary_type_deep(source, span, kind, locals, consts, fns)
+        },
+        ExprKind.If => {
+            infer_if_type_deep(source, span, locals, consts, fns)
+        },
+        ExprKind.While => {
+            "Unit"
+        },
+        ExprKind.Repeat => {
+            "Unit"
+        },
+        ExprKind.Record => {
+            let expr_text = text_slice(source, span.start, span.end);
+            let brace = find_byte_index(expr_text, 123, 0);
+            if brace > 0 {
+                let struct_name = trim_text(text_slice(expr_text, 0, brace));
+                struct_name
+            } else {
+                ""
+            }
+        },
+        _ => {
+            ""
+        },
+    }
+}
+
 fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
     if not expr_span.present {
         ""
@@ -1091,7 +1279,9 @@ fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind
             ExprKind.Call => {
                 infer_call_ret_type(source, expr_span.span, fns)
             },
-            _ => { "" },
+            _ => {
+                infer_expr_type_deep(source, expr_span.span, expr_kind, locals, consts, fns)
+            },
         }
     }
 }

@@ -2121,6 +2121,42 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn find_matching_close_raw
+
+- signature: `fn find_matching_close_raw(source: Text, start: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn skip_expr_text
+
+- signature: `fn skip_expr_text(source: Text, start: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_operator_in_expr
+
+- signature: `fn find_operator_in_expr(source: Text, span: Span) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_binary_type_deep
+
+- signature: `fn infer_binary_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_if_type_deep
+
+- signature: `fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_expr_type_deep
+
+- signature: `fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn infer_expr_type_from_outline
 
 - signature: `fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
