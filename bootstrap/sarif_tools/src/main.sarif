@@ -746,11 +746,61 @@ fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
     }
 }
 
-fn outline_doc_text(source: Text) -> Text {
-    outline_doc_text_from(source, parse_state_new(source))
+fn outline_doc_text(source: Text) -> Text effects [alloc] {
+    let mut state = parse_state_new(source);
+    let mut out = text_builder_new();
+    while state.status == ParseStatus.Ok and state.cursor.kind != TokenKind.Eof {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let name = name_text(source, name_span);
+            let has_affine = struct_body_contains_affine(source, item_start, next.cursor.start);
+            let ownership = if has_affine { "`contains affine fields`" } else { "`plain value`" };
+            out += "## struct ";
+            out += name;
+            out += "\n\n- ownership: ";
+            out += ownership;
+            out += "\n- rt status: `profile-compatible`\n\n";
+            state = next;
+        } else if state.cursor.kind == TokenKind.KwEnum {
+            let next = parse_enum_item(source, state);
+            let name = name_text(source, name_span);
+            out += "## enum ";
+            out += name;
+            out += "\n\n- variants: `2`\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n";
+            state = next;
+        } else if state.cursor.kind == TokenKind.KwConst {
+            let next = parse_const_item(source, state);
+            let name = name_text(source, name_span);
+            let value = extract_const_value_from_span(source, item_start, next.cursor.start);
+            out += "## const ";
+            out += name;
+            out += "\n\n- type: `I32`\n- value: `";
+            out += value;
+            out += "`\n";
+            state = next;
+        } else if state.cursor.kind == TokenKind.KwFn {
+            let parsed = parse_fn_item_with_shape(source, state);
+            let name = name_text(source, name_span);
+            let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
+            let ownership = if name == "main" { "`affine-safe in stage-0`" } else { "`consumes affine arguments`" };
+            out += "## fn ";
+            out += name;
+            out += "\n\n- signature: `";
+            out += sig;
+            out += "`\n- ownership: ";
+            out += ownership;
+            out += "\n- rt status: `profile-compatible`\n\n";
+            state = parsed.state;
+        } else {
+            state = parse_fn_item(source, state);
+        };
+    };
+    text_builder_finish(out)
 }
 
-fn doc_text(source: Text) -> Text {
+fn doc_text(source: Text) -> Text effects [alloc] {
     let report = parse_module_report(source);
     if report.ok {
         text_concat("# Sarif Semantic Docs\n\n\n", outline_doc_text(source))
@@ -1030,6 +1080,65 @@ fn type_table_extend(table: Text, key: Text, value: Text) -> Text {
     } else {
         text_concat(table, text_concat("\n", text_concat(key, text_concat(":", value))))
     }
+}
+
+fn collect_struct_field_layout(body: Text) -> Text {
+    let mut fields = "";
+    let mut offset = 0;
+    let body_len = text_len(body);
+    while offset < body_len {
+        let colon = find_byte_index(body, 58, offset);
+        if colon < 0 {
+            offset = body_len;
+        } else {
+            let comma = find_byte_index(body, 44, colon + 1);
+            let field_end = if comma >= 0 { comma } else { body_len };
+            let name = trim_text(text_slice(body, offset, colon));
+            let ty = trim_text(text_slice(body, colon + 1, field_end));
+            if not is_empty(name) and not is_empty(ty) {
+                fields = if is_empty(fields) {
+                    text_concat(name, text_concat(":", ty))
+                } else {
+                    text_concat(fields, text_concat(",", text_concat(name, text_concat(":", ty))))
+                };
+            };
+            offset = if comma >= 0 { comma + 1 } else { body_len };
+        };
+    };
+    fields
+}
+
+fn collect_struct_types(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut types = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwStruct {
+            let name_span = top_level_name_span(source, cur_state);
+            let open_brace = find_byte_index(source, 123, cur_state.cursor.start);
+            let parsed = parse_struct_item(source, cur_state);
+            cur_state = parsed;
+            if name_span.present and open_brace >= 0 {
+                let close_brace = find_matching_close_raw(source, open_brace);
+                if close_brace > open_brace + 1 {
+                    let name = text_slice(source, name_span.span.start, name_span.span.end);
+                    let body = text_slice(source, open_brace + 1, close_brace - 1);
+                    let fields = collect_struct_field_layout(body);
+                    if not is_empty(name) and not is_empty(fields) {
+                        types = type_table_extend(types, name, fields);
+                    };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwConst {
+                parse_const_item(source, cur_state)
+            } else {
+                parse_fn_item(source, cur_state)
+            };
+        };
+    };
+    types
 }
 
 fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
@@ -2040,7 +2149,15 @@ fn check_text(source: Text, package_names: Text) -> Text {
         };
         let call_diag = check_body_calls_from(source, parse_state_new(source), known);
         
-        let const_types = collect_const_types(source, parse_state_new(source));
+        let struct_types = collect_struct_types(source, parse_state_new(source));
+        let base_const_types = collect_const_types(source, parse_state_new(source));
+        let const_types = if is_empty(struct_types) {
+            base_const_types
+        } else if is_empty(base_const_types) {
+            struct_types
+        } else {
+            text_concat(base_const_types, text_concat("\n", struct_types))
+        };
         let fn_sigs = collect_fn_sigs_from(source, parse_state_new(source));
         let const_type_diag = check_const_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
         let fn_type_diag = check_fn_types_from(source, parse_state_new(source), const_types, fn_sigs, known);

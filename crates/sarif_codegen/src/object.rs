@@ -391,7 +391,6 @@ impl<'a> ObjectBackend<'a> {
 
             self.lower_into_context(function, &mut context, &mut builder_context)?;
 
-
             let id = self.function_ids[&function.name];
             let module = self.module.as_mut().expect("module available");
 

@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::atomic::{AtomicU64, Ordering},
@@ -226,8 +226,16 @@ fn bootstrap_exact_cases(
 }
 
 pub fn bootstrap_doc_cases() -> Vec<BootstrapDocCase> {
+    let filter = env::var("SARIF_BOOTSTRAP_DOC_CASE").ok();
     bootstrap_exact_cases("bootstrap_doc_parity_paths.txt", "bootstrap_doc", "doc.md")
         .into_iter()
+        .filter(|(path, expected)| {
+            filter.as_ref().is_none_or(|filter| {
+                let path_text = path.display().to_string();
+                let expected_text = expected.display().to_string();
+                path_text.contains(filter) || expected_text.contains(filter)
+            })
+        })
         .map(|(path, expected)| BootstrapDocCase { path, expected })
         .collect()
 }

@@ -222,7 +222,7 @@ pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
         .map_err(|e| format!("failed to spawn doc thread: {e}"))?
         .join()
         .map_err(|_| "bootstrap doc thread panicked".to_owned())?;
-let mut output = String::new();
+    let mut output = String::new();
     if segment_count > 1 {
         output.push_str("# Sarif Semantic Docs\n\n\n");
     }
@@ -232,7 +232,9 @@ let mut output = String::new();
             output.push_str("## ");
             output.push_str(path);
             output.push_str("\n\n");
-            let indented = text.replace("# Sarif Semantic Docs\n\n\n", "").replace("## ", "### ");
+            let indented = text
+                .replace("# Sarif Semantic Docs\n\n\n", "")
+                .replace("## ", "### ");
             output.push_str(&indented);
         } else {
             append_formatted_segment(&mut output, text);

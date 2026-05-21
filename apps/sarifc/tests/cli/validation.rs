@@ -390,6 +390,28 @@ fn bootstrap_check_rejects_unknown_function_calls() {
 }
 
 #[test]
+fn bootstrap_check_infers_struct_field_access() {
+    let source = "struct Pair { left: I32, right: Text }\nfn main() -> I32 { let p = Pair { left: 1, right: \"x\" }; p.left }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(
+        output.status.success(),
+        "bootstrap-check should accept struct field return types: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn bootstrap_check_rejects_struct_field_return_mismatch() {
+    let source = "struct Pair { left: I32, right: Text }\nfn main() -> I32 { let p = Pair { left: 1, right: \"x\" }; p.right }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("expected return type `I32` but tail expression has type `Text`"));
+}
+
+#[test]
 fn check_emits_stable_diagnostics_for_retained_invalid_inputs() {
     for case in semantic_check_cases() {
         let output = run_path_profiled("check", &case.path, &case.profile);

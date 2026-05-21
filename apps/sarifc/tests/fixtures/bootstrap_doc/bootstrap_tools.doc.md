@@ -1997,13 +1997,13 @@
 
 ### fn outline_doc_text
 
-- signature: `fn outline_doc_text(source: Text) -> Text`
+- signature: `fn outline_doc_text(source: Text) -> Text effects [alloc]`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
 ### fn doc_text
 
-- signature: `fn doc_text(source: Text) -> Text`
+- signature: `fn doc_text(source: Text) -> Text effects [alloc]`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2106,6 +2106,18 @@
 ### fn type_table_extend
 
 - signature: `fn type_table_extend(table: Text, key: Text, value: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_struct_field_layout
+
+- signature: `fn collect_struct_field_layout(body: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_struct_types
+
+- signature: `fn collect_struct_types(source: Text, state: ParseState) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
