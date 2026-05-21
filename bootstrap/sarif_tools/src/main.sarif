@@ -1377,6 +1377,229 @@ fn parse_params_from(content: Text, index: I32) -> Text {
     }
 }
 
+fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let trimmed = trim_text(snippet);
+    if is_empty(trimmed) {
+        "Unit"
+    } else {
+        let parse_state = parse_state_new(trimmed);
+        if parse_state.status == ParseStatus.Err or parse_state.cursor.kind == TokenKind.Eof {
+            ""
+        } else {
+            let kind = classify_expr_kind(trimmed, parse_state);
+            match kind {
+                ExprKind.Integer => { "I32" },
+                ExprKind.Float => { "F64" },
+                ExprKind.Bool => { "Bool" },
+                ExprKind.String => { "Text" },
+                ExprKind.Name => {
+                    let name_val = trim_text(trimmed);
+                    infer_name_type(name_val, locals, consts, fns)
+                },
+                ExprKind.Call => {
+                    let paren = find_byte_index(trimmed, 40, 0);
+                    if paren > 0 {
+                        let callee = trim_text(text_slice(trimmed, 0, paren));
+                        let ret = type_table_lookup(fns, callee);
+                        if is_empty(ret) {
+                            if is_builtin_fn(callee) {
+                                "I32"
+                            } else {
+                                ""
+                            }
+                        } else {
+                            ret
+                        }
+                    } else {
+                        ""
+                    }
+                },
+                ExprKind.Binary => {
+                    let span = make_span(0, text_len(trimmed));
+                    find_operator_in_expr(trimmed, span)
+                },
+                ExprKind.If => {
+                    infer_if_type_from_text(trimmed, locals, consts, fns)
+                },
+                ExprKind.Record => {
+                    let brace = find_byte_index(trimmed, 123, 0);
+                    if brace > 0 {
+                        trim_text(text_slice(trimmed, 0, brace))
+                    } else {
+                        ""
+                    }
+                },
+                ExprKind.While => {
+                    "Unit"
+                },
+                ExprKind.Repeat => {
+                    "Unit"
+                },
+                ExprKind.Group => {
+                    infer_group_type(trimmed, locals, consts, fns)
+                },
+                _ => {
+                    ""
+                },
+            }
+        }
+    }
+}
+
+fn infer_group_type(text: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let start = find_byte_index(text, 40, 0);
+    if start >= 0 {
+        let close = find_matching_close_raw(text, start);
+        if close > start + 1 {
+            let inner = text_slice(text, start + 1, close - 1);
+            infer_snippet_type(inner, locals, consts, fns)
+        } else {
+            "Unit"
+        }
+    } else {
+        ""
+    }
+}
+
+fn infer_if_type_from_text(text: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let else_pos = find_byte_index(text, 101, 0);
+    if else_pos < 0 {
+        "Unit"
+    } else {
+        let after_else = else_pos + 4;
+        if after_else < text_len(text) {
+            let after_else_text = trim_text(text_slice(text, after_else, text_len(text)));
+            if is_empty(after_else_text) {
+                "Unit"
+            } else {
+                let else_state = parse_state_new(after_else_text);
+                let else_kind = classify_expr_kind(after_else_text, else_state);
+                if else_kind == ExprKind.Integer {
+                    "I32"
+                } else if else_kind == ExprKind.Float {
+                    "F64"
+                } else if else_kind == ExprKind.Bool {
+                    "Bool"
+                } else if else_kind == ExprKind.String {
+                    "Text"
+                } else if else_kind == ExprKind.Name {
+                    let name_str = trim_text(text_slice(after_else_text, 0, text_len(after_else_text)));
+                    infer_name_type(name_str, locals, consts, fns)
+                } else if else_kind == ExprKind.Call {
+                    let paren = find_byte_index(after_else_text, 40, 0);
+                    if paren > 0 {
+                        let callee = trim_text(text_slice(after_else_text, 0, paren));
+                        let ret = type_table_lookup(fns, callee);
+                        if is_empty(ret) {
+                            if is_builtin_fn(callee) {
+                                "I32"
+                            } else {
+                                ""
+                            }
+                        } else {
+                            ret
+                        }
+                    } else {
+                        ""
+                    }
+                } else if else_kind == ExprKind.Binary {
+                    let span = make_span(0, text_len(after_else_text));
+                    find_operator_in_expr(after_else_text, span)
+                } else {
+                    ""
+                }
+            }
+        } else {
+            "Unit"
+        }
+    }
+}
+
+
+
+fn extract_block_body(block_text: Text) -> Text {
+    let trimmed = trim_text(block_text);
+    if is_empty(trimmed) {
+        ""
+    } else if text_byte(trimmed, 0) == 123 {
+        let close = find_matching_close_raw(trimmed, 0);
+        if close > 1 {
+            text_slice(trimmed, 1, close - 1)
+        } else {
+            ""
+        }
+    } else {
+        trimmed
+    }
+}
+
+fn infer_branch_type(branch_text: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let trimmed = trim_text(branch_text);
+    if is_empty(trimmed) {
+        "Unit"
+    } else if text_byte(trimmed, 0) == 123 {
+        let body = extract_block_body(branch_text);
+        if is_empty(body) {
+            "Unit"
+        } else {
+            infer_snippet_type(body, locals, consts, fns)
+        }
+    } else {
+        infer_snippet_type(trimmed, locals, consts, fns)
+    }
+}
+
+fn check_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let then_brace = find_byte_index(expr_text, 123, 0);
+    if then_brace < 0 {
+        ""
+    } else {
+        let then_close = find_matching_close_raw(expr_text, then_brace);
+        let then_body = text_slice(expr_text, then_brace + 1, then_close - 1);
+        let then_type = infer_branch_type(then_body, locals, consts, fns);
+        let else_pos = find_byte_index(expr_text, 101, then_close);
+        if else_pos >= 0 and else_pos + 4 < text_len(expr_text) {
+            let after_else = trim_text(text_slice(expr_text, else_pos + 4, text_len(expr_text)));
+            if not is_empty(after_else) {
+                let else_type = infer_branch_type(after_else, locals, consts, fns);
+                if not is_empty(then_type) and not is_empty(else_type) and then_type != else_type {
+                    if not (is_numeric_type(then_type) and is_numeric_type(else_type)) {
+                        let msg = text_concat("if branches have different types: `", text_concat(then_type, text_concat("` and `", text_concat(else_type, "`"))));
+                        format_type_diag(source, span, msg)
+                    } else {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+    }
+}
+
+fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    if expr_span.present {
+        match expr_kind {
+            ExprKind.If => {
+                check_if_type_deep(source, expr_span.span, locals, consts, fns)
+            },
+            ExprKind.Binary => {
+                ""
+            },
+            _ => {
+                ""
+            },
+        }
+    } else {
+        ""
+    }
+}
+
 fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
     let parsed = parse_fn_item_with_shape(source, state);
     let shape = parsed.shape;
@@ -1415,10 +1638,14 @@ fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text
                                     out = if is_empty(out) { diag } else { text_concat(out, diag) };
                                 };
                             };
-                        };
-                        let inferred = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
+            };
+            let inferred = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
                         if not is_empty(inferred) {
                             locals = type_table_extend(locals, binding_name, inferred);
+                        };
+                        let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                        if not is_empty(deep_diag) {
+                            out = if is_empty(out) { deep_diag } else { text_concat(out, deep_diag) };
                         };
                     };
                 };
@@ -1438,6 +1665,10 @@ fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text
                     };
                 };
                 tail_type = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                if not is_empty(deep_diag) {
+                    out = if is_empty(out) { deep_diag } else { text_concat(out, deep_diag) };
+                };
             };
         };
         index = index + 1;
