@@ -1033,20 +1033,76 @@ fn type_table_extend(table: Text, key: Text, value: Text) -> Text {
 }
 
 fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
-    let from_locals = type_table_lookup(locals, name);
-    if not is_empty(from_locals) {
-        from_locals
+    let dot = find_byte_index(name, 46, 0);
+    if dot >= 0 {
+        infer_dotted_type(name, locals, consts, fns)
     } else {
-        let from_consts = type_table_lookup(consts, name);
-        if not is_empty(from_consts) {
-            from_consts
+        let from_locals = type_table_lookup(locals, name);
+        if not is_empty(from_locals) {
+            from_locals
         } else {
-            let from_fns = type_table_lookup(fns, name);
-            if not is_empty(from_fns) {
-                from_fns
+            let from_consts = type_table_lookup(consts, name);
+            if not is_empty(from_consts) {
+                from_consts
             } else {
-                if is_builtin_fn(name) {
+                let from_fns = type_table_lookup(fns, name);
+                if not is_empty(from_fns) {
+                    from_fns
+                } else {
                     ""
+                }
+            }
+        }
+    }
+}
+
+fn infer_dotted_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let dot = find_byte_index(name, 46, 0);
+    if dot < 0 or dot >= text_len(name) - 1 {
+        ""
+    } else {
+        let base_text = text_slice(name, 0, dot);
+        let rest_text = text_slice(name, dot + 1, text_len(name));
+        let base_type = infer_name_type(base_text, locals, consts, fns);
+        if is_empty(base_type) {
+            ""
+        } else {
+            let field_key = text_concat(base_type, text_concat(".", rest_text));
+            let field_type = type_table_lookup(consts, field_key);
+            if not is_empty(field_type) {
+                field_type
+            } else {
+                let struct_fields = type_table_lookup(consts, base_type);
+                if not is_empty(struct_fields) {
+                    resolve_struct_field(rest_text, struct_fields)
+                } else {
+                    ""
+                }
+            }
+        }
+    }
+}
+
+fn resolve_struct_field(field: Text, fields_text: Text) -> Text {
+    if is_empty(field) or is_empty(fields_text) {
+        ""
+    } else {
+        let colon = find_byte_index(fields_text, 58, 0);
+        if colon < 0 {
+            ""
+        } else {
+            let name_part = trim_text(text_slice(fields_text, 0, colon));
+            let rest_start = colon + 1;
+            let comma = find_byte_index(fields_text, 44, rest_start);
+            let type_end = if comma >= 0 { comma } else { text_len(fields_text) };
+            let type_part = trim_text(text_slice(fields_text, rest_start, type_end));
+            if name_part == field {
+                type_part
+            } else {
+                let next_start = if comma >= 0 { comma + 1 } else { text_len(fields_text) };
+                if next_start < text_len(fields_text) {
+                    let rest = text_slice(fields_text, next_start, text_len(fields_text));
+                    resolve_struct_field(field, rest)
                 } else {
                     ""
                 }
@@ -1233,6 +1289,60 @@ fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns:
     }
 }
 
+fn infer_match_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let brace = find_byte_index(expr_text, 123, 0);
+    if brace < 0 {
+        ""
+    } else {
+        let close = find_matching_close_raw(expr_text, brace);
+        if close <= brace + 1 {
+            ""
+        } else {
+            let body = text_slice(expr_text, brace + 1, close - 1);
+            extract_match_arm_type(body, locals, consts, fns)
+        }
+    }
+}
+
+fn extract_match_arm_type(body: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    if is_empty(body) {
+        ""
+    } else {
+        let arrow = find_byte_index(body, 61, 0);
+        if arrow < 0 or arrow + 1 >= text_len(body) or not (text_byte(body, arrow + 1) == 62) {
+            ""
+        } else {
+            let after_arrow = arrow + 2;
+            if after_arrow >= text_len(body) {
+                ""
+            } else {
+                let after_text = text_slice(body, after_arrow, text_len(body));
+                let comma = find_byte_index(after_text, 44, 0);
+                let arm_end = if comma >= 0 { comma } else { text_len(after_text) };
+                let arm_expr = trim_text(text_slice(after_text, 0, arm_end));
+                infer_snippet_type(arm_expr, locals, consts, fns)
+            }
+        }
+    }
+}
+
+fn infer_group_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let open_paren = find_byte_index(expr_text, 40, 0);
+    if open_paren < 0 {
+        ""
+    } else {
+        let close_paren = find_matching_close_raw(expr_text, open_paren);
+        if close_paren <= open_paren + 1 {
+            ""
+        } else {
+            let inner = text_slice(expr_text, open_paren + 1, close_paren - 1);
+            infer_snippet_type(inner, locals, consts, fns)
+        }
+    }
+}
+
 fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
     match kind {
         ExprKind.Binary => {
@@ -1256,6 +1366,12 @@ fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, 
             } else {
                 ""
             }
+        },
+        ExprKind.Match => {
+            infer_match_type_deep(source, span, locals, consts, fns)
+        },
+        ExprKind.Group => {
+            infer_group_type_deep(source, span, locals, consts, fns)
         },
         _ => {
             ""

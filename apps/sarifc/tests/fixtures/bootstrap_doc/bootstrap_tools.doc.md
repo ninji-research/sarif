@@ -2115,6 +2115,18 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn infer_dotted_type
+
+- signature: `fn infer_dotted_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn resolve_struct_field
+
+- signature: `fn resolve_struct_field(field: Text, fields_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn infer_call_ret_type
 
 - signature: `fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text`
@@ -2148,6 +2160,24 @@
 ### fn infer_if_type_deep
 
 - signature: `fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_match_type_deep
+
+- signature: `fn infer_match_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_match_arm_type
+
+- signature: `fn extract_match_arm_type(body: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_group_type_deep
+
+- signature: `fn infer_group_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
