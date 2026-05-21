@@ -2193,6 +2193,48 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn infer_snippet_type
+
+- signature: `fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_group_type
+
+- signature: `fn infer_group_type(text: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_if_type_from_text
+
+- signature: `fn infer_if_type_from_text(text: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_block_body
+
+- signature: `fn extract_block_body(block_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_branch_type
+
+- signature: `fn infer_branch_type(branch_text: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_if_type_deep
+
+- signature: `fn check_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_expr_types_deep
+
+- signature: `fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn check_fn_return_type
 
 - signature: `fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
