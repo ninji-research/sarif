@@ -397,7 +397,7 @@ impl<'a> ObjectBackend<'a> {
 
             module.define_function(id, &mut context).map_err(|error| {
                 ObjectError::new(format!(
-                    "failed to define `{}` for object emission: {error}\n{}",
+                    "failed to define `{}` for object emission: {error:?}\n{}",
                     function.name,
                     context.func.display()
                 ))
