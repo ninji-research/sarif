@@ -626,6 +626,17 @@ void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
     return list;
 }
 
+uint64_t sarif_list_get(void* list_ptr, int64_t index) {
+    SarifList* list = (SarifList*)list_ptr;
+    if (list == NULL || list->values == NULL) {
+        return 0;
+    }
+    if (index < 0 || (uint64_t)index >= list->len) {
+        return 0;
+    }
+    return list->values[(uint64_t)index];
+}
+
 #ifndef SARIF_NO_SORT
 static int sarif_compare_text_handles(uint64_t left, uint64_t right) {
     return (int)sarif_text_cmp((const unsigned char*)left, (const unsigned char*)right);

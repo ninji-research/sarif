@@ -214,7 +214,7 @@ fn runtime_c_flags() -> Vec<&'static str> {
 
 fn runtime_c_flags_for(cpu_mode: &str, lto_mode: &str) -> Vec<&'static str> {
     let mut flags = vec![
-        "-Os",
+        "-O3",
         "-g0",
         "-fomit-frame-pointer",
         "-fno-math-errno",
@@ -451,11 +451,11 @@ mod tests {
     }
 
     #[test]
-    fn runtime_flags_bias_toward_size_without_losing_native_cpu_selection() {
+    fn runtime_flags_bias_toward_speed_without_losing_native_cpu_selection() {
         let flags = runtime_c_flags_for("native", "off");
-        assert!(flags.contains(&"-Os"));
+        assert!(flags.contains(&"-O3"));
         assert!(flags.contains(&"-g0"));
-        assert!(!flags.contains(&"-O3"));
+        assert!(!flags.contains(&"-Os"));
         assert!(flags.contains(&"-march=native"));
         assert!(flags.contains(&"-mtune=native"));
         assert!(flags.contains(&"-ffunction-sections"));
