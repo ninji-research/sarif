@@ -95,8 +95,18 @@ struct SarifRecordChunk {
 struct SarifAllocScope {
     SarifRecordChunk* chunk;
     size_t used;
-    SarifAllocScope* prev;
 };
+
+struct SarifAllocScopeOverflow {
+    struct SarifAllocScope scope;
+    struct SarifAllocScopeOverflow* next;
+};
+
+#define SARIF_SCOPE_STACK_CAP 64u
+
+static struct SarifAllocScope sarif_scope_stack[SARIF_SCOPE_STACK_CAP];
+static uint64_t sarif_scope_depth = 0;
+static struct SarifAllocScopeOverflow* sarif_scope_overflow = NULL;
 
 // SarifList stores opaque 64-bit slots; typed interpretation happens at the
 // call boundary so the runtime keeps one list representation.
@@ -129,7 +139,6 @@ extern void sarif_user_main(void);
 
 static SarifRecordChunk* sarif_record_chunks = NULL;
 static SarifRecordChunk* sarif_record_current = NULL;
-static SarifAllocScope* sarif_alloc_scope_stack = NULL;
 
 static size_t sarif_record_next_chunk_cap(size_t aligned) {
     size_t target = SARIF_RECORD_ARENA_CHUNK_MIN_SIZE;
@@ -185,26 +194,54 @@ void* sarif_record_alloc(uint64_t size) {
     return chunk->data;
 }
 
+static struct SarifAllocScope* sarif_alloc_push_scope(void) {
+    if (sarif_scope_depth < SARIF_SCOPE_STACK_CAP) {
+        return &sarif_scope_stack[sarif_scope_depth++];
+    }
+    struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
+    if (n == NULL) return NULL;
+    n->next = sarif_scope_overflow;
+    sarif_scope_overflow = n;
+    return &n->scope;
+}
+
+static void sarif_alloc_pop_scope(void) {
+    if (sarif_scope_depth > 0) {
+        sarif_scope_depth--;
+        return;
+    }
+    struct SarifAllocScopeOverflow* n = sarif_scope_overflow;
+    if (n != NULL) {
+        sarif_scope_overflow = n->next;
+        free(n);
+    }
+}
+
 void sarif_alloc_push(void) {
-    SarifAllocScope* scope = malloc(sizeof(SarifAllocScope));
+    struct SarifAllocScope* scope = sarif_alloc_push_scope();
     if (scope == NULL) {
         return;
     }
     scope->chunk = sarif_record_current;
     scope->used = sarif_record_current == NULL ? 0u : sarif_record_current->used;
-    scope->prev = sarif_alloc_scope_stack;
-    sarif_alloc_scope_stack = scope;
 }
 
 void sarif_alloc_pop(void) {
-    SarifAllocScope* scope = sarif_alloc_scope_stack;
     SarifRecordChunk* chunk = NULL;
     SarifRecordChunk* next = NULL;
-    if (scope == NULL) {
+    if (sarif_scope_depth == 0 && sarif_scope_overflow == NULL) {
         return;
     }
-    sarif_alloc_scope_stack = scope->prev;
-    if (scope->chunk == NULL) {
+    struct SarifAllocScope scope = {
+        .chunk = sarif_scope_depth > 0
+            ? sarif_scope_stack[sarif_scope_depth - 1].chunk
+            : sarif_scope_overflow->scope.chunk,
+        .used = sarif_scope_depth > 0
+            ? sarif_scope_stack[sarif_scope_depth - 1].used
+            : sarif_scope_overflow->scope.used,
+    };
+    sarif_alloc_pop_scope();
+    if (scope.chunk == NULL) {
         chunk = sarif_record_chunks;
         while (chunk != NULL) {
             next = chunk->next;
@@ -213,19 +250,17 @@ void sarif_alloc_pop(void) {
         }
         sarif_record_chunks = NULL;
         sarif_record_current = NULL;
-        free(scope);
         return;
     }
-    chunk = scope->chunk->next;
-    scope->chunk->next = NULL;
+    chunk = scope.chunk->next;
+    scope.chunk->next = NULL;
     while (chunk != NULL) {
         next = chunk->next;
         free(chunk);
         chunk = next;
     }
-    sarif_record_current = scope->chunk;
-    sarif_record_current->used = scope->used;
-    free(scope);
+    sarif_record_current = scope.chunk;
+    sarif_record_current->used = scope.used;
 }
 
 static inline __attribute__((always_inline)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {

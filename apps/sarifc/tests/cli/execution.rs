@@ -997,6 +997,34 @@ fn stable_build_executes_text_index_get_or_insert_programs() {
 
 #[cfg(feature = "native-build")]
 #[test]
+fn stable_build_executes_text_index_keys_program() {
+    let path = temp_source(
+        "fn main() -> Text effects [alloc] { let mut index = text_index_new(); index = text_index_set(index, \"alpha\", 7); index = text_index_set(index, \"beta\", 9); let keys = text_index_keys(index); let mut builder = text_builder_new(); builder += keys; text_builder_finish(builder) }",
+    );
+    let binary_path = super::support::temp_artifact("text_index_keys_build", "bin");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--print-main",
+        "-o",
+        binary_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "text index keys program should build on the native target"
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&native.stdout);
+    assert!(stdout.contains("alpha"), "text_index_keys output should contain alpha");
+    assert!(stdout.contains("beta"), "text_index_keys output should contain beta");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
 fn stable_build_executes_list_sort_text_program() {
     let path = temp_source(
         "fn main() -> Text effects [alloc] { let mut xs = list_new(3, \"\"); xs = list_set(xs, 0, \"c\"); xs = list_set(xs, 1, \"a\"); xs = list_set(xs, 2, \"b\"); xs = list_sort_text(xs, 3); list_get(xs, 0) }",

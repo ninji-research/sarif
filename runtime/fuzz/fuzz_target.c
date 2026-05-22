@@ -83,7 +83,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // Reset arena for each fuzz iteration.
     sarif_record_chunks = NULL;
     sarif_record_current = NULL;
-    sarif_alloc_scope_stack = NULL;
+    sarif_scope_depth = 0;
+    sarif_scope_overflow = NULL;
 
     // Open an alloc scope so arena allocations are cleaned up on exit.
     sarif_alloc_push();

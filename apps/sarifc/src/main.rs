@@ -15,10 +15,12 @@ use reports::{render_bootstrap_check, render_bootstrap_doc, render_bootstrap_for
 use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
+#[cfg(feature = "native-build")]
+use sarif_codegen::emit_clif;
+#[cfg(feature = "native-build")]
+use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
 use sarif_codegen::{RuntimeError, RuntimeValue, analyze_escapes, lower as lower_mir};
-#[cfg(feature = "codegen")]
-use sarif_codegen::{emit_clif, emit_object};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
 use sarif_frontend::semantic::Profile;
