@@ -352,6 +352,9 @@ fn infer_inst_kinds(
             Inst::TextIndexGetOrInsert { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
             }
+            Inst::TextIndexKeys { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::Text);
+            }
             Inst::TextIndexSet { dest, index, .. } => {
                 let Some(kind) = kinds.get(index).cloned() else {
                     return Err(format!(
@@ -1162,6 +1165,7 @@ pub struct TextIndexHelperIds {
     pub contains_id: Option<FuncId>,
     pub get_or_insert_id: Option<FuncId>,
     pub set_id: Option<FuncId>,
+    pub keys_id: Option<FuncId>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1787,6 +1791,26 @@ pub fn lower_inst<M: Module>(
                 helper,
                 &[index_val, key_val, value_val],
                 "text index set",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TextIndexKeys { dest, index } => {
+            let index_val =
+                native_value(values, *index, function, "text_index_keys index", backend)?;
+            let helper = module.declare_func_in_func(
+                text_index_helpers
+                    .keys_id
+                    .expect("text index keys declared"),
+                builder.func,
+            );
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[index_val],
+                "text index keys",
                 function,
                 backend,
             )?;
@@ -3790,6 +3814,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::TextFieldEnd { dest, .. }
             | Inst::TextNextField { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
+            | Inst::TextIndexKeys { dest, .. }
             | Inst::ArgCount { dest }
             | Inst::ArgText { dest, .. }
             | Inst::StdinText { dest }
@@ -4337,6 +4362,17 @@ pub fn declare_text_index_set<M: Module>(module: &mut M, backend: &str) -> Resul
         backend,
         "text index set helper",
         &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_text_index_keys<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_text_index_keys",
+        backend,
+        "text index keys helper",
+        &[types::I64],
         &[types::I64],
     )
 }

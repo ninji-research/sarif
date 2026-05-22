@@ -1478,6 +1478,51 @@ must have type `Text`, found `{}`",
         );
     }
 
+    if expr.callee == "text_index_keys" && !functions.contains_key("text_index_keys") {
+        if !caller_effects.contains(&Effect::Alloc) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.alloc-effect",
+                format!("builtin `text_index_keys` requires `alloc` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect alloc` to the function signature.".to_owned()),
+            ));
+        }
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_keys-arity",
+                format!(
+                    "builtin `text_index_keys` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `text_index_keys(index)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        if args[0].ty != Type::TextIndex && args[0].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.text_index_keys-type",
+                format!(
+                    "builtin `text_index_keys` first argument must be TextIndex, found `{}`",
+                    args[0].ty.render()
+                ),
+                expr.span,
+                Some("Pass a TextIndex handle.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        return ExprInfo {
+            ty: Type::Text,
+            calls,
+        };
+    }
+
     if expr.callee == "f64_from_i32" && !functions.contains_key("f64_from_i32") {
         if args.len() != 1 {
             diagnostics.push(Diagnostic::new(
@@ -3509,6 +3554,7 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "text_index_get"
                     | "text_index_get_or_insert"
                     | "text_index_set"
+                    | "text_index_keys"
                     | "text_line_end"
                     | "text_next_line"
                     | "text_field_end"

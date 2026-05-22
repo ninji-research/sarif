@@ -169,6 +169,7 @@ impl Env<'_> {
             | Inst::TextIndexContains { dest, .. }
             | Inst::TextIndexGetOrInsert { dest, .. }
             | Inst::TextIndexSet { dest, .. }
+            | Inst::TextIndexKeys { dest, .. }
             | Inst::ListSortText { dest, .. }
             | Inst::ListSortRecordTextField { dest, .. }
             | Inst::ListSet { dest, .. }

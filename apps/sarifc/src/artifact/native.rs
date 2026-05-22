@@ -63,7 +63,7 @@ pub(super) fn runtime_defines(plan: &NativeBuildPlan, print_main: bool) -> Vec<S
         format!("-DSARIF_MAIN_KIND={}", plan.main_kind),
         format!("-DSARIF_MAIN_PRINT={print_flag}"),
     ];
-    if !plan.features.text_builder {
+    if !plan.features.text_builder && !plan.features.text_index {
         defines.push("-DSARIF_NO_TEXT_BUILDER".to_owned());
     }
     if !plan.features.text_index {

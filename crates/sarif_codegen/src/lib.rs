@@ -51,7 +51,8 @@ impl RuntimeFeatures {
                 Inst::TextIndexNew { .. }
                 | Inst::TextIndexGet { .. }
                 | Inst::TextIndexGetOrInsert { .. }
-                | Inst::TextIndexSet { .. } => f.text_index = true,
+                | Inst::TextIndexSet { .. }
+                | Inst::TextIndexKeys { .. } => f.text_index = true,
                 Inst::ListSortText { .. } | Inst::ListSortRecordTextField { .. } => f.sort = true,
                 _ => {}
             });
@@ -391,6 +392,10 @@ pub enum Inst {
         index: ValueId,
         key: ValueId,
         value: ValueId,
+    },
+    TextIndexKeys {
+        dest: ValueId,
+        index: ValueId,
     },
     ListNew {
         dest: ValueId,
@@ -928,6 +933,9 @@ impl Inst {
                 key.render(),
                 value.render()
             ),
+            Self::TextIndexKeys { dest, index } => {
+                format!("{} = text-index-keys {}", dest.render(), index.render())
+            }
             Self::ListNew { dest, len, value } => format!(
                 "{} = list-new {}, {}",
                 dest.render(),
@@ -3423,6 +3431,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextFieldEnd { .. }
             | Inst::TextNextField { .. }
             | Inst::TextFromF64Fixed { .. }
+            | Inst::TextIndexKeys { .. }
             | Inst::ArgCount { .. }
             | Inst::AllocPush
             | Inst::AllocPop
@@ -3795,6 +3804,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_index_set" if self.builtin_is_available("text_index_set") => {
                 self.lower_text_index_set_expr(expr)
             }
+            "text_index_keys" if self.builtin_is_available("text_index_keys") => {
+                self.lower_text_index_keys_expr(expr)
+            }
             "list_new" if self.builtin_is_available("list_new") => self.lower_list_new_expr(expr),
             "list_len" if self.builtin_is_available("list_len") => self.lower_list_len_expr(expr),
             "list_get" if self.builtin_is_available("list_get") => self.lower_list_get_expr(expr),
@@ -3996,6 +4008,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 LowerType::I32
             }
             "text_index_set" if self.builtin_is_available("text_index_set") => LowerType::TextIndex,
+            "text_index_keys" if self.builtin_is_available("text_index_keys") => LowerType::Text,
             "list_new" if self.builtin_is_available("list_new") => {
                 match expr.args.get(1).map(|arg| self.infer_expr_type(arg)) {
                     Some(element) => LowerType::List(Box::new(element)),
@@ -7219,6 +7232,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_index_keys_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let index = self.lower_expr(arg0);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextIndexKeys { dest, index });
+        dest
+    }
+
     fn lower_list_new_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
@@ -8568,6 +8591,23 @@ impl<'a> Interpreter<'a> {
                         .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
                         .insert(key, value);
                     values[dest.0 as usize] = RuntimeValue::TextIndex(id);
+                }
+                Inst::TextIndexKeys { dest, index } => {
+                    let index_val = extract_value(values, *index)?;
+                    let RuntimeValue::TextIndex(id) = index_val else {
+                        return Err(RuntimeError::new("expected TextIndex"));
+                    };
+                    let keys: Vec<String> = self
+                        .text_indices
+                        .get(id as usize)
+                        .ok_or_else(|| RuntimeError::new("text index handle is unavailable"))?
+                        .keys()
+                        .cloned()
+                        .collect();
+                    let mut sorted_keys = keys;
+                    sorted_keys.sort();
+                    let result = sorted_keys.join("\n");
+                    values[dest.0 as usize] = RuntimeValue::Text(result);
                 }
                 Inst::ListNew { dest, len, value } => {
                     let len_val = extract_value(values, *len)?;

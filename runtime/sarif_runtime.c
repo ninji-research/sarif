@@ -887,6 +887,24 @@ int64_t sarif_text_index_get_or_insert(void* index_ptr, uint64_t key, int64_t ne
     index->len += 1;
     return next;
 }
+void* sarif_text_index_keys(void* index_ptr) {
+    SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    if (index == NULL || index->entries == NULL) {
+        return NULL;
+    }
+    void* builder = sarif_text_builder_new();
+    if (builder == NULL) return NULL;
+    for (uint64_t i = 0; i < index->cap; i++) {
+        if (index->entries[i].occupied) {
+            unsigned char* key_text = (unsigned char*)index->entries[i].key;
+            builder = sarif_text_builder_append(builder, key_text);
+            if (builder == NULL) { return NULL; }
+            builder = sarif_text_builder_append_ascii(builder, (int64_t)'\n');
+            if (builder == NULL) { return NULL; }
+        }
+    }
+    return sarif_text_builder_finish(builder);
+}
 #endif /* !SARIF_NO_TEXT_INDEX */
 
 void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
