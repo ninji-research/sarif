@@ -1306,7 +1306,7 @@ fn wasm_build_accepts_stdin_bytes_modules() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_accepts_stdout_write_modules() {
-    let path = temp_source("fn main() { stdout_write(\"sarif\") }");
+    let path = temp_source("fn main() effects [io] { stdout_write(\"sarif\") }");
     let wasm_path = temp_output("stdout_write_build", "wasm");
     let build = run_sarif(&[
         "build",
