@@ -451,3 +451,45 @@ fn package_diagnostics_report_originating_source_files() {
     assert!(stderr.contains("semantic.record-field"));
     assert!(stderr.contains("src/main.sarif"));
 }
+
+#[test]
+fn bootstrap_check_infers_nested_struct_field_access() {
+    let source = "struct Inner { value: I32 }\nstruct Outer { inner: Inner }\nfn main() -> I32 { let o = Outer { inner: Inner { value: 42 } }; o.inner.value }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(
+        output.status.success(),
+        "bootstrap-check should accept nested struct field access: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn bootstrap_check_infers_match_expression_type() {
+    let source = "enum Status { Active, Inactive }\nfn main() -> I32 { let s = Status.Active; match s { Status.Active => { 1 }, Status.Inactive => { 0 } } }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(
+        output.status.success(),
+        "bootstrap-check should accept match expression type: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn bootstrap_check_infers_complex_else_branches() {
+    let source = "fn helper() -> I32 { 10 }\n\
+                  fn main() -> I32 { \n\
+                      let x = if true { 1 } else { helper() }; \n\
+                      let y = if false { 2 } else { if true { 3 } else { 4 } }; \n\
+                      let z = if true { 5 } else { 6 + 7 }; \n\
+                      x + y + z \n\
+                  }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(
+        output.status.success(),
+        "bootstrap-check should accept complex else branches: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

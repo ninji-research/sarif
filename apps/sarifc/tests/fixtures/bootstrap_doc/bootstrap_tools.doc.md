@@ -2133,6 +2133,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn resolve_nested_struct_field
+
+- signature: `fn resolve_nested_struct_field(field_path: Text, struct_fields: Text, consts: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn resolve_struct_field
 
 - signature: `fn resolve_struct_field(field: Text, fields_text: Text) -> Text`

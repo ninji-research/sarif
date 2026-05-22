@@ -435,7 +435,12 @@ fn emit_function(
     }
     for local in &func.mutable_locals {
         let tn = func_type_name(Some(&local.ty));
-        out.line(&format!("{} {}_local_{};", tn, local.ty, local.slot.0))?;
+        let safe_name: String = local
+            .ty
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+        out.line(&format!("{} {}_local_{};", tn, safe_name, local.slot.0))?;
     }
 
     emit_instructions(&func.instructions, func, value_kinds, structs, enums, out)?;
@@ -446,6 +451,12 @@ fn emit_function(
     out.block_close()?;
     out.line("")?;
     Ok(())
+}
+
+fn safe_local_name(ty: &str) -> String {
+    ty.chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect()
 }
 
 fn func_type_name(ty: Option<&str>) -> &'static str {
@@ -791,7 +802,12 @@ fn emit_inst(
         Inst::LoadLocal { dest, slot } => {
             let decl = func.mutable_locals.iter().find(|l| l.slot == *slot);
             if let Some(local) = decl {
-                out.line(&format!("v{} = {}_local_{};", dest.0, local.ty, slot.0))?;
+                out.line(&format!(
+                    "v{} = {}_local_{};",
+                    dest.0,
+                    safe_local_name(&local.ty),
+                    slot.0
+                ))?;
             } else {
                 out.line(&format!(
                     "v{} = 0; /* unknown local slot {} */",
@@ -802,7 +818,12 @@ fn emit_inst(
         Inst::StoreLocal { slot, src } => {
             let decl = func.mutable_locals.iter().find(|l| l.slot == *slot);
             if let Some(local) = decl {
-                out.line(&format!("{}_local_{} = {};", local.ty, slot.0, vref(src)))?;
+                out.line(&format!(
+                    "{}_local_{} = {};",
+                    safe_local_name(&local.ty),
+                    slot.0,
+                    vref(src)
+                ))?;
             } else {
                 out.line(&format!(
                     "/* unknown local slot {} = {} */",
@@ -1350,7 +1371,11 @@ fn emit_inst(
             ))?;
             if let Some(slot) = index_slot {
                 if let Some(local) = func.mutable_locals.iter().find(|l| l.slot == *slot) {
-                    out.line(&format!("{}_local_{} = (uint64_t)_i;", local.ty, slot.0))?;
+                    out.line(&format!(
+                        "{}_local_{} = (uint64_t)_i;",
+                        safe_local_name(&local.ty),
+                        slot.0
+                    ))?;
                 } else {
                     out.line(&format!("uint64_t __local_{} = (uint64_t)_i;", slot.0))?;
                 }
@@ -1429,7 +1454,12 @@ fn emit_main_wrapper(
     }
     for local in &main.mutable_locals {
         let tn = func_type_name(Some(&local.ty));
-        out.line(&format!("{} {}_local_{};", tn, local.ty, local.slot.0))?;
+        out.line(&format!(
+            "{} {}_local_{};",
+            tn,
+            safe_local_name(&local.ty),
+            local.slot.0
+        ))?;
     }
 
     emit_instructions(&main.instructions, main, value_kinds, structs, enums, out)?;

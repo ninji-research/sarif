@@ -1183,10 +1183,31 @@ fn infer_dotted_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text 
             } else {
                 let struct_fields = type_table_lookup(consts, base_type);
                 if not is_empty(struct_fields) {
-                    resolve_struct_field(rest_text, struct_fields)
+                    resolve_nested_struct_field(rest_text, struct_fields, consts)
                 } else {
                     ""
                 }
+            }
+        }
+    }
+}
+
+fn resolve_nested_struct_field(field_path: Text, struct_fields: Text, consts: Text) -> Text {
+    let dot = find_byte_index(field_path, 46, 0);
+    if dot < 0 {
+        resolve_struct_field(field_path, struct_fields)
+    } else {
+        let first_field = text_slice(field_path, 0, dot);
+        let remaining = text_slice(field_path, dot + 1, text_len(field_path));
+        let first_type = resolve_struct_field(first_field, struct_fields);
+        if is_empty(first_type) {
+            ""
+        } else {
+            let next_struct_fields = type_table_lookup(consts, first_type);
+            if is_empty(next_struct_fields) {
+                ""
+            } else {
+                resolve_nested_struct_field(remaining, next_struct_fields, consts)
             }
         }
     }
@@ -1426,11 +1447,9 @@ fn extract_match_arm_type(body: Text, locals: Text, consts: Text, fns: Text) -> 
             if after_arrow >= text_len(body) {
                 ""
             } else {
-                let after_text = text_slice(body, after_arrow, text_len(body));
-                let comma = find_byte_index(after_text, 44, 0);
-                let arm_end = if comma >= 0 { comma } else { text_len(after_text) };
-                let arm_expr = trim_text(text_slice(after_text, 0, arm_end));
-                infer_snippet_type(arm_expr, locals, consts, fns)
+                let end = skip_expr_text(body, after_arrow);
+                let arm_expr = trim_text(text_slice(body, after_arrow, end));
+                infer_branch_type(arm_expr, locals, consts, fns)
             }
         }
     }
@@ -1663,6 +1682,10 @@ fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> T
                 ExprKind.Group => {
                     infer_group_type(trimmed, locals, consts, fns)
                 },
+                ExprKind.Match => {
+                    let span = make_span(0, text_len(trimmed));
+                    infer_match_type_deep(trimmed, span, locals, consts, fns)
+                },
                 _ => {
                     ""
                 },
@@ -1687,55 +1710,22 @@ fn infer_group_type(text: Text, locals: Text, consts: Text, fns: Text) -> Text {
 }
 
 fn infer_if_type_from_text(text: Text, locals: Text, consts: Text, fns: Text) -> Text {
-    let else_pos = find_byte_index(text, 101, 0);
-    if else_pos < 0 {
+    let then_brace = find_byte_index(text, 123, 0);
+    if then_brace < 0 {
         "Unit"
     } else {
-        let after_else = else_pos + 4;
-        if after_else < text_len(text) {
-            let after_else_text = trim_text(text_slice(text, after_else, text_len(text)));
-            if is_empty(after_else_text) {
-                "Unit"
-            } else {
-                let else_state = parse_state_new(after_else_text);
-                let else_kind = classify_expr_kind(after_else_text, else_state);
-                if else_kind == ExprKind.Integer {
-                    "I32"
-                } else if else_kind == ExprKind.Float {
-                    "F64"
-                } else if else_kind == ExprKind.Bool {
-                    "Bool"
-                } else if else_kind == ExprKind.String {
-                    "Text"
-                } else if else_kind == ExprKind.Name {
-                    let name_str = trim_text(text_slice(after_else_text, 0, text_len(after_else_text)));
-                    infer_name_type(name_str, locals, consts, fns)
-                } else if else_kind == ExprKind.Call {
-                    let paren = find_byte_index(after_else_text, 40, 0);
-                    if paren > 0 {
-                        let callee = trim_text(text_slice(after_else_text, 0, paren));
-                        let ret = type_table_lookup(fns, callee);
-                        if is_empty(ret) {
-                            if is_builtin_fn(callee) {
-                                "I32"
-                            } else {
-                                ""
-                            }
-                        } else {
-                            ret
-                        }
-                    } else {
-                        ""
-                    }
-                } else if else_kind == ExprKind.Binary {
-                    let span = make_span(0, text_len(after_else_text));
-                    find_operator_in_expr(after_else_text, span)
-                } else {
-                    ""
-                }
-            }
-        } else {
+        let then_close = find_matching_close_raw(text, then_brace);
+        let else_pos = find_byte_index(text, 101, then_close);
+        if else_pos < 0 {
             "Unit"
+        } else {
+            let after_else = else_pos + 4;
+            if after_else < text_len(text) {
+                let after_else_text = trim_text(text_slice(text, after_else, text_len(text)));
+                infer_branch_type(after_else_text, locals, consts, fns)
+            } else {
+                "Unit"
+            }
         }
     }
 }

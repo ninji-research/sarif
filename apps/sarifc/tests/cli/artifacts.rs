@@ -72,8 +72,12 @@ fn doc_emits_stable_markdown_for_retained_semantic_inputs() {
             "{} should emit semantic docs cleanly",
             case.path.display()
         );
+        let stdout = relativize_repo_root(&String::from_utf8_lossy(&output.stdout));
+        if std::env::var("UPDATE_EXPECT").is_ok() {
+            std::fs::write(&case.expected, &stdout).unwrap();
+        }
         assert_eq!(
-            relativize_repo_root(&String::from_utf8_lossy(&output.stdout)),
+            stdout,
             std::fs::read_to_string(&case.expected).unwrap_or_else(|_| panic!(
                 "fixture should be readable: {}",
                 case.expected.display()
@@ -117,6 +121,9 @@ fn bootstrap_doc_matches_retained_semantic_docs_for_single_files_and_packages() 
             case.path.display()
         );
         let stdout = relativize_repo_root(&String::from_utf8_lossy(&output.stdout));
+        if std::env::var("UPDATE_EXPECT").is_ok() {
+            std::fs::write(&case.expected, &stdout).unwrap();
+        }
         let expected = std::fs::read_to_string(&case.expected)
             .unwrap_or_else(|_| panic!("fixture should be readable: {}", case.expected.display()));
         assert_eq!(
