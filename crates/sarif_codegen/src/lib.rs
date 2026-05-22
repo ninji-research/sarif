@@ -7,6 +7,8 @@ use std::path::Path;
 use sarif_frontend::hir::{BinaryOp, ConstExpr, Expr, Item, Module, Stmt};
 use sarif_syntax::{Diagnostic, Span};
 
+#[cfg(feature = "backend-c")]
+pub mod c;
 #[cfg(feature = "backend-native")]
 mod native;
 #[cfg(feature = "backend-native")]

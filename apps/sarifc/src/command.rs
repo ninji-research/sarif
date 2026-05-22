@@ -16,6 +16,7 @@ pub struct Command {
 pub enum BuildTarget {
     Native,
     Wasm,
+    C,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,7 +54,8 @@ pub fn usage() -> String {
     usage += "  --rt              core + hard real-time enforcement\n\n";
     usage += "targets:\n";
     usage += "  --target native   compile to native executable (default)\n";
-    usage += "  --target wasm     compile to binary webassembly (.wasm)\n\n";
+    usage += "  --target wasm     compile to binary webassembly (.wasm)\n";
+    usage += "  --target c        emit C source code (.c)\n\n";
     usage += "options:\n";
     usage += "  -o <path>         output path for build\n";
     usage +=
@@ -153,6 +155,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
                     target = match t.as_str() {
                         "native" => BuildTarget::Native,
                         "wasm" => BuildTarget::Wasm,
+                        "c" => BuildTarget::C,
                         _ => return Err(format!("unknown target `{t}`")),
                     };
                 }

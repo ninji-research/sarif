@@ -9,6 +9,7 @@ version.workspace = true
 default = []
 backend-native = ["dep:cranelift-codegen", "dep:cranelift-frontend", "dep:cranelift-module", "dep:cranelift-native", "dep:cranelift-object", "dep:target-lexicon"]
 backend-wasm = ["dep:wasm-encoder", "dep:wasmtime", "dep:wat"]
+backend-c = []
 
 [dependencies]
 cranelift-codegen = { workspace = true, optional = true }

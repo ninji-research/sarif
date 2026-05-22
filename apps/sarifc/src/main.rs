@@ -15,6 +15,8 @@ use reports::{render_bootstrap_check, render_bootstrap_doc, render_bootstrap_for
 use reports::{
     render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
 };
+#[cfg(feature = "c-backend")]
+use sarif_codegen::c::emit_c;
 #[cfg(feature = "native-build")]
 use sarif_codegen::emit_clif;
 #[cfg(feature = "native-build")]
@@ -435,6 +437,20 @@ fn build_program(command: &command::Command) -> Result<(), String> {
                 Err("wasm build requires the `wasm` feature".to_owned())
             }
         }
+        BuildTarget::C => {
+            #[cfg(feature = "c-backend")]
+            {
+                let c_source =
+                    emit_c(&loaded.mir().program).map_err(|e| format!("c codegen failed: {e}"))?;
+                fs::write(output_path, c_source)
+                    .map_err(|error| format!("failed to write C file `{output_path}`: {error}"))?;
+                Ok(())
+            }
+            #[cfg(not(feature = "c-backend"))]
+            {
+                Err("c backend requires the `c-backend` feature".to_owned())
+            }
+        }
     }
 }
 
@@ -490,20 +506,34 @@ fn render_codegen_dump(
     loaded: &LoadedSource,
     command: &command::Command,
 ) -> Result<String, String> {
-    if command.target != BuildTarget::Wasm {
+    if command.target != BuildTarget::Wasm && command.target != BuildTarget::C {
         return Err(
-            "codegen IR dumps are currently supported only with `--target wasm`".to_owned(),
+            "codegen IR dumps are currently supported only with `--target wasm` or `--target c`"
+                .to_owned(),
         );
+    }
+    if command.target == BuildTarget::C {
+        return emit_c(&loaded.mir().program).map_err(|e| format!("c codegen failed: {e}"));
     }
     emit_wat(&loaded.mir().program).map_err(|error| error.message)
 }
 
 #[cfg(all(feature = "codegen", not(feature = "wasm")))]
+#[allow(clippy::used_underscore_binding)]
 fn render_codegen_dump(
     _loaded: &LoadedSource,
-    _command: &command::Command,
+    command: &command::Command,
 ) -> Result<String, String> {
-    Err("codegen IR dumps are currently supported only with `--target wasm`".to_owned())
+    if command.target == BuildTarget::C {
+        #[cfg(feature = "c-backend")]
+        return emit_c(&_loaded.mir().program).map_err(|e| format!("c codegen failed: {e}"));
+        #[cfg(not(feature = "c-backend"))]
+        return Err("c backend requires the `c-backend` feature".to_owned());
+    }
+    Err(
+        "codegen IR dumps are currently supported only with `--target wasm` or `--target c`"
+            .to_owned(),
+    )
 }
 
 #[cfg(not(feature = "codegen"))]

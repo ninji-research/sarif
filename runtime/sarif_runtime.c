@@ -23,6 +23,10 @@ static int sarif_write_text_blob(const unsigned char* text, int newline);
 static int sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
+uint64_t sarif_text_len(const unsigned char* text);
+
+uint64_t sarif_text_len(const unsigned char* text);
+
 static int sarif_write_all(const unsigned char* bytes, uint64_t len) {
     if (len == 0) {
         return 0;
@@ -271,6 +275,11 @@ static inline __attribute__((always_inline)) uint64_t sarif_load_u64(const unsig
     uint64_t value;
     memcpy(&value, base + offset, sizeof(uint64_t));
     return value;
+}
+
+uint64_t sarif_text_len(const unsigned char* text) {
+    if (text == NULL) { return 0; }
+    return sarif_load_u64(text, 0);
 }
 
 static unsigned char* sarif_text_alloc(uint64_t len) {

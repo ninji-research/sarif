@@ -1019,8 +1019,14 @@ fn stable_build_executes_text_index_keys_program() {
         .expect("built binary should run");
     assert_eq!(native.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&native.stdout);
-    assert!(stdout.contains("alpha"), "text_index_keys output should contain alpha");
-    assert!(stdout.contains("beta"), "text_index_keys output should contain beta");
+    assert!(
+        stdout.contains("alpha"),
+        "text_index_keys output should contain alpha"
+    );
+    assert!(
+        stdout.contains("beta"),
+        "text_index_keys output should contain beta"
+    );
 }
 
 #[cfg(feature = "native-build")]
