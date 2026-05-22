@@ -680,6 +680,7 @@ pub(super) struct BodyInfo {
 #[derive(Clone, Debug)]
 pub(super) struct BodyStatementsInfo {
     locals: HashMap<String, Type>,
+    mutable_locals: HashSet<String>,
     calls: Vec<CallSite>,
 }
 

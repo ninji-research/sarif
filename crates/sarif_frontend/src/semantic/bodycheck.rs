@@ -23,7 +23,11 @@ pub(super) fn infer_body(
     fn_name: &str,
     caller_effects: &HashSet<Effect>,
 ) -> BodyInfo {
-    let BodyStatementsInfo { locals, mut calls } = infer_body_statements(
+    let BodyStatementsInfo {
+        locals,
+        mutable_locals,
+        mut calls,
+    } = infer_body_statements(
         body,
         initial_locals,
         initial_mutable_locals,
@@ -40,7 +44,7 @@ pub(super) fn infer_body(
         let info = infer_expr(
             tail,
             &locals,
-            initial_mutable_locals,
+            &mutable_locals,
             functions,
             consts,
             enum_variants,
@@ -119,6 +123,7 @@ fn infer_body_statements(
 
     BodyStatementsInfo {
         locals: state.locals,
+        mutable_locals: state.mutable_locals,
         calls: state.calls,
     }
 }

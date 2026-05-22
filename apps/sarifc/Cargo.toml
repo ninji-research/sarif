@@ -6,7 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = ["format", "codegen", "native-build", "docs", "c-backend"]
+default = ["format", "codegen", "native-build", "docs", "c-backend", "wasm"]
 format = []
 codegen = ["dep:sarif_codegen"]
 native-build = ["codegen", "sarif_codegen/backend-native"]

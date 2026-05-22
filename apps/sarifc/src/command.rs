@@ -10,6 +10,7 @@ pub struct Command {
     pub target: BuildTarget,
     pub output_path: Option<String>,
     pub dump_ir: Option<String>,
+    pub semantic: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,6 +120,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut target = BuildTarget::Native;
     let mut output_path = None;
     let mut dump_ir = None;
+    let mut semantic = false;
 
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -162,6 +164,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             }
             "-o" => output_path = iter.next().cloned(),
             "--print-main" => print_main = true,
+            "--semantic" => semantic = true,
             other if other.starts_with("--dump-ir=") => {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
@@ -199,6 +202,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             target,
             output_path,
             dump_ir,
+            semantic,
         });
     }
 
@@ -219,6 +223,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         target,
         output_path,
         dump_ir,
+        semantic,
     })
 }
 
