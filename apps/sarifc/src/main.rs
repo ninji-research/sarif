@@ -398,6 +398,7 @@ fn run_program(_command: command::Command) -> ExitCode {
 }
 
 #[cfg(feature = "codegen")]
+#[allow(clippy::too_many_lines)]
 fn build_program(command: &command::Command) -> Result<(), String> {
     let loaded = LoadedSource::load(&command.path)?;
     let all_diagnostics = loaded.mir_diagnostics(command.profile);
@@ -491,7 +492,7 @@ fn build_program(command: &command::Command) -> Result<(), String> {
                 }
 
                 // Write C source to a .c file
-                let c_source_path = format!("{}.c", output_path);
+                let c_source_path = format!("{output_path}.c");
                 fs::write(&c_source_path, &c_source).map_err(|error| {
                     format!("failed to write C file `{c_source_path}`: {error}")
                 })?;
