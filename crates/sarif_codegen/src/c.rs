@@ -1071,12 +1071,21 @@ fn emit_inst(
             len,
             field,
         } => {
-            out.line(&format!("// TODO: sort by text field {}", field))?;
+            let offset = match value_kinds.get(list) {
+                Some(CodegenValueKind::List(elem)) => match &**elem {
+                    CodegenValueKind::Record(record_name) => {
+                        record_field_offset(structs, record_name, field).unwrap_or(0)
+                    }
+                    _ => 0,
+                },
+                _ => 0,
+            };
             out.line(&format!(
-                "v{} = (uint64_t)sarif_list_sort_by_text_field((void*){}, (int64_t){}, 0);",
+                "v{} = (uint64_t)sarif_list_sort_by_text_field((void*){}, (int64_t){}, {}u);",
                 dest.0,
                 vref(list),
-                vref(len)
+                vref(len),
+                offset
             ))?;
         }
         Inst::MakeRecord {
@@ -1607,21 +1616,29 @@ fn infer_inst_kind_c(
         Inst::TextIndexKeys { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Text);
         }
-        Inst::ListNew { dest, .. }
-        | Inst::ListSet { dest, .. }
-        | Inst::ListPush { dest, .. }
-        | Inst::ListSortText { dest, .. }
-        | Inst::ListSortRecordTextField { dest, .. } => {
-            kinds.insert(
-                *dest,
-                CodegenValueKind::List(Box::new(CodegenValueKind::I32)),
-            );
+        Inst::ListNew { dest, value, .. } => {
+            let elem = kinds.get(value).cloned().unwrap_or(CodegenValueKind::I32);
+            kinds.insert(*dest, CodegenValueKind::List(Box::new(elem)));
+        }
+        Inst::ListSet { dest, list, .. }
+        | Inst::ListPush { dest, list, .. }
+        | Inst::ListSortText { dest, list, .. }
+        | Inst::ListSortRecordTextField { dest, list, .. } => {
+            let lk = kinds
+                .get(list)
+                .cloned()
+                .unwrap_or_else(|| CodegenValueKind::List(Box::new(CodegenValueKind::I32)));
+            kinds.insert(*dest, lk);
         }
         Inst::ListLen { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::I32);
         }
-        Inst::ListGet { dest, .. } => {
-            kinds.insert(*dest, CodegenValueKind::I32);
+        Inst::ListGet { dest, list, .. } => {
+            let elem = match kinds.get(list) {
+                Some(CodegenValueKind::List(elem)) => (**elem).clone(),
+                _ => CodegenValueKind::I32,
+            };
+            kinds.insert(*dest, elem);
         }
         Inst::Call { dest, callee, .. } => {
             let callee_func = program.functions.iter().find(|f| f.name == *callee);
