@@ -208,24 +208,36 @@ fn run_command(command: command::Command) -> ExitCode {
 }
 
 fn run_check(command: &command::Command) -> Result<(), String> {
-    print_loaded_render(command, |loaded| {
-        emit_requested_dump(loaded, command)?;
-        render_semantic_check(loaded, command.profile)
-    })
+    if command.semantic {
+        print_loaded_render(command, |loaded| {
+            emit_requested_dump(loaded, command)?;
+            render_semantic_check(loaded, command.profile)
+        })
+    } else {
+        run_bootstrap_check(command)
+    }
 }
 
 fn run_format(command: &command::Command) -> Result<(), String> {
-    print_loaded_render(command, |loaded| {
-        emit_requested_dump(loaded, command)?;
-        render_semantic_format(loaded)
-    })
+    if command.semantic {
+        print_loaded_render(command, |loaded| {
+            emit_requested_dump(loaded, command)?;
+            render_semantic_format(loaded)
+        })
+    } else {
+        run_bootstrap_format(command)
+    }
 }
 
 fn run_doc(command: &command::Command) -> Result<(), String> {
-    print_loaded_render(command, |loaded| {
-        emit_requested_dump(loaded, command)?;
-        render_semantic_doc(loaded, command.profile)
-    })
+    if command.semantic {
+        print_loaded_render(command, |loaded| {
+            emit_requested_dump(loaded, command)?;
+            render_semantic_doc(loaded, command.profile)
+        })
+    } else {
+        run_bootstrap_doc(command)
+    }
 }
 
 fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
@@ -440,10 +452,82 @@ fn build_program(command: &command::Command) -> Result<(), String> {
         BuildTarget::C => {
             #[cfg(feature = "c-backend")]
             {
+                use std::path::Path;
+                use std::process::Command;
+
                 let c_source =
                     emit_c(&loaded.mir().program).map_err(|e| format!("c codegen failed: {e}"))?;
-                fs::write(output_path, c_source)
-                    .map_err(|error| format!("failed to write C file `{output_path}`: {error}"))?;
+
+                // Determine main_kind from main function's return type
+                let main_func = loaded
+                    .mir()
+                    .program
+                    .functions
+                    .iter()
+                    .find(|f| f.name == "main")
+                    .ok_or_else(|| "missing `main` entrypoint".to_owned())?;
+                let main_result_type = main_func.return_type.as_deref().unwrap_or("Unit");
+                let main_kind = match main_result_type {
+                    "I32" => 1,
+                    "Bool" => 2,
+                    "Text" => 3,
+                    "F64" => 6,
+                    "Unit" => 0,
+                    other => {
+                        return Err(format!(
+                            "c backend does not support `main` returning `{other}`"
+                        ));
+                    }
+                };
+
+                // Create output directory if needed
+                let output_path_obj = Path::new(output_path);
+                if let Some(parent) = output_path_obj.parent()
+                    && !parent.as_os_str().is_empty()
+                {
+                    fs::create_dir_all(parent).map_err(|error| {
+                        format!("failed to create `{}`: {error}", parent.display())
+                    })?;
+                }
+
+                // Write C source to a .c file
+                let c_source_path = format!("{}.c", output_path);
+                fs::write(&c_source_path, &c_source).map_err(|error| {
+                    format!("failed to write C file `{c_source_path}`: {error}")
+                })?;
+
+                // Compile C source to executable with clang
+                let mut cmd = Command::new("clang");
+                cmd.arg("-O3")
+                    .arg("-std=c11")
+                    .arg("-Wall")
+                    .arg("-Wextra")
+                    .arg(format!("-DSARIF_MAIN_KIND={main_kind}"))
+                    .arg("-o")
+                    .arg(output_path)
+                    .arg(&c_source_path)
+                    .arg("runtime/sarif_runtime.c")
+                    .arg("-lm");
+
+                if let Some(parent) = output_path_obj.parent()
+                    && !parent.as_os_str().is_empty()
+                {
+                    cmd.env("TMPDIR", parent);
+                }
+
+                let status = cmd
+                    .status()
+                    .map_err(|e| format!("failed to run clang: {e}"))?;
+                if !status.success() {
+                    return Err(format!(
+                        "clang compilation failed with exit code {}",
+                        status.code().unwrap_or(-1)
+                    ));
+                }
+
+                // Clean up intermediate .c file
+                let _ = fs::remove_file(&c_source_path);
+
                 Ok(())
             }
             #[cfg(not(feature = "c-backend"))]
