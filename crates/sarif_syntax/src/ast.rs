@@ -1825,7 +1825,10 @@ impl Lowerer {
 
         let mut args = Vec::new();
         let callee = match self.lower_expr(callee_node)? {
-            Expr::Field(field) => field.pretty(),
+            Expr::Field(field) => {
+                args.push(*field.base.clone());
+                field.field.clone()
+            }
             Expr::Name(name) => name.name,
             Expr::Perform(perform) => perform.callee.to_string(),
             _ => return None,
