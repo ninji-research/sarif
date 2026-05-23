@@ -2486,6 +2486,21 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
     }
 }
 
+fn is_binary_operator_token(kind: TokenKind) -> Bool {
+    kind == TokenKind.EqEq or
+    kind == TokenKind.NotEq or
+    kind == TokenKind.Lt or
+    kind == TokenKind.Gt or
+    kind == TokenKind.Le or
+    kind == TokenKind.Ge or
+    kind == TokenKind.Plus or
+    kind == TokenKind.Minus or
+    kind == TokenKind.Star or
+    kind == TokenKind.Slash or
+    kind == TokenKind.KwAnd or
+    kind == TokenKind.KwOr
+}
+
 fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
     match state.cursor.kind {
         TokenKind.Ident => {
@@ -2496,7 +2511,11 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
                 if starts_record_literal(source, after_name) {
                     ExprKind.Record
                 } else {
-                    ExprKind.Name
+                    if is_binary_operator_token(after_name.cursor.kind) {
+                        ExprKind.Binary
+                    } else {
+                        ExprKind.Name
+                    }
                 }
             }
         },

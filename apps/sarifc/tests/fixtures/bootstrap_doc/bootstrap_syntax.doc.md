@@ -15,7 +15,7 @@
 
 ### enum TopLevelKind
 
-- variants: `2`
+- variants: `4`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -56,19 +56,19 @@
 
 ### enum BlockItemKind
 
-- variants: `2`
+- variants: `4`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
 ### enum ExprKind
 
-- variants: `2`
+- variants: `15`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
 ### enum MirInst
 
-- variants: `2`
+- variants: `54`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -89,7 +89,7 @@
 
 ### enum MirType
 
-- variants: `2`
+- variants: `6`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -185,7 +185,7 @@
 
 ### enum SyntaxEventKind
 
-- variants: `2`
+- variants: `13`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -206,25 +206,25 @@
 
 ### enum TokenKind
 
-- variants: `2`
+- variants: `61`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
 ### enum ByteClass
 
-- variants: `2`
+- variants: `4`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
 ### enum LeadClass
 
-- variants: `2`
+- variants: `5`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
 ### enum ListKind
 
-- variants: `2`
+- variants: `6`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1153,6 +1153,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn is_binary_operator_token
+
+- signature: `fn is_binary_operator_token(kind: TokenKind) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn classify_expr_kind
 
 - signature: `fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind`
@@ -1691,7 +1697,7 @@
 
 ### enum HirExprKind
 
-- variants: `2`
+- variants: `17`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1717,7 +1723,7 @@
 
 ### enum HirTypeKind
 
-- variants: `2`
+- variants: `9`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1738,7 +1744,7 @@
 
 ### enum HirItemKind
 
-- variants: `2`
+- variants: `5`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1909,7 +1915,7 @@
 
 ### enum HirStmtKind
 
-- variants: `2`
+- variants: `3`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1925,7 +1931,7 @@
 
 ### enum HirLoweringDiagKind
 
-- variants: `2`
+- variants: `1`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
