@@ -1066,6 +1066,10 @@ impl<'a> Parser<'a> {
                     children.push(Element::Token(self.expect(TokenKind::Ident)));
                     self.collect_trivia(&mut children);
                     children.push(Element::Token(self.expect(TokenKind::RParen)));
+                } else if self.at(TokenKind::LBrace) {
+                    children.push(Element::Token(self.bump()));
+                    self.collect_trivia(&mut children);
+                    children.push(Element::Token(self.expect(TokenKind::RBrace)));
                 }
             }
             Some(TokenKind::Integer) => {
