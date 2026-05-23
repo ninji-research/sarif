@@ -409,7 +409,7 @@ fn run_executes_parse_i32_range_consistently() {
 #[test]
 fn run_executes_alloc_scopes_consistently() {
     assert_run_parity(
-        "enum Tree { leaf, branch(Branch) }\nstruct Branch { left: Tree, right: Tree }\nfn count(tree: Tree) -> I32 { match tree { Tree.leaf => { 1 }, Tree.branch(node) => { 1 + count(node.left) + count(node.right) }, } }\nfn build(depth: I32) -> Tree effects [alloc] { if depth > 0 { Tree.branch(Branch { left: build(depth - 1), right: build(depth - 1) }) } else { Tree.leaf } }\nfn main() -> I32 effects [alloc] { alloc_push(); let first = count(build(4)); alloc_pop(); let second = count(build(3)); first + second }",
+        "enum Tree { leaf, branch(Branch) }\nstruct Branch { left: Tree, right: Tree }\nfn count(tree: Tree) -> I32 { match tree { Tree.leaf => { 1 }, Tree.branch(node) => { 1 + count(node.left) + count(node.right) }, } }\nfn build(depth: I32) -> Tree effects [alloc] { if depth > 0 { Tree.branch(Branch { left: build(depth - 1), right: build(depth - 1) }) } else { Tree.leaf } }\nfn main() -> I32 effects [alloc] { let mut first = 0; with_arena { first = count(build(4)); } let mut second = 0; with_arena { second = count(build(3)); } first + second }",
         "46",
     );
 }
@@ -920,7 +920,7 @@ fn stable_build_executes_text_builder_programs() {
 #[test]
 fn stable_build_reclaims_scoped_text_allocations() {
     let path = temp_source(
-        "fn make_text() -> Text effects [alloc] { text_concat(\"abcdefghijklmnopqrstuvwxyz0123456789\", \"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\") }\nfn main() -> I32 effects [alloc] { let mut total = 0; repeat i in 4096 { alloc_push(); let text = make_text(); total = total + text_len(text); alloc_pop(); }; total }",
+        "fn make_text() -> Text effects [alloc] { text_concat(\"abcdefghijklmnopqrstuvwxyz0123456789\", \"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\") }\nfn main() -> I32 effects [alloc] { let mut total = 0; repeat i in 4096 { with_arena { let text = make_text(); total = total + text_len(text); } }; total }",
     );
     let binary_path = super::support::temp_artifact("scoped_text_alloc_build", "bin");
     let build = run_sarif(&[

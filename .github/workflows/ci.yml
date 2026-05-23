@@ -19,19 +19,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Setup Rust (stable) + components
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Cache cargo registry & git
-        uses: actions/cache@v5
+      - uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -40,34 +37,115 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-registry-
 
-      - name: Cache target (build) directory
-        uses: actions/cache@v5
+      - uses: actions/cache@v5
         with:
           path: target
-          key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-target-check-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-target-
+            ${{ runner.os }}-cargo-target-check-
 
-      - name: Verify formatting
-        run: cargo fmt --all -- --check
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: Lint (clippy)
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-      - name: Run tests
-        run: cargo test --workspace --all-features --no-fail-fast
-
-      - name: Build release
-        run: cargo build --workspace --all-features --release
-
-      - name: Package release artifacts
-        run: |
-          mkdir -p release
-          find target/release -maxdepth 1 -type f -perm /111 -print0 | xargs -0 -r cp -t release || true
-          tar -czf release.tar.gz -C release .
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v7
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
         with:
-          name: release-artifact
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - uses: actions/cache@v5
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-target-test-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-test-
+
+      - run: cargo test --workspace --all-features --no-fail-fast
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - name: c-backend
+            features: c-backend,codegen
+          - name: wasm
+            features: wasm,codegen
+          - name: native
+            features: native-build,codegen
+          - name: all
+            features: ""
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - uses: actions/cache@v5
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-target-build-${{ matrix.profile.name }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-build-
+
+      - name: Build (${{ matrix.profile.name }})
+        run: |
+          if [ "${{ matrix.profile.features }}" = "" ]; then
+            cargo build --release -p sarifc --all-features
+          else
+            cargo build --release -p sarifc --no-default-features --features "${{ matrix.profile.features }}"
+          fi
+          mkdir -p release-artifacts
+          cp target/release/sarifc release-artifacts/sarifc-${{ matrix.profile.name }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sarifc-${{ matrix.profile.name }}
+          path: release-artifacts/sarifc-${{ matrix.profile.name }}
+
+  package:
+    needs: [check, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: sarifc-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - run: |
+          tar -czf release.tar.gz -C release-artifacts .
+          ls -la release-artifacts/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle
           path: release.tar.gz

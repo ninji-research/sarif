@@ -47,7 +47,7 @@ Sarif is still materially behind the best concise baselines on source size. The 
 
 ## Important Current Truth
 
-- **Conditional runtime compilation**: `RuntimeFeatures::detect()` scans the program for text builder, text index, and sort usage. The native object backend only declares runtime helpers for features the program actually uses. The C runtime has `#ifndef` guards (`SARIF_NO_TEXT_BUILDER`, `SARIF_NO_TEXT_INDEX`, `SARIF_NO_SORT`) so unused subsystems are excluded from compiled runtime objects, reducing binary size for programs that don't use text builders, text indices, or sort.
+- **Runtime always compiled unconditionally**: The C runtime library always compiles all subsystems (text builder, text index, sort). The native link stage uses `-Wl,--gc-sections` (or equivalent) to garbage-collect unused functions, so program binaries remain lean without requiring source-level conditional compilation or `RuntimeFeatures::detect()` preprocessing.
 - **AllocPush/AllocPop wired up**: The MIR interpreter now properly delegates `AllocPush`/`AllocPop` to `self.alloc_push()` / `self.alloc_pop()`. The C runtime's arena allocator correctly pushes and pops allocation scopes, validated by CLI regression tests.
 - Sarif now covers the full retained main-track benchmark suite in `bnch`
 - Sarif is currently first overall, first on speed, first on memory, first on build time, and second on deploy size in the latest local clean `bnch` run

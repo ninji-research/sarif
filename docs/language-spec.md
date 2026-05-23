@@ -47,6 +47,7 @@ Sarif keeps one declaration order:
 - `while`
 - `repeat n`
 - `repeat i in n`
+- `with_arena { ... }` for scoped memory allocation (automatic alloc push/pop)
 - implicit tail-expression returns
 
 ## Maintained Stage-0 Runtime Builtins
@@ -57,8 +58,6 @@ Sarif keeps one declaration order:
 - `stdin_bytes() -> Bytes`
 - `stdout_write(text: Text) -> Unit`
 - `stdout_write_builder(builder: TextBuilder) -> TextBuilder`
-- `alloc_push() -> Unit`
-- `alloc_pop() -> Unit`
 - `text_builder_new() -> TextBuilder`
 - `text_builder_append(builder: TextBuilder, piece: Text) -> TextBuilder`
 - `text_builder_append_codepoint(builder: TextBuilder, codepoint: I32) -> TextBuilder`

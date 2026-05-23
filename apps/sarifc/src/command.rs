@@ -10,6 +10,7 @@ pub struct Command {
     pub target: BuildTarget,
     pub output_path: Option<String>,
     pub dump_ir: Option<String>,
+    pub inspect: Option<String>,
     pub semantic: bool,
 }
 
@@ -61,7 +62,9 @@ pub fn usage() -> String {
     usage += "  -o <path>         output path for build\n";
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
-    usage += "  --dump-ir=<pass>  dump IR after specific pass (resolve, typecheck, lower, clif, codegen)\n";
+    usage +=
+        "  --dump-ir=<pass>  dump IR after specific pass (hir, sem, mir, cranelift, wasm, c)\n";
+    usage += "  --inspect=<tool>  inspection tool (wasmprinter)\n";
     usage
 }
 
@@ -120,6 +123,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut target = BuildTarget::Native;
     let mut output_path = None;
     let mut dump_ir = None;
+    let mut inspect = None;
     let mut semantic = false;
 
     let mut iter = args.iter();
@@ -168,6 +172,9 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             other if other.starts_with("--dump-ir=") => {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
+            other if other.starts_with("--inspect=") => {
+                inspect = other.strip_prefix("--inspect=").map(String::from);
+            }
             other if !other.starts_with('-') => {
                 if kind.is_none() {
                     if let Some(suggestion) = closest_command(other) {
@@ -202,6 +209,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             target,
             output_path,
             dump_ir,
+            inspect,
             semantic,
         });
     }
@@ -223,6 +231,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         target,
         output_path,
         dump_ir,
+        inspect,
         semantic,
     })
 }

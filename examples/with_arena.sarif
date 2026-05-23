@@ -1,0 +1,11 @@
+fn make_text() -> Text effects [alloc] {
+    text_concat("hello, ", "world!")
+}
+
+fn main() -> I32 effects [alloc] {
+    let mut total = 0;
+    repeat i in 4 {
+        with_arena { let text = make_text(); total = total + text_len(text); }
+    };
+    total
+}

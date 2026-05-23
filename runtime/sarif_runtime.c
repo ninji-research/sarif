@@ -338,7 +338,6 @@ static void sarif_clamp_text_range(const unsigned char* source, uint64_t len, in
     }
 }
 
-#ifndef SARIF_NO_TEXT_BUILDER
 void* sarif_text_builder_new(void) {
     SarifTextBuilder* builder = (SarifTextBuilder*)malloc(sizeof(SarifTextBuilder));
     if (builder == NULL) {
@@ -496,7 +495,7 @@ void* sarif_text_builder_append_slice(
     builder->len += slice_len;
     return builder;
 }
-#endif /* !SARIF_NO_TEXT_BUILDER */
+
 
 static int sarif_format_i64(char* scratch, int64_t value) {
     int index = 20;
@@ -519,7 +518,6 @@ static int sarif_format_i64(char* scratch, int64_t value) {
     return 20 - index;
 }
 
-#ifndef SARIF_NO_TEXT_BUILDER
 void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
     char scratch[21];
@@ -556,7 +554,7 @@ void* sarif_text_builder_finish(void* raw_builder) {
     free(builder);
     return text;
 }
-#endif /* !SARIF_NO_TEXT_BUILDER */
+
 
 void* sarif_list_new(int64_t len, uint64_t fill) {
     SarifList* vec = NULL;
@@ -657,7 +655,6 @@ int64_t sarif_list_len(void* list_ptr) {
     return (int64_t)list->len;
 }
 
-#ifndef SARIF_NO_SORT
 static int sarif_compare_text_handles(uint64_t left, uint64_t right) {
     return (int)sarif_text_cmp((const unsigned char*)left, (const unsigned char*)right);
 }
@@ -743,13 +740,12 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     }
     return list;
 }
-#endif /* !SARIF_NO_SORT */
+
 // =============================================================================
 // TextIndex substrate: content-aware Text -> I32 open-addressed index.
 // This is the maintained native primitive for text-keyed aggregation.
 // =============================================================================
 
-#ifndef SARIF_NO_TEXT_INDEX
 typedef struct SarifTextIndexEntry {
     uint64_t key;
     int64_t value;
@@ -980,7 +976,6 @@ void* sarif_text_index_keys(void* index_ptr) {
     }
     return sarif_text_builder_finish(builder);
 }
-#endif /* !SARIF_NO_TEXT_INDEX */
 
 void* sarif_text_concat(const unsigned char* left, const unsigned char* right) {
     uint64_t left_len = 0;
@@ -1412,7 +1407,6 @@ void sarif_stdout_write(const unsigned char* text) {
     (void)sarif_write_text_blob(text, 0);
 }
 
-#ifndef SARIF_NO_TEXT_BUILDER
 void* sarif_stdout_write_builder(void* raw_builder) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
     if (builder == NULL) {
@@ -1424,7 +1418,6 @@ void* sarif_stdout_write_builder(void* raw_builder) {
     builder->len = 0;
     return builder;
 }
-#endif /* !SARIF_NO_TEXT_BUILDER */
 
 static int sarif_write_text_blob(const unsigned char* text, int newline) {
     uint64_t len = 0;

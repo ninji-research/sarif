@@ -3410,859 +3410,45 @@ fn mir_inst_match(dest: I32, scrut: I32) -> MirInstData {
     MirInstData { tag: MirInst.Match, a: scrut, b: 0, c: 0, d: dest, t1: "", t2: "" }
 }
 
-enum HirExprKind {
-    Name,
-    Integer,
-    String,
-    Bool,
-    Binary,
-    Call,
-    If,
-    While,
-    Repeat,
-    Match,
-    Field,
-    Index,
-    Record,
-    Array,
-    Group,
-    Unary,
-    Float,
+fn is_empty(source: Text) -> Bool {
+    text_len(source) == 0
 }
 
-struct HirExpr {
-    kind: HirExprKind,
-    a: I32,
-    b: I32,
-    c: I32,
-    t1: Text,
-    t2: Text,
-    span: Span,
-}
-
-struct HirExprId {
-    index: I32,
-}
-
-struct HirBodyId {
-    index: I32,
-}
-
-struct HirTypeRef {
-    kind: HirTypeKind,
-    t1: Text,
-    t2: Text,
-}
-
-enum HirTypeKind {
-    I32,
-    F64,
-    Bool,
-    Text,
-    Unit,
-    Array,
-    Named,
-    Optional,
-    Result,
-}
-
-struct OptionalHirTypeRef {
-    present: Bool,
-    ty: HirTypeRef,
-}
-
-struct OptionalHirExprId {
-    present: Bool,
-    id: HirExprId,
-}
-
-struct OptionalHirBodyId {
-    present: Bool,
-    id: HirBodyId,
-}
-
-enum HirItemKind {
-    Const,
-    Fn,
-    Enum,
-    Struct,
-    Effect,
-}
-
-struct HirItem {
-    kind: HirItemKind,
-    name: Text,
-    span: Span,
-}
-
-struct HirItemList {
-    len: I32,
-    i1: OptionalHirItem,
-    i2: OptionalHirItem,
-    i3: OptionalHirItem,
-    i4: OptionalHirItem,
-    i5: OptionalHirItem,
-    i6: OptionalHirItem,
-    i7: OptionalHirItem,
-    i8: OptionalHirItem,
-    i9: OptionalHirItem,
-    i10: OptionalHirItem,
-    i11: OptionalHirItem,
-    i12: OptionalHirItem,
-    i13: OptionalHirItem,
-    i14: OptionalHirItem,
-    i15: OptionalHirItem,
-    i16: OptionalHirItem,
-}
-
-struct OptionalHirItem {
-    present: Bool,
-    item: HirItem,
-}
-
-struct HirModule {
-    items: HirItemList,
-}
-
-struct HirConst {
-    name: Text,
-    ty: HirTypeRef,
-    value: HirExprId,
-    span: Span,
-}
-
-struct HirParam {
-    name: Text,
-    ty: HirTypeRef,
-}
-
-struct HirParamList {
-    len: I32,
-    p1: OptionalHirParam,
-    p2: OptionalHirParam,
-    p3: OptionalHirParam,
-    p4: OptionalHirParam,
-    p5: OptionalHirParam,
-    p6: OptionalHirParam,
-    p7: OptionalHirParam,
-    p8: OptionalHirParam,
-    p9: OptionalHirParam,
-    p10: OptionalHirParam,
-    p11: OptionalHirParam,
-    p12: OptionalHirParam,
-    p13: OptionalHirParam,
-    p14: OptionalHirParam,
-    p15: OptionalHirParam,
-    p16: OptionalHirParam,
-}
-
-struct OptionalHirParam {
-    present: Bool,
-    param: HirParam,
-}
-
-struct HirFxList {
-    len: I32,
-    fx1: OptionalHirFx,
-    fx2: OptionalHirFx,
-    fx3: OptionalHirFx,
-    fx4: OptionalHirFx,
-    fx5: OptionalHirFx,
-    fx6: OptionalHirFx,
-    fx7: OptionalHirFx,
-    fx8: OptionalHirFx,
-    fx9: OptionalHirFx,
-    fx10: OptionalHirFx,
-    fx11: OptionalHirFx,
-    fx12: OptionalHirFx,
-    fx13: OptionalHirFx,
-    fx14: OptionalHirFx,
-    fx15: OptionalHirFx,
-    fx16: OptionalHirFx,
-}
-
-struct OptionalHirFx {
-    present: Bool,
-    name: Text,
-}
-
-struct HirBinding {
-    name: Text,
-    ty: OptionalHirTypeRef,
-}
-
-struct OptionalHirBinding {
-    present: Bool,
-    binding: HirBinding,
-}
-
-struct HirVariant {
-    name: Text,
-    payload: OptionalHirTypeRef,
-    span: Span,
-}
-
-struct HirVariantList {
-    len: I32,
-    v1: OptionalHirVariant,
-    v2: OptionalHirVariant,
-    v3: OptionalHirVariant,
-    v4: OptionalHirVariant,
-    v5: OptionalHirVariant,
-    v6: OptionalHirVariant,
-    v7: OptionalHirVariant,
-    v8: OptionalHirVariant,
-    v9: OptionalHirVariant,
-    v10: OptionalHirVariant,
-    v11: OptionalHirVariant,
-    v12: OptionalHirVariant,
-    v13: OptionalHirVariant,
-    v14: OptionalHirVariant,
-    v15: OptionalHirVariant,
-    v16: OptionalHirVariant,
-}
-
-struct OptionalHirVariant {
-    present: Bool,
-    variant: HirVariant,
-}
-
-struct HirEnum {
-    name: Text,
-    variants: HirVariantList,
-    span: Span,
-}
-
-struct HirField {
-    name: Text,
-    ty: HirTypeRef,
-    span: Span,
-}
-
-struct HirFieldList {
-    len: I32,
-    f1: OptionalHirField,
-    f2: OptionalHirField,
-    f3: OptionalHirField,
-    f4: OptionalHirField,
-    f5: OptionalHirField,
-    f6: OptionalHirField,
-    f7: OptionalHirField,
-    f8: OptionalHirField,
-    f9: OptionalHirField,
-    f10: OptionalHirField,
-    f11: OptionalHirField,
-    f12: OptionalHirField,
-    f13: OptionalHirField,
-    f14: OptionalHirField,
-    f15: OptionalHirField,
-    f16: OptionalHirField,
-}
-
-struct OptionalHirField {
-    present: Bool,
-    field: HirField,
-}
-
-struct HirStruct {
-    name: Text,
-    fields: HirFieldList,
-    span: Span,
-}
-
-struct HirConstList {
-    len: I32,
-    c1: OptionalHirConst,
-    c2: OptionalHirConst,
-    c3: OptionalHirConst,
-    c4: OptionalHirConst,
-    c5: OptionalHirConst,
-    c6: OptionalHirConst,
-    c7: OptionalHirConst,
-    c8: OptionalHirConst,
-    c9: OptionalHirConst,
-    c10: OptionalHirConst,
-    c11: OptionalHirConst,
-    c12: OptionalHirConst,
-    c13: OptionalHirConst,
-    c14: OptionalHirConst,
-    c15: OptionalHirConst,
-    c16: OptionalHirConst,
-}
-
-struct OptionalHirConst {
-    present: Bool,
-    c: HirConst,
-}
-
-struct HirFnList2 {
-    len: I32,
-    f1: OptionalHirFn2,
-    f2: OptionalHirFn2,
-    f3: OptionalHirFn2,
-    f4: OptionalHirFn2,
-    f5: OptionalHirFn2,
-    f6: OptionalHirFn2,
-    f7: OptionalHirFn2,
-    f8: OptionalHirFn2,
-    f9: OptionalHirFn2,
-    f10: OptionalHirFn2,
-    f11: OptionalHirFn2,
-    f12: OptionalHirFn2,
-    f13: OptionalHirFn2,
-    f14: OptionalHirFn2,
-    f15: OptionalHirFn2,
-    f16: OptionalHirFn2,
-}
-
-struct OptionalHirFn2 {
-    present: Bool,
-    f: HirFn,
-}
-
-struct HirEnumList {
-    len: I32,
-    e1: OptionalHirEnum,
-    e2: OptionalHirEnum,
-    e3: OptionalHirEnum,
-    e4: OptionalHirEnum,
-    e5: OptionalHirEnum,
-    e6: OptionalHirEnum,
-    e7: OptionalHirEnum,
-    e8: OptionalHirEnum,
-    e9: OptionalHirEnum,
-    e10: OptionalHirEnum,
-    e11: OptionalHirEnum,
-    e12: OptionalHirEnum,
-    e13: OptionalHirEnum,
-    e14: OptionalHirEnum,
-    e15: OptionalHirEnum,
-    e16: OptionalHirEnum,
-}
-
-struct OptionalHirEnum {
-    present: Bool,
-    e: HirEnum,
-}
-
-struct HirStructList {
-    len: I32,
-    s1: OptionalHirStruct,
-    s2: OptionalHirStruct,
-    s3: OptionalHirStruct,
-    s4: OptionalHirStruct,
-    s5: OptionalHirStruct,
-    s6: OptionalHirStruct,
-    s7: OptionalHirStruct,
-    s8: OptionalHirStruct,
-    s9: OptionalHirStruct,
-    s10: OptionalHirStruct,
-    s11: OptionalHirStruct,
-    s12: OptionalHirStruct,
-    s13: OptionalHirStruct,
-    s14: OptionalHirStruct,
-    s15: OptionalHirStruct,
-    s16: OptionalHirStruct,
-}
-
-struct OptionalHirStruct {
-    present: Bool,
-    s: HirStruct,
-}
-
-struct HirExprPool {
-    len: I32,
-}
-
-struct HirBodyPool {
-    len: I32,
-}
-
-struct HirBody {
-    stmts: HirStmtList,
-    tail: OptionalHirExprId,
-    span: Span,
-}
-
-struct HirStmtList {
-    len: I32,
-    s1: OptionalHirStmt,
-    s2: OptionalHirStmt,
-    s3: OptionalHirStmt,
-    s4: OptionalHirStmt,
-    s5: OptionalHirStmt,
-    s6: OptionalHirStmt,
-    s7: OptionalHirStmt,
-    s8: OptionalHirStmt,
-    s9: OptionalHirStmt,
-    s10: OptionalHirStmt,
-    s11: OptionalHirStmt,
-    s12: OptionalHirStmt,
-    s13: OptionalHirStmt,
-    s14: OptionalHirStmt,
-    s15: OptionalHirStmt,
-    s16: OptionalHirStmt,
-}
-
-struct OptionalHirStmt {
-    present: Bool,
-    stmt: HirStmt,
-}
-
-enum HirStmtKind {
-    Let,
-    Assign,
-    Expr,
-}
-
-struct HirStmt {
-    kind: HirStmtKind,
-    binding: OptionalHirBinding,
-    target: OptionalHirExprId,
-    value: OptionalHirExprId,
-    span: Span,
-}
-
-struct HirFn {
-    name: Text,
-    params: HirParamList,
-    ret: OptionalHirTypeRef,
-    fx: HirFxList,
-    req: OptionalHirExprId,
-    ens: OptionalHirExprId,
-    body: OptionalHirBodyId,
-    span: Span,
-}
-
-enum HirLoweringDiagKind {
-    Generic,
-}
-
-struct HirLoweringDiag {
-    kind: HirLoweringDiagKind,
-    msg: Text,
-}
-
-struct HirDiagList {
-    len: I32,
-    d1: OptionalHirDiag,
-    d2: OptionalHirDiag,
-    d3: OptionalHirDiag,
-    d4: OptionalHirDiag,
-    d5: OptionalHirDiag,
-    d6: OptionalHirDiag,
-    d7: OptionalHirDiag,
-    d8: OptionalHirDiag,
-    d9: OptionalHirDiag,
-    d10: OptionalHirDiag,
-    d11: OptionalHirDiag,
-    d12: OptionalHirDiag,
-    d13: OptionalHirDiag,
-    d14: OptionalHirDiag,
-    d15: OptionalHirDiag,
-    d16: OptionalHirDiag,
-}
-
-struct OptionalHirDiag {
-    present: Bool,
-    diag: HirLoweringDiag,
-}
-
-struct HirLowering {
-    module: HirModuleData,
-    expr_pool: HirExprPool,
-    body_pool: HirBodyPool,
-    fns: HirFnList2,
-    enums: HirEnumList,
-    structs: HirStructList,
-    diags: HirDiagList,
-}
-
-struct HirModuleData {
-    consts: HirConstList,
-    funcs: HirFnList2,
-    enums: HirEnumList,
-    structs: HirStructList,
-    exprs: HirExprPool,
-    bodies: HirBodyPool,
-}
-
-fn hir_type_ref_i32() -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.I32, t1: "", t2: "" }
-}
-
-fn hir_type_ref_bool() -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Bool, t1: "", t2: "" }
-}
-
-fn hir_type_ref_unit() -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Unit, t1: "", t2: "" }
-}
-
-fn hir_type_ref_text() -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Text, t1: "", t2: "" }
-}
-
-fn hir_type_ref_f64() -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.F64, t1: "", t2: "" }
-}
-
-fn hir_type_ref_named(name: Text) -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Named, t1: name, t2: "" }
-}
-
-fn hir_type_ref_array(elem: Text) -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Array, t1: elem, t2: "" }
-}
-
-fn hir_type_ref_optional(inner: Text) -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Optional, t1: inner, t2: "" }
-}
-
-fn hir_type_ref_result(inner: Text) -> HirTypeRef {
-    HirTypeRef { kind: HirTypeKind.Result, t1: inner, t2: "" }
-}
-
-fn hir_optional_type_ref_false() -> OptionalHirTypeRef {
-    OptionalHirTypeRef { present: false, ty: hir_type_ref_i32() }
-}
-
-fn hir_optional_type_ref_true(ty: HirTypeRef) -> OptionalHirTypeRef {
-    OptionalHirTypeRef { present: true, ty: ty }
-}
-
-fn hir_optional_expr_id_false() -> OptionalHirExprId {
-    OptionalHirExprId { present: false, id: hir_expr_id_0() }
-}
-
-fn hir_optional_body_id_false() -> OptionalHirBodyId {
-    OptionalHirBodyId { present: false, id: hir_body_id_0() }
-}
-
-fn hir_expr_id_0() -> HirExprId {
-    HirExprId { index: 0 }
-}
-
-fn hir_body_id_0() -> HirBodyId {
-    HirBodyId { index: 0 }
-}
-
-fn hir_expr_id_new(i: I32) -> HirExprId {
-    HirExprId { index: i }
-}
-
-fn hir_body_id_new(i: I32) -> HirBodyId {
-    HirBodyId { index: i }
-}
-
-fn hir_span_new(start: I32, end: I32) -> Span {
-    Span { start: start, end: end }
-}
-
-fn hir_expr_new(kind: HirExprKind, a: I32, b: I32, c: I32, t1: Text, t2: Text, span: Span) -> HirExpr {
-    HirExpr { kind: kind, a: a, b: b, c: c, t1: t1, t2: t2, span: span }
-}
-
-fn hir_expr_kind_name(ignored: Text) -> HirExprKind {
-    HirExprKind.Name
-}
-
-fn hir_expr_kind_integer() -> HirExprKind {
-    HirExprKind.Integer
-}
-
-fn hir_expr_kind_string() -> HirExprKind {
-    HirExprKind.String
-}
-
-fn hir_expr_kind_bool() -> HirExprKind {
-    HirExprKind.Bool
-}
-
-fn hir_expr_kind_binary(ignored: Text) -> HirExprKind {
-    HirExprKind.Binary
-}
-
-fn hir_expr_kind_call() -> HirExprKind {
-    HirExprKind.Call
-}
-
-fn hir_expr_kind_if() -> HirExprKind {
-    HirExprKind.If
-}
-
-fn hir_expr_kind_while() -> HirExprKind {
-    HirExprKind.While
-}
-
-fn hir_expr_kind_repeat() -> HirExprKind {
-    HirExprKind.Repeat
-}
-
-fn hir_expr_kind_match() -> HirExprKind {
-    HirExprKind.Match
-}
-
-fn hir_expr_kind_field() -> HirExprKind {
-    HirExprKind.Field
-}
-
-fn hir_expr_kind_index() -> HirExprKind {
-    HirExprKind.Index
-}
-
-fn hir_expr_kind_record() -> HirExprKind {
-    HirExprKind.Record
-}
-
-fn hir_expr_kind_array() -> HirExprKind {
-    HirExprKind.Array
-}
-
-fn hir_expr_kind_group() -> HirExprKind {
-    HirExprKind.Group
-}
-
-fn hir_expr_kind_unary(ignored: Text) -> HirExprKind {
-    HirExprKind.Unary
-}
-
-fn hir_expr_kind_float() -> HirExprKind {
-    HirExprKind.Float
-}
-
-fn hir_binding_new(name: Text) -> HirBinding {
-    HirBinding { name: name, ty: hir_optional_type_ref_false() }
-}
-
-fn hir_stmt_new(kind: HirStmtKind, binding: OptionalHirBinding, target: OptionalHirExprId, value: OptionalHirExprId, span: Span) -> HirStmt {
-    HirStmt { kind: kind, binding: binding, target: target, value: value, span: span }
-}
-
-fn hir_stmt_kind_let() -> HirStmtKind {
-    HirStmtKind.Let
-}
-
-fn hir_stmt_kind_assign() -> HirStmtKind {
-    HirStmtKind.Assign
-}
-
-fn hir_stmt_kind_expr() -> HirStmtKind {
-    HirStmtKind.Expr
-}
-
-fn hir_body_new(stmts: HirStmtList, tail: OptionalHirExprId, span: Span) -> HirBody {
-    HirBody { stmts: stmts, tail: tail, span: span }
-}
-
-fn hir_stmt_list_new() -> HirStmtList {
-    HirStmtList { len: 0, s1: hir_optional_stmt_false(), s2: hir_optional_stmt_false(), s3: hir_optional_stmt_false(), s4: hir_optional_stmt_false(), s5: hir_optional_stmt_false(), s6: hir_optional_stmt_false(), s7: hir_optional_stmt_false(), s8: hir_optional_stmt_false(), s9: hir_optional_stmt_false(), s10: hir_optional_stmt_false(), s11: hir_optional_stmt_false(), s12: hir_optional_stmt_false(), s13: hir_optional_stmt_false(), s14: hir_optional_stmt_false(), s15: hir_optional_stmt_false(), s16: hir_optional_stmt_false() }
-}
-
-fn hir_optional_stmt_false() -> OptionalHirStmt {
-    OptionalHirStmt { present: false, stmt: hir_stmt_new(HirStmtKind.Let, hir_optional_binding_false(), hir_optional_expr_id_false(), hir_optional_expr_id_false(), hir_span_new(0, 0)) }
-}
-
-fn hir_optional_binding_false() -> OptionalHirBinding {
-    OptionalHirBinding { present: false, binding: hir_binding_new("") }
-}
-
-fn hir_optional_expr_false() -> OptionalHirExprId {
-    hir_optional_expr_id_false()
-}
-
-fn hir_param_list_new() -> HirParamList {
-    HirParamList { len: 0, p1: hir_optional_param_false(), p2: hir_optional_param_false(), p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false(), p6: hir_optional_param_false(), p7: hir_optional_param_false(), p8: hir_optional_param_false(), p9: hir_optional_param_false(), p10: hir_optional_param_false(), p11: hir_optional_param_false(), p12: hir_optional_param_false(), p13: hir_optional_param_false(), p14: hir_optional_param_false(), p15: hir_optional_param_false(), p16: hir_optional_param_false() }
-}
-
-fn hir_optional_param_false() -> OptionalHirParam {
-    OptionalHirParam { present: false, param: HirParam { name: "", ty: hir_type_ref_i32() } }
-}
-
-fn hir_fx_list_new() -> HirFxList {
-    HirFxList { len: 0, fx1: hir_optional_fx_false(), fx2: hir_optional_fx_false(), fx3: hir_optional_fx_false(), fx4: hir_optional_fx_false(), fx5: hir_optional_fx_false(), fx6: hir_optional_fx_false(), fx7: hir_optional_fx_false(), fx8: hir_optional_fx_false(), fx9: hir_optional_fx_false(), fx10: hir_optional_fx_false(), fx11: hir_optional_fx_false(), fx12: hir_optional_fx_false(), fx13: hir_optional_fx_false(), fx14: hir_optional_fx_false(), fx15: hir_optional_fx_false(), fx16: hir_optional_fx_false() }
-}
-
-fn hir_optional_fx_false() -> OptionalHirFx {
-    OptionalHirFx { present: false, name: "" }
-}
-
-fn hir_fn_new(name: Text) -> HirFn {
-    HirFn { name: name, params: hir_param_list_new(), ret: hir_optional_type_ref_false(), fx: hir_fx_list_new(), req: hir_optional_expr_id_false(), ens: hir_optional_expr_id_false(), body: hir_optional_body_id_false(), span: hir_span_new(0, 0) }
-}
-
-fn hir_variant_new(name: Text) -> HirVariant {
-    HirVariant { name: name, payload: hir_optional_type_ref_false(), span: hir_span_new(0, 0) }
-}
-
-fn hir_variant_list_new() -> HirVariantList {
-    HirVariantList { len: 0, v1: hir_optional_variant_false(), v2: hir_optional_variant_false(), v3: hir_optional_variant_false(), v4: hir_optional_variant_false(), v5: hir_optional_variant_false(), v6: hir_optional_variant_false(), v7: hir_optional_variant_false(), v8: hir_optional_variant_false(), v9: hir_optional_variant_false(), v10: hir_optional_variant_false(), v11: hir_optional_variant_false(), v12: hir_optional_variant_false(), v13: hir_optional_variant_false(), v14: hir_optional_variant_false(), v15: hir_optional_variant_false(), v16: hir_optional_variant_false() }
-}
-
-fn hir_optional_variant_false() -> OptionalHirVariant {
-    OptionalHirVariant { present: false, variant: hir_variant_new("") }
-}
-
-fn hir_enum_new(name: Text) -> HirEnum {
-    HirEnum { name: name, variants: hir_variant_list_new(), span: hir_span_new(0, 0) }
-}
-
-fn hir_field_new(name: Text) -> HirField {
-    HirField { name: name, ty: hir_type_ref_i32(), span: hir_span_new(0, 0) }
-}
-
-fn hir_field_list_new() -> HirFieldList {
-    HirFieldList { len: 0, f1: hir_optional_field_false(), f2: hir_optional_field_false(), f3: hir_optional_field_false(), f4: hir_optional_field_false(), f5: hir_optional_field_false(), f6: hir_optional_field_false(), f7: hir_optional_field_false(), f8: hir_optional_field_false(), f9: hir_optional_field_false(), f10: hir_optional_field_false(), f11: hir_optional_field_false(), f12: hir_optional_field_false(), f13: hir_optional_field_false(), f14: hir_optional_field_false(), f15: hir_optional_field_false(), f16: hir_optional_field_false() }
-}
-
-fn hir_optional_field_false() -> OptionalHirField {
-    OptionalHirField { present: false, field: hir_field_new("") }
-}
-
-fn hir_struct_new(name: Text) -> HirStruct {
-    HirStruct { name: name, fields: hir_field_list_new(), span: hir_span_new(0, 0) }
-}
-
-fn hir_const_new(name: Text) -> HirConst {
-    HirConst { name: name, ty: hir_type_ref_i32(), value: hir_expr_id_0(), span: hir_span_new(0, 0) }
-}
-
-fn hir_const_list_new() -> HirConstList {
-    HirConstList { len: 0, c1: hir_optional_const_false(), c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false(), c6: hir_optional_const_false(), c7: hir_optional_const_false(), c8: hir_optional_const_false(), c9: hir_optional_const_false(), c10: hir_optional_const_false(), c11: hir_optional_const_false(), c12: hir_optional_const_false(), c13: hir_optional_const_false(), c14: hir_optional_const_false(), c15: hir_optional_const_false(), c16: hir_optional_const_false() }
-}
-
-fn hir_const_list_with(c: HirConst) -> HirConstList {
-    HirConstList { len: 1, c1: OptionalHirConst { present: true, c: c }, c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false(), c6: hir_optional_const_false(), c7: hir_optional_const_false(), c8: hir_optional_const_false(), c9: hir_optional_const_false(), c10: hir_optional_const_false(), c11: hir_optional_const_false(), c12: hir_optional_const_false(), c13: hir_optional_const_false(), c14: hir_optional_const_false(), c15: hir_optional_const_false(), c16: hir_optional_const_false() }
-}
-
-fn hir_optional_const_false() -> OptionalHirConst {
-    OptionalHirConst { present: false, c: hir_const_new("") }
-}
-
-fn hir_fn_list_2_new() -> HirFnList2 {
-    HirFnList2 { len: 0, f1: hir_optional_fn_2_false(), f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false(), f6: hir_optional_fn_2_false(), f7: hir_optional_fn_2_false(), f8: hir_optional_fn_2_false(), f9: hir_optional_fn_2_false(), f10: hir_optional_fn_2_false(), f11: hir_optional_fn_2_false(), f12: hir_optional_fn_2_false(), f13: hir_optional_fn_2_false(), f14: hir_optional_fn_2_false(), f15: hir_optional_fn_2_false(), f16: hir_optional_fn_2_false() }
-}
-
-fn hir_fn_list_2_with(f: HirFn) -> HirFnList2 {
-    HirFnList2 { len: 1, f1: OptionalHirFn2 { present: true, f: f }, f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false(), f6: hir_optional_fn_2_false(), f7: hir_optional_fn_2_false(), f8: hir_optional_fn_2_false(), f9: hir_optional_fn_2_false(), f10: hir_optional_fn_2_false(), f11: hir_optional_fn_2_false(), f12: hir_optional_fn_2_false(), f13: hir_optional_fn_2_false(), f14: hir_optional_fn_2_false(), f15: hir_optional_fn_2_false(), f16: hir_optional_fn_2_false() }
-}
-
-fn hir_optional_fn_2_false() -> OptionalHirFn2 {
-    OptionalHirFn2 { present: false, f: hir_fn_new("") }
-}
-
-fn hir_enum_list_new() -> HirEnumList {
-    HirEnumList { len: 0, e1: hir_optional_enum_false(), e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false(), e6: hir_optional_enum_false(), e7: hir_optional_enum_false(), e8: hir_optional_enum_false(), e9: hir_optional_enum_false(), e10: hir_optional_enum_false(), e11: hir_optional_enum_false(), e12: hir_optional_enum_false(), e13: hir_optional_enum_false(), e14: hir_optional_enum_false(), e15: hir_optional_enum_false(), e16: hir_optional_enum_false() }
-}
-
-fn hir_enum_list_with(e: HirEnum) -> HirEnumList {
-    HirEnumList { len: 1, e1: OptionalHirEnum { present: true, e: e }, e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false(), e6: hir_optional_enum_false(), e7: hir_optional_enum_false(), e8: hir_optional_enum_false(), e9: hir_optional_enum_false(), e10: hir_optional_enum_false(), e11: hir_optional_enum_false(), e12: hir_optional_enum_false(), e13: hir_optional_enum_false(), e14: hir_optional_enum_false(), e15: hir_optional_enum_false(), e16: hir_optional_enum_false() }
-}
-
-fn hir_optional_enum_false() -> OptionalHirEnum {
-    OptionalHirEnum { present: false, e: hir_enum_new("") }
-}
-
-fn hir_struct_list_new() -> HirStructList {
-    HirStructList { len: 0, s1: hir_optional_struct_false(), s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false(), s6: hir_optional_struct_false(), s7: hir_optional_struct_false(), s8: hir_optional_struct_false(), s9: hir_optional_struct_false(), s10: hir_optional_struct_false(), s11: hir_optional_struct_false(), s12: hir_optional_struct_false(), s13: hir_optional_struct_false(), s14: hir_optional_struct_false(), s15: hir_optional_struct_false(), s16: hir_optional_struct_false() }
-}
-
-fn hir_struct_list_with(s: HirStruct) -> HirStructList {
-    HirStructList { len: 1, s1: OptionalHirStruct { present: true, s: s }, s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false(), s6: hir_optional_struct_false(), s7: hir_optional_struct_false(), s8: hir_optional_struct_false(), s9: hir_optional_struct_false(), s10: hir_optional_struct_false(), s11: hir_optional_struct_false(), s12: hir_optional_struct_false(), s13: hir_optional_struct_false(), s14: hir_optional_struct_false(), s15: hir_optional_struct_false(), s16: hir_optional_struct_false() }
-}
-
-fn hir_optional_struct_false() -> OptionalHirStruct {
-    OptionalHirStruct { present: false, s: hir_struct_new("") }
-}
-
-fn hir_expr_pool_new() -> HirExprPool {
-    HirExprPool { len: 0 }
-}
-
-fn hir_body_pool_new() -> HirBodyPool {
-    HirBodyPool { len: 0 }
-}
-
-fn hir_item_new(kind: HirItemKind, name: Text, span: Span) -> HirItem {
-    HirItem { kind: kind, name: name, span: span }
-}
-
-fn hir_item_kind_const() -> HirItemKind {
-    HirItemKind.Const
-}
-
-fn hir_item_kind_fn() -> HirItemKind {
-    HirItemKind.Fn
-}
-
-fn hir_item_kind_enum() -> HirItemKind {
-    HirItemKind.Enum
-}
-
-fn hir_item_kind_struct() -> HirItemKind {
-    HirItemKind.Struct
-}
-
-fn hir_item_kind_effect() -> HirItemKind {
-    HirItemKind.Effect
-}
-
-fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList {
-    let next = list.len + 1;
-    if list.len == 0 {
-        HirConstList { len: next, c1: OptionalHirConst { present: true, c: c }, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+fn int_to_text(n: I32) -> Text {
+    if n < 0 {
+        text_concat("-", int_to_text(0 - n))
     } else {
-        if list.len == 1 {
-            HirConstList { len: next, c1: list.c1, c2: OptionalHirConst { present: true, c: c }, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+        if n == 0 {
+            "0"
         } else {
-            if list.len == 2 {
-                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: OptionalHirConst { present: true, c: c }, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+            if n == 1 {
+                "1"
             } else {
-                if list.len == 3 {
-                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: OptionalHirConst { present: true, c: c }, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                if n == 2 {
+                    "2"
                 } else {
-                    if list.len == 4 {
-                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: OptionalHirConst { present: true, c: c }, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                    if n == 3 {
+                        "3"
                     } else {
-                        if list.len == 5 {
-                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: OptionalHirConst { present: true, c: c }, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                        if n == 4 {
+                            "4"
                         } else {
-                            if list.len == 6 {
-                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: OptionalHirConst { present: true, c: c }, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                            if n == 5 {
+                                "5"
                             } else {
-                                if list.len == 7 {
-                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: OptionalHirConst { present: true, c: c }, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                if n == 6 {
+                                    "6"
                                 } else {
-                                    if list.len == 8 {
-                                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: OptionalHirConst { present: true, c: c }, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                    if n == 7 {
+                                        "7"
                                     } else {
-                                        if list.len == 9 {
-                                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: OptionalHirConst { present: true, c: c }, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                        if n == 8 {
+                                            "8"
                                         } else {
-                                            if list.len == 10 {
-                                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: OptionalHirConst { present: true, c: c }, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
+                                            if n == 9 {
+                                                "9"
                                             } else {
-                                                if list.len == 11 {
-                                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: OptionalHirConst { present: true, c: c }, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: OptionalHirConst { present: true, c: c }, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: OptionalHirConst { present: true, c: c }, c15: list.c15, c16: list.c16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: OptionalHirConst { present: true, c: c }, c16: list.c16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: OptionalHirConst { present: true, c: c } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
+                                                text_concat(int_to_text(n / 10), int_to_text(n % 10))
                                             }
                                         }
                                     }
@@ -4276,724 +3462,2254 @@ fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList {
     }
 }
 
-fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2 {
-    let next = list.len + 1;
-    if list.len == 0 {
-        HirFnList2 { len: next, f1: OptionalHirFn2 { present: true, f: f }, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+fn has_terminal_newline(source: Text) -> Bool {
+    if is_empty(source) {
+        false
     } else {
-        if list.len == 1 {
-            HirFnList2 { len: next, f1: list.f1, f2: OptionalHirFn2 { present: true, f: f }, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+        text_byte(source, text_len(source) - 1) == 10
+    }
+}
+
+fn is_layout_byte(byte: I32) -> Bool {
+    byte == 9 or
+    byte == 10 or
+    byte == 13 or
+    byte == 32
+}
+
+fn trim_start_index(source: Text, index: I32) -> I32 {
+    if index >= text_len(source) {
+        index
+    } else {
+        if is_layout_byte(text_byte(source, index)) {
+            trim_start_index(source, index + 1)
         } else {
-            if list.len == 2 {
-                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: OptionalHirFn2 { present: true, f: f }, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-            } else {
-                if list.len == 3 {
-                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: OptionalHirFn2 { present: true, f: f }, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                } else {
-                    if list.len == 4 {
-                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: OptionalHirFn2 { present: true, f: f }, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                    } else {
-                        if list.len == 5 {
-                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: OptionalHirFn2 { present: true, f: f }, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                        } else {
-                            if list.len == 6 {
-                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: OptionalHirFn2 { present: true, f: f }, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: OptionalHirFn2 { present: true, f: f }, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: OptionalHirFn2 { present: true, f: f }, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: OptionalHirFn2 { present: true, f: f }, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: OptionalHirFn2 { present: true, f: f }, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: OptionalHirFn2 { present: true, f: f }, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: OptionalHirFn2 { present: true, f: f }, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: OptionalHirFn2 { present: true, f: f }, f15: list.f15, f16: list.f16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: OptionalHirFn2 { present: true, f: f }, f16: list.f16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: OptionalHirFn2 { present: true, f: f } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            index
         }
     }
 }
 
-fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList {
-    let next = list.len + 1;
-    if list.len == 0 {
-        HirEnumList { len: next, e1: OptionalHirEnum { present: true, e: e }, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+fn trim_end_index(source: Text, index: I32) -> I32 {
+    if index <= 0 {
+        0
     } else {
-        if list.len == 1 {
-            HirEnumList { len: next, e1: list.e1, e2: OptionalHirEnum { present: true, e: e }, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
+        if is_layout_byte(text_byte(source, index - 1)) {
+            trim_end_index(source, index - 1)
         } else {
-            if list.len == 2 {
-                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: OptionalHirEnum { present: true, e: e }, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-            } else {
-                if list.len == 3 {
-                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: OptionalHirEnum { present: true, e: e }, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                } else {
-                    if list.len == 4 {
-                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: OptionalHirEnum { present: true, e: e }, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                    } else {
-                        if list.len == 5 {
-                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: OptionalHirEnum { present: true, e: e }, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                        } else {
-                            if list.len == 6 {
-                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: OptionalHirEnum { present: true, e: e }, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: OptionalHirEnum { present: true, e: e }, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: OptionalHirEnum { present: true, e: e }, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: OptionalHirEnum { present: true, e: e }, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: OptionalHirEnum { present: true, e: e }, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: OptionalHirEnum { present: true, e: e }, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: OptionalHirEnum { present: true, e: e }, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: OptionalHirEnum { present: true, e: e }, e15: list.e15, e16: list.e16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: OptionalHirEnum { present: true, e: e }, e16: list.e16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: OptionalHirEnum { present: true, e: e } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            index
         }
     }
 }
 
-fn hir_struct_list_push(list: HirStructList, s: HirStruct) -> HirStructList {
-    let next = list.len + 1;
-    if list.len == 0 {
-        HirStructList { len: next, s1: OptionalHirStruct { present: true, s: s }, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-    } else {
-        if list.len == 1 {
-            HirStructList { len: next, s1: list.s1, s2: OptionalHirStruct { present: true, s: s }, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-        } else {
-            if list.len == 2 {
-                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: OptionalHirStruct { present: true, s: s }, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-            } else {
-                if list.len == 3 {
-                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: OptionalHirStruct { present: true, s: s }, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                } else {
-                    if list.len == 4 {
-                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: OptionalHirStruct { present: true, s: s }, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                    } else {
-                        if list.len == 5 {
-                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: OptionalHirStruct { present: true, s: s }, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                        } else {
-                            if list.len == 6 {
-                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: OptionalHirStruct { present: true, s: s }, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: OptionalHirStruct { present: true, s: s }, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: OptionalHirStruct { present: true, s: s }, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: OptionalHirStruct { present: true, s: s }, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: OptionalHirStruct { present: true, s: s }, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: OptionalHirStruct { present: true, s: s }, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: OptionalHirStruct { present: true, s: s }, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: OptionalHirStruct { present: true, s: s }, s15: list.s15, s16: list.s16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: OptionalHirStruct { present: true, s: s }, s16: list.s16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: OptionalHirStruct { present: true, s: s } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn hir_fn_set_params(f: HirFn, params: HirParamList) -> HirFn {
-    HirFn { name: f.name, params: params, ret: f.ret, fx: f.fx, req: f.req, ens: f.ens, body: f.body, span: f.span }
-}
-
-fn hir_fn_set_ret(f: HirFn, ret: OptionalHirTypeRef) -> HirFn {
-    HirFn { name: f.name, params: f.params, ret: ret, fx: f.fx, req: f.req, ens: f.ens, body: f.body, span: f.span }
-}
-
-fn hir_fn_set_fx(f: HirFn, fx: HirFxList) -> HirFn {
-    HirFn { name: f.name, params: f.params, ret: f.ret, fx: fx, req: f.req, ens: f.ens, body: f.body, span: f.span }
-}
-
-fn hir_fn_set_body(f: HirFn, body: OptionalHirBodyId) -> HirFn {
-    HirFn { name: f.name, params: f.params, ret: f.ret, fx: f.fx, req: f.req, ens: f.ens, body: body, span: f.span }
-}
-
-fn hir_optional_binding_true(binding: HirBinding) -> OptionalHirBinding {
-    OptionalHirBinding { present: true, binding: binding }
-}
-
-fn hir_optional_expr_id_true(id: HirExprId) -> OptionalHirExprId {
-    OptionalHirExprId { present: true, id: id }
-}
-
-fn hir_optional_body_id_true(id: HirBodyId) -> OptionalHirBodyId {
-    OptionalHirBodyId { present: true, id: id }
-}
-
-fn hir_diag_list_new() -> HirDiagList {
-    HirDiagList { len: 0, d1: hir_optional_diag_false(), d2: hir_optional_diag_false(), d3: hir_optional_diag_false(), d4: hir_optional_diag_false(), d5: hir_optional_diag_false(), d6: hir_optional_diag_false(), d7: hir_optional_diag_false(), d8: hir_optional_diag_false(), d9: hir_optional_diag_false(), d10: hir_optional_diag_false(), d11: hir_optional_diag_false(), d12: hir_optional_diag_false(), d13: hir_optional_diag_false(), d14: hir_optional_diag_false(), d15: hir_optional_diag_false(), d16: hir_optional_diag_false() }
-}
-
-fn hir_diag_list_with(d: HirLoweringDiag) -> HirDiagList {
-    HirDiagList { len: 1, d1: OptionalHirDiag { present: true, diag: d }, d2: hir_optional_diag_false(), d3: hir_optional_diag_false(), d4: hir_optional_diag_false(), d5: hir_optional_diag_false(), d6: hir_optional_diag_false(), d7: hir_optional_diag_false(), d8: hir_optional_diag_false(), d9: hir_optional_diag_false(), d10: hir_optional_diag_false(), d11: hir_optional_diag_false(), d12: hir_optional_diag_false(), d13: hir_optional_diag_false(), d14: hir_optional_diag_false(), d15: hir_optional_diag_false(), d16: hir_optional_diag_false() }
-}
-
-fn hir_diag_list_push(list: HirDiagList, d: HirLoweringDiag) -> HirDiagList {
-    let next = list.len + 1;
-    if list.len == 0 {
-        HirDiagList { len: next, d1: OptionalHirDiag { present: true, diag: d }, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-    } else {
-        if list.len == 1 {
-            HirDiagList { len: next, d1: list.d1, d2: OptionalHirDiag { present: true, diag: d }, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-        } else {
-            if list.len == 2 {
-                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: OptionalHirDiag { present: true, diag: d }, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-            } else {
-                if list.len == 3 {
-                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: OptionalHirDiag { present: true, diag: d }, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                } else {
-                    if list.len == 4 {
-                        HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: OptionalHirDiag { present: true, diag: d }, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                    } else {
-                        if list.len == 5 {
-                            HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: OptionalHirDiag { present: true, diag: d }, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                        } else {
-                            if list.len == 6 {
-                                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: OptionalHirDiag { present: true, diag: d }, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: OptionalHirDiag { present: true, diag: d }, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: OptionalHirDiag { present: true, diag: d }, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: OptionalHirDiag { present: true, diag: d }, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: OptionalHirDiag { present: true, diag: d }, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: OptionalHirDiag { present: true, diag: d }, d13: list.d13, d14: list.d14, d15: list.d15, d16: list.d16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: OptionalHirDiag { present: true, diag: d }, d14: list.d14, d15: list.d15, d16: list.d16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: OptionalHirDiag { present: true, diag: d }, d15: list.d15, d16: list.d16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: OptionalHirDiag { present: true, diag: d }, d16: list.d16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirDiagList { len: next, d1: list.d1, d2: list.d2, d3: list.d3, d4: list.d4, d5: list.d5, d6: list.d6, d7: list.d7, d8: list.d8, d9: list.d9, d10: list.d10, d11: list.d11, d12: list.d12, d13: list.d13, d14: list.d14, d15: list.d15, d16: OptionalHirDiag { present: true, diag: d } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn hir_optional_diag_false() -> OptionalHirDiag {
-    OptionalHirDiag { present: false, diag: HirLoweringDiag { kind: HirLoweringDiagKind.Generic, msg: "" } }
-}
-
-fn hir_module_new() -> HirModuleData {
-    HirModuleData { consts: hir_const_list_new(), funcs: hir_fn_list_2_new(), enums: hir_enum_list_new(), structs: hir_struct_list_new(), exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
-}
-
-fn hir_module_lower(report: ModuleReport) -> HirLowering {
-    let module = if report.ok {
-        hir_build_module_from_outline(report.outline, report.fn_outline, report.events, "")
-    } else {
-        hir_module_new()
-    };
-    hir_module_to_lowering(module)
-}
-
-fn hir_lower_top_level(source: Text) -> HirLowering {
-    let report = parse_module_report(source);
-    let module = hir_module_from_report(report, source);
-    hir_module_to_lowering(module)
-}
-
-fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
-    if not report.ok {
-        hir_module_new()
-    } else {
-        hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source)
-    }
-}
-
-fn hir_span_text(span: Span, source: Text) -> Text {
-    if span.start < span.end and span.end <= text_len(source) {
-        text_slice(source, span.start, span.end)
-    } else {
+fn trim_text(source: Text) -> Text {
+    let start = trim_start_index(source, 0);
+    let end = trim_end_index(source, text_len(source));
+    if end <= start {
         ""
+    } else {
+        text_slice(source, start, end)
     }
 }
 
-fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text {
+fn trim_body_start_index(source: Text, index: I32) -> I32 {
+    if index >= text_len(source) {
+        index
+    } else {
+        let byte = text_byte(source, index);
+        if byte == 10 or byte == 13 {
+            trim_body_start_index(source, index + 1)
+        } else {
+            index
+        }
+    }
+}
+
+fn leading_indent_end(source: Text, index: I32) -> I32 {
+    if index >= text_len(source) {
+        index
+    } else {
+        if is_indent_byte(text_byte(source, index)) {
+            leading_indent_end(source, index + 1)
+        } else {
+            index
+        }
+    }
+}
+
+fn find_line_end(source: Text, index: I32) -> I32 {
+    if index >= text_len(source) {
+        index
+    } else {
+        if text_byte(source, index) == 10 {
+            index
+        } else {
+            find_line_end(source, index + 1)
+        }
+    }
+}
+
+fn text_starts_with_at(source: Text, needle: Text, index: I32) -> Bool {
+    if index + text_len(needle) > text_len(source) {
+        false
+    } else {
+        if text_slice(source, index, index + text_len(needle)) == needle {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+fn contains_byte(source: Text, byte: I32, index: I32) -> Bool {
+    if index >= text_len(source) {
+        false
+    } else {
+        if text_byte(source, index) == byte {
+            true
+        } else {
+            contains_byte(source, byte, index + 1)
+        }
+    }
+}
+
+fn has_second_operator(content: Text, op: Text) -> Bool {
+    let first = find_operator_index(content, op, 0);
+    if first < 0 {
+        false
+    } else {
+        find_operator_index(content, op, first + text_len(op)) >= 0
+    }
+}
+
+fn chain_suffix(op: Text) -> Text {
+    if op == " and " {
+        " and"
+    } else {
+        if op == " or " {
+            " or"
+        } else {
+            " +"
+        }
+    }
+}
+
+fn indent_text(width: I32) -> Text {
+    if width <= 0 {
+        ""
+    } else {
+        text_concat(" ", indent_text(width - 1))
+    }
+}
+
+fn find_operator_index(source: Text, op: Text, index: I32) -> I32 {
+    let limit = text_len(source) - text_len(op);
+    let mut i = index;
+    let mut found_at = -1;
+    while i <= limit and found_at < 0 {
+        if text_starts_with_at(source, op, i) {
+            found_at = i;
+        };
+        i = i + 1;
+    };
+    found_at
+}
+
+fn format_chain_content(content: Text, op: Text, indent_width: I32) -> Text {
+    let index = find_operator_index(content, op, 0);
+    if index < 0 {
+        content
+    } else {
+        let left = text_slice(content, 0, trim_end_index(content, index));
+        let right = trim_text(text_slice(content, index + text_len(op), text_len(content)));
+        text_concat(text_concat(left, chain_suffix(op)), text_concat("\n", text_concat(indent_text(indent_width), format_chain_content(right, op, indent_width))))
+    }
+}
+
+fn line_chain_operator(content: Text) -> Text {
+    let has_and = has_second_operator(content, " and ");
+    let has_or = has_second_operator(content, " or ");
+    let has_add = has_second_operator(content, " + ");
+    if has_and {
+        if has_or {
+            ""
+        } else {
+            if has_add {
+                ""
+            } else {
+                " and "
+            }
+        }
+    } else {
+        if has_or {
+            if has_add {
+                ""
+            } else {
+                " or "
+            }
+        } else {
+            if has_add {
+                " + "
+            } else {
+                ""
+            }
+        }
+    }
+}
+
+fn rewrite_chain_line(line: Text) -> Text {
+    let indent_end = leading_indent_end(line, 0);
+    let content = text_slice(line, indent_end, text_len(line));
+    let op = line_chain_operator(content);
+    if is_empty(op) or contains_byte(content, 34, 0) or contains_byte(content, 40, 0) or contains_byte(content, 41, 0) or contains_byte(content, 91, 0) or contains_byte(content, 93, 0) or contains_byte(content, 123, 0) or contains_byte(content, 125, 0) {
+        line
+    } else {
+        text_concat(indent_text(indent_end), format_chain_content(content, op, indent_end))
+    }
+}
+
+fn find_byte_index(source: Text, byte: I32, index: I32) -> I32 {
+    let len = text_len(source);
+    let mut i = index;
+    let mut found_at = -1;
+    while i < len and found_at < 0 {
+        if text_byte(source, i) == byte {
+            found_at = i;
+        };
+        i = i + 1;
+    };
+    found_at
+}
+
+fn rewrite_body_lines_from(source: Text, index: I32) -> Text {
+    if index >= text_len(source) {
+        ""
+    } else {
+        let line_end = find_line_end(source, index);
+        let raw_line = text_slice(source, index, line_end);
+        let line = rewrite_chain_line(raw_line);
+        let has_semi = contains_byte(line, 59, 0);
+        let final_line = if has_semi {
+            let semi_index = find_byte_index(line, 59, 0);
+            if semi_index >= 0 and semi_index < text_len(line) - 1 {
+                let left = text_slice(line, 0, semi_index + 1);
+                let right = trim_text(text_slice(line, semi_index + 1, text_len(line)));
+                if is_empty(right) {
+                    left
+                } else {
+                    text_concat(left, text_concat("\n", text_concat(indent_text(leading_indent_end(line, 0)), right)))
+                }
+            } else {
+                line
+            }
+        } else {
+            line
+        };
+        if line_end >= text_len(source) {
+            final_line
+        } else {
+            text_concat(final_line, text_concat("\n", rewrite_body_lines_from(source, line_end + 1)))
+        }
+    }
+}
+
+fn indent_lines_from(source: Text, index: I32) -> Text {
+    if index >= text_len(source) {
+        ""
+    } else {
+        let line_end = find_line_end(source, index);
+        let line = text_slice(source, index, line_end);
+        if line_end >= text_len(source) {
+            text_concat("    ", line)
+        } else {
+            text_concat("    ", text_concat(line, text_concat("\n", indent_lines_from(source, line_end + 1))))
+        }
+    }
+}
+
+fn is_indent_byte(byte: I32) -> Bool {
+    byte == 9 or byte == 32
+}
+
+fn line_indent_width(source: Text, index: I32, line_end: I32) -> I32 {
+    if index >= line_end {
+        0
+    } else {
+        if is_indent_byte(text_byte(source, index)) {
+            1 + line_indent_width(source, index + 1, line_end)
+        } else {
+            0
+        }
+    }
+}
+
+fn first_content_indent(source: Text, index: I32) -> I32 {
+    if index >= text_len(source) {
+        0
+    } else {
+        let line_end = find_line_end(source, index);
+        let indent = line_indent_width(source, index, line_end);
+        if index + indent >= line_end {
+            if line_end >= text_len(source) {
+                0
+            } else {
+                first_content_indent(source, line_end + 1)
+            }
+        } else {
+            indent
+        }
+    }
+}
+
+fn strip_line_indent(source: Text, index: I32, line_end: I32, remaining: I32) -> Text {
+    if index >= line_end {
+        ""
+    } else {
+        if remaining > 0 and is_indent_byte(text_byte(source, index)) {
+            strip_line_indent(source, index + 1, line_end, remaining - 1)
+        } else {
+            text_slice(source, index, line_end)
+        }
+    }
+}
+
+fn strip_indent_lines_from(source: Text, index: I32, indent: I32) -> Text {
+    if index >= text_len(source) {
+        ""
+    } else {
+        let line_end = find_line_end(source, index);
+        let line = strip_line_indent(source, index, line_end, indent);
+        if line_end >= text_len(source) {
+            line
+        } else {
+            text_concat(line, text_concat("\n", strip_indent_lines_from(source, line_end + 1, indent)))
+        }
+    }
+}
+
+fn top_level_source_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_slice(source, entry.span.start, entry.span.end)
+}
+
+fn span_text(source: Text, span: OptionalSpan) -> Text {
     if span.present {
-        hir_span_text(span.span, source)
+        text_slice(source, span.span.start, span.span.end)
     } else {
         ""
     }
 }
 
-fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
-    let n1 = hir_name_from_span(outline.first.entry.name_span, source);
-    let n2 = hir_name_from_span(outline.second.entry.name_span, source);
-    let n3 = hir_name_from_span(outline.third.entry.name_span, source);
-    let n4 = hir_name_from_span(outline.fourth.entry.name_span, source);
-    let n5 = hir_name_from_span(outline.fifth.entry.name_span, source);
-    let c1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Const {
-        hir_const_list_with(hir_const_new(n1))
+fn body_source_text(source: Text, shape: FnHeaderShape) -> Text {
+    if shape.body_span.present {
+        let raw = span_text(source, shape.body_span);
+        let start = trim_body_start_index(raw, 0);
+        let end = trim_end_index(raw, text_len(raw));
+        if end <= start {
+            ""
+        } else {
+            let body_start = if text_byte(raw, start) == 123 {
+                start + 1
+            } else {
+                start
+            };
+            let body_end = if body_start < end and text_byte(raw, end - 1) == 125 {
+                end - 1
+            } else {
+                end
+            };
+            let body = text_slice(raw, body_start, body_end);
+            let inner_start = trim_body_start_index(body, 0);
+            let inner_end = trim_end_index(body, text_len(body));
+            let trimmed = if inner_end <= inner_start {
+                ""
+            } else {
+                text_slice(body, inner_start, inner_end)
+            };
+            if is_empty(trimmed) {
+                ""
+            } else {
+                rewrite_body_lines_from(strip_indent_lines_from(trimmed, 0, first_content_indent(trimmed, 0)), 0)
+            }
+        }
     } else {
-        hir_const_list_new()
-    };
-    let c2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c1, hir_const_new(n2))
-    } else {
-        c1
-    };
-    let c3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c2, hir_const_new(n3))
-    } else {
-        c2
-    };
-    let c4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c3, hir_const_new(n4))
-    } else {
-        c3
-    };
-    let c5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c4, hir_const_new(n5))
-    } else {
-        c4
-    };
-    let f1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_with(hir_fn_new(n1))
-    } else {
-        hir_fn_list_2_new()
-    };
-    let f2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f1, hir_fn_new(n2))
-    } else {
-        f1
-    };
-    let f3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f2, hir_fn_new(n3))
-    } else {
-        f2
-    };
-    let f4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f3, hir_fn_new(n4))
-    } else {
-        f3
-    };
-    let f5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f4, hir_fn_new(n5))
-    } else {
-        f4
-    };
-    let e1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_with(hir_enum_new(n1))
-    } else {
-        hir_enum_list_new()
-    };
-    let e2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e1, hir_enum_new(n2))
-    } else {
-        e1
-    };
-    let e3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e2, hir_enum_new(n3))
-    } else {
-        e2
-    };
-    let e4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e3, hir_enum_new(n4))
-    } else {
-        e3
-    };
-    let e5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e4, hir_enum_new(n5))
-    } else {
-        e4
-    };
-    let s1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_with(hir_struct_new(n1))
-    } else {
-        hir_struct_list_new()
-    };
-    let s2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s1, hir_struct_new(n2))
-    } else {
-        s1
-    };
-    let s3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s2, hir_struct_new(n3))
-    } else {
-        s2
-    };
-    let s4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s3, hir_struct_new(n4))
-    } else {
-        s3
-    };
-    let s5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s4, hir_struct_new(n5))
-    } else {
-        s4
-    };
-    HirModuleData { consts: c5, funcs: f5, enums: e5, structs: s5, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
+        ""
+    }
 }
 
-fn hir_item_kind_from_top_level(kind: TopLevelKind) -> HirItemKind {
+fn top_level_kind_text(kind: TopLevelKind) -> Text {
     match kind {
         TopLevelKind.Struct => {
-            HirItemKind.Struct
+            "struct"
         },
         TopLevelKind.Enum => {
-            HirItemKind.Enum
+            "enum"
         },
         TopLevelKind.Const => {
-            HirItemKind.Const
+            "const"
         },
         TopLevelKind.Fn => {
-            HirItemKind.Fn
+            "fn"
         },
     }
 }
 
-fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> HirItemList {
-    let i1 = if outline.first.present {
-        let name = hir_name_from_span(outline.first.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.first.entry.kind), name, outline.first.entry.span);
-        hir_optional_item_true(item)
+fn top_level_name_text(source: Text, entry: TopLevelEntry) -> Text {
+    if entry.name_span.present {
+        text_slice(source, entry.name_span.span.start, entry.name_span.span.end)
     } else {
-        hir_optional_item_false()
-    };
-    let i2 = if outline.second.present {
-        let name = hir_name_from_span(outline.second.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.second.entry.kind), name, outline.second.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i3 = if outline.third.present {
-        let name = hir_name_from_span(outline.third.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.third.entry.kind), name, outline.third.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i4 = if outline.fourth.present {
-        let name = hir_name_from_span(outline.fourth.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.fourth.entry.kind), name, outline.fourth.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i5 = if outline.fifth.present {
-        let name = hir_name_from_span(outline.fifth.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.fifth.entry.kind), name, outline.fifth.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let len = if outline.first.present {
-        1
-    } else {
-        0
-    } +
-    if outline.second.present {
-        1
-    } else {
-        0
-    } +
-    if outline.third.present {
-        1
-    } else {
-        0
-    } +
-    if outline.fourth.present {
-        1
-    } else {
-        0
-    } +
-    if outline.fifth.present {
-        1
-    } else {
-        0
-    };
-    HirItemList { len: len, i1: i1, i2: i2, i3: i3, i4: i4, i5: i5, i6: hir_optional_item_false(), i7: hir_optional_item_false(), i8: hir_optional_item_false(), i9: hir_optional_item_false(), i10: hir_optional_item_false(), i11: hir_optional_item_false(), i12: hir_optional_item_false(), i13: hir_optional_item_false(), i14: hir_optional_item_false(), i15: hir_optional_item_false(), i16: hir_optional_item_false() }
+        "_"
+    }
 }
 
-fn hir_span_from_optional(span: OptionalSpan) -> Span {
+fn name_text(source: Text, span: OptionalSpan) -> Text {
     if span.present {
-        span.span
+        text_slice(source, span.span.start, span.span.end)
     } else {
-        hir_span_new(0, 0)
+        "_"
     }
 }
 
-fn hir_optional_item_false() -> OptionalHirItem {
-    OptionalHirItem { present: false, item: hir_item_new(HirItemKind.Fn, "", hir_span_new(0, 0)) }
-}
-
-fn hir_optional_item_true(item: HirItem) -> OptionalHirItem {
-    OptionalHirItem { present: true, item: item }
-}
-
-fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
-    HirLowering { module: module, expr_pool: hir_expr_pool_new(), body_pool: hir_body_pool_new(), fns: hir_fn_list_2_new(), enums: hir_enum_list_new(), structs: hir_struct_list_new(), diags: hir_diag_list_new() }
-}
-
-fn hir_selfcheck() -> I32 {
-    let source = "struct Pair {}\nenum Option { none, some }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32) { let y = x; y }\n";
-    let report = parse_module_report(source);
-    if report.ok {
-        let module = hir_module_from_report(report, source);
-        hir_validate_module(module)
-    } else {
+fn count_enum_variants(source: Text, start: I32, end: I32) -> I32 {
+    if end <= start {
         0
-    }
-}
-
-fn hir_expr_to_mir(expr: HirExpr) -> MirBlock {
-    match expr.kind {
-        HirExprKind.Integer => {
-            mir_block_with_inst(mir_inst_const_i32(0, expr.a))
-        },
-        HirExprKind.Float => {
-            mir_block_new()
-        },
-        HirExprKind.Bool => {
-            mir_block_with_inst(mir_inst_const_bool(0, if expr.a != 0 {
-                true
-            } else {
-                false
-            }))
-        },
-        HirExprKind.Name => {
-            mir_block_with_inst(mir_inst_load_local(0))
-        },
-        HirExprKind.String => {
-            mir_block_with_inst(mir_inst_const_text(0, expr.t1))
-        },
-        HirExprKind.Binary => {
-            hir_binary_to_mir(expr)
-        },
-        HirExprKind.Unary => {
-            hir_unary_to_mir(expr)
-        },
-        HirExprKind.Call => {
-            mir_block_with_inst(mir_inst_call(0, expr.t1, expr.a, expr.b, expr.c, 0, 0))
-        },
-        HirExprKind.If => {
-            mir_block_with_inst(mir_inst_if(0, expr.a, expr.b, expr.c))
-        },
-        HirExprKind.While => {
-            mir_block_with_inst(mir_inst_while(0, expr.a, expr.b))
-        },
-        HirExprKind.Repeat => {
-            mir_block_with_inst(mir_inst_repeat(0, expr.a, expr.b))
-        },
-        HirExprKind.Match => {
-            mir_block_with_inst(mir_inst_match(0, expr.a))
-        },
-        HirExprKind.Field => {
-            mir_block_with_inst(mir_inst_field(0, expr.a, expr.t1))
-        },
-        HirExprKind.Index => {
-            mir_block_with_inst(mir_inst_list_get(0, expr.a, expr.b))
-        },
-        HirExprKind.Record => {
-            mir_block_with_inst(mir_inst_make_record(0, expr.t1))
-        },
-        HirExprKind.Array => {
-            mir_block_with_inst(mir_inst_list_new(0, expr.a, expr.b))
-        },
-        HirExprKind.Group => {
-            mir_block_new()
-        },
-    }
-}
-
-fn hir_unary_to_mir(expr: HirExpr) -> MirBlock {
-    let op = expr.t1;
-    if op == "-" {
-        mir_block_with_inst(mir_inst_neg(0, expr.a))
     } else {
-        if op == "not" {
-            mir_block_with_inst(mir_inst_not(0, expr.a))
+        let body_text = text_slice(source, start, end);
+        let open_brace = find_byte_index(body_text, 123, 0);
+        let close_brace = find_byte_index(body_text, 125, open_brace + 1);
+        if open_brace < 0 or close_brace < 0 or close_brace <= open_brace + 1 {
+            0
         } else {
-            mir_block_new()
+            let variants_text = text_slice(body_text, open_brace + 1, close_brace);
+            let len = text_len(variants_text);
+            if len == 0 {
+                0
+            } else {
+                let mut count = 0;
+                let mut i = 0;
+                let mut after_comma = true;
+                while i < len {
+                    let b = text_byte(variants_text, i);
+                    if b == 44 {
+                        count = count + 1;
+                        after_comma = true;
+                    } else {
+                        if not (b == 9 or b == 10 or b == 13 or b == 32) {
+                            after_comma = false;
+                        }
+                    };
+                    i = i + 1;
+                };
+                if not after_comma {
+                    count = count + 1;
+                };
+                count
+            }
         }
     }
 }
 
-fn hir_binary_to_mir(expr: HirExpr) -> MirBlock {
-    let op = expr.t1;
-    if op == "+" {
-        mir_block_with_inst(mir_inst_add(0, expr.a, expr.b))
+fn append_span_text(source: Text, current: Text, prefix: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_concat(current, text_concat(prefix, span_text(source, span)))
     } else {
-        if op == "-" {
-            mir_block_with_inst(mir_inst_sub(0, expr.a, expr.b))
-        } else {
-            if op == "*" {
-                mir_block_with_inst(mir_inst_mul(0, expr.a, expr.b))
+        current
+    }
+}
+
+fn fn_signature_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    let base = text_concat("fn ", text_concat(top_level_name_text(source, entry), span_text(source, shape.params_span)));
+    let with_return = if shape.return_span.present {
+        text_concat(base, text_concat(" -> ", span_text(source, shape.return_span)))
+    } else {
+        base
+    };
+    let with_effects = append_span_text(source, with_return, " ", shape.effects_span);
+    let with_requires = append_span_text(source, with_effects, " ", shape.requires_span);
+    append_span_text(source, with_requires, " ", shape.ensures_span)
+}
+
+fn format_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    let sig = fn_signature_text(source, entry, shape);
+    let body = body_source_text(source, shape);
+    if is_empty(body) {
+        text_concat(sig, " {\n}")
+    } else {
+        text_concat(sig, text_concat(" {\n", text_concat(indent_lines_from(body, 0), "\n}")))
+    }
+}
+
+fn format_stream_from(source: Text, state: ParseState) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let current = top_level_source_text(source, present_top_level_entry(TopLevelKind.Struct, item_start, next.last_end, name_span).entry);
+            let rest = format_stream_from(source, next);
+            if is_empty(rest) {
+                current
             } else {
-                if op == "/" {
-                    mir_block_with_inst(mir_inst_div(0, expr.a, expr.b))
+                text_concat(current, text_concat("\n\n", rest))
+            }
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                let next = parse_enum_item(source, state);
+                let current = top_level_source_text(source, present_top_level_entry(TopLevelKind.Enum, item_start, next.last_end, name_span).entry);
+                let rest = format_stream_from(source, next);
+                if is_empty(rest) {
+                    current
                 } else {
-                    if op == "==" {
-                        mir_block_with_inst(mir_inst_eq(0, expr.a, expr.b))
+                    text_concat(current, text_concat("\n\n", rest))
+                }
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    let next = parse_const_item(source, state);
+                    let current = top_level_source_text(source, present_top_level_entry(TopLevelKind.Const, item_start, next.last_end, name_span).entry);
+                    let rest = format_stream_from(source, next);
+                    if is_empty(rest) {
+                        current
                     } else {
-                        if op == "!=" {
-                            mir_block_with_inst(mir_inst_ne(0, expr.a, expr.b))
+                        text_concat(current, text_concat("\n\n", rest))
+                    }
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        let entry = make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span);
+                        let current_fn = format_fn_entry_text(source, entry, parsed.shape);
+                        let rest = format_stream_from(source, parsed.state);
+                        if is_empty(rest) {
+                            current_fn
                         } else {
-                            if op == "<" {
-                                mir_block_with_inst(mir_inst_lt(0, expr.a, expr.b))
+                            text_concat(current_fn, text_concat("\n\n", rest))
+                        }
+                    } else {
+                        ""
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn format_text(source: Text) -> Text {
+    let report = parse_module_report(source);
+    let formatted = if report.ok {
+        format_stream_from(source, parse_state_new(source))
+    } else {
+        source
+    };
+    if has_terminal_newline(formatted) {
+        formatted
+    } else {
+        text_concat(formatted, "\n")
+    }
+}
+
+fn block_item_kind_text(kind: BlockItemKind) -> Text {
+    match kind {
+        BlockItemKind.Let => {
+            "let"
+        },
+        BlockItemKind.Assign => {
+            "assign"
+        },
+        BlockItemKind.ExprStmt => {
+            "expr"
+        },
+        BlockItemKind.TailExpr => {
+            "tail"
+        },
+    }
+}
+
+fn expr_kind_text(kind: ExprKind) -> Text {
+    match kind {
+        ExprKind.Name => {
+            "name"
+        },
+        ExprKind.Integer => {
+            "integer"
+        },
+        ExprKind.Float => {
+            "float"
+        },
+        ExprKind.String => {
+            "string"
+        },
+        ExprKind.Bool => {
+            "bool"
+        },
+        ExprKind.Group => {
+            "group"
+        },
+        ExprKind.Array => {
+            "array"
+        },
+        ExprKind.Record => {
+            "record"
+        },
+        ExprKind.If => {
+            "if"
+        },
+        ExprKind.Match => {
+            "match"
+        },
+        ExprKind.Repeat => {
+            "repeat"
+        },
+        ExprKind.While => {
+            "while"
+        },
+        ExprKind.Call => {
+            "call"
+        },
+        ExprKind.Index => {
+            "index"
+        },
+        ExprKind.Binary => {
+            "binary"
+        },
+    }
+}
+
+fn block_item_text(entry: BlockItemEntry) -> Text {
+    text_concat(block_item_kind_text(entry.kind), text_concat(" ", expr_kind_text(entry.expr_kind)))
+}
+
+fn body_outline_text_from(outline: BlockOutline, index: I32) -> Text {
+    if index >= outline.total_count {
+        ""
+    } else {
+        let item = block_item_entry_at(outline, index);
+        if item.present {
+            let current = block_item_text(item.entry);
+            let rest = body_outline_text_from(outline, index + 1);
+            if is_empty(rest) {
+                current
+            } else {
+                text_concat(current, text_concat(", ", rest))
+            }
+        } else {
+            body_outline_text_from(outline, index + 1)
+        }
+    }
+}
+
+fn body_outline_text(outline: BlockOutline) -> Text {
+    if outline.total_count == 0 {
+        "empty"
+    } else {
+        body_outline_text_from(outline, 0)
+    }
+}
+
+fn doc_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat("- ", text_concat(top_level_kind_text(entry.kind), text_concat(" ", text_concat(top_level_name_text(source, entry), "\n"))))
+}
+
+fn doc_non_fn_entry_text(source: Text, entry: TopLevelEntry) -> Text {
+    text_concat(doc_entry_text(source, entry), text_concat("  decl: ", text_concat(top_level_source_text(source, entry), "\n")))
+}
+
+fn doc_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text {
+    text_concat("- ", text_concat(fn_signature_text(source, entry, shape), text_concat("\n  body: ", text_concat(body_outline_text(shape.body_outline), "\n"))))
+}
+
+fn outline_text_from(source: Text, state: ParseState) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let entry = present_top_level_entry(TopLevelKind.Struct, item_start, next.last_end, name_span).entry;
+            text_concat(doc_non_fn_entry_text(source, entry), outline_text_from(source, next))
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                let next = parse_enum_item(source, state);
+                let entry = present_top_level_entry(TopLevelKind.Enum, item_start, next.last_end, name_span).entry;
+                text_concat(doc_non_fn_entry_text(source, entry), outline_text_from(source, next))
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    let next = parse_const_item(source, state);
+                    let entry = present_top_level_entry(TopLevelKind.Const, item_start, next.last_end, name_span).entry;
+                    text_concat(doc_non_fn_entry_text(source, entry), outline_text_from(source, next))
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        let entry = make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span);
+                        text_concat(doc_fn_entry_text(source, entry, parsed.shape), outline_text_from(source, parsed.state))
+                    } else {
+                        ""
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn contains_blocked_effect(source: Text, span: OptionalSpan) -> Bool {
+    if span.present {
+        let text = span_text(source, span);
+        if text_starts_with_at(text, "io", 0) or text_starts_with_at(text, "alloc", 0) or text_starts_with_at(text, "async", 0) or text_starts_with_at(text, "parallel", 0) {
+            true
+        } else {
+            let io_idx = find_operator_index(text, "io", 0);
+            let alloc_idx = find_operator_index(text, "alloc", 0);
+            let async_idx = find_operator_index(text, "async", 0);
+            let parallel_idx = find_operator_index(text, "parallel", 0);
+            io_idx >= 0 or
+            alloc_idx >= 0 or
+            async_idx >= 0 or
+            parallel_idx >= 0
+        }
+    } else {
+        false
+    }
+}
+
+fn fn_has_blocked_effect(source: Text, shape: FnHeaderShape) -> Bool {
+    contains_blocked_effect(source, shape.effects_span)
+}
+
+fn extract_const_value_from_span(source: Text, item_start: I32, item_end: I32) -> Text {
+    let item_text = text_slice(source, item_start, item_end);
+    let eq_pos = find_byte_index(item_text, 61, 0);
+    if eq_pos >= 0 {
+        let value_start = eq_pos + 1;
+        let value_text = text_slice(item_text, value_start, text_len(item_text));
+        let trimmed = trim_text(value_text);
+        let last_idx = text_len(trimmed) - 1;
+        if last_idx >= 0 and text_byte(trimmed, last_idx) == 59 {
+            text_slice(trimmed, 0, last_idx)
+        } else {
+            trimmed
+        }
+    } else {
+        "?"
+    }
+}
+
+fn struct_body_contains_affine(source: Text, body_start: I32, body_end: I32) -> Bool {
+    if body_end <= body_start {
+        false
+    } else {
+        let body_text = text_slice(source, body_start, body_end);
+        let has_file = find_operator_index(body_text, "File", 0) >= 0;
+        let has_bytes = find_operator_index(body_text, "Bytes", 0) >= 0;
+        let has_text = find_operator_index(body_text, "Text", 0) >= 0;
+        has_file or
+        has_bytes or
+        has_text
+    }
+}
+
+fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
+    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
+        ""
+    } else {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let name = name_text(source, name_span);
+            let has_affine = struct_body_contains_affine(source, item_start, next.cursor.start);
+            let ownership = if has_affine {
+                "`contains affine fields`"
+            } else {
+                "`plain value`"
+            };
+            let rt_status = "`profile-compatible`";
+            let current = text_concat("## struct ", text_concat(name, text_concat("\n\n- ownership: ", text_concat(ownership, text_concat("\n- rt status: ", text_concat(rt_status, "\n\n"))))));
+            text_concat(current, outline_doc_text_from(source, next))
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                let next = parse_enum_item(source, state);
+                let name = name_text(source, name_span);
+                let variant_count = count_enum_variants(source, state.cursor.start, next.cursor.start);
+                let variants_text = text_concat("`", text_concat(int_to_text(variant_count), "`"));
+                let current = text_concat("## enum ", text_concat(name, text_concat("\n\n- variants: ", text_concat(variants_text, "\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n"))));
+                text_concat(current, outline_doc_text_from(source, next))
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    let next = parse_const_item(source, state);
+                    let name = name_text(source, name_span);
+                    let value = extract_const_value_from_span(source, item_start, next.cursor.start);
+                    let current = text_concat("## const ", text_concat(name, text_concat("\n\n- type: `I32`\n- value: `", text_concat(value, "`\n"))));
+                    text_concat(current, outline_doc_text_from(source, next))
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        let name = name_text(source, name_span);
+                        let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
+                        let ownership = if name == "main" {
+                            "`affine-safe in stage-0`"
+                        } else {
+                            "`consumes affine arguments`"
+                        };
+                        let rt_status = "`profile-compatible`";
+                        let current = text_concat("## fn ", text_concat(name, text_concat("\n\n- signature: `", text_concat(sig, text_concat("`\n- ownership: ", text_concat(ownership, text_concat("\n- rt status: ", text_concat(rt_status, "\n\n"))))))));
+                        text_concat(current, outline_doc_text_from(source, parsed.state))
+                    } else {
+                        ""
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn outline_doc_text(source: Text) -> Text effects [alloc] {
+    let mut state = parse_state_new(source);
+    let mut out = text_builder_new();
+    while state.status == ParseStatus.Ok and state.cursor.kind != TokenKind.Eof {
+        let item_start = state.cursor.start;
+        let name_span = top_level_name_span(source, state);
+        if state.cursor.kind == TokenKind.KwStruct {
+            let next = parse_struct_item(source, state);
+            let name = name_text(source, name_span);
+            let has_affine = struct_body_contains_affine(source, item_start, next.cursor.start);
+            let ownership = if has_affine {
+                "`contains affine fields`"
+            } else {
+                "`plain value`"
+            };
+            out = out + "## struct ";
+            out = out + name;
+            out = out + "\n\n- ownership: ";
+            out = out + ownership;
+            out = out + "\n- rt status: `profile-compatible`\n\n";
+            state = next;
+        } else {
+            if state.cursor.kind == TokenKind.KwEnum {
+                let next = parse_enum_item(source, state);
+                let name = name_text(source, name_span);
+                let variant_count = count_enum_variants(source, item_start, next.cursor.start);
+                out = out + "## enum ";
+                out = out + name;
+                out = out + "\n\n- variants: `";
+                out = out + int_to_text(variant_count);
+                out = out + "`\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n";
+                state = next;
+            } else {
+                if state.cursor.kind == TokenKind.KwConst {
+                    let next = parse_const_item(source, state);
+                    let name = name_text(source, name_span);
+                    let value = extract_const_value_from_span(source, item_start, next.cursor.start);
+                    out = out + "## const ";
+                    out = out + name;
+                    out = out + "\n\n- type: `I32`\n- value: `";
+                    out = out + value;
+                    out = out + "`\n";
+                    state = next;
+                } else {
+                    if state.cursor.kind == TokenKind.KwFn {
+                        let parsed = parse_fn_item_with_shape(source, state);
+                        let name = name_text(source, name_span);
+                        let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
+                        let ownership = if name == "main" {
+                            "`affine-safe in stage-0`"
+                        } else {
+                            "`consumes affine arguments`"
+                        };
+                        out = out + "## fn ";
+                        out = out + name;
+                        out = out + "\n\n- signature: `";
+                        out = out + sig;
+                        out = out + "`\n- ownership: ";
+                        out = out + ownership;
+                        out = out + "\n- rt status: `profile-compatible`\n\n";
+                        state = parsed.state;
+                    } else {
+                        state = parse_fn_item(source, state);
+                    }
+                }
+            }
+        };
+    };
+    text_builder_finish(out)
+}
+
+fn doc_text(source: Text) -> Text effects [alloc] {
+    let report = parse_module_report(source);
+    if report.ok {
+        text_concat("# Sarif Semantic Docs\n\n\n", outline_doc_text(source))
+    } else {
+        "# Sarif Semantic Docs\n\ninvalid\n"
+    }
+}
+
+fn name_table_add(table: Text, name: Text) -> Text {
+    if is_empty(table) {
+        name
+    } else {
+        text_concat(table, text_concat("\n", name))
+    }
+}
+
+fn name_table_has(table: Text, name: Text) -> Bool {
+    if is_empty(table) {
+        false
+    } else {
+        if text_starts_with_at(table, name, 0) {
+            let end = text_len(name);
+            end == text_len(table) or text_byte(table, end) == 10
+        } else {
+            let search = text_concat("\n", name);
+            let idx = find_operator_index(table, search, 0);
+            if idx < 0 {
+                false
+            } else {
+                let after = idx + text_len(search);
+                after >= text_len(table) or text_byte(table, after) == 10
+            }
+        }
+    }
+}
+
+fn name_table_count(table: Text, name: Text) -> I32 {
+    if is_empty(table) {
+        0
+    } else {
+        let match_here = if text_starts_with_at(table, name, 0) {
+            let end = text_len(name);
+            if end == text_len(table) or text_byte(table, end) == 10 {
+                1
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+        let nxt = find_byte_index(table, 10, 0);
+        let rest = if nxt >= 0 {
+            text_slice(table, nxt + 1, text_len(table))
+        } else {
+            ""
+        };
+        match_here + name_table_count(rest, name)
+    }
+}
+
+fn extract_call_callee(expr_text: Text) -> Text {
+    let paren = find_byte_index(expr_text, 40, 0);
+    if paren > 0 {
+        text_slice(expr_text, 0, paren)
+    } else {
+        expr_text
+    }
+}
+
+fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text {
+    let mut cur_state = state;
+    let mut cur_names = names;
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        let name_span = top_level_name_span(source, cur_state);
+        cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+            parse_struct_item(source, cur_state)
+        } else {
+            if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwConst {
+                    parse_const_item(source, cur_state)
+                } else {
+                    parse_fn_item(source, cur_state)
+                }
+            }
+        };
+        let cur_name = name_text(source, name_span);
+        if not is_empty(cur_name) and cur_name != "_" {
+            cur_names = name_table_add(cur_names, cur_name);
+        };
+    };
+    cur_names
+}
+
+fn collect_all_names(source: Text) -> Text {
+    collect_all_names_from(source, parse_state_new(source), "")
+}
+
+fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text {
+    let mut cur_state = state;
+    let mut seen = "";
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        let name_span = top_level_name_span(source, cur_state);
+        cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+            parse_struct_item(source, cur_state)
+        } else {
+            if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwConst {
+                    parse_const_item(source, cur_state)
+                } else {
+                    parse_fn_item(source, cur_state)
+                }
+            }
+        };
+        if name_span.present {
+            let name = text_slice(source, name_span.span.start, name_span.span.end);
+            if not is_empty(name) and name != "_" {
+                if name_table_has(seen, name) {
+                    let diag = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                    out = if is_empty(out) {
+                        diag
+                    } else {
+                        text_concat(out, diag)
+                    };
+                } else {
+                    seen = name_table_add(seen, name);
+                };
+            };
+        };
+    };
+    out
+}
+
+fn is_builtin_fn(name: Text) -> Bool {
+    name_table_has("text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_contains\ntext_index_get_or_insert\ntext_index_set\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\nlen", name)
+}
+
+fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
+    if expr_span.start >= expr_span.end {
+        ""
+    } else {
+        let text = text_slice(source, expr_span.start, expr_span.end);
+        let mut pos = find_byte_index(text, 40, 0);
+        let mut out = "";
+        while pos > 0 {
+            let mut name_end = pos;
+            let mut name_start = name_end;
+            let mut searching = true;
+            while name_start > 0 and searching {
+                let b = text_byte(text, name_start - 1);
+                if (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95 {
+                    name_start = name_start - 1;
+                } else {
+                    searching = false;
+                };
+            };
+            if name_start < name_end {
+                let callee = text_slice(text, name_start, name_end);
+                if callee != "_" and not name_table_has(known, callee) and not is_builtin_fn(callee) {
+                    let err = text_concat("error: unknown function `", text_concat(callee, "`\n"));
+                    out = if is_empty(out) {
+                        err
+                    } else {
+                        text_concat(out, err)
+                    };
+                };
+            };
+            let next_pos = find_byte_index(text, 40, pos + 1);
+            if next_pos >= 0 {
+                pos = next_pos;
+            } else {
+                pos = -1;
+            };
+        };
+        out
+    }
+}
+
+fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text {
+    if index >= 5 {
+        ""
+    } else {
+        let entry = block_item_entry_at(outline, index);
+        let d = if entry.present and entry.entry.expr_span.present {
+            if entry.entry.expr_kind == ExprKind.Call {
+                let expr_text = text_slice(source, entry.entry.expr_span.span.start, entry.entry.expr_span.span.end);
+                let callee = extract_call_callee(expr_text);
+                if not is_empty(callee) and callee != "_" {
+                    if name_table_has(known, callee) {
+                        ""
+                    } else {
+                        if is_builtin_fn(callee) {
+                            ""
+                        } else {
+                            text_concat("error: unknown function `", text_concat(callee, "`\n"))
+                        }
+                    }
+                } else {
+                    ""
+                }
+            } else {
+                check_expr_for_calls(source, entry.entry.expr_span.span, known)
+            }
+        } else {
+            ""
+        };
+        let rest = check_body_outline_calls(source, outline, index + 1, known);
+        if is_empty(d) {
+            rest
+        } else {
+            text_concat(d, rest)
+        }
+    }
+}
+
+fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text {
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let parsed = parse_fn_item_with_shape(source, cur_state);
+            let body_diag = check_body_outline_calls(source, parsed.shape.body_outline, 0, known);
+            cur_state = parsed.state;
+            if not is_empty(body_diag) {
+                out = if is_empty(out) {
+                    body_diag
+                } else {
+                    text_concat(out, body_diag)
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, cur_state)
+                } else {
+                    parse_const_item(source, cur_state)
+                }
+            };
+        };
+    };
+    out
+}
+
+fn span_text_safe(source: Text, span: OptionalSpan) -> Text {
+    if span.present {
+        text_slice(source, span.span.start, span.span.end)
+    } else {
+        ""
+    }
+}
+
+fn extract_type_text(type_text: Text) -> Text {
+    let trimmed = trim_text(type_text);
+    if is_empty(trimmed) {
+        ""
+    } else {
+        trimmed
+    }
+}
+
+fn is_builtin_type(name: Text) -> Bool {
+    name == "I32" or
+    name == "F64" or
+    name == "Bool" or
+    name == "Text" or
+    name == "Unit" or
+    name == "Bytes" or
+    name == "TextIndex" or
+    name == "TextBuilder"
+}
+
+fn is_numeric_type(ty: Text) -> Bool {
+    ty == "I32" or ty == "F64"
+}
+
+fn type_table_lookup(table: Text, key: Text) -> Text {
+    if is_empty(table) {
+        ""
+    } else {
+        let sep = find_byte_index(table, 58, 0);
+        let eol = find_byte_index(table, 10, 0);
+        let entry_end = if eol >= 0 {
+            eol
+        } else {
+            text_len(table)
+        };
+        let entry_key = text_slice(table, 0, sep);
+        let entry_val = text_slice(table, sep + 1, entry_end);
+        if entry_key == key {
+            entry_val
+        } else {
+            if eol >= 0 {
+                type_table_lookup(text_slice(table, eol + 1, text_len(table)), key)
+            } else {
+                ""
+            }
+        }
+    }
+}
+
+fn type_table_extend(table: Text, key: Text, value: Text) -> Text {
+    if is_empty(table) {
+        text_concat(key, text_concat(":", value))
+    } else {
+        text_concat(table, text_concat("\n", text_concat(key, text_concat(":", value))))
+    }
+}
+
+fn collect_struct_field_layout(body: Text) -> Text {
+    let mut fields = "";
+    let mut offset = 0;
+    let body_len = text_len(body);
+    while offset < body_len {
+        let colon = find_byte_index(body, 58, offset);
+        if colon < 0 {
+            offset = body_len;
+        } else {
+            let comma = find_byte_index(body, 44, colon + 1);
+            let field_end = if comma >= 0 {
+                comma
+            } else {
+                body_len
+            };
+            let name = trim_text(text_slice(body, offset, colon));
+            let ty = trim_text(text_slice(body, colon + 1, field_end));
+            if not is_empty(name) and not is_empty(ty) {
+                fields = if is_empty(fields) {
+                    text_concat(name, text_concat(":", ty))
+                } else {
+                    text_concat(fields, text_concat(",", text_concat(name, text_concat(":", ty))))
+                };
+            };
+            offset = if comma >= 0 {
+                comma + 1
+            } else {
+                body_len
+            };
+        };
+    };
+    fields
+}
+
+fn collect_struct_types(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut types = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwStruct {
+            let name_span = top_level_name_span(source, cur_state);
+            let open_brace = find_byte_index(source, 123, cur_state.cursor.start);
+            let parsed = parse_struct_item(source, cur_state);
+            cur_state = parsed;
+            if name_span.present and open_brace >= 0 {
+                let close_brace = find_matching_close_raw(source, open_brace);
+                if close_brace > open_brace + 1 {
+                    let name = text_slice(source, name_span.span.start, name_span.span.end);
+                    let body = text_slice(source, open_brace + 1, close_brace - 1);
+                    let fields = collect_struct_field_layout(body);
+                    if not is_empty(name) and not is_empty(fields) {
+                        types = type_table_extend(types, name, fields);
+                    };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwConst {
+                    parse_const_item(source, cur_state)
+                } else {
+                    parse_fn_item(source, cur_state)
+                }
+            };
+        };
+    };
+    types
+}
+
+fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let dot = find_byte_index(name, 46, 0);
+    if dot >= 0 {
+        infer_dotted_type(name, locals, consts, fns)
+    } else {
+        let from_locals = type_table_lookup(locals, name);
+        if not is_empty(from_locals) {
+            from_locals
+        } else {
+            let from_consts = type_table_lookup(consts, name);
+            if not is_empty(from_consts) {
+                from_consts
+            } else {
+                let from_fns = type_table_lookup(fns, name);
+                if not is_empty(from_fns) {
+                    from_fns
+                } else {
+                    ""
+                }
+            }
+        }
+    }
+}
+
+fn infer_dotted_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let dot = find_byte_index(name, 46, 0);
+    if dot < 0 or dot >= text_len(name) - 1 {
+        ""
+    } else {
+        let base_text = text_slice(name, 0, dot);
+        let rest_text = text_slice(name, dot + 1, text_len(name));
+        let base_type = infer_name_type(base_text, locals, consts, fns);
+        if is_empty(base_type) {
+            ""
+        } else {
+            let field_key = text_concat(base_type, text_concat(".", rest_text));
+            let field_type = type_table_lookup(consts, field_key);
+            if not is_empty(field_type) {
+                field_type
+            } else {
+                let struct_fields = type_table_lookup(consts, base_type);
+                if not is_empty(struct_fields) {
+                    resolve_nested_struct_field(rest_text, struct_fields, consts)
+                } else {
+                    ""
+                }
+            }
+        }
+    }
+}
+
+fn resolve_nested_struct_field(field_path: Text, struct_fields: Text, consts: Text) -> Text {
+    let dot = find_byte_index(field_path, 46, 0);
+    if dot < 0 {
+        resolve_struct_field(field_path, struct_fields)
+    } else {
+        let first_field = text_slice(field_path, 0, dot);
+        let remaining = text_slice(field_path, dot + 1, text_len(field_path));
+        let first_type = resolve_struct_field(first_field, struct_fields);
+        if is_empty(first_type) {
+            ""
+        } else {
+            let next_struct_fields = type_table_lookup(consts, first_type);
+            if is_empty(next_struct_fields) {
+                ""
+            } else {
+                resolve_nested_struct_field(remaining, next_struct_fields, consts)
+            }
+        }
+    }
+}
+
+fn resolve_struct_field(field: Text, fields_text: Text) -> Text {
+    if is_empty(field) or is_empty(fields_text) {
+        ""
+    } else {
+        let colon = find_byte_index(fields_text, 58, 0);
+        if colon < 0 {
+            ""
+        } else {
+            let name_part = trim_text(text_slice(fields_text, 0, colon));
+            let rest_start = colon + 1;
+            let comma = find_byte_index(fields_text, 44, rest_start);
+            let type_end = if comma >= 0 {
+                comma
+            } else {
+                text_len(fields_text)
+            };
+            let type_part = trim_text(text_slice(fields_text, rest_start, type_end));
+            if name_part == field {
+                type_part
+            } else {
+                let next_start = if comma >= 0 {
+                    comma + 1
+                } else {
+                    text_len(fields_text)
+                };
+                if next_start < text_len(fields_text) {
+                    let rest = text_slice(fields_text, next_start, text_len(fields_text));
+                    resolve_struct_field(field, rest)
+                } else {
+                    ""
+                }
+            }
+        }
+    }
+}
+
+fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text {
+    let expr_text = text_slice(source, expr_span.start, expr_span.end);
+    let paren = find_byte_index(expr_text, 40, 0);
+    if paren > 0 {
+        let callee = trim_text(text_slice(expr_text, 0, paren));
+        let ret_type = type_table_lookup(fns, callee);
+        if is_empty(ret_type) {
+            if is_builtin_fn(callee) {
+                "I32"
+            } else {
+                ""
+            }
+        } else {
+            ret_type
+        }
+    } else {
+        ""
+    }
+}
+
+fn find_matching_close_raw(source: Text, start: I32) -> I32 {
+    let open_byte = text_byte(source, start);
+    let close_byte = if open_byte == 40 {
+        41
+    } else {
+        if open_byte == 91 {
+            93
+        } else {
+            if open_byte == 123 {
+                125
+            } else {
+                0
+            }
+        }
+    };
+    if close_byte == 0 {
+        text_len(source)
+    } else {
+        let mut depth = 1;
+        let mut i = start + 1;
+        while i < text_len(source) and depth > 0 {
+            let b = text_byte(source, i);
+            if b == open_byte {
+                depth = depth + 1;
+            } else {
+                if b == close_byte {
+                    depth = depth - 1;
+                }
+            };
+            i = i + 1;
+        };
+        i
+    }
+}
+
+fn skip_expr_text(source: Text, start: I32) -> I32 {
+    let mut i = start;
+    let mut done = false;
+    while i < text_len(source) and not done {
+        let b = text_byte(source, i);
+        let is_space = b == 32 or
+        b == 9 or
+        b == 10 or
+        b == 13;
+        let is_open = b == 40 or
+        b == 91 or
+        b == 123;
+        let is_stop = b == 41 or
+        b == 93 or
+        b == 125 or
+        b == 44 or
+        b == 59;
+        if is_space {
+            i = i + 1;
+        } else {
+            if is_open {
+                i = find_matching_close_raw(source, i) + 1;
+            } else {
+                if is_stop {
+                    done = true;
+                } else {
+                    i = i + 1;
+                }
+            }
+        };
+    };
+    i
+}
+
+fn find_operator_in_expr(source: Text, span: Span) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let len = text_len(expr_text);
+    let mut op = "";
+    let mut i = 0;
+    while i < len and is_empty(op) {
+        let b = text_byte(expr_text, i);
+        if b == 61 {
+            let is_eq = i + 1 < len and text_byte(expr_text, i + 1) == 61;
+            if is_eq {
+                op = "Bool";
+            };
+        } else {
+            if b == 33 {
+                let is_ne = i + 1 < len and text_byte(expr_text, i + 1) == 61;
+                if is_ne {
+                    op = "Bool";
+                };
+            } else {
+                if b == 60 {
+                    op = "Bool";
+                } else {
+                    if b == 62 {
+                        op = "Bool";
+                    } else {
+                        if b == 97 or b == 111 {
+                            if b == 97 {
+                                let is_and = i + 1 < len and
+                                text_byte(expr_text, i + 1) == 110 and
+                                i + 2 < len and
+                                text_byte(expr_text, i + 2) == 100;
+                                if is_and {
+                                    op = "Bool";
+                                };
                             } else {
-                                if op == "<=" {
-                                    mir_block_with_inst(mir_inst_le(0, expr.a, expr.b))
-                                } else {
-                                    if op == ">" {
-                                        mir_block_with_inst(mir_inst_gt(0, expr.a, expr.b))
-                                    } else {
-                                        if op == ">=" {
-                                            mir_block_with_inst(mir_inst_ge(0, expr.a, expr.b))
-                                        } else {
-                                            if op == "&&" {
-                                                mir_block_with_inst(mir_inst_and(0, expr.a, expr.b))
-                                            } else {
-                                                if op == "||" {
-                                                    mir_block_with_inst(mir_inst_or(0, expr.a, expr.b))
-                                                } else {
-                                                    if op == "&" {
-                                                        mir_block_with_inst(mir_inst_bitand(0, expr.a, expr.b))
-                                                    } else {
-                                                        if op == "|" {
-                                                            mir_block_with_inst(mir_inst_bitor(0, expr.a, expr.b))
-                                                        } else {
-                                                            if op == "^" {
-                                                                mir_block_with_inst(mir_inst_bitxor(0, expr.a, expr.b))
-                                                            } else {
-                                                                if op == "<<" {
-                                                                    mir_block_with_inst(mir_inst_shl(0, expr.a, expr.b))
-                                                                } else {
-                                                                    if op == ">>" {
-                                                                        mir_block_with_inst(mir_inst_shr(0, expr.a, expr.b))
-                                                                    } else {
-                                                                        mir_block_new()
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                let is_or = i + 1 < len and text_byte(expr_text, i + 1) == 114;
+                                if is_or {
+                                    op = "Bool";
+                                };
+                            };
+                        } else {
+                            if b == 43 {
+                                op = "Add";
+                            } else {
+                                if b == 45 or b == 42 or b == 47 or b == 37 {
+                                    op = "I32";
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        };
+        i = i + 1;
+    };
+    if op == "Add" {
+        let mut has_text = false;
+        let mut j = 0;
+        while j < len and not has_text {
+            let b2 = text_byte(expr_text, j);
+            if b2 == 34 {
+                has_text = true;
+            };
+            j = j + 1;
+        };
+        if has_text {
+            "Text"
+        } else {
+            "I32"
+        }
+    } else {
+        if is_empty(op) {
+            ""
+        } else {
+            op
+        }
+    }
+}
+
+fn infer_binary_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    find_operator_in_expr(source, span)
+}
+
+fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let else_pos = find_byte_index(expr_text, 101, 0);
+    if else_pos < 0 {
+        "Unit"
+    } else {
+        let after_else = else_pos + 4;
+        if after_else < text_len(expr_text) {
+            let else_expr = text_slice(expr_text, after_else, text_len(expr_text));
+            let else_trimmed = trim_text(else_expr);
+            if is_empty(else_trimmed) {
+                "Unit"
+            } else {
+                let else_state = parse_state_new(else_trimmed);
+                let else_kind = classify_expr_kind(else_trimmed, else_state);
+                if else_kind == ExprKind.Integer {
+                    "I32"
+                } else {
+                    if else_kind == ExprKind.Float {
+                        "F64"
+                    } else {
+                        if else_kind == ExprKind.Bool {
+                            "Bool"
+                        } else {
+                            if else_kind == ExprKind.String {
+                                "Text"
+                            } else {
+                                if else_kind == ExprKind.Name {
+                                    let name_text_val = text_slice(else_trimmed, 0, text_len(else_trimmed));
+                                    infer_name_type(name_text_val, locals, consts, fns)
+                                } else {
+                                    ""
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            "Unit"
+        }
+    }
+}
+
+fn infer_match_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let brace = find_byte_index(expr_text, 123, 0);
+    if brace < 0 {
+        ""
+    } else {
+        let close = find_matching_close_raw(expr_text, brace);
+        if close <= brace + 1 {
+            ""
+        } else {
+            let body = text_slice(expr_text, brace + 1, close - 1);
+            extract_match_arm_type(body, locals, consts, fns)
+        }
+    }
+}
+
+fn extract_match_arm_type(body: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    if is_empty(body) {
+        ""
+    } else {
+        let arrow = find_byte_index(body, 61, 0);
+        if arrow < 0 or arrow + 1 >= text_len(body) or not (text_byte(body, arrow + 1) == 62) {
+            ""
+        } else {
+            let after_arrow = arrow + 2;
+            if after_arrow >= text_len(body) {
+                ""
+            } else {
+                let end = skip_expr_text(body, after_arrow);
+                let arm_expr = trim_text(text_slice(body, after_arrow, end));
+                infer_branch_type(arm_expr, locals, consts, fns)
+            }
+        }
+    }
+}
+
+fn infer_group_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let open_paren = find_byte_index(expr_text, 40, 0);
+    if open_paren < 0 {
+        ""
+    } else {
+        let close_paren = find_matching_close_raw(expr_text, open_paren);
+        if close_paren <= open_paren + 1 {
+            ""
+        } else {
+            let inner = text_slice(expr_text, open_paren + 1, close_paren - 1);
+            infer_snippet_type(inner, locals, consts, fns)
+        }
+    }
+}
+
+fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    match kind {
+        ExprKind.Binary => {
+            infer_binary_type_deep(source, span, kind, locals, consts, fns)
+        },
+        ExprKind.If => {
+            infer_if_type_deep(source, span, locals, consts, fns)
+        },
+        ExprKind.While => {
+            "Unit"
+        },
+        ExprKind.Repeat => {
+            "Unit"
+        },
+        ExprKind.Record => {
+            let expr_text = text_slice(source, span.start, span.end);
+            let brace = find_byte_index(expr_text, 123, 0);
+            if brace > 0 {
+                let struct_name = trim_text(text_slice(expr_text, 0, brace));
+                struct_name
+            } else {
+                ""
+            }
+        },
+        ExprKind.Match => {
+            infer_match_type_deep(source, span, locals, consts, fns)
+        },
+        ExprKind.Group => {
+            infer_group_type_deep(source, span, locals, consts, fns)
+        },
+        _ => {
+            ""
+        },
+    }
+}
+
+fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    if not expr_span.present {
+        ""
+    } else {
+        match expr_kind {
+            ExprKind.Integer => {
+                "I32"
+            },
+            ExprKind.Float => {
+                "F64"
+            },
+            ExprKind.Bool => {
+                "Bool"
+            },
+            ExprKind.String => {
+                "Text"
+            },
+            ExprKind.Name => {
+                let name_text_val = text_slice(source, expr_span.span.start, expr_span.span.end);
+                infer_name_type(name_text_val, locals, consts, fns)
+            },
+            ExprKind.Call => {
+                infer_call_ret_type(source, expr_span.span, fns)
+            },
+            _ => {
+                infer_expr_type_deep(source, expr_span.span, expr_kind, locals, consts, fns)
+            },
+        }
+    }
+}
+
+fn line_start_index(source: Text, pos: I32) -> I32 {
+    if pos <= 0 {
+        0
+    } else {
+        let mut start = 0;
+        let mut search = pos;
+        while search > 0 {
+            search = search - 1;
+            if text_byte(source, search) == 10 {
+                start = search + 1;
+                search = -1;
+            };
+        };
+        start
+    }
+}
+
+fn is_simple_name(text: Text) -> Bool {
+    if is_empty(text) {
+        false
+    } else {
+        let mut ok = true;
+        let mut i = 0;
+        while i < text_len(text) {
+            let b = text_byte(text, i);
+            let valid = (b >= 97 and b <= 122) or
+            (b >= 65 and b <= 90) or
+            (b >= 48 and b <= 57) or
+            b == 95;
+            if not valid {
+                ok = false;
+                i = text_len(text);
+            };
+            i = i + 1;
+        };
+        ok
+    }
+}
+
+fn format_type_diag(source: Text, span: Span, message: Text) -> Text {
+    let line_start = line_start_index(source, span.start);
+    let line_end = find_line_end(source, span.start);
+    let line_text = text_slice(source, line_start, line_end);
+    text_concat("error: ", text_concat(message, text_concat("\n  at >", text_concat(line_text, "\n"))))
+}
+
+fn extract_param_types_from(source: Text, span: OptionalSpan) -> Text {
+    if not span.present {
+        ""
+    } else {
+        let raw = text_slice(source, span.span.start, span.span.end);
+        let trimmed = trim_text(raw);
+        if is_empty(trimmed) {
+            ""
+        } else {
+            let open = find_byte_index(trimmed, 40, 0);
+            let close = if open >= 0 {
+                find_byte_index(trimmed, 41, open + 1)
+            } else {
+                -1
+            };
+            if open >= 0 and close > open {
+                let content = trim_text(text_slice(trimmed, open + 1, close));
+                parse_params_from(content, 0)
+            } else {
+                ""
+            }
+        }
+    }
+}
+
+fn parse_params_from(content: Text, index: I32) -> Text {
+    if index >= text_len(content) {
+        ""
+    } else {
+        let colon = find_byte_index(content, 58, index);
+        if colon < 0 {
+            ""
+        } else {
+            let name = trim_text(text_slice(content, index, colon));
+            let comma = find_byte_index(content, 44, colon + 1);
+            let type_end = if comma >= 0 {
+                comma
+            } else {
+                text_len(content)
+            };
+            let type_text = trim_text(text_slice(content, colon + 1, type_end));
+            let entry = text_concat(name, text_concat(":", type_text));
+            let rest = if comma >= 0 {
+                parse_params_from(content, comma + 1)
+            } else {
+                ""
+            };
+            if is_empty(rest) {
+                entry
+            } else {
+                text_concat(entry, text_concat("\n", rest))
+            }
+        }
+    }
+}
+
+fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let trimmed = trim_text(snippet);
+    if is_empty(trimmed) {
+        "Unit"
+    } else {
+        let parse_state = parse_state_new(trimmed);
+        if parse_state.status == ParseStatus.Err or parse_state.cursor.kind == TokenKind.Eof {
+            ""
+        } else {
+            let kind = classify_expr_kind(trimmed, parse_state);
+            match kind {
+                ExprKind.Integer => {
+                    "I32"
+                },
+                ExprKind.Float => {
+                    "F64"
+                },
+                ExprKind.Bool => {
+                    "Bool"
+                },
+                ExprKind.String => {
+                    "Text"
+                },
+                ExprKind.Name => {
+                    let name_val = trim_text(trimmed);
+                    infer_name_type(name_val, locals, consts, fns)
+                },
+                ExprKind.Call => {
+                    let paren = find_byte_index(trimmed, 40, 0);
+                    if paren > 0 {
+                        let callee = trim_text(text_slice(trimmed, 0, paren));
+                        let ret = type_table_lookup(fns, callee);
+                        if is_empty(ret) {
+                            if is_builtin_fn(callee) {
+                                "I32"
+                            } else {
+                                ""
+                            }
+                        } else {
+                            ret
+                        }
+                    } else {
+                        ""
+                    }
+                },
+                ExprKind.Binary => {
+                    let span = make_span(0, text_len(trimmed));
+                    find_operator_in_expr(trimmed, span)
+                },
+                ExprKind.If => {
+                    infer_if_type_from_text(trimmed, locals, consts, fns)
+                },
+                ExprKind.Record => {
+                    let brace = find_byte_index(trimmed, 123, 0);
+                    if brace > 0 {
+                        trim_text(text_slice(trimmed, 0, brace))
+                    } else {
+                        ""
+                    }
+                },
+                ExprKind.While => {
+                    "Unit"
+                },
+                ExprKind.Repeat => {
+                    "Unit"
+                },
+                ExprKind.Group => {
+                    infer_group_type(trimmed, locals, consts, fns)
+                },
+                ExprKind.Match => {
+                    let span = make_span(0, text_len(trimmed));
+                    infer_match_type_deep(trimmed, span, locals, consts, fns)
+                },
+                _ => {
+                    ""
+                },
+            }
+        }
+    }
+}
+
+fn infer_group_type(text: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let start = find_byte_index(text, 40, 0);
+    if start >= 0 {
+        let close = find_matching_close_raw(text, start);
+        if close > start + 1 {
+            let inner = text_slice(text, start + 1, close - 1);
+            infer_snippet_type(inner, locals, consts, fns)
+        } else {
+            "Unit"
+        }
+    } else {
+        ""
+    }
+}
+
+fn infer_if_type_from_text(text: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let then_brace = find_byte_index(text, 123, 0);
+    if then_brace < 0 {
+        "Unit"
+    } else {
+        let then_close = find_matching_close_raw(text, then_brace);
+        let else_pos = find_byte_index(text, 101, then_close);
+        if else_pos < 0 {
+            "Unit"
+        } else {
+            let after_else = else_pos + 4;
+            if after_else < text_len(text) {
+                let after_else_text = trim_text(text_slice(text, after_else, text_len(text)));
+                infer_branch_type(after_else_text, locals, consts, fns)
+            } else {
+                "Unit"
+            }
+        }
+    }
+}
+
+fn extract_block_body(block_text: Text) -> Text {
+    let trimmed = trim_text(block_text);
+    if is_empty(trimmed) {
+        ""
+    } else {
+        if text_byte(trimmed, 0) == 123 {
+            let close = find_matching_close_raw(trimmed, 0);
+            if close > 1 {
+                text_slice(trimmed, 1, close - 1)
+            } else {
+                ""
+            }
+        } else {
+            trimmed
+        }
+    }
+}
+
+fn infer_branch_type(branch_text: Text, locals: Text, consts: Text, fns: Text) -> Text {
+    let trimmed = trim_text(branch_text);
+    if is_empty(trimmed) {
+        "Unit"
+    } else {
+        if text_byte(trimmed, 0) == 123 {
+            let body = extract_block_body(branch_text);
+            if is_empty(body) {
+                "Unit"
+            } else {
+                infer_snippet_type(body, locals, consts, fns)
+            }
+        } else {
+            infer_snippet_type(trimmed, locals, consts, fns)
+        }
+    }
+}
+
+fn check_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let then_brace = find_byte_index(expr_text, 123, 0);
+    if then_brace < 0 {
+        ""
+    } else {
+        let then_close = find_matching_close_raw(expr_text, then_brace);
+        let then_body = text_slice(expr_text, then_brace + 1, then_close - 1);
+        let then_type = infer_branch_type(then_body, locals, consts, fns);
+        let else_pos = find_byte_index(expr_text, 101, then_close);
+        if else_pos >= 0 and else_pos + 4 < text_len(expr_text) {
+            let after_else = trim_text(text_slice(expr_text, else_pos + 4, text_len(expr_text)));
+            if not is_empty(after_else) {
+                let else_type = infer_branch_type(after_else, locals, consts, fns);
+                if not is_empty(then_type) and not is_empty(else_type) and then_type != else_type {
+                    if not (is_numeric_type(then_type) and is_numeric_type(else_type)) {
+                        let msg = text_concat("if branches have different types: `", text_concat(then_type, text_concat("` and `", text_concat(else_type, "`"))));
+                        format_type_diag(source, span, msg)
+                    } else {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+    }
+}
+
+fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
+    if expr_span.present {
+        match expr_kind {
+            ExprKind.If => {
+                check_if_type_deep(source, expr_span.span, locals, consts, fns)
+            },
+            ExprKind.Binary => {
+                check_binary_operator_args(source, expr_span.span, locals, consts, fns)
+            },
+            ExprKind.Match => {
+                check_match_arm_types(source, expr_span.span, locals, consts, fns)
+            },
+            _ => {
+                ""
+            },
+        }
+    } else {
+        ""
+    }
+}
+
+fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let parsed = parse_fn_item_with_shape(source, state);
+    let shape = parsed.shape;
+    let outline = shape.body_outline;
+    let return_span = shape.return_span;
+    let return_type_text = extract_type_text(span_text_safe(source, return_span));
+    let mut locals = extract_param_types_from(source, shape.params_span);
+    let mut tail_type = "";
+    let mut out = "";
+    let mut index = 0;
+    while index < 5 {
+        let item = block_item_entry_at(outline, index);
+        if item.present {
+            let entry = item.entry;
+            let entry_kind = entry.kind;
+            let entry_binding = entry.binding_span;
+            let entry_expr = entry.expr_span;
+            let entry_expr_kind = entry.expr_kind;
+            if entry_kind == BlockItemKind.Let {
+                if entry_binding.present {
+                    let binding_name = text_slice(source, entry_binding.span.start, entry_binding.span.end);
+                    if not is_empty(type_table_lookup(locals, binding_name)) {
+                        let diag = format_type_diag(source, entry_binding.span, text_concat("duplicate local `", text_concat(binding_name, "`")));
+                        out = if is_empty(out) {
+                            diag
+                        } else {
+                            text_concat(out, diag)
+                        };
+                    } else {
+                        if entry_expr_kind == ExprKind.Name and entry_expr.present {
+                            let name_str = text_slice(source, entry_expr.span.start, entry_expr.span.end);
+                            if is_simple_name(name_str) {
+                                let is_known = not is_empty(type_table_lookup(locals, name_str)) or
+                                not is_empty(type_table_lookup(consts, name_str)) or
+                                not is_empty(type_table_lookup(fns, name_str)) or
+                                not is_empty(type_table_lookup(known, name_str)) or
+                                is_builtin_fn(name_str);
+                                if not is_known {
+                                    let diag = format_type_diag(source, entry_expr.span, text_concat("unknown name `", text_concat(name_str, "`")));
+                                    out = if is_empty(out) {
+                                        diag
+                                    } else {
+                                        text_concat(out, diag)
+                                    };
+                                };
+                            };
+                        };
+                        let inferred = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                        if not is_empty(inferred) {
+                            locals = type_table_extend(locals, binding_name, inferred);
+                        };
+                        let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                        if not is_empty(deep_diag) {
+                            out = if is_empty(out) {
+                                deep_diag
+                            } else {
+                                text_concat(out, deep_diag)
+                            };
+                        };
+                    };
+                };
+            } else {
+                if entry_kind == BlockItemKind.TailExpr {
+                    if entry_expr_kind == ExprKind.Name and entry_expr.present {
+                        let name_str = text_slice(source, entry_expr.span.start, entry_expr.span.end);
+                        if is_simple_name(name_str) {
+                            let is_known = not is_empty(type_table_lookup(locals, name_str)) or
+                            not is_empty(type_table_lookup(consts, name_str)) or
+                            not is_empty(type_table_lookup(fns, name_str)) or
+                            not is_empty(type_table_lookup(known, name_str)) or
+                            is_builtin_fn(name_str);
+                            if not is_known {
+                                let diag = format_type_diag(source, entry_expr.span, text_concat("unknown name `", text_concat(name_str, "`")));
+                                out = if is_empty(out) {
+                                    diag
+                                } else {
+                                    text_concat(out, diag)
+                                };
+                            };
+                        };
+                    };
+                    tail_type = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                    let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                    if not is_empty(deep_diag) {
+                        out = if is_empty(out) {
+                            deep_diag
+                        } else {
+                            text_concat(out, deep_diag)
+                        };
+                    };
+                }
+            };
+        };
+        index = index + 1;
+    };
+    let return_diag = if is_empty(return_type_text) {
+        if is_empty(tail_type) {
+            ""
+        } else {
+            if tail_type == "Unit" {
+                ""
+            } else {
+                format_type_diag(source, shape.body_span.span, text_concat("tail expression type `", text_concat(tail_type, text_concat("` does not match implicit Unit return type", ""))))
+            }
+        }
+    } else {
+        if is_empty(tail_type) {
+            ""
+        } else {
+            if return_type_text == tail_type or (is_numeric_type(return_type_text) and is_numeric_type(tail_type)) {
+                ""
+            } else {
+                format_type_diag(source, shape.body_span.span, text_concat("expected return type `", text_concat(return_type_text, text_concat("` but tail expression has type `", text_concat(tail_type, "`")))))
+            }
+        }
+    };
+    if is_empty(out) {
+        return_diag
+    } else {
+        if is_empty(return_diag) {
+            out
+        } else {
+            text_concat(out, return_diag)
+        }
+    }
+}
+
+fn is_affine_type(ty: Text) -> Bool {
+    ty == "Text" or
+    ty == "Bytes" or
+    ty == "File" or
+    ty == "TextBuilder" or
+    ty == "TextIndex" or
+    ty == "List"
+}
+
+fn is_comparison_operator(expr_text: Text) -> Bool {
+    let eq_found = find_byte_index(expr_text, 61, 0) >= 0;
+    let bang_found = find_byte_index(expr_text, 33, 0) >= 0;
+    let lt_found = find_byte_index(expr_text, 60, 0) >= 0;
+    let gt_found = find_byte_index(expr_text, 62, 0) >= 0;
+    eq_found or
+    bang_found or
+    lt_found or
+    gt_found
+}
+
+fn is_chain_operator(expr_text: Text) -> Bool {
+    let has_and = find_operator_index(expr_text, " and ", 0) >= 0;
+    let has_or = find_operator_index(expr_text, " or ", 0) >= 0;
+    has_and or has_or
+}
+
+fn check_binary_operator_args(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let len = text_len(expr_text);
+    let mut op_pos = -1;
+    let mut op_width = 0;
+    let mut i = 0;
+    while i < len and op_pos < 0 {
+        let b = text_byte(expr_text, i);
+        if b == 61 or b == 33 or b == 60 or b == 62 or b == 43 or b == 45 or b == 42 or b == 47 or b == 37 or b == 97 or b == 111 {
+            if b == 97 {
+                if i + 4 < len and text_slice(expr_text, i, i + 5) == " and " {
+                    op_pos = i;
+                    op_width = 5;
+                };
+            } else {
+                if b == 111 {
+                    if i + 3 < len and text_slice(expr_text, i, i + 4) == " or " {
+                        op_pos = i;
+                        op_width = 4;
+                    };
+                } else {
+                    if b == 61 or b == 33 {
+                        if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
+                            op_pos = i;
+                            op_width = 2;
+                        };
+                    } else {
+                        if b == 60 or b == 62 {
+                            if i > 0 and is_layout_byte(text_byte(expr_text, i - 1)) {
+                                if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
+                                    op_pos = i;
+                                    op_width = 2;
+                                } else {
+                                    op_pos = i;
+                                    op_width = 1;
+                                };
+                            };
+                        } else {
+                            if i > 0 and (b == 43 or b == 45 or b == 42 or b == 47 or b == 37) and is_layout_byte(text_byte(expr_text, i - 1)) {
+                                op_pos = i;
+                                op_width = 1;
+                            };
+                        }
+                    }
+                }
+            };
+        };
+        i = i + 1;
+    };
+    if op_pos < 0 {
+        ""
+    } else {
+        let left_str = trim_text(text_slice(expr_text, 0, op_pos));
+        let right_start = op_pos + op_width;
+        let right_str = trim_text(text_slice(expr_text, right_start, len));
+        if is_empty(left_str) or is_empty(right_str) {
+            ""
+        } else {
+            let left_type = infer_snippet_type(left_str, locals, consts, fns);
+            let right_type = infer_snippet_type(right_str, locals, consts, fns);
+            if is_empty(left_type) or is_empty(right_type) {
+                ""
+            } else {
+                if is_comparison_operator(expr_text) or is_chain_operator(expr_text) {
+                    if left_type != right_type {
+                        if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                            ""
+                        } else {
+                            format_type_diag(source, span, text_concat("binary operator requires same types, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
+                        }
+                    } else {
+                        ""
+                    }
+                } else {
+                    if find_byte_index(expr_text, 43, 0) >= 0 {
+                        if left_type == "Text" and right_type == "Text" {
+                            ""
+                        } else {
+                            if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                                ""
+                            } else {
+                                format_type_diag(source, span, text_concat("`+` requires Text or numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
+                            }
+                        }
+                    } else {
+                        if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                            ""
+                        } else {
+                            format_type_diag(source, span, text_concat("arithmetic operator requires numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
                         }
                     }
                 }
@@ -5002,48 +5718,377 @@ fn hir_binary_to_mir(expr: HirExpr) -> MirBlock {
     }
 }
 
-fn hir_stmt_to_mir(stmt: HirStmt) -> MirBlock {
-    mir_block_new()
-}
-
-fn hir_fn_to_mir(func: HirFn) -> MirFn {
-    MirFn { name: func.name, params: mir_param_list_new(), ret: mir_optional_type_false(), fx: mir_fx_list_new(), locals: mir_local_list_new(), code: mir_block_new(), result: value_id_0() }
-}
-
-fn hir_module_to_mir(module: HirModuleData) -> MirProg {
-    let funcs = mir_fn_list_new();
-    MirProg { funcs: funcs }
-}
-
-fn hir_validate_module(module: HirModuleData) -> I32 {
-    let has_funcs = if module.funcs.len > 0 {
-        1
+fn check_match_arm_types(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let brace = find_byte_index(expr_text, 123, 0);
+    if brace < 0 {
+        ""
     } else {
-        0
+        let close = find_matching_close_raw(expr_text, brace);
+        if close <= brace + 1 {
+            ""
+        } else {
+            let body = text_slice(expr_text, brace + 1, close - 1);
+            let mut arm_types = "";
+            let mut body_i = 0;
+            let body_len = text_len(body);
+            let mut arm_idx = 0;
+            while body_i < body_len {
+                let arrow = find_byte_index(body, 61, body_i);
+                if arrow < 0 or arrow + 1 >= body_len or not (text_byte(body, arrow + 1) == 62) {
+                    body_i = body_len;
+                } else {
+                    let after_arrow = arrow + 2;
+                    let arm_start = trim_start_index(body, after_arrow);
+                    let arm_end = if arm_start < body_len and text_byte(body, arm_start) == 123 {
+                        find_matching_close_raw(body, arm_start)
+                    } else {
+                        let comma = find_byte_index(body, 44, arm_start);
+                        if comma >= 0 {
+                            comma
+                        } else {
+                            body_len
+                        }
+                    };
+                    let arm_expr = trim_text(text_slice(body, arm_start, arm_end));
+                    if not is_empty(arm_expr) {
+                        let arm_type = infer_branch_type(arm_expr, locals, consts, fns);
+                        if not is_empty(arm_type) {
+                            arm_types = type_table_extend(arm_types, int_to_text(arm_idx), arm_type);
+                            arm_idx = arm_idx + 1;
+                        };
+                    };
+                    body_i = arm_end;
+                    if body_i < body_len and text_byte(body, body_i) == 44 {
+                        body_i = body_i + 1;
+                    } else {
+                        if body_i < body_len and text_byte(body, body_i) == 125 {
+                            body_i = body_len;
+                        } else {
+                            if body_i < body_len {
+                                let next_stop = find_byte_index(body, 44, body_i);
+                                if next_stop >= 0 {
+                                    body_i = next_stop + 1;
+                                } else {
+                                    body_i = body_len;
+                                };
+                            }
+                        }
+                    };
+                };
+            };
+            if arm_idx <= 1 {
+                ""
+            } else {
+                let first_type = type_table_lookup(arm_types, "0");
+                if is_empty(first_type) {
+                    ""
+                } else {
+                    let mut mismatch = "";
+                    let mut check_i = 1;
+                    while check_i < arm_idx {
+                        let key = int_to_text(check_i);
+                        let arm_type = type_table_lookup(arm_types, key);
+                        if not is_empty(arm_type) {
+                            if arm_type != first_type and not (is_numeric_type(arm_type) and is_numeric_type(first_type)) {
+                                mismatch = format_type_diag(source, span, text_concat("match arms have inconsistent types: `", text_concat(first_type, text_concat("` and `", text_concat(arm_type, "`")))));
+                            };
+                        };
+                        check_i = check_i + 1;
+                    };
+                    mismatch
+                }
+            }
+        }
+    }
+}
+
+fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let name_span = top_level_name_span(source, state);
+    if name_span.present {
+        let nspan = name_span.span;
+        let nend = nspan.end;
+        let cname = text_slice(source, nspan.start, nend);
+        if not is_empty(cname) {
+            let colon_idx = find_byte_index(source, 58, nend);
+            let semi_idx = find_byte_index(source, 59, nend);
+            if colon_idx >= 0 and semi_idx >= 0 and colon_idx < semi_idx {
+                let eq_idx = find_byte_index(source, 61, colon_idx);
+                if eq_idx >= 0 and eq_idx < semi_idx {
+                    let declared_type = trim_text(text_slice(source, colon_idx + 1, eq_idx));
+                    let expr_start = trim_start_index(source, eq_idx + 1);
+                    let expr_end = trim_end_index(source, semi_idx);
+                    if expr_end > expr_start {
+                        let expr_text = text_slice(source, expr_start, expr_end);
+                        let expr_state = parse_state_new(expr_text);
+                        let expr_kind = classify_expr_kind(expr_text, expr_state);
+                        let expr_span = OptionalSpan { present: true, span: Span { start: expr_start, end: expr_end } };
+                        let mut out = "";
+                        if expr_kind == ExprKind.Name {
+                            let name_str = text_slice(source, expr_start, expr_end);
+                            if is_simple_name(name_str) {
+                                let is_known = not is_empty(type_table_lookup(consts, name_str)) or
+                                not is_empty(type_table_lookup(fns, name_str)) or
+                                not is_empty(type_table_lookup(known, name_str)) or
+                                is_builtin_fn(name_str);
+                                if not is_known {
+                                    out = format_type_diag(source, Span { start: expr_start, end: expr_end }, text_concat("unknown name `", text_concat(name_str, "`")));
+                                };
+                            };
+                        };
+                        if not is_empty(declared_type) {
+                            let inferred = infer_expr_type_from_outline(source, expr_span, expr_kind, "", consts, fns);
+                            if not is_empty(inferred) {
+                                if declared_type != inferred and not (is_numeric_type(declared_type) and is_numeric_type(inferred)) {
+                                    let msg = text_concat("expected const type `", text_concat(declared_type, text_concat("` but initializer has type `", text_concat(inferred, "`"))));
+                                    let diag = format_type_diag(source, Span { start: expr_start, end: expr_end }, msg);
+                                    out = if is_empty(out) {
+                                        diag
+                                    } else {
+                                        text_concat(out, diag)
+                                    };
+                                };
+                            };
+                        };
+                        out
+                    } else {
+                        ""
+                    }
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        } else {
+            ""
+        }
+    } else {
+        ""
+    }
+}
+
+fn check_const_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwConst {
+            let diag = check_const_type(source, cur_state, consts, fns, known);
+            cur_state = parse_const_item(source, cur_state);
+            if not is_empty(diag) {
+                out = if is_empty(out) {
+                    diag
+                } else {
+                    text_concat(out, diag)
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, cur_state)
+                } else {
+                    parse_fn_item(source, cur_state)
+                }
+            };
+        };
     };
-    let has_enums = if module.enums.len > 0 {
-        1
-    } else {
-        0
-    };
-    let has_structs = if module.structs.len > 0 {
-        1
-    } else {
-        0
-    };
-    has_funcs +
-    has_enums +
-    has_structs
+    out
 }
 
-fn hir_module_selfcheck(module: HirModuleData) -> I32 {
-    if module.funcs.len == 0 {
-        0
+fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let diag = check_fn_return_type(source, cur_state, consts, fns, known);
+            let parsed = parse_fn_item_with_shape(source, cur_state);
+            cur_state = parsed.state;
+            if not is_empty(diag) {
+                out = if is_empty(out) {
+                    diag
+                } else {
+                    text_concat(out, diag)
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, cur_state)
+                } else {
+                    parse_const_item(source, cur_state)
+                }
+            };
+        };
+    };
+    out
+}
+
+fn collect_const_types(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut types = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwConst {
+            let name_span = top_level_name_span(source, cur_state);
+            let parsed = parse_const_item(source, cur_state);
+            cur_state = parsed;
+            if name_span.present {
+                let nspan = name_span.span;
+                let nend = nspan.end;
+                let cname = text_slice(source, nspan.start, nend);
+                if not is_empty(cname) {
+                    let colon_idx = find_byte_index(source, 58, nend);
+                    let semi_idx = find_byte_index(source, 59, nend);
+                    if colon_idx >= 0 and semi_idx >= 0 and colon_idx < semi_idx {
+                        let eq_idx = find_byte_index(source, 61, colon_idx);
+                        if eq_idx >= 0 and eq_idx < semi_idx {
+                            let type_text_v = trim_text(text_slice(source, colon_idx + 1, eq_idx));
+                            if not is_empty(type_text_v) {
+                                types = type_table_extend(types, cname, type_text_v);
+                            };
+                        };
+                    };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, cur_state)
+                } else {
+                    parse_fn_item(source, cur_state)
+                }
+            };
+        };
+    };
+    types
+}
+
+fn collect_fn_sigs_from(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut sigs = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let name_span = top_level_name_span(source, cur_state);
+            let parsed = parse_fn_item_with_shape(source, cur_state);
+            cur_state = parsed.state;
+            if name_span.present {
+                let fn_name = text_slice(source, name_span.span.start, name_span.span.end);
+                if not is_empty(fn_name) {
+                    let ret_text = extract_type_text(span_text_safe(source, parsed.shape.return_span));
+                    if is_empty(ret_text) {
+                        sigs = type_table_extend(sigs, fn_name, "Unit");
+                    } else {
+                        sigs = type_table_extend(sigs, fn_name, ret_text);
+                    };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else {
+                if cur_state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, cur_state)
+                } else {
+                    parse_const_item(source, cur_state)
+                }
+            };
+        };
+    };
+    sigs
+}
+
+fn check_text(source: Text, package_names: Text) -> Text {
+    let report = parse_module_report(source);
+    if not report.ok {
+        report.diagnostics
     } else {
+        let mut state = parse_state_new(source);
+        let mut all_names = "";
+        let mut seen = "";
+        let mut dup_diag = "";
+        while state.status == ParseStatus.Ok and state.cursor.kind != TokenKind.Eof {
+            let name_span = top_level_name_span(source, state);
+            state = if state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, state)
+            } else {
+                if state.cursor.kind == TokenKind.KwEnum {
+                    parse_enum_item(source, state)
+                } else {
+                    if state.cursor.kind == TokenKind.KwConst {
+                        parse_const_item(source, state)
+                    } else {
+                        parse_fn_item(source, state)
+                    }
+                }
+            };
+            if name_span.present {
+                let name = text_slice(source, name_span.span.start, name_span.span.end);
+                if not is_empty(name) and name != "_" {
+                    all_names = name_table_add(all_names, name);
+                    if name_table_has(seen, name) {
+                        let diag = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                        dup_diag = if is_empty(dup_diag) {
+                            diag
+                        } else {
+                            text_concat(dup_diag, diag)
+                        };
+                    } else {
+                        seen = name_table_add(seen, name);
+                    };
+                };
+            };
+        };
+        let known = if is_empty(package_names) {
+            all_names
+        } else {
+            text_concat(all_names, text_concat("\n", package_names))
+        };
+        let call_diag = check_body_calls_from(source, parse_state_new(source), known);
+        let struct_types = collect_struct_types(source, parse_state_new(source));
+        let base_const_types = collect_const_types(source, parse_state_new(source));
+        let const_types = if is_empty(struct_types) {
+            base_const_types
+        } else {
+            if is_empty(base_const_types) {
+                struct_types
+            } else {
+                text_concat(base_const_types, text_concat("\n", struct_types))
+            }
+        };
+        let fn_sigs = collect_fn_sigs_from(source, parse_state_new(source));
+        let const_type_diag = check_const_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
+        let fn_type_diag = check_fn_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
+        let combined = text_concat(dup_diag, text_concat(call_diag, text_concat(const_type_diag, fn_type_diag)));
+        if is_empty(combined) {
+            "ok [core]\n"
+        } else {
+            combined
+        }
+    }
+}
+
+fn bool_score(value: Bool) -> I32 {
+    if value {
         1
+    } else {
+        0
     }
 }
 
 fn main() -> I32 {
-    syntax_selfcheck() + hir_selfcheck()
+    let mut total = 0;
+    total = total + bool_score(format_text("") == "\n");
+    total = total + bool_score(format_text("fn main() -> I32 { 0 }") == "fn main() -> I32 {\n    0\n}\n");
+    total = total + bool_score(format_text("fn main() -> I32 { 0 }\n") == "fn main() -> I32 {\n    0\n}\n");
+    total = total + bool_score(format_text("fn main() -> I32 {\n    let mut total = 0;\n    if true {\n        total = total + 2;\n    };\n    total\n}\n") == "fn main() -> I32 {\n    let mut total = 0;\n    if true {\n        total = total + 2;\n    };\n    total\n}\n");
+    total = total + bool_score(format_text("struct Pair {}\nfn main() {}") == "struct Pair {}\n\nfn main() {\n}\n");
+    total = total + bool_score(text_slice("sarif", 1, 4) == "ari");
+    total = total + bool_score(text_slice("sarif", 3, 99) == "if");
+    total = total + bool_score(text_slice("sarif", 4, 2) == "");
+    total
 }

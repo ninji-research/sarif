@@ -413,6 +413,17 @@ fn build_program(command: &command::Command) -> Result<(), String> {
         .as_deref()
         .ok_or("missing output path")?;
 
+    build_for_target(command, &loaded, output_path)?;
+    emit_requested_inspect(&loaded, command)?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_for_target(
+    command: &command::Command,
+    loaded: &LoadedSource,
+    output_path: &str,
+) -> Result<(), String> {
     match command.target {
         BuildTarget::Native => {
             #[cfg(feature = "native-build")]
@@ -560,25 +571,46 @@ fn emit_requested_dump(loaded: &LoadedSource, command: &command::Command) -> Res
     };
 
     let rendered = match pass {
-        "resolve" => loaded.database.hir(loaded.source_id).module.pretty(),
-        "typecheck" => render_semantic_doc(loaded, command.profile)?,
+        "hir" | "resolve" => loaded.database.hir(loaded.source_id).module.pretty(),
+        "sem" | "typecheck" => render_semantic_doc(loaded, command.profile)?,
         #[cfg(feature = "codegen")]
-        "lower" => render_lower_dump(loaded),
+        "mir" | "lower" => render_lower_dump(loaded),
         #[cfg(not(feature = "codegen"))]
-        "lower" => return Err("lower IR dumps require the `codegen` feature".to_owned()),
+        "mir" | "lower" => return Err("MIR dumps require the `codegen` feature".to_owned()),
         #[cfg(feature = "native-build")]
-        "clif" => emit_clif(&loaded.mir().program).map_err(|e| e.message)?,
+        "cranelift" | "clif" => emit_clif(&loaded.mir().program).map_err(|e| e.message)?,
         #[cfg(not(feature = "native-build"))]
-        "clif" => return Err("clif IR dumps require the `native-build` feature".to_owned()),
-        "codegen" => render_codegen_dump(loaded, command)?,
+        "cranelift" | "clif" => {
+            return Err("cranelift IR dumps require the `native-build` feature".to_owned());
+        }
+        "wasm" | "c" | "codegen" => render_codegen_dump(loaded, command)?,
         other => {
             return Err(format!(
-                "unknown IR dump pass `{other}`; expected resolve, typecheck, lower, clif, or codegen"
+                "unknown IR dump pass `{other}`; expected hir, sem, mir, cranelift, wasm, or c"
             ));
         }
     };
     println!("{rendered}");
     Ok(())
+}
+
+fn emit_requested_inspect(loaded: &LoadedSource, command: &command::Command) -> Result<(), String> {
+    let Some(tool) = command.inspect.as_deref() else {
+        return Ok(());
+    };
+    match tool {
+        #[cfg(feature = "wasm")]
+        "wasmprinter" => {
+            let wat = emit_wat(&loaded.mir().program).map_err(|error| error.message)?;
+            println!("{wat}");
+            Ok(())
+        }
+        #[cfg(not(feature = "wasm"))]
+        "wasmprinter" => Err("wasmprinter requires the `wasm` feature".to_owned()),
+        other => Err(format!(
+            "unknown inspect tool `{other}`; expected wasmprinter"
+        )),
+    }
 }
 
 #[cfg(feature = "codegen")]

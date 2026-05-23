@@ -27,7 +27,7 @@ use crate::native::{
     declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts,
     native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
-use crate::{Function, Program, RuntimeFeatures, ValueId};
+use crate::{Function, Program, ValueId};
 
 pub const ENTRYPOINT_SYMBOL: &str = "sarif_user_main";
 
@@ -153,80 +153,38 @@ impl<'a> ObjectBackend<'a> {
                 ))
             })?;
         let mut module = ObjectModule::new(builder);
-        let features = RuntimeFeatures::detect(program);
         let allocator_id = declare_fn(&mut module, declare_record_allocator)?;
         let alloc_push_id = declare_fn(&mut module, declare_alloc_push)?;
         let alloc_pop_id = declare_fn(&mut module, declare_alloc_pop)?;
 
-        let text_builder_new_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_new))
-            .transpose()?;
-        let text_builder_append_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_append))
-            .transpose()?;
-        let text_builder_append_codepoint_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_append_codepoint))
-            .transpose()?;
-        let text_builder_append_ascii_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_append_ascii))
-            .transpose()?;
-        let text_builder_append_slice_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_append_slice))
-            .transpose()?;
-        let text_builder_append_i32_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_append_i32))
-            .transpose()?;
-        let text_builder_finish_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_text_builder_finish))
-            .transpose()?;
-        let stdout_write_builder_id = features
-            .text_builder
-            .then(|| declare_fn(&mut module, declare_stdout_write_builder))
-            .transpose()?;
+        let text_builder_new_id = Some(declare_fn(&mut module, declare_text_builder_new)?);
+        let text_builder_append_id = Some(declare_fn(&mut module, declare_text_builder_append)?);
+        let text_builder_append_codepoint_id = Some(declare_fn(
+            &mut module,
+            declare_text_builder_append_codepoint,
+        )?);
+        let text_builder_append_ascii_id =
+            Some(declare_fn(&mut module, declare_text_builder_append_ascii)?);
+        let text_builder_append_slice_id =
+            Some(declare_fn(&mut module, declare_text_builder_append_slice)?);
+        let text_builder_append_i32_id =
+            Some(declare_fn(&mut module, declare_text_builder_append_i32)?);
+        let text_builder_finish_id = Some(declare_fn(&mut module, declare_text_builder_finish)?);
+        let stdout_write_builder_id = Some(declare_fn(&mut module, declare_stdout_write_builder)?);
 
         let text_index_helpers = TextIndexHelperIds {
-            new_id: features
-                .text_index
-                .then(|| declare_fn(&mut module, declare_text_index_new))
-                .transpose()?,
-            get_id: features
-                .text_index
-                .then(|| declare_fn(&mut module, declare_text_index_get))
-                .transpose()?,
-            contains_id: features
-                .text_index
-                .then(|| declare_fn(&mut module, declare_text_index_contains))
-                .transpose()?,
-            get_or_insert_id: features
-                .text_index
-                .then(|| declare_fn(&mut module, declare_text_index_get_or_insert))
-                .transpose()?,
-            set_id: features
-                .text_index
-                .then(|| declare_fn(&mut module, declare_text_index_set))
-                .transpose()?,
-            keys_id: features
-                .text_index
-                .then(|| declare_fn(&mut module, declare_text_index_keys))
-                .transpose()?,
+            new_id: Some(declare_fn(&mut module, declare_text_index_new)?),
+            get_id: Some(declare_fn(&mut module, declare_text_index_get)?),
+            contains_id: Some(declare_fn(&mut module, declare_text_index_contains)?),
+            get_or_insert_id: Some(declare_fn(&mut module, declare_text_index_get_or_insert)?),
+            set_id: Some(declare_fn(&mut module, declare_text_index_set)?),
+            keys_id: Some(declare_fn(&mut module, declare_text_index_keys)?),
         };
         let list_new_id = declare_fn(&mut module, declare_list_new)?;
         let list_push_id = declare_fn(&mut module, declare_list_push)?;
-        let list_sort_text_id = features
-            .sort
-            .then(|| declare_fn(&mut module, declare_list_sort_text))
-            .transpose()?;
-        let list_sort_by_text_field_id = features
-            .sort
-            .then(|| declare_fn(&mut module, declare_list_sort_by_text_field))
-            .transpose()?;
+        let list_sort_text_id = Some(declare_fn(&mut module, declare_list_sort_text)?);
+        let list_sort_by_text_field_id =
+            Some(declare_fn(&mut module, declare_list_sort_by_text_field)?);
         let text_concat_id = declare_fn(&mut module, declare_text_concat)?;
         let text_slice_id = declare_fn(&mut module, declare_text_slice)?;
         let bytes_slice_id = declare_fn(&mut module, declare_bytes_slice)?;
@@ -632,81 +590,67 @@ impl<'a> ClifDumper<'a> {
                 })?,
         );
 
-        let features = RuntimeFeatures::detect(program);
         let allocator_id = Self::declare_fn(&mut dummy_module, declare_record_allocator)?;
         let alloc_push_id = Self::declare_fn(&mut dummy_module, declare_alloc_push)?;
         let alloc_pop_id = Self::declare_fn(&mut dummy_module, declare_alloc_pop)?;
 
-        let text_builder_new_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_new))
-            .transpose()?;
-        let text_builder_append_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append))
-            .transpose()?;
-        let text_builder_append_codepoint_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_codepoint))
-            .transpose()?;
-        let text_builder_append_ascii_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_ascii))
-            .transpose()?;
-        let text_builder_append_slice_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_slice))
-            .transpose()?;
-        let text_builder_append_i32_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_append_i32))
-            .transpose()?;
-        let text_builder_finish_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_text_builder_finish))
-            .transpose()?;
-        let stdout_write_builder_id = features
-            .text_builder
-            .then(|| Self::declare_fn(&mut dummy_module, declare_stdout_write_builder))
-            .transpose()?;
+        let text_builder_new_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_new,
+        )?);
+        let text_builder_append_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_append,
+        )?);
+        let text_builder_append_codepoint_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_append_codepoint,
+        )?);
+        let text_builder_append_ascii_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_append_ascii,
+        )?);
+        let text_builder_append_slice_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_append_slice,
+        )?);
+        let text_builder_append_i32_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_append_i32,
+        )?);
+        let text_builder_finish_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_text_builder_finish,
+        )?);
+        let stdout_write_builder_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_stdout_write_builder,
+        )?);
 
         let text_index_helpers = TextIndexHelperIds {
-            new_id: features
-                .text_index
-                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_new))
-                .transpose()?,
-            get_id: features
-                .text_index
-                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_get))
-                .transpose()?,
-            contains_id: features
-                .text_index
-                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_contains))
-                .transpose()?,
-            get_or_insert_id: features
-                .text_index
-                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_get_or_insert))
-                .transpose()?,
-            set_id: features
-                .text_index
-                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_set))
-                .transpose()?,
-            keys_id: features
-                .text_index
-                .then(|| Self::declare_fn(&mut dummy_module, declare_text_index_keys))
-                .transpose()?,
+            new_id: Some(Self::declare_fn(&mut dummy_module, declare_text_index_new)?),
+            get_id: Some(Self::declare_fn(&mut dummy_module, declare_text_index_get)?),
+            contains_id: Some(Self::declare_fn(
+                &mut dummy_module,
+                declare_text_index_contains,
+            )?),
+            get_or_insert_id: Some(Self::declare_fn(
+                &mut dummy_module,
+                declare_text_index_get_or_insert,
+            )?),
+            set_id: Some(Self::declare_fn(&mut dummy_module, declare_text_index_set)?),
+            keys_id: Some(Self::declare_fn(
+                &mut dummy_module,
+                declare_text_index_keys,
+            )?),
         };
-
         let list_new_id = Self::declare_fn(&mut dummy_module, declare_list_new)?;
         let list_push_id = Self::declare_fn(&mut dummy_module, declare_list_push)?;
-        let list_sort_text_id = features
-            .sort
-            .then(|| Self::declare_fn(&mut dummy_module, declare_list_sort_text))
-            .transpose()?;
-        let list_sort_by_text_field_id = features
-            .sort
-            .then(|| Self::declare_fn(&mut dummy_module, declare_list_sort_by_text_field))
-            .transpose()?;
+        let list_sort_text_id = Some(Self::declare_fn(&mut dummy_module, declare_list_sort_text)?);
+        let list_sort_by_text_field_id = Some(Self::declare_fn(
+            &mut dummy_module,
+            declare_list_sort_by_text_field,
+        )?);
         let text_concat_id = Self::declare_fn(&mut dummy_module, declare_text_concat)?;
         let text_slice_id = Self::declare_fn(&mut dummy_module, declare_text_slice)?;
         let bytes_slice_id = Self::declare_fn(&mut dummy_module, declare_bytes_slice)?;

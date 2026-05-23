@@ -2498,19 +2498,44 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
             }
         },
         TokenKind.Integer => {
-            ExprKind.Integer
+            let next = parse_advance(source, state);
+            if is_binary_operator_token(next.cursor.kind) {
+                ExprKind.Binary
+            } else {
+                ExprKind.Integer
+            }
         },
         TokenKind.Float => {
-            ExprKind.Float
+            let next = parse_advance(source, state);
+            if is_binary_operator_token(next.cursor.kind) {
+                ExprKind.Binary
+            } else {
+                ExprKind.Float
+            }
         },
         TokenKind.String => {
-            ExprKind.String
+            let next = parse_advance(source, state);
+            if is_binary_operator_token(next.cursor.kind) {
+                ExprKind.Binary
+            } else {
+                ExprKind.String
+            }
         },
         TokenKind.KwTrue => {
-            ExprKind.Bool
+            let next = parse_advance(source, state);
+            if is_binary_operator_token(next.cursor.kind) {
+                ExprKind.Binary
+            } else {
+                ExprKind.Bool
+            }
         },
         TokenKind.KwFalse => {
-            ExprKind.Bool
+            let next = parse_advance(source, state);
+            if is_binary_operator_token(next.cursor.kind) {
+                ExprKind.Binary
+            } else {
+                ExprKind.Bool
+            }
         },
         TokenKind.LParen => {
             ExprKind.Group

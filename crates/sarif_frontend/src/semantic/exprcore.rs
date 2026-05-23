@@ -2254,6 +2254,12 @@ must have type `Text`, found `{}`",
     }
 
     if expr.callee == "alloc_push" && !functions.contains_key("alloc_push") {
+        diagnostics.push(Diagnostic::new(
+            "semantic.alloc_push-deprecated",
+            "builtin `alloc_push` is deprecated; use `with_arena { ... }` instead",
+            expr.span,
+            Some("Replace `alloc_push()` with `with_arena { ... }` block.".to_owned()),
+        ));
         if !args.is_empty() {
             diagnostics.push(Diagnostic::new(
                 "semantic.alloc_push-arity",
@@ -2276,6 +2282,12 @@ must have type `Text`, found `{}`",
     }
 
     if expr.callee == "alloc_pop" && !functions.contains_key("alloc_pop") {
+        diagnostics.push(Diagnostic::new(
+            "semantic.alloc_pop-deprecated",
+            "builtin `alloc_pop` is deprecated; use `with_arena { ... }` instead",
+            expr.span,
+            Some("Replace `alloc_pop()` with `with_arena { ... }` block.".to_owned()),
+        ));
         if !args.is_empty() {
             diagnostics.push(Diagnostic::new(
                 "semantic.alloc_pop-arity",

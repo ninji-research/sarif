@@ -1874,7 +1874,10 @@ fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprK
                 check_if_type_deep(source, expr_span.span, locals, consts, fns)
             },
             ExprKind.Binary => {
-                ""
+                check_binary_operator_args(source, expr_span.span, locals, consts, fns)
+            },
+            ExprKind.Match => {
+                check_match_arm_types(source, expr_span.span, locals, consts, fns)
             },
             _ => {
                 ""
@@ -1986,6 +1989,186 @@ fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text
             out
         } else {
             text_concat(out, return_diag)
+        }
+    }
+}
+
+fn is_affine_type(ty: Text) -> Bool {
+    ty == "Text" or ty == "Bytes" or ty == "File" or ty == "TextBuilder" or ty == "TextIndex" or ty == "List"
+}
+
+fn is_comparison_operator(expr_text: Text) -> Bool {
+    let eq_found = find_byte_index(expr_text, 61, 0) >= 0;
+    let bang_found = find_byte_index(expr_text, 33, 0) >= 0;
+    let lt_found = find_byte_index(expr_text, 60, 0) >= 0;
+    let gt_found = find_byte_index(expr_text, 62, 0) >= 0;
+    eq_found or bang_found or lt_found or gt_found
+}
+
+fn is_chain_operator(expr_text: Text) -> Bool {
+    let has_and = find_operator_index(expr_text, " and ", 0) >= 0;
+    let has_or = find_operator_index(expr_text, " or ", 0) >= 0;
+    has_and or has_or
+}
+
+fn check_binary_operator_args(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let len = text_len(expr_text);
+    let mut op_pos = -1;
+    let mut op_width = 0;
+    let mut i = 0;
+    while i < len and op_pos < 0 {
+        let b = text_byte(expr_text, i);
+        if b == 61 or b == 33 or b == 60 or b == 62 or b == 43 or b == 45 or b == 42 or b == 47 or b == 37 or b == 97 or b == 111 {
+            if b == 97 {
+                if i + 4 < len and text_slice(expr_text, i, i + 5) == " and " {
+                    op_pos = i;
+                    op_width = 5;
+                };
+            } else if b == 111 {
+                if i + 3 < len and text_slice(expr_text, i, i + 4) == " or " {
+                    op_pos = i;
+                    op_width = 4;
+                };
+            } else if b == 61 or b == 33 {
+                if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
+                    op_pos = i;
+                    op_width = 2;
+                };
+            } else if b == 60 or b == 62 {
+                if i > 0 and is_layout_byte(text_byte(expr_text, i - 1)) {
+                    if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
+                        op_pos = i;
+                        op_width = 2;
+                    } else {
+                        op_pos = i;
+                        op_width = 1;
+                    };
+                };
+            } else {
+                if i > 0 and (b == 43 or b == 45 or b == 42 or b == 47 or b == 37) and is_layout_byte(text_byte(expr_text, i - 1)) {
+                    op_pos = i;
+                    op_width = 1;
+                };
+            };
+        };
+        i = i + 1;
+    };
+    if op_pos < 0 {
+        ""
+    } else {
+        let left_str = trim_text(text_slice(expr_text, 0, op_pos));
+        let right_start = op_pos + op_width;
+        let right_str = trim_text(text_slice(expr_text, right_start, len));
+        if is_empty(left_str) or is_empty(right_str) {
+            ""
+        } else {
+            let left_type = infer_snippet_type(left_str, locals, consts, fns);
+            let right_type = infer_snippet_type(right_str, locals, consts, fns);
+            if is_empty(left_type) or is_empty(right_type) {
+                ""
+            } else if is_comparison_operator(expr_text) or is_chain_operator(expr_text) {
+                if left_type != right_type {
+                    if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                        ""
+                    } else {
+                        format_type_diag(source, span, text_concat("binary operator requires same types, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
+                    }
+                } else {
+                    ""
+                }
+            } else if find_byte_index(expr_text, 43, 0) >= 0 {
+                if left_type == "Text" and right_type == "Text" {
+                    ""
+                } else if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                    ""
+                } else {
+                    format_type_diag(source, span, text_concat("`+` requires Text or numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
+                }
+            } else {
+                if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                    ""
+                } else {
+                    format_type_diag(source, span, text_concat("arithmetic operator requires numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
+                }
+            }
+        }
+    }
+}
+
+fn check_match_arm_types(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let brace = find_byte_index(expr_text, 123, 0);
+    if brace < 0 {
+        ""
+    } else {
+        let close = find_matching_close_raw(expr_text, brace);
+        if close <= brace + 1 {
+            ""
+        } else {
+            let body = text_slice(expr_text, brace + 1, close - 1);
+            let mut arm_types = "";
+            let mut body_i = 0;
+            let body_len = text_len(body);
+            let mut arm_idx = 0;
+            while body_i < body_len {
+                let arrow = find_byte_index(body, 61, body_i);
+                if arrow < 0 or arrow + 1 >= body_len or not (text_byte(body, arrow + 1) == 62) {
+                    body_i = body_len;
+                } else {
+                    let after_arrow = arrow + 2;
+                    let arm_start = trim_start_index(body, after_arrow);
+                    let arm_end = if arm_start < body_len and text_byte(body, arm_start) == 123 {
+                        find_matching_close_raw(body, arm_start)
+                    } else {
+                        let comma = find_byte_index(body, 44, arm_start);
+                        if comma >= 0 { comma } else { body_len }
+                    };
+                    let arm_expr = trim_text(text_slice(body, arm_start, arm_end));
+                    if not is_empty(arm_expr) {
+                        let arm_type = infer_branch_type(arm_expr, locals, consts, fns);
+                        if not is_empty(arm_type) {
+                            arm_types = type_table_extend(arm_types, int_to_text(arm_idx), arm_type);
+                            arm_idx = arm_idx + 1;
+                        };
+                    };
+                    body_i = arm_end;
+                    if body_i < body_len and text_byte(body, body_i) == 44 {
+                        body_i = body_i + 1;
+                    } else if body_i < body_len and text_byte(body, body_i) == 125 {
+                        body_i = body_len;
+                    } else if body_i < body_len {
+                        let next_stop = find_byte_index(body, 44, body_i);
+                        if next_stop >= 0 {
+                            body_i = next_stop + 1;
+                        } else {
+                            body_i = body_len;
+                        };
+                    };
+                };
+            };
+            if arm_idx <= 1 {
+                ""
+            } else {
+                let first_type = type_table_lookup(arm_types, "0");
+                if is_empty(first_type) {
+                    ""
+                } else {
+                    let mut mismatch = "";
+                    let mut check_i = 1;
+                    while check_i < arm_idx {
+                        let key = int_to_text(check_i);
+                        let arm_type = type_table_lookup(arm_types, key);
+                        if not is_empty(arm_type) {
+                            if arm_type != first_type and not (is_numeric_type(arm_type) and is_numeric_type(first_type)) {
+                                mismatch = format_type_diag(source, span, text_concat("match arms have inconsistent types: `", text_concat(first_type, text_concat("` and `", text_concat(arm_type, "`")))));
+                            };
+                        };
+                        check_i = check_i + 1;
+                    };
+                    mismatch
+                }
+            }
         }
     }
 }
