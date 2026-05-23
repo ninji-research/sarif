@@ -1,0 +1,31 @@
+fn typecheck_hir_module(module: HirModuleData) -> Text {
+    let mut diags = "";
+    let fns = module.funcs;
+    let mut i = 1;
+    while i <= 16 {
+        let opt = if i == 1 { fns.f1 }
+             else if i == 2 { fns.f2 }
+             else if i == 3 { fns.f3 }
+             else if i == 4 { fns.f4 }
+             else if i == 5 { fns.f5 }
+             else if i == 6 { fns.f6 }
+             else if i == 7 { fns.f7 }
+             else if i == 8 { fns.f8 }
+             else if i == 9 { fns.f9 }
+             else if i == 10 { fns.f10 }
+             else if i == 11 { fns.f11 }
+             else if i == 12 { fns.f12 }
+             else if i == 13 { fns.f13 }
+             else if i == 14 { fns.f14 }
+             else if i == 15 { fns.f15 }
+             else { fns.f16 };
+        if opt.present {
+            let f = opt.f;
+            if is_empty_text(f.name) {
+                diags = text_concat(diags, "error: unnamed function\n");
+            };
+        };
+        i = i + 1;
+    };
+    diags
+}

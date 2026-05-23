@@ -1769,10 +1769,11 @@ impl Lowerer {
                 for item in lowered.file.items {
                     if let Item::Function(f) = item
                         && let Some(body) = f.body
-                            && let Some(tail) = body.tail {
-                                segments.push(TemplateSegment::Expr(Box::new(tail)));
-                                break;
-                            }
+                        && let Some(tail) = body.tail
+                    {
+                        segments.push(TemplateSegment::Expr(Box::new(tail)));
+                        break;
+                    }
                 }
             } else {
                 buf.push(c);
@@ -1840,9 +1841,10 @@ impl Lowerer {
         }) {
             for element in &arg_node.children {
                 if let Element::Node(expr) = element
-                    && let Some(arg) = self.lower_expr(expr) {
-                        args.push(arg);
-                    }
+                    && let Some(arg) = self.lower_expr(expr)
+                {
+                    args.push(arg);
+                }
             }
         }
 

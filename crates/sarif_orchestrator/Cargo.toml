@@ -1,0 +1,18 @@
+[package]
+name = "sarif_orchestrator"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+sarif_codegen = { path = "../sarif_codegen", features = ["backend-wasm"] }
+sarif_frontend = { path = "../sarif_frontend" }
+sarif_syntax = { path = "../sarif_syntax" }
+wasmtime = { workspace = true }
+
+[dev-dependencies]
+wat = { workspace = true }
+
+[lints]
+workspace = true

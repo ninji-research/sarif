@@ -1,0 +1,321 @@
+struct MapEntry {
+    present: Bool,
+    deleted: Bool,
+    key: Text,
+    value: I32,
+}
+
+struct Map {
+    entries: List[MapEntry],
+    len: I32,
+}
+
+struct SetEntry {
+    present: Bool,
+    deleted: Bool,
+    value: Text,
+}
+
+struct Set {
+    entries: List[SetEntry],
+    len: I32,
+}
+
+struct MapGetResult {
+    map: Map,
+    present: Bool,
+    value: I32,
+}
+
+struct SetContainsResult {
+    set: Set,
+    present: Bool,
+}
+
+fn map_new() -> Map effects [alloc] {
+    let mut entries = list_new(16, MapEntry { present: false, deleted: false, key: "", value: 0 });
+    Map { entries, len: 0 }
+}
+
+fn hash_text(key: Text) -> I32 {
+    let mut h = 2166136261;
+    let len = text_len(key);
+    repeat i in len {
+        let b = text_byte(key, i);
+        h = (h ^ b) * 16777619;
+    };
+    h
+}
+
+fn map_resize(map: Map, new_capacity: I32) -> Map effects [alloc] {
+    let mut old_entries = map.entries;
+    let old_capacity = list_len(old_entries);
+    let mut new_entries = list_new(new_capacity, MapEntry { present: false, deleted: false, key: "", value: 0 });
+    
+    repeat i in old_capacity {
+        let entry = list_get(old_entries, i);
+        if entry.present and not entry.deleted {
+            let h = hash_text(entry.key);
+            let mut idx = h % new_capacity;
+            if idx < 0 {
+                idx += new_capacity;
+            };
+            let mut inserted = false;
+            while not inserted {
+                let slot = list_get(new_entries, idx);
+                if not slot.present {
+                    new_entries = list_set(new_entries, idx, MapEntry { present: true, deleted: false, key: entry.key, value: entry.value });
+                    inserted = true;
+                } else {
+                    idx = (idx + 1) % new_capacity;
+                };
+            };
+        };
+    };
+    Map { entries: new_entries, len: map.len }
+}
+
+fn map_insert(map: Map, key: Text, value: I32) -> Map effects [alloc] {
+    let mut entries = map.entries;
+    let mut len = map.len;
+    let mut capacity = list_len(entries);
+    
+    if len * 10 > capacity * 7 {
+        let resized = map_resize(Map { entries, len }, capacity * 2);
+        entries = resized.entries;
+        len = resized.len;
+        capacity = list_len(entries);
+    };
+    
+    let h = hash_text(key);
+    let mut idx = h % capacity;
+    if idx < 0 {
+        idx += capacity;
+    };
+    
+    let mut done = false;
+    let mut first_deleted = -1;
+    let mut i = 0;
+    while i < capacity and not done {
+        let entry = list_get(entries, idx);
+        if entry.present {
+            if entry.deleted {
+                if first_deleted < 0 {
+                    first_deleted = idx;
+                };
+            } else {
+                if text_cmp(entry.key, key) == 0 {
+                    entries = list_set(entries, idx, MapEntry { present: true, deleted: false, key, value });
+                    done = true;
+                };
+            };
+        } else {
+            let target_idx = if first_deleted >= 0 { first_deleted } else { idx };
+            entries = list_set(entries, target_idx, MapEntry { present: true, deleted: false, key, value });
+            len += 1;
+            done = true;
+        };
+        idx = (idx + 1) % capacity;
+        i += 1;
+    };
+    Map { entries, len }
+}
+
+fn map_get(map: Map, key: Text) -> MapGetResult {
+    let entries = map.entries;
+    let len = map.len;
+    let cap = list_len(entries);
+    if cap == 0 {
+        MapGetResult { map: Map { entries, len }, present: false, value: 0 }
+    } else {
+        let h = hash_text(key);
+        let mut idx = h % cap;
+        if idx < 0 {
+            idx += cap;
+        };
+        let mut found = false;
+        let mut val = 0;
+        let mut i = 0;
+        while i < cap and not found {
+            let entry = list_get(entries, idx);
+            if entry.present {
+                if not entry.deleted and text_cmp(entry.key, key) == 0 {
+                    val = entry.value;
+                    found = true;
+                };
+            } else {
+                i = cap;
+            };
+            idx = (idx + 1) % cap;
+            i += 1;
+        };
+        MapGetResult { map: Map { entries, len }, present: found, value: val }
+    }
+}
+
+fn map_remove(map: Map, key: Text) -> Map {
+    let mut entries = map.entries;
+    let mut len = map.len;
+    let capacity = list_len(entries);
+    if capacity > 0 {
+        let h = hash_text(key);
+        let mut idx = h % capacity;
+        if idx < 0 {
+            idx += capacity;
+        };
+        let mut found = false;
+        let mut i = 0;
+        while i < capacity and not found {
+            let entry = list_get(entries, idx);
+            if entry.present {
+                if not entry.deleted and text_cmp(entry.key, key) == 0 {
+                    entries = list_set(entries, idx, MapEntry { present: true, deleted: true, key: "", value: 0 });
+                    len -= 1;
+                    found = true;
+                };
+            } else {
+                i = capacity;
+            };
+            idx = (idx + 1) % capacity;
+            i += 1;
+        };
+    };
+    Map { entries, len }
+}
+
+fn set_new() -> Set effects [alloc] {
+    let mut entries = list_new(16, SetEntry { present: false, deleted: false, value: "" });
+    Set { entries, len: 0 }
+}
+
+fn set_resize(set: Set, new_capacity: I32) -> Set effects [alloc] {
+    let mut old_entries = set.entries;
+    let old_capacity = list_len(old_entries);
+    let mut new_entries = list_new(new_capacity, SetEntry { present: false, deleted: false, value: "" });
+    
+    repeat i in old_capacity {
+        let entry = list_get(old_entries, i);
+        if entry.present and not entry.deleted {
+            let h = hash_text(entry.value);
+            let mut idx = h % new_capacity;
+            if idx < 0 {
+                idx += new_capacity;
+            };
+            let mut inserted = false;
+            while not inserted {
+                let slot = list_get(new_entries, idx);
+                if not slot.present {
+                    new_entries = list_set(new_entries, idx, SetEntry { present: true, deleted: false, value: entry.value });
+                    inserted = true;
+                } else {
+                    idx = (idx + 1) % new_capacity;
+                };
+            };
+        };
+    };
+    Set { entries: new_entries, len: set.len }
+}
+
+fn set_insert(set: Set, value: Text) -> Set effects [alloc] {
+    let mut entries = set.entries;
+    let mut len = set.len;
+    let mut capacity = list_len(entries);
+    if len * 10 > capacity * 7 {
+        let resized = set_resize(Set { entries, len }, capacity * 2);
+        entries = resized.entries;
+        len = resized.len;
+        capacity = list_len(entries);
+    };
+    
+    let h = hash_text(value);
+    let mut idx = h % capacity;
+    if idx < 0 {
+        idx += capacity;
+    };
+    
+    let mut done = false;
+    let mut first_deleted = -1;
+    let mut i = 0;
+    while i < capacity and not done {
+        let entry = list_get(entries, idx);
+        if entry.present {
+            if entry.deleted {
+                if first_deleted < 0 {
+                    first_deleted = idx;
+                };
+            } else {
+                if text_cmp(entry.value, value) == 0 {
+                    done = true;
+                };
+            };
+        } else {
+            let target_idx = if first_deleted >= 0 { first_deleted } else { idx };
+            entries = list_set(entries, target_idx, SetEntry { present: true, deleted: false, value });
+            len += 1;
+            done = true;
+        };
+        idx = (idx + 1) % capacity;
+        i += 1;
+    };
+    Set { entries, len }
+}
+
+fn set_contains(set: Set, value: Text) -> SetContainsResult {
+    let entries = set.entries;
+    let len = set.len;
+    let cap = list_len(entries);
+    if cap == 0 {
+        SetContainsResult { set: Set { entries, len }, present: false }
+    } else {
+        let h = hash_text(value);
+        let mut idx = h % cap;
+        if idx < 0 {
+            idx += cap;
+        };
+        let mut found = false;
+        let mut i = 0;
+        while i < cap and not found {
+            let entry = list_get(entries, idx);
+            if entry.present {
+                if not entry.deleted and text_cmp(entry.value, value) == 0 {
+                    found = true;
+                };
+            } else {
+                i = cap;
+            };
+            idx = (idx + 1) % cap;
+            i += 1;
+        };
+        SetContainsResult { set: Set { entries, len }, present: found }
+    }
+}
+
+fn set_remove(set: Set, value: Text) -> Set {
+    let mut entries = set.entries;
+    let mut len = set.len;
+    let capacity = list_len(entries);
+    if capacity > 0 {
+        let h = hash_text(value);
+        let mut idx = h % capacity;
+        if idx < 0 {
+            idx += capacity;
+        };
+        let mut found = false;
+        let mut i = 0;
+        while i < capacity and not found {
+            let entry = list_get(entries, idx);
+            if entry.present {
+                if not entry.deleted and text_cmp(entry.value, value) == 0 {
+                    entries = list_set(entries, idx, SetEntry { present: true, deleted: true, value: "" });
+                    len -= 1;
+                    found = true;
+                };
+            } else {
+                i = capacity;
+            };
+            idx = (idx + 1) % capacity;
+            i += 1;
+        };
+    };
+    Set { entries, len }
+}

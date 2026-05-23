@@ -734,28 +734,29 @@ pub(super) fn infer_call_expr(
     }
 
     if let Some(entry) = builtin_entry(&expr.callee)
-        && !functions.contains_key(&expr.callee) {
-            let context_param = entry.runtime_code.map(|code| (context, code));
-            let specs: Vec<BuiltinArgSpec> = entry
-                .arg_types
-                .iter()
-                .zip(entry.arg_helps.iter())
-                .map(|(ty, help)| BuiltinArgSpec { ty, help })
-                .collect();
-            return infer_fixed_builtin_expr(
-                expr,
-                &args,
-                diagnostics,
-                calls,
-                context_param,
-                entry.name,
-                entry.arity_error_code,
-                entry.type_error_code,
-                entry.result_ty,
-                entry.call_hint.to_owned(),
-                &specs,
-            );
-        }
+        && !functions.contains_key(&expr.callee)
+    {
+        let context_param = entry.runtime_code.map(|code| (context, code));
+        let specs: Vec<BuiltinArgSpec> = entry
+            .arg_types
+            .iter()
+            .zip(entry.arg_helps.iter())
+            .map(|(ty, help)| BuiltinArgSpec { ty, help })
+            .collect();
+        return infer_fixed_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            context_param,
+            entry.name,
+            entry.arity_error_code,
+            entry.type_error_code,
+            entry.result_ty,
+            entry.call_hint.to_owned(),
+            &specs,
+        );
+    }
 
     if expr.callee == "bytes_len" && !functions.contains_key("bytes_len") {
         return infer_fixed_builtin_expr(

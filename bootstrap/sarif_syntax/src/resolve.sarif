@@ -1,0 +1,171 @@
+fn is_empty_text(source: Text) -> Bool {
+    let length = text_len(source);
+    length == 0
+}
+
+fn symbol_table_has_name(table: Text, name: Text) -> Bool {
+    if is_empty_text(table) {
+        false
+    } else {
+        let mut idx = 0;
+        let mut found = false;
+        let t_len = text_len(table);
+        let n_len = text_len(name);
+        while idx <= t_len - n_len and not found {
+            if text_eq_range(table, idx, idx + n_len, name) {
+                let left_byte = if idx == 0 { 10 } else { text_byte(table, idx - 1) };
+                let left_ok = left_byte == 10;
+                let right_byte = if idx + n_len == t_len { 10 } else { text_byte(table, idx + n_len) };
+                let right_ok = right_byte == 10;
+                if left_ok and right_ok {
+                    found = true;
+                };
+            };
+            idx = idx + 1;
+        };
+        found
+    }
+}
+
+fn symbol_table_add_name(table: Text, name: Text) -> Text {
+    if is_empty_text(table) {
+        name
+    } else {
+        text_concat(table, text_concat("\n", name))
+    }
+}
+
+fn check_duplicate_definitions(module: HirModuleData) -> Text {
+    let mut table = "";
+    let mut diags = "";
+    
+    // 1. Check constants
+    let mut i = 1;
+    let list = module.consts;
+    while i <= 16 {
+        let opt = if i == 1 { list.c1 }
+             else if i == 2 { list.c2 }
+             else if i == 3 { list.c3 }
+             else if i == 4 { list.c4 }
+             else if i == 5 { list.c5 }
+             else if i == 6 { list.c6 }
+             else if i == 7 { list.c7 }
+             else if i == 8 { list.c8 }
+             else if i == 9 { list.c9 }
+             else if i == 10 { list.c10 }
+             else if i == 11 { list.c11 }
+             else if i == 12 { list.c12 }
+             else if i == 13 { list.c13 }
+             else if i == 14 { list.c14 }
+             else if i == 15 { list.c15 }
+             else { list.c16 };
+        if opt.present {
+            let name = opt.c.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+    
+    // 2. Check functions
+    i = 1;
+    let fns = module.funcs;
+    while i <= 16 {
+        let opt = if i == 1 { fns.f1 }
+             else if i == 2 { fns.f2 }
+             else if i == 3 { fns.f3 }
+             else if i == 4 { fns.f4 }
+             else if i == 5 { fns.f5 }
+             else if i == 6 { fns.f6 }
+             else if i == 7 { fns.f7 }
+             else if i == 8 { fns.f8 }
+             else if i == 9 { fns.f9 }
+             else if i == 10 { fns.f10 }
+             else if i == 11 { fns.f11 }
+             else if i == 12 { fns.f12 }
+             else if i == 13 { fns.f13 }
+             else if i == 14 { fns.f14 }
+             else if i == 15 { fns.f15 }
+             else { fns.f16 };
+        if opt.present {
+            let name = opt.f.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+
+    // 3. Check structs
+    i = 1;
+    let structs = module.structs;
+    while i <= 16 {
+        let opt = if i == 1 { structs.s1 }
+             else if i == 2 { structs.s2 }
+             else if i == 3 { structs.s3 }
+             else if i == 4 { structs.s4 }
+             else if i == 5 { structs.s5 }
+             else if i == 6 { structs.s6 }
+             else if i == 7 { structs.s7 }
+             else if i == 8 { structs.s8 }
+             else if i == 9 { structs.s9 }
+             else if i == 10 { structs.s10 }
+             else if i == 11 { structs.s11 }
+             else if i == 12 { structs.s12 }
+             else if i == 13 { structs.s13 }
+             else if i == 14 { structs.s14 }
+             else if i == 15 { structs.s15 }
+             else { structs.s16 };
+        if opt.present {
+            let name = opt.s.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+
+    // 4. Check enums
+    i = 1;
+    let enums = module.enums;
+    while i <= 16 {
+        let opt = if i == 1 { enums.e1 }
+             else if i == 2 { enums.e2 }
+             else if i == 3 { enums.e3 }
+             else if i == 4 { enums.e4 }
+             else if i == 5 { enums.e5 }
+             else if i == 6 { enums.e6 }
+             else if i == 7 { enums.e7 }
+             else if i == 8 { enums.e8 }
+             else if i == 9 { enums.e9 }
+             else if i == 10 { enums.e10 }
+             else if i == 11 { enums.e11 }
+             else if i == 12 { enums.e12 }
+             else if i == 13 { enums.e13 }
+             else if i == 14 { enums.e14 }
+             else if i == 15 { enums.e15 }
+             else { enums.e16 };
+        if opt.present {
+            let name = opt.e.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+    
+    diags
+}

@@ -1,0 +1,4 @@
+[package]
+name = "test_pkg"
+version = "0.1.0"
+sources = ["../std/collections.sarif", "test_collections.sarif"]
