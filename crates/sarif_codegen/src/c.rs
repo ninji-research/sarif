@@ -1133,17 +1133,28 @@ fn emit_inst(
             payload,
         } => {
             let tag = enum_variant_tag(enums, name, variant).unwrap_or(0);
-            if let Some(payload) = payload {
+            let enum_ty = enums.iter().find(|e| e.name == *name);
+            let has_payload = enum_ty
+                .map(|e| e.variants.iter().any(|v| v.payload_type.is_some()))
+                .unwrap_or(false);
+            if has_payload {
                 out.line(&format!("v{} = (uint64_t)sarif_record_alloc(16u);", dest.0))?;
                 out.line(&format!(
                     "sarif_store_u64((unsigned char*)v{}, 0u, {}llu);",
                     dest.0, tag
                 ))?;
-                out.line(&format!(
-                    "sarif_store_u64((unsigned char*)v{}, 8u, {});",
-                    dest.0,
-                    vref(payload)
-                ))?;
+                if let Some(payload) = payload {
+                    out.line(&format!(
+                        "sarif_store_u64((unsigned char*)v{}, 8u, {});",
+                        dest.0,
+                        vref(payload)
+                    ))?;
+                } else {
+                    out.line(&format!(
+                        "sarif_store_u64((unsigned char*)v{}, 8u, 0llu);",
+                        dest.0
+                    ))?;
+                }
             } else {
                 out.line(&format!("v{} = {}llu;", dest.0, tag))?;
             }

@@ -2256,7 +2256,12 @@ fn parse_type(source: Text, state: ParseState) -> ParseState {
         ParseStatus.Ok => {
             match state.cursor.kind {
                 TokenKind.Ident => {
-                    parse_named_type(source, state)
+                    let after_ident = next_significant(source, state.cursor.offset);
+                    if after_ident.kind == TokenKind.LBracket {
+                        parse_generic_type(source, state)
+                    } else {
+                        parse_named_type(source, state)
+                    }
                 },
                 TokenKind.LBracket => {
                     parse_array_type(source, state)
@@ -2267,6 +2272,17 @@ fn parse_type(source: Text, state: ParseState) -> ParseState {
             }
         },
     }
+}
+
+fn parse_generic_type(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.LBracket);
+    current = parse_type(source, current);
+    while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Comma {
+        current = parse_expect(source, current, TokenKind.Comma);
+        current = parse_type(source, current);
+    };
+    parse_expect(source, current, TokenKind.RBracket)
 }
 
 fn parse_param(source: Text, state: ParseState) -> ParseState {

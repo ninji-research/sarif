@@ -1827,8 +1827,20 @@ impl Lowerer {
         let mut args = Vec::new();
         let callee = match self.lower_expr(callee_node)? {
             Expr::Field(field) => {
-                args.push(*field.base.clone());
-                field.field.clone()
+                let is_enum_variant = if let Expr::Name(ref name) = *field.base {
+                    name.name
+                        .chars()
+                        .next()
+                        .map_or(false, |c| c.is_ascii_uppercase())
+                } else {
+                    false
+                };
+                if is_enum_variant {
+                    field.pretty()
+                } else {
+                    args.push(*field.base.clone());
+                    field.field.clone()
+                }
             }
             Expr::Name(name) => name.name,
             Expr::Perform(perform) => perform.callee.to_string(),

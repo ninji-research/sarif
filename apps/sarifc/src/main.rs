@@ -522,7 +522,10 @@ fn build_for_target(
                     .arg("-o")
                     .arg(output_path)
                     .arg(&c_source_path)
-                    .arg("runtime/sarif_runtime.c")
+                    .arg(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../runtime/sarif_runtime.c"
+                    ))
                     .arg("-lm");
 
                 if let Some(parent) = output_path_obj.parent()

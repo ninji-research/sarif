@@ -866,7 +866,14 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
-            Inst::AllocPush | Inst::AllocPop => {}
+            Inst::AllocPush => {
+                writeln!(output, "    call $__sarif_alloc_push")
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::AllocPop => {
+                writeln!(output, "    call $__sarif_alloc_pop")
+                    .expect("writing to a string cannot fail");
+            }
             Inst::StdoutWrite { text } => {
                 writeln!(output, "    local.get ${}", wasm_id(*text))
                     .expect("writing to a string cannot fail");
