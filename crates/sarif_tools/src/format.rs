@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use sarif_syntax::ast::{AstFile, BinaryOp, Expr, Item};
+use sarif_syntax::ast::{AstFile, BinaryOp, Expr, Item, TemplateSegment};
 
 #[must_use]
 pub fn format_file(file: &AstFile) -> String {
@@ -312,6 +312,21 @@ fn format_expr_with_indent(expr: &Expr, indent: usize) -> String {
                 format!("\n{}", "    ".repeat(indent))
             }
         ),
+        Expr::Template(expr) => {
+            let mut out = String::from("\"");
+            for seg in &expr.segments {
+                match seg {
+                    TemplateSegment::Text(t) => out.push_str(t),
+                    TemplateSegment::Expr(e) => {
+                        out.push('{');
+                        out.push_str(&format_expr_with_indent(e, indent));
+                        out.push('}');
+                    }
+                }
+            }
+            out.push('"');
+            out
+        }
     }
 }
 

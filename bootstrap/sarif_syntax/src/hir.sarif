@@ -1224,194 +1224,40 @@ fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text {
 }
 
 fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
-    let n1 = hir_name_from_span(outline.first.entry.name_span, source);
-    let n2 = hir_name_from_span(outline.second.entry.name_span, source);
-    let n3 = hir_name_from_span(outline.third.entry.name_span, source);
-    let n4 = hir_name_from_span(outline.fourth.entry.name_span, source);
-    let n5 = hir_name_from_span(outline.fifth.entry.name_span, source);
-    let c1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Const {
-        hir_const_list_with(hir_const_new(n1))
-    } else {
-        hir_const_list_new()
-    };
-    let c2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c1, hir_const_new(n2))
-    } else {
-        c1
-    };
-    let c3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c2, hir_const_new(n3))
-    } else {
-        c2
-    };
-    let c4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c3, hir_const_new(n4))
-    } else {
-        c3
-    };
-    let c5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Const {
-        hir_const_list_push(c4, hir_const_new(n5))
-    } else {
-        c4
-    };
-    let f1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_with(hir_fn_new(n1))
-    } else {
-        hir_fn_list_2_new()
-    };
-    let f2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f1, hir_fn_new(n2))
-    } else {
-        f1
-    };
-    let f3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f2, hir_fn_new(n3))
-    } else {
-        f2
-    };
-    let f4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f3, hir_fn_new(n4))
-    } else {
-        f3
-    };
-    let f5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Fn {
-        hir_fn_list_2_push(f4, hir_fn_new(n5))
-    } else {
-        f4
-    };
-    let e1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_with(hir_enum_new(n1))
-    } else {
-        hir_enum_list_new()
-    };
-    let e2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e1, hir_enum_new(n2))
-    } else {
-        e1
-    };
-    let e3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e2, hir_enum_new(n3))
-    } else {
-        e2
-    };
-    let e4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e3, hir_enum_new(n4))
-    } else {
-        e3
-    };
-    let e5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Enum {
-        hir_enum_list_push(e4, hir_enum_new(n5))
-    } else {
-        e4
-    };
-    let s1 = if outline.first.present and outline.first.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_with(hir_struct_new(n1))
-    } else {
-        hir_struct_list_new()
-    };
-    let s2 = if outline.second.present and outline.second.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s1, hir_struct_new(n2))
-    } else {
-        s1
-    };
-    let s3 = if outline.third.present and outline.third.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s2, hir_struct_new(n3))
-    } else {
-        s2
-    };
-    let s4 = if outline.fourth.present and outline.fourth.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s3, hir_struct_new(n4))
-    } else {
-        s3
-    };
-    let s5 = if outline.fifth.present and outline.fifth.entry.kind == TopLevelKind.Struct {
-        hir_struct_list_push(s4, hir_struct_new(n5))
-    } else {
-        s4
-    };
-    HirModuleData { consts: c5, funcs: f5, enums: e5, structs: s5, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
+    let e1 = top_level_entry_at(outline, 0);
+    let e2 = top_level_entry_at(outline, 1);
+    let e3 = top_level_entry_at(outline, 2);
+    let e4 = top_level_entry_at(outline, 3);
+    let e5 = top_level_entry_at(outline, 4);
+    let n1 = hir_name_from_span(e1.entry.name_span, source);
+    let n2 = hir_name_from_span(e2.entry.name_span, source);
+    let n3 = hir_name_from_span(e3.entry.name_span, source);
+    let n4 = hir_name_from_span(e4.entry.name_span, source);
+    let n5 = hir_name_from_span(e5.entry.name_span, source);
+    let c1 = if e1.present and e1.entry.kind == TopLevelKind.Const { hir_const_list_with(hir_const_new(n1)) } else { hir_const_list_new() };
+    let c2 = if e2.present and e2.entry.kind == TopLevelKind.Const { hir_const_list_push(c1, hir_const_new(n2)) } else { c1 };
+    let c3 = if e3.present and e3.entry.kind == TopLevelKind.Const { hir_const_list_push(c2, hir_const_new(n3)) } else { c2 };
+    let c4 = if e4.present and e4.entry.kind == TopLevelKind.Const { hir_const_list_push(c3, hir_const_new(n4)) } else { c3 };
+    let c5 = if e5.present and e5.entry.kind == TopLevelKind.Const { hir_const_list_push(c4, hir_const_new(n5)) } else { c4 };
+    let f1 = if e1.present and e1.entry.kind == TopLevelKind.Fn { hir_fn_list_2_with(hir_fn_new(n1)) } else { hir_fn_list_2_new() };
+    let f2 = if e2.present and e2.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f1, hir_fn_new(n2)) } else { f1 };
+    let f3 = if e3.present and e3.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f2, hir_fn_new(n3)) } else { f2 };
+    let f4 = if e4.present and e4.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f3, hir_fn_new(n4)) } else { f3 };
+    let f5 = if e5.present and e5.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f4, hir_fn_new(n5)) } else { f4 };
+    let en1 = if e1.present and e1.entry.kind == TopLevelKind.Enum { hir_enum_list_with(hir_enum_new(n1)) } else { hir_enum_list_new() };
+    let en2 = if e2.present and e2.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en1, hir_enum_new(n2)) } else { en1 };
+    let en3 = if e3.present and e3.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en2, hir_enum_new(n3)) } else { en2 };
+    let en4 = if e4.present and e4.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en3, hir_enum_new(n4)) } else { en3 };
+    let en5 = if e5.present and e5.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en4, hir_enum_new(n5)) } else { en4 };
+    let s1 = if e1.present and e1.entry.kind == TopLevelKind.Struct { hir_struct_list_with(hir_struct_new(n1)) } else { hir_struct_list_new() };
+    let s2 = if e2.present and e2.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s1, hir_struct_new(n2)) } else { s1 };
+    let s3 = if e3.present and e3.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s2, hir_struct_new(n3)) } else { s2 };
+    let s4 = if e4.present and e4.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s3, hir_struct_new(n4)) } else { s3 };
+    let s5 = if e5.present and e5.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s4, hir_struct_new(n5)) } else { s4 };
+    HirModuleData { consts: c5, funcs: f5, enums: en5, structs: s5, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
 }
 
-fn hir_item_kind_from_top_level(kind: TopLevelKind) -> HirItemKind {
-    match kind {
-        TopLevelKind.Struct => {
-            HirItemKind.Struct
-        },
-        TopLevelKind.Enum => {
-            HirItemKind.Enum
-        },
-        TopLevelKind.Const => {
-            HirItemKind.Const
-        },
-        TopLevelKind.Fn => {
-            HirItemKind.Fn
-        },
-    }
-}
 
-fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> HirItemList {
-    let i1 = if outline.first.present {
-        let name = hir_name_from_span(outline.first.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.first.entry.kind), name, outline.first.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i2 = if outline.second.present {
-        let name = hir_name_from_span(outline.second.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.second.entry.kind), name, outline.second.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i3 = if outline.third.present {
-        let name = hir_name_from_span(outline.third.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.third.entry.kind), name, outline.third.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i4 = if outline.fourth.present {
-        let name = hir_name_from_span(outline.fourth.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.fourth.entry.kind), name, outline.fourth.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let i5 = if outline.fifth.present {
-        let name = hir_name_from_span(outline.fifth.entry.name_span, source);
-        let item = hir_item_new(hir_item_kind_from_top_level(outline.fifth.entry.kind), name, outline.fifth.entry.span);
-        hir_optional_item_true(item)
-    } else {
-        hir_optional_item_false()
-    };
-    let len = if outline.first.present {
-        1
-    } else {
-        0
-    } +
-    if outline.second.present {
-        1
-    } else {
-        0
-    } +
-    if outline.third.present {
-        1
-    } else {
-        0
-    } +
-    if outline.fourth.present {
-        1
-    } else {
-        0
-    } +
-    if outline.fifth.present {
-        1
-    } else {
-        0
-    };
-    HirItemList { len: len, i1: i1, i2: i2, i3: i3, i4: i4, i5: i5, i6: hir_optional_item_false(), i7: hir_optional_item_false(), i8: hir_optional_item_false(), i9: hir_optional_item_false(), i10: hir_optional_item_false(), i11: hir_optional_item_false(), i12: hir_optional_item_false(), i13: hir_optional_item_false(), i14: hir_optional_item_false(), i15: hir_optional_item_false(), i16: hir_optional_item_false() }
-}
 
 fn hir_span_from_optional(span: OptionalSpan) -> Span {
     if span.present {

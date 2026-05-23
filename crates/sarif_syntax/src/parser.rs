@@ -1027,7 +1027,15 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
         children.push(Element::Token(self.expect(TokenKind::FatArrow)));
         self.collect_trivia(&mut children);
-        children.push(Element::Node(self.parse_expr_body()));
+        if self.at(TokenKind::LBrace) {
+            children.push(Element::Node(self.parse_expr_body()));
+        } else {
+            let expr = self.parse_expr_bp(0);
+            children.push(Element::Node(Node::new(
+                NodeKind::Body,
+                vec![Element::Node(expr)],
+            )));
+        }
         Node::new(NodeKind::MatchArm, children)
     }
 

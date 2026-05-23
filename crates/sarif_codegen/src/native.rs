@@ -1,4 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::{AbiParam, BlockArg, InstBuilder, MemFlags, TrapCode, Value, types};
@@ -8,6 +10,12 @@ use cranelift_module::{DataId, FuncId, Linkage, Module};
 
 pub use crate::CodegenValueKind as NativeValueKind;
 use crate::{Function, Inst, Program, ValueId, insts_fall_through};
+
+static DEBUG_ENABLED: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
+
+pub fn set_debug(enabled: bool) {
+    DEBUG_ENABLED.store(enabled, Ordering::SeqCst);
+}
 
 const LIST_LEN_OFFSET: i32 = 0;
 const LIST_VALUES_OFFSET: i32 = 8;
@@ -84,8 +92,7 @@ fn call_helper(
             ));
         }
     };
-    #[cfg(debug_assertions)]
-    {
+    if DEBUG_ENABLED.load(Ordering::Relaxed) {
         let null = builder.ins().iconst(types::I64, 0);
         let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
         builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);

@@ -301,6 +301,8 @@ fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
 
 #[cfg(feature = "codegen")]
 fn run_program(command: command::Command) -> ExitCode {
+    #[cfg(feature = "native-build")]
+    sarif_codegen::native_set_debug(command.debug);
     let loaded = match LoadedSource::load(&command.path) {
         Ok(l) => l,
         Err(e) => {
@@ -400,6 +402,8 @@ fn run_program(_command: command::Command) -> ExitCode {
 #[cfg(feature = "codegen")]
 #[allow(clippy::too_many_lines)]
 fn build_program(command: &command::Command) -> Result<(), String> {
+    #[cfg(feature = "native-build")]
+    sarif_codegen::native_set_debug(command.debug);
     let loaded = LoadedSource::load(&command.path)?;
     let all_diagnostics = loaded.mir_diagnostics(command.profile);
     loaded.ensure_no_diagnostics(

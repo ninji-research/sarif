@@ -1044,7 +1044,44 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
             span: expr.span,
         }),
         ast::Expr::Handle(expr) => Expr::Handle(Box::new(lower_handle_expr(expr))),
+        ast::Expr::Template(expr) => lower_template_expr(expr),
     }
+}
+
+fn lower_template_expr(expr: &ast::TemplateExpr) -> Expr {
+    let mut current: Option<Expr> = None;
+    for segment in &expr.segments {
+        let arg = match segment {
+            ast::TemplateSegment::Text(t) => Expr::String(StringExpr {
+                literal: format!("\"{t}\""),
+                value: t.clone(),
+                span: expr.span,
+            }),
+            ast::TemplateSegment::Expr(e) => lower_expr(e),
+        };
+        let new_call = Expr::Call(CallExpr {
+            callee: "text_concat".to_owned(),
+            args: vec![
+                current.unwrap_or_else(|| {
+                    Expr::String(StringExpr {
+                        literal: "\"\"".to_owned(),
+                        value: String::new(),
+                        span: expr.span,
+                    })
+                }),
+                arg,
+            ],
+            span: expr.span,
+        });
+        current = Some(new_call);
+    }
+    current.unwrap_or_else(|| {
+        Expr::String(StringExpr {
+            literal: "\"\"".to_owned(),
+            value: String::new(),
+            span: expr.span,
+        })
+    })
 }
 
 fn lower_handle_expr(expr: &ast::HandleExpr) -> HandleExpr {

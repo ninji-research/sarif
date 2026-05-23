@@ -127,8 +127,8 @@ The Rust frontend handles these correctly via Cranelift JIT. The bootstrap compi
 - MIR-level interprocedural escape analysis with fixed-point iteration (replaces conservative `has_alloc` heuristic)
 - MIR interpreter Call trampoline (iterative, eliminates unbounded recursion)
 - ExecFlow::Return dead code removed (simplified interpreter control flow)
-- Conditional runtime compilation: `RuntimeFeatures::detect()` + `Option<FuncId>` fields + C `#ifndef` guards
-- 122 CLI tests pass, 149+ total tests, clippy clean
+- Link-time runtime pruning: GC-based section pruning and C runtime subsystem cleanup
+- 130 CLI tests pass, 150+ total tests, clippy clean
 
 **Remaining Stage-1 work:**
 - Self-host check/doc using the bootstrap compiler as maintained authority

@@ -19,7 +19,7 @@ Promote Sarif-hosted tooling to maintained authority.
 
 Completed:
 - **Formatter**: `sarifc format` now runs the Sarif-hosted formatter by default, passing parity tests against the Rust formatter for all shipped inputs. This validates the bootstrap compiler against serious production use.
-- **Conditional runtime compilation**: `RuntimeFeatures::detect()` scans programs for text builder, text index, and sort usage. The native codegen only declares needed runtime helpers, and the C runtime excludes unused subsystems at compile time via `#ifndef` guards. Reduces compiled runtime size for programs that don't use these features.
+- **C Runtime Subsystem Cleanup**: Removed all conditional compilation flags (`RuntimeFeatures::detect` and C runtime `#ifndef` blocks), allowing the native link stage (`-Wl,--gc-sections` or equivalent) to naturally prune unused runtime functions from generated binaries.
 - **Semantic fixpoint cycle fixed**: `infer_param_modes` no longer oscillates on duplicate function definitions.
 - **Binary size reduced 57%**: `-g0` and `-Wl,-s` added to compile/link flags; hello binary 4,792 B stripped.
 - **Cranelift `speed` tuning**: Changed from `speed_and_size` to `speed` opt_level and removed `regalloc_algorithm` override, letting Cranelift use its default register allocator for better generated code quality.
@@ -72,14 +72,49 @@ Move compiler pipeline ownership into Sarif:
 - MIR generation
 - backend ownership
 
-## Standard Library
+## Standard Library Roadmap
 
-Sarif does not have a full maintained standard library yet. The next real standard-library boundary should be small and explicit:
+Sarif does not yet ship a full standard library. The maintained surface today is a stage-0 builtin substrate plus formatting, checking, docs, and runtime support.
 
-- deterministic text
-- deterministic lists and maps
-- stable filesystem/process boundaries
-- versioned library surface instead of ad hoc builtin growth
+### Maintained Today
+
+- scalar arithmetic and comparisons
+- text construction and slicing
+- direct parse helpers
+- list allocation and indexed access
+- deterministic runtime input/output builtins on native/interpreter paths and wasm host-import paths
+- Bounded memory arena scopes (`with_arena { ... }`) for temporary allocations
+
+### Planned Standard Library Layers
+
+1. `core`
+   - scalar types
+   - text views and builders
+   - list and fixed-shape collection primitives
+   - result/option-style control data
+
+2. `alloc`
+   - owned collections
+   - maps and sets with stable semantics
+   - arena and scoped allocation interfaces where justified
+
+3. `io`
+   - file and process interfaces
+   - text and byte streams
+   - explicit capability-gated resource handles
+
+4. `rt`
+   - restricted concurrency primitives
+   - explicit task and scheduling model
+   - Bounded synchronization primitives
+
+### Core Design Rules
+
+- No duplicated APIs for the same job.
+- No hidden global runtime.
+- No async surface until the task/resource model is mechanically defined.
+- No parallel surface until determinism and memory rules are specified together.
+- The next standard-library boundary is content-aware text/map support for aggregation, not a broad grab-bag of convenience APIs.
 
 ## Reactive Runtime Direction
 

@@ -19,7 +19,7 @@ mod wasm;
 #[cfg(feature = "backend-native")]
 pub use native::{
     NativeEnum, NativeRecord, NativeRecordField, NativeValueKind, collect_native_enums,
-    collect_native_records, native_enum_is_payload_free,
+    collect_native_records, native_enum_is_payload_free, set_debug as native_set_debug,
 };
 #[cfg(feature = "backend-native")]
 pub use object::{ENTRYPOINT_SYMBOL, ObjectError, emit_clif, emit_object};
@@ -10286,8 +10286,65 @@ mod tests {
     fn lower_source(source: &str) -> crate::MirLowering {
         let lexed = lex(source);
         let parsed = parse(&lexed.tokens);
+        eprintln!(
+            "Parser diagnostics ({}): {:?}",
+            parsed.diagnostics.len(),
+            parsed.diagnostics
+        );
+        eprintln!("FnItem count in parsed root: {}", parsed.root.children.iter().filter(|c| matches!(c, sarif_syntax::Element::Node(n) if n.kind == sarif_syntax::NodeKind::FnItem)).count());
+        let last_kinds: Vec<_> = parsed
+            .root
+            .children
+            .iter()
+            .rev()
+            .take(5)
+            .map(|c| match c {
+                sarif_syntax::Element::Node(n) => format!("Node({:?})", n.kind),
+                sarif_syntax::Element::Token(t) => format!("Token({:?})", t.kind),
+            })
+            .collect();
+        eprintln!("Last 5 root children: {:?}", last_kinds);
         let ast = lower_ast(&parsed.root);
+        eprintln!(
+            "AST diagnostics ({}): {:?}",
+            ast.diagnostics.len(),
+            ast.diagnostics
+        );
+        let has_main_in_ast = ast
+            .file
+            .items
+            .iter()
+            .any(|i| matches!(i, sarif_syntax::ast::Item::Function(f) if f.name == "main"));
+        eprintln!("Has main in AST: {}", has_main_in_ast);
+        eprintln!("AST item count: {}", ast.file.items.len());
+        eprintln!(
+            "AST items: {:?}",
+            ast.file
+                .items
+                .iter()
+                .map(|i| match i {
+                    sarif_syntax::ast::Item::Function(f) => format!("fn {}", f.name),
+                    sarif_syntax::ast::Item::Struct(s) => format!("struct {}", s.name),
+                    sarif_syntax::ast::Item::Enum(e) => format!("enum {}", e.name),
+                    sarif_syntax::ast::Item::Const(c) => format!("const {}", c.name),
+                    sarif_syntax::ast::Item::Effect(e) => format!("effect {}", e.name),
+                })
+                .collect::<Vec<_>>()
+        );
         let hir = lower_hir(&ast.file);
+        eprintln!("=== HIR ITEMS ({}) ===", hir.module.items.len());
+        for item in &hir.module.items {
+            match item {
+                sarif_frontend::hir::Item::Function(f) => {
+                    eprintln!("  fn {} (type_params: {:?})", f.name, f.type_params)
+                }
+                sarif_frontend::hir::Item::Struct(s) => eprintln!("  struct {}", s.name),
+                sarif_frontend::hir::Item::Enum(e) => eprintln!("  enum {}", e.name),
+                sarif_frontend::hir::Item::Const(c) => eprintln!("  const {}", c.name),
+                sarif_frontend::hir::Item::Effect(e) => eprintln!("  effect {}", e.name),
+            }
+        }
+        eprintln!("=== END HIR ===");
         lower(&hir.module)
     }
 
@@ -10302,7 +10359,15 @@ mod tests {
             .expect("bootstrap syntax hir should be readable");
         let entry = fs::read_to_string(format!("{root}/selfcheck.sarif"))
             .expect("bootstrap syntax entrypoint should be readable");
-        format!("{core}\n{hir}\n{entry}")
+        let result = format!("{core}\n{hir}\n{entry}");
+        eprintln!("Source chars: {}", result.chars().count());
+        eprintln!("Source lines: {}", result.lines().count());
+        eprintln!("Has fn main: {}", result.contains("fn main()"));
+        eprintln!(
+            "Last 100 chars: {:?}",
+            &result[result.len().saturating_sub(100)..]
+        );
+        result
     }
 
     fn run_with_large_stack<T>(label: &'static str, f: impl FnOnce() -> T + Send + 'static) -> T
@@ -10388,6 +10453,21 @@ mod tests {
             let source = bootstrap_syntax_source();
             let mir = lower_source(&source);
 
+            eprintln!("=== DIAGNOSTICS ===");
+            for d in &mir.diagnostics {
+                eprintln!("{:?}", d);
+            }
+            eprintln!("=== MIR DIAGNOSTICS ===");
+            for d in &mir.diagnostics {
+                eprintln!("{:?}", d);
+            }
+            eprintln!("=== FUNCTIONS ({}) ===", mir.program.functions.len());
+            let has_main = mir.program.functions.iter().any(|f| f.name == "main");
+            eprintln!("Has main in program: {}", has_main);
+            for f in &mir.program.functions {
+                eprintln!("  {}", f.name);
+            }
+            eprintln!("=== END ===");
             assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
             let result = run_main(&mir.program).expect("bootstrap syntax should run");
             assert_eq!(result, RuntimeValue::Int(35));

@@ -81,6 +81,237 @@ struct BuiltinArgSpec<'a> {
     help: &'a str,
 }
 
+#[allow(dead_code)]
+struct BuiltinEntry {
+    name: &'static str,
+    runtime_code: Option<&'static str>,
+    arity_error_code: &'static str,
+    type_error_code: &'static str,
+    result_ty: Type,
+    call_hint: &'static str,
+    arg_types: &'static [Type],
+    arg_helps: &'static [&'static str],
+}
+
+fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
+    match name {
+        "text_len" => Some(BuiltinEntry {
+            name: "text_len",
+            runtime_code: None,
+            arity_error_code: "semantic.text_len-arity",
+            type_error_code: "semantic.text_len-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_len(text)` with exactly one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text argument."],
+        }),
+        "bytes_len" => Some(BuiltinEntry {
+            name: "bytes_len",
+            runtime_code: None,
+            arity_error_code: "semantic.bytes_len-arity",
+            type_error_code: "semantic.bytes_len-type",
+            result_ty: Type::I32,
+            call_hint: "Call `bytes_len(bytes)` with exactly one Bytes argument.",
+            arg_types: &[Type::Bytes],
+            arg_helps: &["Pass a Bytes argument."],
+        }),
+        "bytes_to_text" => Some(BuiltinEntry {
+            name: "bytes_to_text",
+            runtime_code: None,
+            arity_error_code: "semantic.bytes_to_text-arity",
+            type_error_code: "semantic.bytes_to_text-type",
+            result_ty: Type::Text,
+            call_hint: "Call `bytes_to_text(bytes)` with exactly one Bytes argument.",
+            arg_types: &[Type::Bytes],
+            arg_helps: &["Pass a Bytes argument."],
+        }),
+        "text_byte" => Some(BuiltinEntry {
+            name: "text_byte",
+            runtime_code: None,
+            arity_error_code: "semantic.text_byte-arity",
+            type_error_code: "semantic.text_byte-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_byte(text, index)`.",
+            arg_types: &[Type::Text, Type::I32],
+            arg_helps: &["Pass a Text argument.", "Pass an I32 index."],
+        }),
+        "bytes_byte" => Some(BuiltinEntry {
+            name: "bytes_byte",
+            runtime_code: None,
+            arity_error_code: "semantic.bytes_byte-arity",
+            type_error_code: "semantic.bytes_byte-type",
+            result_ty: Type::I32,
+            call_hint: "Call `bytes_byte(bytes, index)`.",
+            arg_types: &[Type::Bytes, Type::I32],
+            arg_helps: &["Pass a Bytes argument.", "Pass an I32 index."],
+        }),
+        "text_concat" => Some(BuiltinEntry {
+            name: "text_concat",
+            runtime_code: None,
+            arity_error_code: "semantic.text_concat-arity",
+            type_error_code: "semantic.text_concat-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_concat(a, b)`.",
+            arg_types: &[Type::Text, Type::Text],
+            arg_helps: &["Pass a Text argument.", "Pass a Text argument."],
+        }),
+        "text_slice" => Some(BuiltinEntry {
+            name: "text_slice",
+            runtime_code: None,
+            arity_error_code: "semantic.text_slice-arity",
+            type_error_code: "semantic.text_slice-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_slice(text, start, length)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 length.",
+            ],
+        }),
+        "bytes_slice" => Some(BuiltinEntry {
+            name: "bytes_slice",
+            runtime_code: None,
+            arity_error_code: "semantic.bytes_slice-arity",
+            type_error_code: "semantic.bytes_slice-type",
+            result_ty: Type::Bytes,
+            call_hint: "Call `bytes_slice(bytes, start, length)`.",
+            arg_types: &[Type::Bytes, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Bytes argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 length.",
+            ],
+        }),
+        "text_builder_append" => Some(BuiltinEntry {
+            name: "text_builder_append",
+            runtime_code: Some("semantic.text_builder_append-runtime-context"),
+            arity_error_code: "semantic.text_builder_append-arity",
+            type_error_code: "semantic.text_builder_append-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append(builder, text)`.",
+            arg_types: &[Type::TextBuilder, Type::Text],
+            arg_helps: &["Pass a TextBuilder.", "Pass a Text argument."],
+        }),
+        "text_builder_append_codepoint" => Some(BuiltinEntry {
+            name: "text_builder_append_codepoint",
+            runtime_code: Some("semantic.text_builder_append-codepoint-runtime-context"),
+            arity_error_code: "semantic.text_builder_append_codepoint-arity",
+            type_error_code: "semantic.text_builder_append_codepoint-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append_codepoint(builder, codepoint)`.",
+            arg_types: &[Type::TextBuilder, Type::I32],
+            arg_helps: &["Pass a TextBuilder.", "Pass an I32 codepoint."],
+        }),
+        "text_builder_append_ascii" => Some(BuiltinEntry {
+            name: "text_builder_append_ascii",
+            runtime_code: Some("semantic.text_builder_append-ascii-runtime-context"),
+            arity_error_code: "semantic.text_builder_append_ascii-arity",
+            type_error_code: "semantic.text_builder_append_ascii-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append_ascii(builder, ascii)`.",
+            arg_types: &[Type::TextBuilder, Type::I32],
+            arg_helps: &["Pass a TextBuilder.", "Pass an I32 ascii byte."],
+        }),
+        "text_builder_append_slice" => Some(BuiltinEntry {
+            name: "text_builder_append_slice",
+            runtime_code: Some("semantic.text_builder_append-slice-runtime-context"),
+            arity_error_code: "semantic.text_builder_append_slice-arity",
+            type_error_code: "semantic.text_builder_append_slice-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append_slice(builder, text, start, length)`.",
+            arg_types: &[Type::TextBuilder, Type::Text, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a TextBuilder.",
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 length.",
+            ],
+        }),
+        "text_builder_append_i32" => Some(BuiltinEntry {
+            name: "text_builder_append_i32",
+            runtime_code: Some("semantic.text_builder_append_i32-runtime-context"),
+            arity_error_code: "semantic.text_builder_append_i32-arity",
+            type_error_code: "semantic.text_builder_append_i32-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append_i32(builder, value)`.",
+            arg_types: &[Type::TextBuilder, Type::I32],
+            arg_helps: &["Pass a TextBuilder.", "Pass an I32 value."],
+        }),
+        "text_builder_finish" => Some(BuiltinEntry {
+            name: "text_builder_finish",
+            runtime_code: Some("semantic.text_builder_finish-runtime-context"),
+            arity_error_code: "semantic.text_builder_finish-arity",
+            type_error_code: "semantic.text_builder_finish-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_builder_finish(builder)`.",
+            arg_types: &[Type::TextBuilder],
+            arg_helps: &["Pass a TextBuilder."],
+        }),
+        _ => None,
+    }
+}
+
+/// Return true if `name` is a recognized builtin function name.
+#[allow(dead_code)]
+pub(super) fn is_builtin(name: &str) -> bool {
+    builtin_entry(name).is_some()
+        || matches!(
+            name,
+            ARRAY_LEN_BUILTIN
+                | "const_assert"
+                | "text_builder_new"
+                | "list_new"
+                | "list_len"
+                | "list_get"
+                | "list_set"
+                | "list_push"
+                | "list_sort_text"
+                | "list_sort_by_text_field"
+                | "text_index_new"
+                | "text_index_get"
+                | "text_index_set"
+                | "text_index_get_or_insert"
+                | "text_index_contains"
+                | "text_index_keys"
+                | "f64_from_i32"
+                | "text_from_f64_fixed"
+                | "sqrt"
+                | "parse_i32"
+                | "parse_i32_range"
+                | "text_eq_range"
+                | "text_cmp"
+                | "text_find_byte_range"
+                | "bytes_find_byte_range"
+                | "text_line_end"
+                | "text_next_line"
+                | "text_field_end"
+                | "text_next_field"
+                | "arg_count"
+                | "arg_text"
+                | "stdin_text"
+                | "stdin_bytes"
+                | "stdout_write"
+                | "stdout_write_builder"
+                | "codepoint_to_text"
+                | "enum_to_i32"
+                | "enum_to_text"
+                | "file_open"
+                | "file_read"
+                | "file_read_to_end"
+                | "file_write"
+                | "file_size"
+                | "file_seek"
+                | "file_tell"
+                | "file_is_valid"
+                | "file_exists"
+                | "file_remove"
+                | "file_close"
+                | "alloc_push"
+                | "alloc_pop"
+        )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn infer_fixed_builtin_expr(
     expr: &crate::hir::CallExpr,
@@ -502,24 +733,29 @@ pub(super) fn infer_call_expr(
         };
     }
 
-    if expr.callee == "text_len" && !functions.contains_key("text_len") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "text_len",
-            "semantic.text_len-arity",
-            "semantic.text_len-type",
-            Type::I32,
-            "Call `text_len(text)` with exactly one Text argument.".to_owned(),
-            &[BuiltinArgSpec {
-                ty: &Type::Text,
-                help: "Pass a Text argument.",
-            }],
-        );
-    }
+    if let Some(entry) = builtin_entry(&expr.callee)
+        && !functions.contains_key(&expr.callee) {
+            let context_param = entry.runtime_code.map(|code| (context, code));
+            let specs: Vec<BuiltinArgSpec> = entry
+                .arg_types
+                .iter()
+                .zip(entry.arg_helps.iter())
+                .map(|(ty, help)| BuiltinArgSpec { ty, help })
+                .collect();
+            return infer_fixed_builtin_expr(
+                expr,
+                &args,
+                diagnostics,
+                calls,
+                context_param,
+                entry.name,
+                entry.arity_error_code,
+                entry.type_error_code,
+                entry.result_ty,
+                entry.call_hint.to_owned(),
+                &specs,
+            );
+        }
 
     if expr.callee == "bytes_len" && !functions.contains_key("bytes_len") {
         return infer_fixed_builtin_expr(

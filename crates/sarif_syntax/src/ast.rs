@@ -413,6 +413,19 @@ pub enum Expr {
     Comptime(Box<ComptimeExpr>),
     Perform(PerformExpr),
     Handle(Box<HandleExpr>),
+    Template(TemplateExpr),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemplateExpr {
+    pub segments: Vec<TemplateSegment>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TemplateSegment {
+    Text(String),
+    Expr(Box<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -461,6 +474,7 @@ impl Expr {
             Self::Comptime(expr) => expr.span,
             Self::Perform(expr) => expr.span,
             Self::Handle(expr) => expr.span,
+            Self::Template(expr) => expr.span,
         }
     }
 
@@ -556,6 +570,21 @@ impl Expr {
                 format!("perform {}({})", expr.callee, args)
             }
             Self::Handle(expr) => format!("handle {} with {{ ... }}", expr.body.pretty()),
+            Self::Template(expr) => {
+                let mut out = String::from("\"");
+                for seg in &expr.segments {
+                    match seg {
+                        TemplateSegment::Text(t) => out.push_str(t),
+                        TemplateSegment::Expr(e) => {
+                            out.push('{');
+                            out.push_str(&e.pretty());
+                            out.push('}');
+                        }
+                    }
+                }
+                out.push('"');
+                out
+            }
         }
     }
 }
@@ -1468,7 +1497,25 @@ impl Lowerer {
         match node.kind {
             NodeKind::ExprInteger => Self::lower_integer_expr(node).map(Expr::Integer),
             NodeKind::ExprFloat => Self::lower_float_expr(node).map(Expr::Float),
-            NodeKind::ExprString => Self::lower_string_expr(node).map(Expr::String),
+            NodeKind::ExprString => {
+                let string_expr = Self::lower_string_expr(node);
+                match &string_expr {
+                    Some(s) if s.value.contains('{') && Self::has_interpolation(&s.value) => {
+                        match self.lower_template_expr(node) {
+                            Some(template)
+                                if template
+                                    .segments
+                                    .iter()
+                                    .any(|seg| matches!(seg, TemplateSegment::Expr(_))) =>
+                            {
+                                Some(Expr::Template(template))
+                            }
+                            _ => string_expr.map(Expr::String),
+                        }
+                    }
+                    _ => string_expr.map(Expr::String),
+                }
+            }
             NodeKind::ExprBool => Self::lower_bool_expr(node).map(Expr::Bool),
             NodeKind::ExprName => Self::lower_name_expr(node).map(Expr::Name),
             NodeKind::ExprContractResult => Some(Expr::ContractResult(
@@ -1655,6 +1702,93 @@ impl Lowerer {
         })
     }
 
+    fn has_interpolation(value: &str) -> bool {
+        let mut chars = value.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '{' {
+                let next_is_escape = chars.peek().copied() == Some('{');
+                if !next_is_escape {
+                    return true;
+                }
+                chars.next();
+            }
+        }
+        false
+    }
+
+    fn lower_template_expr(&mut self, node: &Node) -> Option<TemplateExpr> {
+        let token = Self::first_token(node, TokenKind::String)?;
+        let raw = token
+            .lexeme
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .unwrap_or(&token.lexeme);
+        let mut segments = Vec::new();
+        let mut buf = String::new();
+        let mut chars = raw.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                if let Some(next) = chars.next() {
+                    buf.push('\\');
+                    buf.push(next);
+                } else {
+                    buf.push(c);
+                }
+            } else if c == '{' {
+                if chars.peek().copied() == Some('{') {
+                    chars.next();
+                    buf.push('{');
+                    continue;
+                }
+                if !buf.is_empty() {
+                    let text = std::mem::take(&mut buf);
+                    segments.push(TemplateSegment::Text(
+                        text.replace("\\\"", "\"").replace("\\n", "\n"),
+                    ));
+                }
+                let mut expr_text = String::new();
+                let mut depth = 1usize;
+                for ec in chars.by_ref() {
+                    if ec == '{' {
+                        depth += 1;
+                        expr_text.push(ec);
+                    } else if ec == '}' {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                        expr_text.push(ec);
+                    } else {
+                        expr_text.push(ec);
+                    }
+                }
+                let fake_source = format!("let _x = {expr_text}; _x");
+                let tokens = crate::lexer::lex(&fake_source).tokens;
+                let fake_root = crate::parser::parse(&tokens).root;
+                let lowered = crate::ast::lower(&fake_root);
+                for item in lowered.file.items {
+                    if let Item::Function(f) = item
+                        && let Some(body) = f.body
+                            && let Some(tail) = body.tail {
+                                segments.push(TemplateSegment::Expr(Box::new(tail)));
+                                break;
+                            }
+                }
+            } else {
+                buf.push(c);
+            }
+        }
+        if !buf.is_empty() {
+            segments.push(TemplateSegment::Text(
+                buf.replace("\\\"", "\"").replace("\\n", "\n"),
+            ));
+        }
+        Some(TemplateExpr {
+            segments,
+            span: token.span,
+        })
+    }
+
     fn lower_bool_expr(node: &Node) -> Option<BoolExpr> {
         let token = node.children.iter().find_map(|child| match child {
             Element::Token(token)
@@ -1684,57 +1818,30 @@ impl Lowerer {
     }
 
     fn lower_call_expr(&mut self, node: &Node) -> Option<CallExpr> {
-        let mut children = node.children.iter();
-        let callee = loop {
-            match children.next() {
-                Some(Element::Node(child)) => match self.lower_expr(child) {
-                    Some(Expr::Name(name)) => break name.name,
-                    Some(Expr::Field(field)) => break field.pretty(),
-                    Some(Expr::Perform(perform)) => break perform.callee.to_string(),
-                    Some(
-                        Expr::Integer(_)
-                        | Expr::Float(_)
-                        | Expr::String(_)
-                        | Expr::Bool(_)
-                        | Expr::ContractResult(_)
-                        | Expr::Call(_)
-                        | Expr::Array(_)
-                        | Expr::If(_)
-                        | Expr::Match(_)
-                        | Expr::Repeat(_)
-                        | Expr::While(_)
-                        | Expr::Record(_)
-                        | Expr::Index(_)
-                        | Expr::Unary(_)
-                        | Expr::Binary(_)
-                        | Expr::Group(_)
-                        | Expr::Comptime(_)
-                        | Expr::Handle(_),
-                    )
-                    | None => {}
-                },
-                Some(Element::Token(_)) => {}
-                None => return None,
-            }
+        let callee_node = node.children.iter().find_map(|child| match child {
+            Element::Node(child) => Some(child),
+            Element::Token(_) => None,
+        })?;
+
+        let mut args = Vec::new();
+        let callee = match self.lower_expr(callee_node)? {
+            Expr::Field(field) => field.pretty(),
+            Expr::Name(name) => name.name,
+            Expr::Perform(perform) => perform.callee.to_string(),
+            _ => return None,
         };
 
-        let args = node
-            .children
-            .iter()
-            .find_map(|child| match child {
-                Element::Node(child) if child.kind == NodeKind::ArgList => Some(
-                    child
-                        .children
-                        .iter()
-                        .filter_map(|element| match element {
-                            Element::Node(expr) => self.lower_expr(expr),
-                            Element::Token(_) => None,
-                        })
-                        .collect::<Vec<_>>(),
-                ),
-                Element::Node(_) | Element::Token(_) => None,
-            })
-            .unwrap_or_default();
+        if let Some(arg_node) = node.children.iter().find_map(|child| match child {
+            Element::Node(child) if child.kind == NodeKind::ArgList => Some(child),
+            _ => None,
+        }) {
+            for element in &arg_node.children {
+                if let Element::Node(expr) = element
+                    && let Some(arg) = self.lower_expr(expr) {
+                        args.push(arg);
+                    }
+            }
+        }
 
         Some(CallExpr {
             callee,

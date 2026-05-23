@@ -12,6 +12,7 @@ pub struct Command {
     pub dump_ir: Option<String>,
     pub inspect: Option<String>,
     pub semantic: bool,
+    pub debug: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,6 +66,7 @@ pub fn usage() -> String {
     usage +=
         "  --dump-ir=<pass>  dump IR after specific pass (hir, sem, mir, cranelift, wasm, c)\n";
     usage += "  --inspect=<tool>  inspection tool (wasmprinter)\n";
+    usage += "  --debug           enable target runtime null-pointer trap checks\n";
     usage
 }
 
@@ -125,6 +127,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut dump_ir = None;
     let mut inspect = None;
     let mut semantic = false;
+    let mut debug = false;
 
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -169,6 +172,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             "-o" => output_path = iter.next().cloned(),
             "--print-main" => print_main = true,
             "--semantic" => semantic = true,
+            "--debug" => debug = true,
             other if other.starts_with("--dump-ir=") => {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
@@ -211,6 +215,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             dump_ir,
             inspect,
             semantic,
+            debug,
         });
     }
 
@@ -233,6 +238,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         dump_ir,
         inspect,
         semantic,
+        debug,
     })
 }
 

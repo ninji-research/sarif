@@ -2572,18 +2572,6 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
-### fn hir_item_kind_from_top_level
-
-- signature: `fn hir_item_kind_from_top_level(kind: TopLevelKind) -> HirItemKind`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn hir_build_items_from_outline
-
-- signature: `fn hir_build_items_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, source: Text) -> HirItemList`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
 ### fn hir_span_from_optional
 
 - signature: `fn hir_span_from_optional(span: OptionalSpan) -> Span`
