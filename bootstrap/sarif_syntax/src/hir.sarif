@@ -1203,7 +1203,9 @@ fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
     if not report.ok {
         hir_module_new()
     } else {
-        hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source)
+        let module = hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source);
+        let enriched_funcs = hir_enrich_fn_list(module.funcs, report.fn_outline, source);
+        HirModuleData { consts: module.consts, funcs: enriched_funcs, enums: module.enums, structs: module.structs, exprs: module.exprs, bodies: module.bodies }
     }
 }
 
@@ -1258,6 +1260,213 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
 }
 
 
+
+fn hir_parse_type_ref_from_name(name: Text) -> HirTypeRef {
+    if name == "I32" { hir_type_ref_i32() }
+    else if name == "F64" { hir_type_ref_f64() }
+    else if name == "Bool" { hir_type_ref_bool() }
+    else if name == "Text" { hir_type_ref_text() }
+    else if name == "Unit" { hir_type_ref_unit() }
+    else if text_len(name) >= 6 and text_eq_range(name, 0, 6, "Array[") {
+        let inner_end = text_len(name) - 1;
+        if inner_end > 6 {
+            let elem = text_slice(name, 6, inner_end);
+            hir_type_ref_array(elem)
+        } else { hir_type_ref_named(name) }
+    }
+    else if text_len(name) >= 10 and text_eq_range(name, 0, 10, "Optional[") {
+        let inner_end = text_len(name) - 1;
+        if inner_end > 10 {
+            let inner = text_slice(name, 10, inner_end);
+            hir_type_ref_optional(inner)
+        } else { hir_type_ref_named(name) }
+    }
+    else { hir_type_ref_named(name) }
+}
+
+fn hir_is_ws(b: I32) -> Bool { b == 32 or b == 9 or b == 10 or b == 13 }
+
+fn hir_trim_text(text: Text) -> Text {
+    let len = text_len(text);
+    if len == 0 { "" }
+    else {
+        let mut start = 0;
+        let mut keep_going = true;
+        while start < len and keep_going {
+            if hir_is_ws(text_byte(text, start)) { start = start + 1; }
+            else { keep_going = false; };
+        };
+        if start == len { "" }
+        else {
+            let mut end = len;
+            keep_going = true;
+            while end > start and keep_going {
+                if hir_is_ws(text_byte(text, end - 1)) { end = end - 1; }
+                else { keep_going = false; };
+            };
+            text_slice(text, start, end)
+        }
+    }
+}
+
+fn hir_parse_param_from_slice(text: Text, start: I32, end: I32) -> OptionalHirParam {
+    if start >= end {
+        hir_optional_param_false()
+    } else {
+        let colon = text_find_byte_range(text, start, end, 58);
+        if colon == -1 or colon >= end {
+            let name = hir_trim_text(text_slice(text, start, end));
+            if is_empty_text(name) {
+                hir_optional_param_false()
+            } else {
+                OptionalHirParam { present: true, param: HirParam { name: name, ty: hir_type_ref_unit() } }
+            }
+        } else {
+            let name = hir_trim_text(text_slice(text, start, colon));
+            let ty_name = hir_trim_text(text_slice(text, colon + 1, end));
+            if is_empty_text(name) {
+                hir_optional_param_false()
+            } else {
+                let ty = hir_parse_type_ref_from_name(ty_name);
+                OptionalHirParam { present: true, param: HirParam { name: name, ty: ty } }
+            }
+        }
+    }
+}
+
+fn hir_extract_param_list_from_source(source: Text, span_start: I32, span_end: I32) -> HirParamList {
+    let raw = text_slice(source, span_start, span_end);
+    let raw_len = text_len(raw);
+    if raw_len < 2 {
+        hir_param_list_new()
+    } else {
+        let inner = text_slice(raw, 1, raw_len - 1);
+        let inner_len = text_len(inner);
+        let p1_end = text_find_byte_range(inner, 0, inner_len, 44);
+        let p1 = hir_parse_param_from_slice(inner, 0, if p1_end == -1 { inner_len } else { p1_end });
+        if p1_end == -1 {
+            HirParamList { len: if p1.present { 1 } else { 0 }, p1: p1, p2: hir_optional_param_false(), p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false(), p6: hir_optional_param_false(), p7: hir_optional_param_false(), p8: hir_optional_param_false(), p9: hir_optional_param_false(), p10: hir_optional_param_false(), p11: hir_optional_param_false(), p12: hir_optional_param_false(), p13: hir_optional_param_false(), p14: hir_optional_param_false(), p15: hir_optional_param_false(), p16: hir_optional_param_false() }
+        } else {
+            let p2_end = text_find_byte_range(inner, p1_end + 1, inner_len, 44);
+            let p2 = hir_parse_param_from_slice(inner, p1_end + 1, if p2_end == -1 { inner_len } else { p2_end });
+            if p2_end == -1 {
+                let count = (if p1.present { 1 } else { 0 }) + (if p2.present { 1 } else { 0 });
+                HirParamList { len: count, p1: p1, p2: p2, p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false(), p6: hir_optional_param_false(), p7: hir_optional_param_false(), p8: hir_optional_param_false(), p9: hir_optional_param_false(), p10: hir_optional_param_false(), p11: hir_optional_param_false(), p12: hir_optional_param_false(), p13: hir_optional_param_false(), p14: hir_optional_param_false(), p15: hir_optional_param_false(), p16: hir_optional_param_false() }
+            } else {
+                hir_param_list_new()
+            }
+        }
+    }
+}
+
+fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> HirFnList2 {
+    let mut fn_idx = 0;
+    let f1_opt = list.f1;
+    let f1_new = if f1_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let params_opt = shape.params_span;
+            let ret_opt = shape.return_span;
+            let mut f = f1_opt.f;
+            if params_opt.present {
+                let plist = hir_extract_param_list_from_source(source, params_opt.span.start, params_opt.span.end);
+                f = hir_fn_set_params(f, plist);
+            };
+            if ret_opt.present {
+                let ret_text = hir_span_text(ret_opt.span, source);
+                let ret_trimmed = hir_trim_text(ret_text);
+                if not is_empty_text(ret_trimmed) {
+                    let ty = hir_parse_type_ref_from_name(ret_trimmed);
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(ty));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else { f1_opt }
+    } else { f1_opt };
+    if f1_opt.present { fn_idx = fn_idx + 1; };
+    let f2_opt = list.f2;
+    let f2_new = if f2_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let params_opt = shape.params_span;
+            let ret_opt = shape.return_span;
+            let mut f = f2_opt.f;
+            if params_opt.present {
+                let plist = hir_extract_param_list_from_source(source, params_opt.span.start, params_opt.span.end);
+                f = hir_fn_set_params(f, plist);
+            };
+            if ret_opt.present {
+                let ret_text = hir_span_text(ret_opt.span, source);
+                let ret_trimmed = hir_trim_text(ret_text);
+                if not is_empty_text(ret_trimmed) {
+                    let ty = hir_parse_type_ref_from_name(ret_trimmed);
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(ty));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else { f2_opt }
+    } else { f2_opt };
+    if f2_opt.present { fn_idx = fn_idx + 1; };
+    let f3_opt = list.f3;
+    let f3_new = if f3_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let mut f = f3_opt.f;
+            if shape.params_span.present {
+                f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
+            };
+            if shape.return_span.present {
+                let ret_text = hir_trim_text(hir_span_text(shape.return_span.span, source));
+                if not is_empty_text(ret_text) {
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else { f3_opt }
+    } else { f3_opt };
+    if f3_opt.present { fn_idx = fn_idx + 1; };
+    let f4_opt = list.f4;
+    let f4_new = if f4_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let mut f = f4_opt.f;
+            if shape.params_span.present {
+                f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
+            };
+            if shape.return_span.present {
+                let ret_text = hir_trim_text(hir_span_text(shape.return_span.span, source));
+                if not is_empty_text(ret_text) {
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else { f4_opt }
+    } else { f4_opt };
+    if f4_opt.present { fn_idx = fn_idx + 1; };
+    let f5_opt = list.f5;
+    let f5_new = if f5_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let mut f = f5_opt.f;
+            if shape.params_span.present {
+                f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
+            };
+            if shape.return_span.present {
+                let ret_text = hir_trim_text(hir_span_text(shape.return_span.span, source));
+                if not is_empty_text(ret_text) {
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else { f5_opt }
+    } else { f5_opt };
+    HirFnList2 { len: list.len, f1: f1_new, f2: f2_new, f3: f3_new, f4: f4_new, f5: f5_new, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+}
 
 fn hir_span_from_optional(span: OptionalSpan) -> Span {
     if span.present {
