@@ -4700,7 +4700,11 @@ fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
     if not report.ok {
         hir_module_new()
     } else {
-        hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source)
+        let module = hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source);
+        let enriched_funcs = hir_enrich_fn_list(module.funcs, report.fn_outline, source);
+        let enriched_structs = hir_enrich_structs_from_outline(module.structs, report.outline, source);
+        let enriched_enums = hir_enrich_enums_from_outline(module.enums, report.outline, source);
+        HirModuleData { consts: module.consts, funcs: enriched_funcs, enums: enriched_enums, structs: enriched_structs, exprs: module.exprs, bodies: module.bodies }
     }
 }
 
@@ -4834,6 +4838,729 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
     HirModuleData { consts: c5, funcs: f5, enums: en5, structs: s5, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
 }
 
+fn hir_parse_type_ref_from_name(name: Text) -> HirTypeRef {
+    if name == "I32" {
+        hir_type_ref_i32()
+    } else {
+        if name == "F64" {
+            hir_type_ref_f64()
+        } else {
+            if name == "Bool" {
+                hir_type_ref_bool()
+            } else {
+                if name == "Text" {
+                    hir_type_ref_text()
+                } else {
+                    if name == "Unit" {
+                        hir_type_ref_unit()
+                    } else {
+                        if text_len(name) >= 6 and text_eq_range(name, 0, 6, "Array[") {
+                            let inner_end = text_len(name) - 1;
+                            if inner_end > 6 {
+                                let elem = text_slice(name, 6, inner_end);
+                                hir_type_ref_array(elem)
+                            } else {
+                                hir_type_ref_named(name)
+                            }
+                        } else {
+                            if text_len(name) >= 10 and text_eq_range(name, 0, 10, "Optional[") {
+                                let inner_end = text_len(name) - 1;
+                                if inner_end > 10 {
+                                    let inner = text_slice(name, 10, inner_end);
+                                    hir_type_ref_optional(inner)
+                                } else {
+                                    hir_type_ref_named(name)
+                                }
+                            } else {
+                                hir_type_ref_named(name)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn hir_is_ws(b: I32) -> Bool {
+    b == 32 or
+    b == 9 or
+    b == 10 or
+    b == 13
+}
+
+fn hir_trim_text(text: Text) -> Text {
+    let len = text_len(text);
+    if len == 0 {
+        ""
+    } else {
+        let mut start = 0;
+        let mut keep_going = true;
+        while start < len and keep_going {
+            if hir_is_ws(text_byte(text, start)) {
+                start = start + 1;
+            } else {
+                keep_going = false;
+            };
+        };
+        if start == len {
+            ""
+        } else {
+            let mut end = len;
+            keep_going = true;
+            while end > start and keep_going {
+                if hir_is_ws(text_byte(text, end - 1)) {
+                    end = end - 1;
+                } else {
+                    keep_going = false;
+                };
+            };
+            text_slice(text, start, end)
+        }
+    }
+}
+
+fn hir_parse_param_from_slice(text: Text, start: I32, end: I32) -> OptionalHirParam {
+    if start >= end {
+        hir_optional_param_false()
+    } else {
+        let colon = text_find_byte_range(text, start, end, 58);
+        if colon == -1 or colon >= end {
+            let name = hir_trim_text(text_slice(text, start, end));
+            if is_empty_text(name) {
+                hir_optional_param_false()
+            } else {
+                OptionalHirParam { present: true, param: HirParam { name: name, ty: hir_type_ref_unit() } }
+            }
+        } else {
+            let name = hir_trim_text(text_slice(text, start, colon));
+            let ty_name = hir_trim_text(text_slice(text, colon + 1, end));
+            if is_empty_text(name) {
+                hir_optional_param_false()
+            } else {
+                let ty = hir_parse_type_ref_from_name(ty_name);
+                OptionalHirParam { present: true, param: HirParam { name: name, ty: ty } }
+            }
+        }
+    }
+}
+
+fn hir_find_comma_inner(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 44)
+}
+
+fn hir_extract_param_list_from_source(source: Text, span_start: I32, span_end: I32) -> HirParamList {
+    let raw = text_slice(source, span_start, span_end);
+    let raw_len = text_len(raw);
+    if raw_len < 2 {
+        hir_param_list_new()
+    } else {
+        let inner = text_slice(raw, 1, raw_len - 1);
+        let inner_len = text_len(inner);
+        let mut cur = 0;
+        let mut p1 = hir_optional_param_false();
+        let mut p2 = hir_optional_param_false();
+        let mut p3 = hir_optional_param_false();
+        let mut p4 = hir_optional_param_false();
+        let mut p5 = hir_optional_param_false();
+        let mut p6 = hir_optional_param_false();
+        let mut p7 = hir_optional_param_false();
+        let mut p8 = hir_optional_param_false();
+        let mut p9 = hir_optional_param_false();
+        let mut p10 = hir_optional_param_false();
+        let mut p11 = hir_optional_param_false();
+        let mut p12 = hir_optional_param_false();
+        let mut p13 = hir_optional_param_false();
+        let mut p14 = hir_optional_param_false();
+        let mut p15 = hir_optional_param_false();
+        let mut p16 = hir_optional_param_false();
+        let mut count = 0;
+        let mut loop_i = 0;
+        while loop_i < 16 and cur < inner_len {
+            let comma = hir_find_comma_inner(inner, cur, inner_len);
+            let seg_end = if comma == -1 {
+                inner_len
+            } else {
+                comma
+            };
+            let param = hir_parse_param_from_slice(inner, cur, seg_end);
+            if loop_i == 0 {
+                p1 = param;
+            };
+            if loop_i == 1 {
+                p2 = param;
+            };
+            if loop_i == 2 {
+                p3 = param;
+            };
+            if loop_i == 3 {
+                p4 = param;
+            };
+            if loop_i == 4 {
+                p5 = param;
+            };
+            if loop_i == 5 {
+                p6 = param;
+            };
+            if loop_i == 6 {
+                p7 = param;
+            };
+            if loop_i == 7 {
+                p8 = param;
+            };
+            if loop_i == 8 {
+                p9 = param;
+            };
+            if loop_i == 9 {
+                p10 = param;
+            };
+            if loop_i == 10 {
+                p11 = param;
+            };
+            if loop_i == 11 {
+                p12 = param;
+            };
+            if loop_i == 12 {
+                p13 = param;
+            };
+            if loop_i == 13 {
+                p14 = param;
+            };
+            if loop_i == 14 {
+                p15 = param;
+            };
+            if loop_i == 15 {
+                p16 = param;
+            };
+            if param.present {
+                count = count + 1;
+            };
+            if comma == -1 {
+                cur = inner_len;
+            } else {
+                cur = comma + 1;
+            };
+            loop_i = loop_i + 1;
+        };
+        HirParamList { len: count, p1: p1, p2: p2, p3: p3, p4: p4, p5: p5, p6: p6, p7: p7, p8: p8, p9: p9, p10: p10, p11: p11, p12: p12, p13: p13, p14: p14, p15: p15, p16: p16 }
+    }
+}
+
+fn hir_strip_return_arrow(text: Text) -> Text {
+    let len = text_len(text);
+    if len >= 2 and text_byte(text, 0) == 45 and text_byte(text, 1) == 62 {
+        let mut start = 2;
+        let mut go = true;
+        while start < len and go {
+            if hir_is_ws(text_byte(text, start)) {
+                start = start + 1;
+            } else {
+                go = false;
+            };
+        };
+        if start >= len {
+            ""
+        } else {
+            text_slice(text, start, len)
+        }
+    } else {
+        text
+    }
+}
+
+fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> HirFnList2 {
+    let mut fn_idx = 0;
+    let f1_opt = list.f1;
+    let f1_new = if f1_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let params_opt = shape.params_span;
+            let ret_opt = shape.return_span;
+            let mut f = f1_opt.f;
+            if params_opt.present {
+                let plist = hir_extract_param_list_from_source(source, params_opt.span.start, params_opt.span.end);
+                f = hir_fn_set_params(f, plist);
+            };
+            if ret_opt.present {
+                let ret_text = hir_span_text(ret_opt.span, source);
+                let ret_trimmed = hir_strip_return_arrow(hir_trim_text(ret_text));
+                if not is_empty_text(ret_trimmed) {
+                    let ty = hir_parse_type_ref_from_name(ret_trimmed);
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(ty));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else {
+            f1_opt
+        }
+    } else {
+        f1_opt
+    };
+    if f1_opt.present {
+        fn_idx = fn_idx + 1;
+    };
+    let f2_opt = list.f2;
+    let f2_new = if f2_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let params_opt = shape.params_span;
+            let ret_opt = shape.return_span;
+            let mut f = f2_opt.f;
+            if params_opt.present {
+                let plist = hir_extract_param_list_from_source(source, params_opt.span.start, params_opt.span.end);
+                f = hir_fn_set_params(f, plist);
+            };
+            if ret_opt.present {
+                let ret_text = hir_span_text(ret_opt.span, source);
+                let ret_trimmed = hir_strip_return_arrow(hir_trim_text(ret_text));
+                if not is_empty_text(ret_trimmed) {
+                    let ty = hir_parse_type_ref_from_name(ret_trimmed);
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(ty));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else {
+            f2_opt
+        }
+    } else {
+        f2_opt
+    };
+    if f2_opt.present {
+        fn_idx = fn_idx + 1;
+    };
+    let f3_opt = list.f3;
+    let f3_new = if f3_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let mut f = f3_opt.f;
+            if shape.params_span.present {
+                f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
+            };
+            if shape.return_span.present {
+                let ret_text = hir_strip_return_arrow(hir_trim_text(hir_span_text(shape.return_span.span, source)));
+                if not is_empty_text(ret_text) {
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else {
+            f3_opt
+        }
+    } else {
+        f3_opt
+    };
+    if f3_opt.present {
+        fn_idx = fn_idx + 1;
+    };
+    let f4_opt = list.f4;
+    let f4_new = if f4_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let mut f = f4_opt.f;
+            if shape.params_span.present {
+                f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
+            };
+            if shape.return_span.present {
+                let ret_text = hir_strip_return_arrow(hir_trim_text(hir_span_text(shape.return_span.span, source)));
+                if not is_empty_text(ret_text) {
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else {
+            f4_opt
+        }
+    } else {
+        f4_opt
+    };
+    if f4_opt.present {
+        fn_idx = fn_idx + 1;
+    };
+    let f5_opt = list.f5;
+    let f5_new = if f5_opt.present {
+        let fe = fn_outline_entry_at(fn_outline, fn_idx);
+        if fe.present {
+            let shape = fe.entry.shape;
+            let mut f = f5_opt.f;
+            if shape.params_span.present {
+                f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
+            };
+            if shape.return_span.present {
+                let ret_text = hir_strip_return_arrow(hir_trim_text(hir_span_text(shape.return_span.span, source)));
+                if not is_empty_text(ret_text) {
+                    f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
+                };
+            };
+            OptionalHirFn2 { present: true, f: f }
+        } else {
+            f5_opt
+        }
+    } else {
+        f5_opt
+    };
+    HirFnList2 { len: list.len, f1: f1_new, f2: f2_new, f3: f3_new, f4: f4_new, f5: f5_new, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+}
+
+fn hir_find_open_brace(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 123)
+}
+
+fn hir_find_close_brace(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 125)
+}
+
+fn hir_find_open_paren(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 40)
+}
+
+fn hir_find_close_paren(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 41)
+}
+
+fn hir_parse_field_from_slice(text: Text, start: I32, end: I32) -> OptionalHirField {
+    let trimmed = hir_trim_text(text_slice(text, start, end));
+    if is_empty_text(trimmed) {
+        hir_optional_field_false()
+    } else {
+        let colon = text_find_byte_range(trimmed, 0, text_len(trimmed), 58);
+        if colon == -1 or colon >= text_len(trimmed) {
+            let name = hir_trim_text(trimmed);
+            if is_empty_text(name) {
+                hir_optional_field_false()
+            } else {
+                OptionalHirField { present: true, field: HirField { name: name, ty: hir_type_ref_unit(), span: hir_span_new(0, 0) } }
+            }
+        } else {
+            let name = hir_trim_text(text_slice(trimmed, 0, colon));
+            let ty_name = hir_trim_text(text_slice(trimmed, colon + 1, text_len(trimmed)));
+            if is_empty_text(name) {
+                hir_optional_field_false()
+            } else {
+                OptionalHirField { present: true, field: HirField { name: name, ty: hir_parse_type_ref_from_name(ty_name), span: hir_span_new(0, 0) } }
+            }
+        }
+    }
+}
+
+fn hir_extract_fields_from_span(source: Text, span_start: I32, span_end: I32) -> HirFieldList {
+    let raw = text_slice(source, span_start, span_end);
+    let raw_len = text_len(raw);
+    let open_b = hir_find_open_brace(raw, 0, raw_len);
+    if open_b == -1 {
+        hir_field_list_new()
+    } else {
+        let close_b = hir_find_close_brace(raw, open_b + 1, raw_len);
+        if close_b == -1 {
+            hir_field_list_new()
+        } else {
+            let inner = text_slice(raw, open_b + 1, close_b);
+            let inner_len = text_len(inner);
+            let mut cur = 0;
+            let mut f1 = hir_optional_field_false();
+            let mut f2 = hir_optional_field_false();
+            let mut f3 = hir_optional_field_false();
+            let mut f4 = hir_optional_field_false();
+            let mut f5 = hir_optional_field_false();
+            let mut f6 = hir_optional_field_false();
+            let mut f7 = hir_optional_field_false();
+            let mut f8 = hir_optional_field_false();
+            let mut f9 = hir_optional_field_false();
+            let mut f10 = hir_optional_field_false();
+            let mut f11 = hir_optional_field_false();
+            let mut f12 = hir_optional_field_false();
+            let mut f13 = hir_optional_field_false();
+            let mut f14 = hir_optional_field_false();
+            let mut f15 = hir_optional_field_false();
+            let mut f16 = hir_optional_field_false();
+            let mut count = 0;
+            let mut loop_i = 0;
+            while loop_i < 16 and cur < inner_len {
+                let comma = text_find_byte_range(inner, cur, inner_len, 44);
+                let seg_end = if comma == -1 {
+                    inner_len
+                } else {
+                    comma
+                };
+                let field = hir_parse_field_from_slice(inner, cur, seg_end);
+                if loop_i == 0 {
+                    f1 = field;
+                };
+                if loop_i == 1 {
+                    f2 = field;
+                };
+                if loop_i == 2 {
+                    f3 = field;
+                };
+                if loop_i == 3 {
+                    f4 = field;
+                };
+                if loop_i == 4 {
+                    f5 = field;
+                };
+                if loop_i == 5 {
+                    f6 = field;
+                };
+                if loop_i == 6 {
+                    f7 = field;
+                };
+                if loop_i == 7 {
+                    f8 = field;
+                };
+                if loop_i == 8 {
+                    f9 = field;
+                };
+                if loop_i == 9 {
+                    f10 = field;
+                };
+                if loop_i == 10 {
+                    f11 = field;
+                };
+                if loop_i == 11 {
+                    f12 = field;
+                };
+                if loop_i == 12 {
+                    f13 = field;
+                };
+                if loop_i == 13 {
+                    f14 = field;
+                };
+                if loop_i == 14 {
+                    f15 = field;
+                };
+                if loop_i == 15 {
+                    f16 = field;
+                };
+                if field.present {
+                    count = count + 1;
+                };
+                if comma == -1 {
+                    cur = inner_len;
+                } else {
+                    cur = comma + 1;
+                };
+                loop_i = loop_i + 1;
+            };
+            HirFieldList { len: count, f1: f1, f2: f2, f3: f3, f4: f4, f5: f5, f6: f6, f7: f7, f8: f8, f9: f9, f10: f10, f11: f11, f12: f12, f13: f13, f14: f14, f15: f15, f16: f16 }
+        }
+    }
+}
+
+fn hir_parse_variant_from_slice(text: Text, start: I32, end: I32) -> OptionalHirVariant {
+    let trimmed = hir_trim_text(text_slice(text, start, end));
+    if is_empty_text(trimmed) {
+        hir_optional_variant_false()
+    } else {
+        let paren = hir_find_open_paren(trimmed, 0, text_len(trimmed));
+        if paren == -1 {
+            OptionalHirVariant { present: true, variant: hir_variant_new(trimmed) }
+        } else {
+            let close_p = hir_find_close_paren(trimmed, paren + 1, text_len(trimmed));
+            let name = hir_trim_text(text_slice(trimmed, 0, paren));
+            if is_empty_text(name) {
+                hir_optional_variant_false()
+            } else {
+                let payload_text = if close_p == -1 {
+                    text_slice(trimmed, paren + 1, text_len(trimmed))
+                } else {
+                    text_slice(trimmed, paren + 1, close_p)
+                };
+                let payload_trimmed = hir_trim_text(payload_text);
+                let ty = if is_empty_text(payload_trimmed) {
+                    hir_type_ref_unit()
+                } else {
+                    hir_parse_type_ref_from_name(payload_trimmed)
+                };
+                OptionalHirVariant { present: true, variant: HirVariant { name: name, payload: hir_optional_type_ref_true(ty), span: hir_span_new(0, 0) } }
+            }
+        }
+    }
+}
+
+fn hir_extract_variants_from_span(source: Text, span_start: I32, span_end: I32) -> HirVariantList {
+    let raw = text_slice(source, span_start, span_end);
+    let raw_len = text_len(raw);
+    let open_b = hir_find_open_brace(raw, 0, raw_len);
+    if open_b == -1 {
+        hir_variant_list_new()
+    } else {
+        let close_b = hir_find_close_brace(raw, open_b + 1, raw_len);
+        if close_b == -1 {
+            hir_variant_list_new()
+        } else {
+            let inner = text_slice(raw, open_b + 1, close_b);
+            let inner_len = text_len(inner);
+            let mut cur = 0;
+            let mut v1 = hir_optional_variant_false();
+            let mut v2 = hir_optional_variant_false();
+            let mut v3 = hir_optional_variant_false();
+            let mut v4 = hir_optional_variant_false();
+            let mut v5 = hir_optional_variant_false();
+            let mut v6 = hir_optional_variant_false();
+            let mut v7 = hir_optional_variant_false();
+            let mut v8 = hir_optional_variant_false();
+            let mut v9 = hir_optional_variant_false();
+            let mut v10 = hir_optional_variant_false();
+            let mut v11 = hir_optional_variant_false();
+            let mut v12 = hir_optional_variant_false();
+            let mut v13 = hir_optional_variant_false();
+            let mut v14 = hir_optional_variant_false();
+            let mut v15 = hir_optional_variant_false();
+            let mut v16 = hir_optional_variant_false();
+            let mut count = 0;
+            let mut loop_i = 0;
+            while loop_i < 16 and cur < inner_len {
+                let comma = text_find_byte_range(inner, cur, inner_len, 44);
+                let seg_end = if comma == -1 {
+                    inner_len
+                } else {
+                    comma
+                };
+                let variant = hir_parse_variant_from_slice(inner, cur, seg_end);
+                if loop_i == 0 {
+                    v1 = variant;
+                };
+                if loop_i == 1 {
+                    v2 = variant;
+                };
+                if loop_i == 2 {
+                    v3 = variant;
+                };
+                if loop_i == 3 {
+                    v4 = variant;
+                };
+                if loop_i == 4 {
+                    v5 = variant;
+                };
+                if loop_i == 5 {
+                    v6 = variant;
+                };
+                if loop_i == 6 {
+                    v7 = variant;
+                };
+                if loop_i == 7 {
+                    v8 = variant;
+                };
+                if loop_i == 8 {
+                    v9 = variant;
+                };
+                if loop_i == 9 {
+                    v10 = variant;
+                };
+                if loop_i == 10 {
+                    v11 = variant;
+                };
+                if loop_i == 11 {
+                    v12 = variant;
+                };
+                if loop_i == 12 {
+                    v13 = variant;
+                };
+                if loop_i == 13 {
+                    v14 = variant;
+                };
+                if loop_i == 14 {
+                    v15 = variant;
+                };
+                if loop_i == 15 {
+                    v16 = variant;
+                };
+                if variant.present {
+                    count = count + 1;
+                };
+                if comma == -1 {
+                    cur = inner_len;
+                } else {
+                    cur = comma + 1;
+                };
+                loop_i = loop_i + 1;
+            };
+            HirVariantList { len: count, v1: v1, v2: v2, v3: v3, v4: v4, v5: v5, v6: v6, v7: v7, v8: v8, v9: v9, v10: v10, v11: v11, v12: v12, v13: v13, v14: v14, v15: v15, v16: v16 }
+        }
+    }
+}
+
+fn hir_enrich_structs_from_outline(structs: HirStructList, outline: TopLevelOutline, source: Text) -> HirStructList {
+    let mut si = 0;
+    let mut i = 0;
+    let mut out = structs;
+    while i < 5 {
+        let e = top_level_entry_at(outline, i);
+        if e.present and e.entry.kind == TopLevelKind.Struct {
+            let fields = hir_extract_fields_from_span(source, e.entry.span.start, e.entry.span.end);
+            if si == 0 and out.s1.present {
+                let s = out.s1.s;
+                out = HirStructList { len: out.len, s1: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s2: out.s2, s3: out.s3, s4: out.s4, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+            } else {
+                if si == 1 and out.s2.present {
+                    let s = out.s2.s;
+                    out = HirStructList { len: out.len, s1: out.s1, s2: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s3: out.s3, s4: out.s4, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+                } else {
+                    if si == 2 and out.s3.present {
+                        let s = out.s3.s;
+                        out = HirStructList { len: out.len, s1: out.s1, s2: out.s2, s3: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s4: out.s4, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+                    } else {
+                        if si == 3 and out.s4.present {
+                            let s = out.s4.s;
+                            out = HirStructList { len: out.len, s1: out.s1, s2: out.s2, s3: out.s3, s4: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+                        } else {
+                            if si == 4 and out.s5.present {
+                                let s = out.s5.s;
+                                out = HirStructList { len: out.len, s1: out.s1, s2: out.s2, s3: out.s3, s4: out.s4, s5: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+                            }
+                        }
+                    }
+                }
+            };
+            si = si + 1;
+        };
+        i = i + 1;
+    };
+    out
+}
+
+fn hir_enrich_enums_from_outline(enums: HirEnumList, outline: TopLevelOutline, source: Text) -> HirEnumList {
+    let mut ei = 0;
+    let mut i = 0;
+    let mut out = enums;
+    while i < 5 {
+        let e = top_level_entry_at(outline, i);
+        if e.present and e.entry.kind == TopLevelKind.Enum {
+            let variants = hir_extract_variants_from_span(source, e.entry.span.start, e.entry.span.end);
+            if ei == 0 and out.e1.present {
+                let en = out.e1.e;
+                out = HirEnumList { len: out.len, e1: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e2: out.e2, e3: out.e3, e4: out.e4, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+            } else {
+                if ei == 1 and out.e2.present {
+                    let en = out.e2.e;
+                    out = HirEnumList { len: out.len, e1: out.e1, e2: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e3: out.e3, e4: out.e4, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+                } else {
+                    if ei == 2 and out.e3.present {
+                        let en = out.e3.e;
+                        out = HirEnumList { len: out.len, e1: out.e1, e2: out.e2, e3: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e4: out.e4, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+                    } else {
+                        if ei == 3 and out.e4.present {
+                            let en = out.e4.e;
+                            out = HirEnumList { len: out.len, e1: out.e1, e2: out.e2, e3: out.e3, e4: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+                        } else {
+                            if ei == 4 and out.e5.present {
+                                let en = out.e5.e;
+                                out = HirEnumList { len: out.len, e1: out.e1, e2: out.e2, e3: out.e3, e4: out.e4, e5: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+                            }
+                        }
+                    }
+                }
+            };
+            ei = ei + 1;
+        };
+        i = i + 1;
+    };
+    out
+}
+
 fn hir_span_from_optional(span: OptionalSpan) -> Span {
     if span.present {
         span.span
@@ -4854,12 +5581,24 @@ fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
     HirLowering { module: module, expr_pool: hir_expr_pool_new(), body_pool: hir_body_pool_new(), fns: hir_fn_list_2_new(), enums: hir_enum_list_new(), structs: hir_struct_list_new(), diags: hir_diag_list_new() }
 }
 
+fn is_empty_text(source: Text) -> Bool {
+    let length = text_len(source);
+    length == 0
+}
+
 fn hir_selfcheck() -> I32 {
-    let source = "struct Pair {}\nenum Option { none, some }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32) { let y = x; y }\n";
+    let source = "struct Pair { first: I32, second: F64 }\nenum Option { none, some(Text) }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32, y: Bool) -> F64 { 0.0 }\n";
     let report = parse_module_report(source);
     if report.ok {
         let module = hir_module_from_report(report, source);
-        hir_validate_module(module)
+        let resolve_diags = check_duplicate_definitions(module);
+        let typ_diags = typecheck_hir_module(module);
+        let own_diags = analyze_borrow_escape(module);
+        if is_empty_text(resolve_diags) and is_empty_text(typ_diags) and is_empty_text(own_diags) {
+            hir_validate_module(module)
+        } else {
+            0
+        }
     } else {
         0
     }
@@ -5055,4 +5794,1170 @@ fn hir_module_selfcheck(module: HirModuleData) -> I32 {
 
 fn main() -> I32 {
     syntax_selfcheck() + hir_selfcheck()
+}
+
+fn type_name_from_ref(ty: HirTypeRef) -> Text {
+    if ty.kind == HirTypeKind.I32 {
+        "I32"
+    } else {
+        if ty.kind == HirTypeKind.F64 {
+            "F64"
+        } else {
+            if ty.kind == HirTypeKind.Bool {
+                "Bool"
+            } else {
+                if ty.kind == HirTypeKind.Text {
+                    "Text"
+                } else {
+                    if ty.kind == HirTypeKind.Unit {
+                        "Unit"
+                    } else {
+                        if ty.kind == HirTypeKind.Array {
+                            text_concat("Array[", text_concat(ty.t1, "]"))
+                        } else {
+                            if ty.kind == HirTypeKind.Named {
+                                ty.t1
+                            } else {
+                                if ty.kind == HirTypeKind.Optional {
+                                    text_concat("Optional[", text_concat(ty.t1, "]"))
+                                } else {
+                                    text_concat("Result[", text_concat(ty.t1, "]"))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn check_type_ref_exists(ty: HirTypeRef, known_types: Text) -> Text {
+    let name = type_name_from_ref(ty);
+    if ty.kind == HirTypeKind.I32 {
+        ""
+    } else {
+        if ty.kind == HirTypeKind.F64 {
+            ""
+        } else {
+            if ty.kind == HirTypeKind.Bool {
+                ""
+            } else {
+                if ty.kind == HirTypeKind.Text {
+                    ""
+                } else {
+                    if ty.kind == HirTypeKind.Unit {
+                        ""
+                    } else {
+                        if ty.kind == HirTypeKind.Named {
+                            let mut found = false;
+                            let mut i = 0;
+                            let kt_len = text_len(known_types);
+                            if kt_len > 0 {
+                                while i <= kt_len - text_len(name) and not found {
+                                    if text_eq_range(known_types, i, i + text_len(name), name) {
+                                        found = true;
+                                    };
+                                    i = i + 1;
+                                };
+                            };
+                            if not found {
+                                text_concat("error: unknown type `", text_concat(name, "`\n"))
+                            } else {
+                                ""
+                            }
+                        } else {
+                            ""
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn add_name_to_table(table: Text, name: Text) -> Text {
+    if is_empty_text(table) {
+        name
+    } else {
+        text_concat(table, text_concat("\n", name))
+    }
+}
+
+fn typecheck_hir_module(module: HirModuleData) -> Text {
+    let mut diags = "";
+    let mut known_types = "I32\nF64\nBool\nText\nBytes\nUnit\nTextIndex\nTextBuilder\nFile\nList";
+    let mut i = 1;
+    let enums_list = module.enums;
+    while i <= 16 {
+        let opt = if i == 1 {
+            enums_list.e1
+        } else {
+            if i == 2 {
+                enums_list.e2
+            } else {
+                if i == 3 {
+                    enums_list.e3
+                } else {
+                    if i == 4 {
+                        enums_list.e4
+                    } else {
+                        if i == 5 {
+                            enums_list.e5
+                        } else {
+                            if i == 6 {
+                                enums_list.e6
+                            } else {
+                                if i == 7 {
+                                    enums_list.e7
+                                } else {
+                                    if i == 8 {
+                                        enums_list.e8
+                                    } else {
+                                        if i == 9 {
+                                            enums_list.e9
+                                        } else {
+                                            if i == 10 {
+                                                enums_list.e10
+                                            } else {
+                                                if i == 11 {
+                                                    enums_list.e11
+                                                } else {
+                                                    if i == 12 {
+                                                        enums_list.e12
+                                                    } else {
+                                                        if i == 13 {
+                                                            enums_list.e13
+                                                        } else {
+                                                            if i == 14 {
+                                                                enums_list.e14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    enums_list.e15
+                                                                } else {
+                                                                    enums_list.e16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let e = opt.e;
+            known_types = add_name_to_table(known_types, e.name);
+            let mut vi = 1;
+            while vi <= e.variants.len {
+                let vopt = if vi == 1 {
+                    e.variants.v1
+                } else {
+                    if vi == 2 {
+                        e.variants.v2
+                    } else {
+                        if vi == 3 {
+                            e.variants.v3
+                        } else {
+                            if vi == 4 {
+                                e.variants.v4
+                            } else {
+                                if vi == 5 {
+                                    e.variants.v5
+                                } else {
+                                    if vi == 6 {
+                                        e.variants.v6
+                                    } else {
+                                        if vi == 7 {
+                                            e.variants.v7
+                                        } else {
+                                            if vi == 8 {
+                                                e.variants.v8
+                                            } else {
+                                                if vi == 9 {
+                                                    e.variants.v9
+                                                } else {
+                                                    if vi == 10 {
+                                                        e.variants.v10
+                                                    } else {
+                                                        if vi == 11 {
+                                                            e.variants.v11
+                                                        } else {
+                                                            if vi == 12 {
+                                                                e.variants.v12
+                                                            } else {
+                                                                if vi == 13 {
+                                                                    e.variants.v13
+                                                                } else {
+                                                                    if vi == 14 {
+                                                                        e.variants.v14
+                                                                    } else {
+                                                                        if vi == 15 {
+                                                                            e.variants.v15
+                                                                        } else {
+                                                                            e.variants.v16
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                if vopt.present {
+                    let v = vopt.variant;
+                    if v.payload.present {
+                        let e2 = check_type_ref_exists(v.payload.ty, known_types);
+                        if not is_empty_text(e2) {
+                            diags = text_concat(diags, e2);
+                        };
+                    };
+                };
+                vi = vi + 1;
+            };
+        };
+        i = i + 1;
+    };
+    i = 1;
+    let structs_list = module.structs;
+    while i <= 16 {
+        let opt = if i == 1 {
+            structs_list.s1
+        } else {
+            if i == 2 {
+                structs_list.s2
+            } else {
+                if i == 3 {
+                    structs_list.s3
+                } else {
+                    if i == 4 {
+                        structs_list.s4
+                    } else {
+                        if i == 5 {
+                            structs_list.s5
+                        } else {
+                            if i == 6 {
+                                structs_list.s6
+                            } else {
+                                if i == 7 {
+                                    structs_list.s7
+                                } else {
+                                    if i == 8 {
+                                        structs_list.s8
+                                    } else {
+                                        if i == 9 {
+                                            structs_list.s9
+                                        } else {
+                                            if i == 10 {
+                                                structs_list.s10
+                                            } else {
+                                                if i == 11 {
+                                                    structs_list.s11
+                                                } else {
+                                                    if i == 12 {
+                                                        structs_list.s12
+                                                    } else {
+                                                        if i == 13 {
+                                                            structs_list.s13
+                                                        } else {
+                                                            if i == 14 {
+                                                                structs_list.s14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    structs_list.s15
+                                                                } else {
+                                                                    structs_list.s16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let s = opt.s;
+            known_types = add_name_to_table(known_types, s.name);
+            let mut fi = 1;
+            while fi <= s.fields.len {
+                let fopt = if fi == 1 {
+                    s.fields.f1
+                } else {
+                    if fi == 2 {
+                        s.fields.f2
+                    } else {
+                        if fi == 3 {
+                            s.fields.f3
+                        } else {
+                            if fi == 4 {
+                                s.fields.f4
+                            } else {
+                                if fi == 5 {
+                                    s.fields.f5
+                                } else {
+                                    if fi == 6 {
+                                        s.fields.f6
+                                    } else {
+                                        if fi == 7 {
+                                            s.fields.f7
+                                        } else {
+                                            if fi == 8 {
+                                                s.fields.f8
+                                            } else {
+                                                if fi == 9 {
+                                                    s.fields.f9
+                                                } else {
+                                                    if fi == 10 {
+                                                        s.fields.f10
+                                                    } else {
+                                                        if fi == 11 {
+                                                            s.fields.f11
+                                                        } else {
+                                                            if fi == 12 {
+                                                                s.fields.f12
+                                                            } else {
+                                                                if fi == 13 {
+                                                                    s.fields.f13
+                                                                } else {
+                                                                    if fi == 14 {
+                                                                        s.fields.f14
+                                                                    } else {
+                                                                        if fi == 15 {
+                                                                            s.fields.f15
+                                                                        } else {
+                                                                            s.fields.f16
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                if fopt.present {
+                    let e2 = check_type_ref_exists(fopt.field.ty, known_types);
+                    if not is_empty_text(e2) {
+                        diags = text_concat(diags, e2);
+                    };
+                };
+                fi = fi + 1;
+            };
+        };
+        i = i + 1;
+    };
+    i = 1;
+    let fns_list = module.funcs;
+    while i <= 16 {
+        let opt = if i == 1 {
+            fns_list.f1
+        } else {
+            if i == 2 {
+                fns_list.f2
+            } else {
+                if i == 3 {
+                    fns_list.f3
+                } else {
+                    if i == 4 {
+                        fns_list.f4
+                    } else {
+                        if i == 5 {
+                            fns_list.f5
+                        } else {
+                            if i == 6 {
+                                fns_list.f6
+                            } else {
+                                if i == 7 {
+                                    fns_list.f7
+                                } else {
+                                    if i == 8 {
+                                        fns_list.f8
+                                    } else {
+                                        if i == 9 {
+                                            fns_list.f9
+                                        } else {
+                                            if i == 10 {
+                                                fns_list.f10
+                                            } else {
+                                                if i == 11 {
+                                                    fns_list.f11
+                                                } else {
+                                                    if i == 12 {
+                                                        fns_list.f12
+                                                    } else {
+                                                        if i == 13 {
+                                                            fns_list.f13
+                                                        } else {
+                                                            if i == 14 {
+                                                                fns_list.f14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    fns_list.f15
+                                                                } else {
+                                                                    fns_list.f16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let f = opt.f;
+            let mut pi = 1;
+            while pi <= f.params.len {
+                let popt = if pi == 1 {
+                    f.params.p1
+                } else {
+                    if pi == 2 {
+                        f.params.p2
+                    } else {
+                        if pi == 3 {
+                            f.params.p3
+                        } else {
+                            if pi == 4 {
+                                f.params.p4
+                            } else {
+                                if pi == 5 {
+                                    f.params.p5
+                                } else {
+                                    if pi == 6 {
+                                        f.params.p6
+                                    } else {
+                                        if pi == 7 {
+                                            f.params.p7
+                                        } else {
+                                            if pi == 8 {
+                                                f.params.p8
+                                            } else {
+                                                if pi == 9 {
+                                                    f.params.p9
+                                                } else {
+                                                    if pi == 10 {
+                                                        f.params.p10
+                                                    } else {
+                                                        if pi == 11 {
+                                                            f.params.p11
+                                                        } else {
+                                                            if pi == 12 {
+                                                                f.params.p12
+                                                            } else {
+                                                                if pi == 13 {
+                                                                    f.params.p13
+                                                                } else {
+                                                                    if pi == 14 {
+                                                                        f.params.p14
+                                                                    } else {
+                                                                        if pi == 15 {
+                                                                            f.params.p15
+                                                                        } else {
+                                                                            f.params.p16
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                if popt.present {
+                    let e2 = check_type_ref_exists(popt.param.ty, known_types);
+                    if not is_empty_text(e2) {
+                        diags = text_concat(diags, e2);
+                    };
+                };
+                pi = pi + 1;
+            };
+            if f.ret.present {
+                let e2 = check_type_ref_exists(f.ret.ty, known_types);
+                if not is_empty_text(e2) {
+                    diags = text_concat(diags, e2);
+                };
+            };
+            let mut effects_seen = "";
+            let mut fi = 1;
+            while fi <= f.fx.len {
+                let fxopt = if fi == 1 {
+                    f.fx.fx1
+                } else {
+                    if fi == 2 {
+                        f.fx.fx2
+                    } else {
+                        if fi == 3 {
+                            f.fx.fx3
+                        } else {
+                            if fi == 4 {
+                                f.fx.fx4
+                            } else {
+                                if fi == 5 {
+                                    f.fx.fx5
+                                } else {
+                                    if fi == 6 {
+                                        f.fx.fx6
+                                    } else {
+                                        if fi == 7 {
+                                            f.fx.fx7
+                                        } else {
+                                            if fi == 8 {
+                                                f.fx.fx8
+                                            } else {
+                                                if fi == 9 {
+                                                    f.fx.fx9
+                                                } else {
+                                                    if fi == 10 {
+                                                        f.fx.fx10
+                                                    } else {
+                                                        if fi == 11 {
+                                                            f.fx.fx11
+                                                        } else {
+                                                            if fi == 12 {
+                                                                f.fx.fx12
+                                                            } else {
+                                                                if fi == 13 {
+                                                                    f.fx.fx13
+                                                                } else {
+                                                                    if fi == 14 {
+                                                                        f.fx.fx14
+                                                                    } else {
+                                                                        if fi == 15 {
+                                                                            f.fx.fx15
+                                                                        } else {
+                                                                            f.fx.fx16
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                if fxopt.present {
+                    if not is_empty_text(effects_seen) {
+                        diags = text_concat(diags, text_concat("warning: duplicate effect `", text_concat(fxopt.name, "`\n")));
+                    };
+                    effects_seen = fxopt.name;
+                };
+                fi = fi + 1;
+            };
+        };
+        i = i + 1;
+    };
+    diags
+}
+
+fn analyze_borrow_escape(module: HirModuleData) -> Text {
+    let mut diags = "";
+    let fns = module.funcs;
+    let mut i = 1;
+    while i <= 16 {
+        let opt = if i == 1 {
+            fns.f1
+        } else {
+            if i == 2 {
+                fns.f2
+            } else {
+                if i == 3 {
+                    fns.f3
+                } else {
+                    if i == 4 {
+                        fns.f4
+                    } else {
+                        if i == 5 {
+                            fns.f5
+                        } else {
+                            if i == 6 {
+                                fns.f6
+                            } else {
+                                if i == 7 {
+                                    fns.f7
+                                } else {
+                                    if i == 8 {
+                                        fns.f8
+                                    } else {
+                                        if i == 9 {
+                                            fns.f9
+                                        } else {
+                                            if i == 10 {
+                                                fns.f10
+                                            } else {
+                                                if i == 11 {
+                                                    fns.f11
+                                                } else {
+                                                    if i == 12 {
+                                                        fns.f12
+                                                    } else {
+                                                        if i == 13 {
+                                                            fns.f13
+                                                        } else {
+                                                            if i == 14 {
+                                                                fns.f14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    fns.f15
+                                                                } else {
+                                                                    fns.f16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let f = opt.f;
+            let mut param_seen = "";
+            let mut pi = 1;
+            while pi <= f.params.len {
+                let popt = if pi == 1 {
+                    f.params.p1
+                } else {
+                    if pi == 2 {
+                        f.params.p2
+                    } else {
+                        if pi == 3 {
+                            f.params.p3
+                        } else {
+                            if pi == 4 {
+                                f.params.p4
+                            } else {
+                                if pi == 5 {
+                                    f.params.p5
+                                } else {
+                                    if pi == 6 {
+                                        f.params.p6
+                                    } else {
+                                        if pi == 7 {
+                                            f.params.p7
+                                        } else {
+                                            if pi == 8 {
+                                                f.params.p8
+                                            } else {
+                                                if pi == 9 {
+                                                    f.params.p9
+                                                } else {
+                                                    if pi == 10 {
+                                                        f.params.p10
+                                                    } else {
+                                                        if pi == 11 {
+                                                            f.params.p11
+                                                        } else {
+                                                            if pi == 12 {
+                                                                f.params.p12
+                                                            } else {
+                                                                if pi == 13 {
+                                                                    f.params.p13
+                                                                } else {
+                                                                    if pi == 14 {
+                                                                        f.params.p14
+                                                                    } else {
+                                                                        if pi == 15 {
+                                                                            f.params.p15
+                                                                        } else {
+                                                                            f.params.p16
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                if popt.present {
+                    let p = popt.param;
+                    if not is_empty_text(p.name) {
+                        if is_empty_text(param_seen) {
+                            param_seen = p.name;
+                        } else {
+                            if p.name == param_seen {
+                                diags = text_concat(diags, text_concat("warning: duplicate parameter name `", text_concat(p.name, "`\n")));
+                            }
+                        };
+                    };
+                };
+                pi = pi + 1;
+            };
+        };
+        i = i + 1;
+    };
+    let mut ci = 1;
+    let consts = module.consts;
+    while ci <= 16 {
+        let opt = if ci == 1 {
+            consts.c1
+        } else {
+            if ci == 2 {
+                consts.c2
+            } else {
+                if ci == 3 {
+                    consts.c3
+                } else {
+                    if ci == 4 {
+                        consts.c4
+                    } else {
+                        if ci == 5 {
+                            consts.c5
+                        } else {
+                            if ci == 6 {
+                                consts.c6
+                            } else {
+                                if ci == 7 {
+                                    consts.c7
+                                } else {
+                                    if ci == 8 {
+                                        consts.c8
+                                    } else {
+                                        if ci == 9 {
+                                            consts.c9
+                                        } else {
+                                            if ci == 10 {
+                                                consts.c10
+                                            } else {
+                                                if ci == 11 {
+                                                    consts.c11
+                                                } else {
+                                                    if ci == 12 {
+                                                        consts.c12
+                                                    } else {
+                                                        if ci == 13 {
+                                                            consts.c13
+                                                        } else {
+                                                            if ci == 14 {
+                                                                consts.c14
+                                                            } else {
+                                                                if ci == 15 {
+                                                                    consts.c15
+                                                                } else {
+                                                                    consts.c16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            if is_empty_text(opt.c.name) {
+                diags = text_concat(diags, "error: unnamed constant\n");
+            };
+        };
+        ci = ci + 1;
+    };
+    diags
+}
+
+fn symbol_table_has_name(table: Text, name: Text) -> Bool {
+    if is_empty_text(table) {
+        false
+    } else {
+        let mut idx = 0;
+        let mut found = false;
+        let t_len = text_len(table);
+        let n_len = text_len(name);
+        while idx <= t_len - n_len and not found {
+            if text_eq_range(table, idx, idx + n_len, name) {
+                let left_byte = if idx == 0 {
+                    10
+                } else {
+                    text_byte(table, idx - 1)
+                };
+                let left_ok = left_byte == 10;
+                let right_byte = if idx + n_len == t_len {
+                    10
+                } else {
+                    text_byte(table, idx + n_len)
+                };
+                let right_ok = right_byte == 10;
+                if left_ok and right_ok {
+                    found = true;
+                };
+            };
+            idx = idx + 1;
+        };
+        found
+    }
+}
+
+fn symbol_table_add_name(table: Text, name: Text) -> Text {
+    if is_empty_text(table) {
+        name
+    } else {
+        text_concat(table, text_concat("\n", name))
+    }
+}
+
+fn check_duplicate_definitions(module: HirModuleData) -> Text {
+    let mut table = "";
+    let mut diags = "";
+    let mut i = 1;
+    let list = module.consts;
+    while i <= 16 {
+        let opt = if i == 1 {
+            list.c1
+        } else {
+            if i == 2 {
+                list.c2
+            } else {
+                if i == 3 {
+                    list.c3
+                } else {
+                    if i == 4 {
+                        list.c4
+                    } else {
+                        if i == 5 {
+                            list.c5
+                        } else {
+                            if i == 6 {
+                                list.c6
+                            } else {
+                                if i == 7 {
+                                    list.c7
+                                } else {
+                                    if i == 8 {
+                                        list.c8
+                                    } else {
+                                        if i == 9 {
+                                            list.c9
+                                        } else {
+                                            if i == 10 {
+                                                list.c10
+                                            } else {
+                                                if i == 11 {
+                                                    list.c11
+                                                } else {
+                                                    if i == 12 {
+                                                        list.c12
+                                                    } else {
+                                                        if i == 13 {
+                                                            list.c13
+                                                        } else {
+                                                            if i == 14 {
+                                                                list.c14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    list.c15
+                                                                } else {
+                                                                    list.c16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let name = opt.c.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+    i = 1;
+    let fns = module.funcs;
+    while i <= 16 {
+        let opt = if i == 1 {
+            fns.f1
+        } else {
+            if i == 2 {
+                fns.f2
+            } else {
+                if i == 3 {
+                    fns.f3
+                } else {
+                    if i == 4 {
+                        fns.f4
+                    } else {
+                        if i == 5 {
+                            fns.f5
+                        } else {
+                            if i == 6 {
+                                fns.f6
+                            } else {
+                                if i == 7 {
+                                    fns.f7
+                                } else {
+                                    if i == 8 {
+                                        fns.f8
+                                    } else {
+                                        if i == 9 {
+                                            fns.f9
+                                        } else {
+                                            if i == 10 {
+                                                fns.f10
+                                            } else {
+                                                if i == 11 {
+                                                    fns.f11
+                                                } else {
+                                                    if i == 12 {
+                                                        fns.f12
+                                                    } else {
+                                                        if i == 13 {
+                                                            fns.f13
+                                                        } else {
+                                                            if i == 14 {
+                                                                fns.f14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    fns.f15
+                                                                } else {
+                                                                    fns.f16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let name = opt.f.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+    i = 1;
+    let structs = module.structs;
+    while i <= 16 {
+        let opt = if i == 1 {
+            structs.s1
+        } else {
+            if i == 2 {
+                structs.s2
+            } else {
+                if i == 3 {
+                    structs.s3
+                } else {
+                    if i == 4 {
+                        structs.s4
+                    } else {
+                        if i == 5 {
+                            structs.s5
+                        } else {
+                            if i == 6 {
+                                structs.s6
+                            } else {
+                                if i == 7 {
+                                    structs.s7
+                                } else {
+                                    if i == 8 {
+                                        structs.s8
+                                    } else {
+                                        if i == 9 {
+                                            structs.s9
+                                        } else {
+                                            if i == 10 {
+                                                structs.s10
+                                            } else {
+                                                if i == 11 {
+                                                    structs.s11
+                                                } else {
+                                                    if i == 12 {
+                                                        structs.s12
+                                                    } else {
+                                                        if i == 13 {
+                                                            structs.s13
+                                                        } else {
+                                                            if i == 14 {
+                                                                structs.s14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    structs.s15
+                                                                } else {
+                                                                    structs.s16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let name = opt.s.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+    i = 1;
+    let enums = module.enums;
+    while i <= 16 {
+        let opt = if i == 1 {
+            enums.e1
+        } else {
+            if i == 2 {
+                enums.e2
+            } else {
+                if i == 3 {
+                    enums.e3
+                } else {
+                    if i == 4 {
+                        enums.e4
+                    } else {
+                        if i == 5 {
+                            enums.e5
+                        } else {
+                            if i == 6 {
+                                enums.e6
+                            } else {
+                                if i == 7 {
+                                    enums.e7
+                                } else {
+                                    if i == 8 {
+                                        enums.e8
+                                    } else {
+                                        if i == 9 {
+                                            enums.e9
+                                        } else {
+                                            if i == 10 {
+                                                enums.e10
+                                            } else {
+                                                if i == 11 {
+                                                    enums.e11
+                                                } else {
+                                                    if i == 12 {
+                                                        enums.e12
+                                                    } else {
+                                                        if i == 13 {
+                                                            enums.e13
+                                                        } else {
+                                                            if i == 14 {
+                                                                enums.e14
+                                                            } else {
+                                                                if i == 15 {
+                                                                    enums.e15
+                                                                } else {
+                                                                    enums.e16
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        if opt.present {
+            let name = opt.e.name;
+            if symbol_table_has_name(table, name) {
+                let err = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
+                diags = text_concat(diags, err);
+            } else {
+                table = symbol_table_add_name(table, name);
+            };
+        };
+        i = i + 1;
+    };
+    diags
 }

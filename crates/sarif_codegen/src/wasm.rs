@@ -1575,6 +1575,8 @@ impl<'a> WasmEmitter<'a> {
             .expect("writing to a string cannot fail");
         let full_op = if op == "and" || op == "or" {
             format!("i64.{}", op)
+        } else if (op == "div" || op == "rem") && matches!(wasm_type, WasmType::I64) {
+            format!("i64.{}_s", op)
         } else {
             format!("{}.{}", wasm_type.render(), op)
         };

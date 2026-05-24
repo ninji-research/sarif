@@ -1,8 +1,3 @@
-fn is_empty_text(source: Text) -> Bool {
-    let length = text_len(source);
-    length == 0
-}
-
 fn symbol_table_has_name(table: Text, name: Text) -> Bool {
     if is_empty_text(table) {
         false
