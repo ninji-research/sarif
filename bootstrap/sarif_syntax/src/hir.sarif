@@ -1205,7 +1205,9 @@ fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
     } else {
         let module = hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source);
         let enriched_funcs = hir_enrich_fn_list(module.funcs, report.fn_outline, source);
-        HirModuleData { consts: module.consts, funcs: enriched_funcs, enums: module.enums, structs: module.structs, exprs: module.exprs, bodies: module.bodies }
+        let enriched_structs = hir_enrich_structs_from_outline(module.structs, report.outline, source);
+        let enriched_enums = hir_enrich_enums_from_outline(module.enums, report.outline, source);
+        HirModuleData { consts: module.consts, funcs: enriched_funcs, enums: enriched_enums, structs: enriched_structs, exprs: module.exprs, bodies: module.bodies }
     }
 }
 
@@ -1393,6 +1395,20 @@ fn hir_extract_param_list_from_source(source: Text, span_start: I32, span_end: I
     }
 }
 
+fn hir_strip_return_arrow(text: Text) -> Text {
+    let len = text_len(text);
+    if len >= 2 and text_byte(text, 0) == 45 and text_byte(text, 1) == 62 {
+        let mut start = 2;
+        let mut go = true;
+        while start < len and go {
+            if hir_is_ws(text_byte(text, start)) { start = start + 1; }
+            else { go = false; };
+        };
+        if start >= len { "" }
+        else { text_slice(text, start, len) }
+    } else { text }
+}
+
 fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> HirFnList2 {
     let mut fn_idx = 0;
     let f1_opt = list.f1;
@@ -1409,7 +1425,7 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
             };
             if ret_opt.present {
                 let ret_text = hir_span_text(ret_opt.span, source);
-                let ret_trimmed = hir_trim_text(ret_text);
+                let ret_trimmed = hir_strip_return_arrow(hir_trim_text(ret_text));
                 if not is_empty_text(ret_trimmed) {
                     let ty = hir_parse_type_ref_from_name(ret_trimmed);
                     f = hir_fn_set_ret(f, hir_optional_type_ref_true(ty));
@@ -1433,7 +1449,7 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
             };
             if ret_opt.present {
                 let ret_text = hir_span_text(ret_opt.span, source);
-                let ret_trimmed = hir_trim_text(ret_text);
+                let ret_trimmed = hir_strip_return_arrow(hir_trim_text(ret_text));
                 if not is_empty_text(ret_trimmed) {
                     let ty = hir_parse_type_ref_from_name(ret_trimmed);
                     f = hir_fn_set_ret(f, hir_optional_type_ref_true(ty));
@@ -1453,7 +1469,7 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
                 f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
             };
             if shape.return_span.present {
-                let ret_text = hir_trim_text(hir_span_text(shape.return_span.span, source));
+                let ret_text = hir_strip_return_arrow(hir_trim_text(hir_span_text(shape.return_span.span, source)));
                 if not is_empty_text(ret_text) {
                     f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
                 };
@@ -1472,7 +1488,7 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
                 f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
             };
             if shape.return_span.present {
-                let ret_text = hir_trim_text(hir_span_text(shape.return_span.span, source));
+                let ret_text = hir_strip_return_arrow(hir_trim_text(hir_span_text(shape.return_span.span, source)));
                 if not is_empty_text(ret_text) {
                     f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
                 };
@@ -1491,7 +1507,7 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
                 f = hir_fn_set_params(f, hir_extract_param_list_from_source(source, shape.params_span.span.start, shape.params_span.span.end));
             };
             if shape.return_span.present {
-                let ret_text = hir_trim_text(hir_span_text(shape.return_span.span, source));
+                let ret_text = hir_strip_return_arrow(hir_trim_text(hir_span_text(shape.return_span.span, source)));
                 if not is_empty_text(ret_text) {
                     f = hir_fn_set_ret(f, hir_optional_type_ref_true(hir_parse_type_ref_from_name(ret_text)));
                 };
@@ -1500,6 +1516,212 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
         } else { f5_opt }
     } else { f5_opt };
     HirFnList2 { len: list.len, f1: f1_new, f2: f2_new, f3: f3_new, f4: f4_new, f5: f5_new, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+}
+
+fn hir_find_open_brace(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 123)
+}
+
+fn hir_find_close_brace(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 125)
+}
+
+fn hir_find_open_paren(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 40)
+}
+
+fn hir_find_close_paren(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 41)
+}
+
+fn hir_parse_field_from_slice(text: Text, start: I32, end: I32) -> OptionalHirField {
+    let trimmed = hir_trim_text(text_slice(text, start, end));
+    if is_empty_text(trimmed) {
+        hir_optional_field_false()
+    } else {
+        let colon = text_find_byte_range(trimmed, 0, text_len(trimmed), 58);
+        if colon == -1 or colon >= text_len(trimmed) {
+            let name = hir_trim_text(trimmed);
+            if is_empty_text(name) { hir_optional_field_false() }
+            else { OptionalHirField { present: true, field: HirField { name: name, ty: hir_type_ref_unit(), span: hir_span_new(0, 0) } } }
+        } else {
+            let name = hir_trim_text(text_slice(trimmed, 0, colon));
+            let ty_name = hir_trim_text(text_slice(trimmed, colon + 1, text_len(trimmed)));
+            if is_empty_text(name) { hir_optional_field_false() }
+            else { OptionalHirField { present: true, field: HirField { name: name, ty: hir_parse_type_ref_from_name(ty_name), span: hir_span_new(0, 0) } } }
+        }
+    }
+}
+
+fn hir_extract_fields_from_span(source: Text, span_start: I32, span_end: I32) -> HirFieldList {
+    let raw = text_slice(source, span_start, span_end);
+    let raw_len = text_len(raw);
+    let open_b = hir_find_open_brace(raw, 0, raw_len);
+    if open_b == -1 { hir_field_list_new() }
+    else {
+        let close_b = hir_find_close_brace(raw, open_b + 1, raw_len);
+        if close_b == -1 { hir_field_list_new() }
+        else {
+            let inner = text_slice(raw, open_b + 1, close_b);
+            let inner_len = text_len(inner);
+            let mut cur = 0;
+            let mut f1 = hir_optional_field_false(); let mut f2 = hir_optional_field_false();
+            let mut f3 = hir_optional_field_false(); let mut f4 = hir_optional_field_false();
+            let mut f5 = hir_optional_field_false(); let mut f6 = hir_optional_field_false();
+            let mut f7 = hir_optional_field_false(); let mut f8 = hir_optional_field_false();
+            let mut f9 = hir_optional_field_false(); let mut f10 = hir_optional_field_false();
+            let mut f11 = hir_optional_field_false(); let mut f12 = hir_optional_field_false();
+            let mut f13 = hir_optional_field_false(); let mut f14 = hir_optional_field_false();
+            let mut f15 = hir_optional_field_false(); let mut f16 = hir_optional_field_false();
+            let mut count = 0;
+            let mut loop_i = 0;
+            while loop_i < 16 and cur < inner_len {
+                let comma = text_find_byte_range(inner, cur, inner_len, 44);
+                let seg_end = if comma == -1 { inner_len } else { comma };
+                let field = hir_parse_field_from_slice(inner, cur, seg_end);
+                if loop_i == 0 { f1 = field; }; if loop_i == 1 { f2 = field; };
+                if loop_i == 2 { f3 = field; }; if loop_i == 3 { f4 = field; };
+                if loop_i == 4 { f5 = field; }; if loop_i == 5 { f6 = field; };
+                if loop_i == 6 { f7 = field; }; if loop_i == 7 { f8 = field; };
+                if loop_i == 8 { f9 = field; }; if loop_i == 9 { f10 = field; };
+                if loop_i == 10 { f11 = field; }; if loop_i == 11 { f12 = field; };
+                if loop_i == 12 { f13 = field; }; if loop_i == 13 { f14 = field; };
+                if loop_i == 14 { f15 = field; }; if loop_i == 15 { f16 = field; };
+                if field.present { count = count + 1; };
+                if comma == -1 { cur = inner_len; } else { cur = comma + 1; };
+                loop_i = loop_i + 1;
+            };
+            HirFieldList { len: count, f1: f1, f2: f2, f3: f3, f4: f4, f5: f5, f6: f6, f7: f7, f8: f8, f9: f9, f10: f10, f11: f11, f12: f12, f13: f13, f14: f14, f15: f15, f16: f16 }
+        }
+    }
+}
+
+fn hir_parse_variant_from_slice(text: Text, start: I32, end: I32) -> OptionalHirVariant {
+    let trimmed = hir_trim_text(text_slice(text, start, end));
+    if is_empty_text(trimmed) {
+        hir_optional_variant_false()
+    } else {
+        let paren = hir_find_open_paren(trimmed, 0, text_len(trimmed));
+        if paren == -1 {
+            OptionalHirVariant { present: true, variant: hir_variant_new(trimmed) }
+        } else {
+            let close_p = hir_find_close_paren(trimmed, paren + 1, text_len(trimmed));
+            let name = hir_trim_text(text_slice(trimmed, 0, paren));
+            if is_empty_text(name) { hir_optional_variant_false() }
+            else {
+                let payload_text = if close_p == -1 { text_slice(trimmed, paren + 1, text_len(trimmed)) }
+                    else { text_slice(trimmed, paren + 1, close_p) };
+                let payload_trimmed = hir_trim_text(payload_text);
+                let ty = if is_empty_text(payload_trimmed) { hir_type_ref_unit() } else { hir_parse_type_ref_from_name(payload_trimmed) };
+                OptionalHirVariant { present: true, variant: HirVariant { name: name, payload: hir_optional_type_ref_true(ty), span: hir_span_new(0, 0) } }
+            }
+        }
+    }
+}
+
+fn hir_extract_variants_from_span(source: Text, span_start: I32, span_end: I32) -> HirVariantList {
+    let raw = text_slice(source, span_start, span_end);
+    let raw_len = text_len(raw);
+    let open_b = hir_find_open_brace(raw, 0, raw_len);
+    if open_b == -1 { hir_variant_list_new() }
+    else {
+        let close_b = hir_find_close_brace(raw, open_b + 1, raw_len);
+        if close_b == -1 { hir_variant_list_new() }
+        else {
+            let inner = text_slice(raw, open_b + 1, close_b);
+            let inner_len = text_len(inner);
+            let mut cur = 0;
+            let mut v1 = hir_optional_variant_false(); let mut v2 = hir_optional_variant_false();
+            let mut v3 = hir_optional_variant_false(); let mut v4 = hir_optional_variant_false();
+            let mut v5 = hir_optional_variant_false(); let mut v6 = hir_optional_variant_false();
+            let mut v7 = hir_optional_variant_false(); let mut v8 = hir_optional_variant_false();
+            let mut v9 = hir_optional_variant_false(); let mut v10 = hir_optional_variant_false();
+            let mut v11 = hir_optional_variant_false(); let mut v12 = hir_optional_variant_false();
+            let mut v13 = hir_optional_variant_false(); let mut v14 = hir_optional_variant_false();
+            let mut v15 = hir_optional_variant_false(); let mut v16 = hir_optional_variant_false();
+            let mut count = 0;
+            let mut loop_i = 0;
+            while loop_i < 16 and cur < inner_len {
+                let comma = text_find_byte_range(inner, cur, inner_len, 44);
+                let seg_end = if comma == -1 { inner_len } else { comma };
+                let variant = hir_parse_variant_from_slice(inner, cur, seg_end);
+                if loop_i == 0 { v1 = variant; }; if loop_i == 1 { v2 = variant; };
+                if loop_i == 2 { v3 = variant; }; if loop_i == 3 { v4 = variant; };
+                if loop_i == 4 { v5 = variant; }; if loop_i == 5 { v6 = variant; };
+                if loop_i == 6 { v7 = variant; }; if loop_i == 7 { v8 = variant; };
+                if loop_i == 8 { v9 = variant; }; if loop_i == 9 { v10 = variant; };
+                if loop_i == 10 { v11 = variant; }; if loop_i == 11 { v12 = variant; };
+                if loop_i == 12 { v13 = variant; }; if loop_i == 13 { v14 = variant; };
+                if loop_i == 14 { v15 = variant; }; if loop_i == 15 { v16 = variant; };
+                if variant.present { count = count + 1; };
+                if comma == -1 { cur = inner_len; } else { cur = comma + 1; };
+                loop_i = loop_i + 1;
+            };
+            HirVariantList { len: count, v1: v1, v2: v2, v3: v3, v4: v4, v5: v5, v6: v6, v7: v7, v8: v8, v9: v9, v10: v10, v11: v11, v12: v12, v13: v13, v14: v14, v15: v15, v16: v16 }
+        }
+    }
+}
+
+fn hir_enrich_structs_from_outline(structs: HirStructList, outline: TopLevelOutline, source: Text) -> HirStructList {
+    let mut si = 0;
+    let mut i = 0;
+    let mut out = structs;
+    while i < 5 {
+        let e = top_level_entry_at(outline, i);
+        if e.present and e.entry.kind == TopLevelKind.Struct {
+            let fields = hir_extract_fields_from_span(source, e.entry.span.start, e.entry.span.end);
+            if si == 0 and out.s1.present {
+                let s = out.s1.s;
+                out = HirStructList { len: out.len, s1: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s2: out.s2, s3: out.s3, s4: out.s4, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+            } else if si == 1 and out.s2.present {
+                let s = out.s2.s;
+                out = HirStructList { len: out.len, s1: out.s1, s2: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s3: out.s3, s4: out.s4, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+            } else if si == 2 and out.s3.present {
+                let s = out.s3.s;
+                out = HirStructList { len: out.len, s1: out.s1, s2: out.s2, s3: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s4: out.s4, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+            } else if si == 3 and out.s4.present {
+                let s = out.s4.s;
+                out = HirStructList { len: out.len, s1: out.s1, s2: out.s2, s3: out.s3, s4: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s5: out.s5, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+            } else if si == 4 and out.s5.present {
+                let s = out.s5.s;
+                out = HirStructList { len: out.len, s1: out.s1, s2: out.s2, s3: out.s3, s4: out.s4, s5: OptionalHirStruct { present: true, s: HirStruct { name: s.name, fields: fields, span: s.span } }, s6: out.s6, s7: out.s7, s8: out.s8, s9: out.s9, s10: out.s10, s11: out.s11, s12: out.s12, s13: out.s13, s14: out.s14, s15: out.s15, s16: out.s16 };
+            };
+            si = si + 1;
+        };
+        i = i + 1;
+    };
+    out
+}
+
+fn hir_enrich_enums_from_outline(enums: HirEnumList, outline: TopLevelOutline, source: Text) -> HirEnumList {
+    let mut ei = 0;
+    let mut i = 0;
+    let mut out = enums;
+    while i < 5 {
+        let e = top_level_entry_at(outline, i);
+        if e.present and e.entry.kind == TopLevelKind.Enum {
+            let variants = hir_extract_variants_from_span(source, e.entry.span.start, e.entry.span.end);
+            if ei == 0 and out.e1.present {
+                let en = out.e1.e;
+                out = HirEnumList { len: out.len, e1: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e2: out.e2, e3: out.e3, e4: out.e4, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+            } else if ei == 1 and out.e2.present {
+                let en = out.e2.e;
+                out = HirEnumList { len: out.len, e1: out.e1, e2: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e3: out.e3, e4: out.e4, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+            } else if ei == 2 and out.e3.present {
+                let en = out.e3.e;
+                out = HirEnumList { len: out.len, e1: out.e1, e2: out.e2, e3: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e4: out.e4, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+            } else if ei == 3 and out.e4.present {
+                let en = out.e4.e;
+                out = HirEnumList { len: out.len, e1: out.e1, e2: out.e2, e3: out.e3, e4: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e5: out.e5, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+            } else if ei == 4 and out.e5.present {
+                let en = out.e5.e;
+                out = HirEnumList { len: out.len, e1: out.e1, e2: out.e2, e3: out.e3, e4: out.e4, e5: OptionalHirEnum { present: true, e: HirEnum { name: en.name, variants: variants, span: en.span } }, e6: out.e6, e7: out.e7, e8: out.e8, e9: out.e9, e10: out.e10, e11: out.e11, e12: out.e12, e13: out.e13, e14: out.e14, e15: out.e15, e16: out.e16 };
+            };
+            ei = ei + 1;
+        };
+        i = i + 1;
+    };
+    out
 }
 
 fn hir_span_from_optional(span: OptionalSpan) -> Span {
@@ -1528,21 +1750,17 @@ fn is_empty_text(source: Text) -> Bool {
 }
 
 fn hir_selfcheck() -> I32 {
-    let source = "struct Pair {}\nenum Option { none, some }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32) { let y = x; y }\n";
+    let source = "struct Pair { first: I32, second: F64 }\nenum Option { none, some(Text) }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32, y: Bool) -> F64 { 0.0 }\n";
     let report = parse_module_report(source);
     if report.ok {
         let module = hir_module_from_report(report, source);
-        let resolve_ok = is_empty_text(check_duplicate_definitions(module));
-        let typ_ok = is_empty_text(typecheck_hir_module(module));
-        let own_ok = is_empty_text(analyze_borrow_escape(module));
-        if resolve_ok and typ_ok and own_ok {
+        let resolve_diags = check_duplicate_definitions(module);
+        let typ_diags = typecheck_hir_module(module);
+        let own_diags = analyze_borrow_escape(module);
+        if is_empty_text(resolve_diags) and is_empty_text(typ_diags) and is_empty_text(own_diags) {
             hir_validate_module(module)
         } else {
-            let mut score = 0;
-            if resolve_ok { score = score + 1; };
-            if typ_ok { score = score + 1; };
-            if own_ok { score = score + 1; };
-            score
+            0
         }
     } else {
         0

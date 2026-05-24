@@ -46,7 +46,7 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
                     if not is_empty_text(p.name) {
                         if is_empty_text(param_seen) {
                             param_seen = p.name;
-                        } else {
+                        } else if p.name == param_seen {
                             diags = text_concat(diags, text_concat("warning: duplicate parameter name `", text_concat(p.name, "`\n")));
                         };
                     };
