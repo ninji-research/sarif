@@ -1334,28 +1334,62 @@ fn hir_parse_param_from_slice(text: Text, start: I32, end: I32) -> OptionalHirPa
     }
 }
 
+fn hir_find_comma_inner(text: Text, start: I32, end: I32) -> I32 {
+    text_find_byte_range(text, start, end, 44)
+}
+
 fn hir_extract_param_list_from_source(source: Text, span_start: I32, span_end: I32) -> HirParamList {
     let raw = text_slice(source, span_start, span_end);
     let raw_len = text_len(raw);
-    if raw_len < 2 {
-        hir_param_list_new()
-    } else {
+    if raw_len < 2 { hir_param_list_new() }
+    else {
         let inner = text_slice(raw, 1, raw_len - 1);
         let inner_len = text_len(inner);
-        let p1_end = text_find_byte_range(inner, 0, inner_len, 44);
-        let p1 = hir_parse_param_from_slice(inner, 0, if p1_end == -1 { inner_len } else { p1_end });
-        if p1_end == -1 {
-            HirParamList { len: if p1.present { 1 } else { 0 }, p1: p1, p2: hir_optional_param_false(), p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false(), p6: hir_optional_param_false(), p7: hir_optional_param_false(), p8: hir_optional_param_false(), p9: hir_optional_param_false(), p10: hir_optional_param_false(), p11: hir_optional_param_false(), p12: hir_optional_param_false(), p13: hir_optional_param_false(), p14: hir_optional_param_false(), p15: hir_optional_param_false(), p16: hir_optional_param_false() }
-        } else {
-            let p2_end = text_find_byte_range(inner, p1_end + 1, inner_len, 44);
-            let p2 = hir_parse_param_from_slice(inner, p1_end + 1, if p2_end == -1 { inner_len } else { p2_end });
-            if p2_end == -1 {
-                let count = (if p1.present { 1 } else { 0 }) + (if p2.present { 1 } else { 0 });
-                HirParamList { len: count, p1: p1, p2: p2, p3: hir_optional_param_false(), p4: hir_optional_param_false(), p5: hir_optional_param_false(), p6: hir_optional_param_false(), p7: hir_optional_param_false(), p8: hir_optional_param_false(), p9: hir_optional_param_false(), p10: hir_optional_param_false(), p11: hir_optional_param_false(), p12: hir_optional_param_false(), p13: hir_optional_param_false(), p14: hir_optional_param_false(), p15: hir_optional_param_false(), p16: hir_optional_param_false() }
-            } else {
-                hir_param_list_new()
-            }
-        }
+        let mut cur = 0;
+        let mut p1 = hir_optional_param_false();
+        let mut p2 = hir_optional_param_false();
+        let mut p3 = hir_optional_param_false();
+        let mut p4 = hir_optional_param_false();
+        let mut p5 = hir_optional_param_false();
+        let mut p6 = hir_optional_param_false();
+        let mut p7 = hir_optional_param_false();
+        let mut p8 = hir_optional_param_false();
+        let mut p9 = hir_optional_param_false();
+        let mut p10 = hir_optional_param_false();
+        let mut p11 = hir_optional_param_false();
+        let mut p12 = hir_optional_param_false();
+        let mut p13 = hir_optional_param_false();
+        let mut p14 = hir_optional_param_false();
+        let mut p15 = hir_optional_param_false();
+        let mut p16 = hir_optional_param_false();
+        let mut count = 0;
+        let mut loop_i = 0;
+        while loop_i < 16 and cur < inner_len {
+            let comma = hir_find_comma_inner(inner, cur, inner_len);
+            let seg_end = if comma == -1 { inner_len } else { comma };
+            let param = hir_parse_param_from_slice(inner, cur, seg_end);
+            if loop_i == 0 { p1 = param; };
+            if loop_i == 1 { p2 = param; };
+            if loop_i == 2 { p3 = param; };
+            if loop_i == 3 { p4 = param; };
+            if loop_i == 4 { p5 = param; };
+            if loop_i == 5 { p6 = param; };
+            if loop_i == 6 { p7 = param; };
+            if loop_i == 7 { p8 = param; };
+            if loop_i == 8 { p9 = param; };
+            if loop_i == 9 { p10 = param; };
+            if loop_i == 10 { p11 = param; };
+            if loop_i == 11 { p12 = param; };
+            if loop_i == 12 { p13 = param; };
+            if loop_i == 13 { p14 = param; };
+            if loop_i == 14 { p15 = param; };
+            if loop_i == 15 { p16 = param; };
+            if param.present { count = count + 1; };
+            if comma == -1 { cur = inner_len; }
+            else { cur = comma + 1; };
+            loop_i = loop_i + 1;
+        };
+        HirParamList { len: count, p1: p1, p2: p2, p3: p3, p4: p4, p5: p5, p6: p6, p7: p7, p8: p8, p9: p9, p10: p10, p11: p11, p12: p12, p13: p13, p14: p14, p15: p15, p16: p16 }
     }
 }
 
