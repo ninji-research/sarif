@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
-use crate::{CodegenValueKind, Function, Inst, Program, ValueId};
+use crate::{CodegenValueKind, ContractKind, Function, Inst, Program, ValueId};
 
 fn record_field_offset(
     structs: &[crate::StructType],
@@ -879,8 +879,17 @@ fn emit_inst(
                 vref(text)
             ))?;
         }
-        Inst::Assert { condition, kind: _ } => {
-            out.line(&format!("if (!({})) {{ abort(); }}", vref(condition)))?;
+        Inst::Assert { condition, kind } => {
+            let msg = match kind {
+                ContractKind::Requires => "precondition failed",
+                ContractKind::Ensures => "postcondition failed",
+                ContractKind::Bounds => "bounds check failed",
+            };
+            out.line(&format!(
+                "if (!({})) {{ sarif_fatal_error(\"{}\"); }}",
+                vref(condition),
+                msg
+            ))?;
         }
         Inst::TextBuilderNew { dest } | Inst::TextIndexNew { dest } => {
             let func_name = if matches!(inst, Inst::TextBuilderNew { .. }) {

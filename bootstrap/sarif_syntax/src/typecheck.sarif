@@ -1,31 +1,108 @@
+fn is_empty_text(source: Text) -> Bool {
+    let length = text_len(source);
+    length == 0
+}
+
+fn type_name_from_ref(ty: HirTypeRef) -> Text {
+    if ty.kind == HirTypeKind.I32 { "I32" }
+    else if ty.kind == HirTypeKind.F64 { "F64" }
+    else if ty.kind == HirTypeKind.Bool { "Bool" }
+    else if ty.kind == HirTypeKind.Text { "Text" }
+    else if ty.kind == HirTypeKind.Unit { "Unit" }
+    else if ty.kind == HirTypeKind.Array { text_concat("Array[", text_concat(ty.t1, "]")) }
+    else if ty.kind == HirTypeKind.Named { ty.t1 }
+    else if ty.kind == HirTypeKind.Optional { text_concat("Optional[", text_concat(ty.t1, "]")) }
+    else { text_concat("Result[", text_concat(ty.t1, "]")) }
+}
+
+fn check_type_ref_exists(ty: HirTypeRef, known_types: Text) -> Text {
+    let name = type_name_from_ref(ty);
+    if ty.kind == HirTypeKind.I32 { "" }
+    else if ty.kind == HirTypeKind.F64 { "" }
+    else if ty.kind == HirTypeKind.Bool { "" }
+    else if ty.kind == HirTypeKind.Text { "" }
+    else if ty.kind == HirTypeKind.Unit { "" }
+    else if ty.kind == HirTypeKind.Named {
+        if is_empty_text(known_types) { text_concat("error: unknown type `", text_concat(name, "`\n")) }
+        else {
+            let mut found = false;
+            let mut i = 0;
+            let kt_len = text_len(known_types);
+            while i <= kt_len - text_len(name) and not found {
+                if text_eq_range(known_types, i, text_len(name), name) {
+                    found = true;
+                };
+                i = i + 1;
+            };
+            if not found { text_concat("error: unknown type `", text_concat(name, "`\n")) }
+            else { "" }
+        }
+    }
+    else { "" }
+}
+
 fn typecheck_hir_module(module: HirModuleData) -> Text {
     let mut diags = "";
-    let fns = module.funcs;
+    
+    let mut known_types = "I32\nF64\nBool\nText\nBytes\nUnit\nTextIndex\nTextBuilder\nFile\nList";
+    
     let mut i = 1;
+    let enums_list = module.funcs;
     while i <= 16 {
-        let opt = if i == 1 { fns.f1 }
-             else if i == 2 { fns.f2 }
-             else if i == 3 { fns.f3 }
-             else if i == 4 { fns.f4 }
-             else if i == 5 { fns.f5 }
-             else if i == 6 { fns.f6 }
-             else if i == 7 { fns.f7 }
-             else if i == 8 { fns.f8 }
-             else if i == 9 { fns.f9 }
-             else if i == 10 { fns.f10 }
-             else if i == 11 { fns.f11 }
-             else if i == 12 { fns.f12 }
-             else if i == 13 { fns.f13 }
-             else if i == 14 { fns.f14 }
-             else if i == 15 { fns.f15 }
-             else { fns.f16 };
+        let opt = if i == 1 { enums_list.f1 }
+             else if i == 2 { enums_list.f2 }
+             else if i == 3 { enums_list.f3 }
+             else if i == 4 { enums_list.f4 }
+             else if i == 5 { enums_list.f5 }
+             else if i == 6 { enums_list.f6 }
+             else if i == 7 { enums_list.f7 }
+             else if i == 8 { enums_list.f8 }
+             else if i == 9 { enums_list.f9 }
+             else if i == 10 { enums_list.f10 }
+             else if i == 11 { enums_list.f11 }
+             else if i == 12 { enums_list.f12 }
+             else if i == 13 { enums_list.f13 }
+             else if i == 14 { enums_list.f14 }
+             else if i == 15 { enums_list.f15 }
+             else { enums_list.f16 };
         if opt.present {
             let f = opt.f;
-            if is_empty_text(f.name) {
-                diags = text_concat(diags, "error: unnamed function\n");
+            let mut pi = 1;
+            while pi <= f.params.len {
+                let popt = if pi == 1 { f.params.p1 }
+                     else if pi == 2 { f.params.p2 }
+                     else if pi == 3 { f.params.p3 }
+                     else if pi == 4 { f.params.p4 }
+                     else if pi == 5 { f.params.p5 }
+                     else if pi == 6 { f.params.p6 }
+                     else if pi == 7 { f.params.p7 }
+                     else if pi == 8 { f.params.p8 }
+                     else if pi == 9 { f.params.p9 }
+                     else if pi == 10 { f.params.p10 }
+                     else if pi == 11 { f.params.p11 }
+                     else if pi == 12 { f.params.p12 }
+                     else if pi == 13 { f.params.p13 }
+                     else if pi == 14 { f.params.p14 }
+                     else if pi == 15 { f.params.p15 }
+                     else { f.params.p16 };
+                if popt.present {
+                    let p = popt.param;
+                    let e = check_type_ref_exists(p.ty, known_types);
+                    if not is_empty_text(e) {
+                        diags = text_concat(diags, e);
+                    };
+                };
+                pi = pi + 1;
+            };
+            if f.ret.present {
+                let e = check_type_ref_exists(f.ret.ty, known_types);
+                if not is_empty_text(e) {
+                    diags = text_concat(diags, e);
+                };
             };
         };
         i = i + 1;
     };
+    
     diags
 }

@@ -18,6 +18,11 @@
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
+
+__attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
+    fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
+    exit(1);
+}
 static unsigned char sarif_empty_text[8] = {0};
 static int sarif_write_text_blob(const unsigned char* text, int newline);
 static int sarif_write_i64(int64_t value, int newline);
@@ -275,6 +280,94 @@ static inline __attribute__((always_inline)) uint64_t sarif_load_u64(const unsig
     uint64_t value;
     memcpy(&value, base + offset, sizeof(uint64_t));
     return value;
+}
+
+// Persistent string interning pool.
+// Strings allocated here are never freed during program lifetime.
+// Each unique content string is stored exactly once.
+#define SARIF_INTERN_BUCKET_COUNT 2048u
+#define SARIF_INTERN_CHUNK_SIZE (64u * 1024u)
+
+struct SarifInternBucket {
+    uint64_t hash;
+    unsigned char* text;
+};
+
+struct SarifInternChunk {
+    struct SarifInternChunk* next;
+    size_t used;
+    size_t cap;
+    unsigned char data[];
+};
+
+static struct SarifInternBucket sarif_intern_table[SARIF_INTERN_BUCKET_COUNT];
+static struct SarifInternChunk* sarif_intern_chunk = NULL;
+
+static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
+    uint64_t h = 14695981039346656037ULL;
+    for (uint64_t i = 0; i < len; i++) {
+        h ^= (uint64_t)data[i];
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
+
+static unsigned char* sarif_intern_alloc(uint64_t size) {
+    size_t aligned = (size + 7u) & ~(size_t)7u;
+    if (sarif_intern_chunk == NULL || aligned > sarif_intern_chunk->cap - sarif_intern_chunk->used) {
+        size_t chunk_size = sizeof(struct SarifInternChunk) + SARIF_INTERN_CHUNK_SIZE;
+        if (chunk_size < sizeof(struct SarifInternChunk) + aligned) {
+            chunk_size = sizeof(struct SarifInternChunk) + aligned;
+        }
+        struct SarifInternChunk* chunk = malloc(chunk_size);
+        if (chunk == NULL) {
+            sarif_fatal_error("out of memory in string interning pool");
+        }
+        chunk->next = sarif_intern_chunk;
+        chunk->used = aligned;
+        chunk->cap = chunk_size - sizeof(struct SarifInternChunk);
+        sarif_intern_chunk = chunk;
+        return chunk->data;
+    }
+    unsigned char* ptr = sarif_intern_chunk->data + sarif_intern_chunk->used;
+    sarif_intern_chunk->used += aligned;
+    return ptr;
+}
+
+static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uint64_t len) {
+    uint64_t hash = sarif_intern_hash(data, len);
+    uint64_t idx = hash % SARIF_INTERN_BUCKET_COUNT;
+    for (uint64_t probe = 0; probe < SARIF_INTERN_BUCKET_COUNT; probe++) {
+        struct SarifInternBucket* b = &sarif_intern_table[idx];
+        if (b->hash == 0) {
+            unsigned char* interned = sarif_intern_alloc(8u + len);
+            sarif_store_u64(interned, 0, len);
+            if (len > 0) {
+                memcpy(interned + 8, data, (size_t)len);
+            }
+            b->hash = hash;
+            b->text = interned;
+            return interned;
+        }
+        if (b->hash == hash) {
+            uint64_t existing_len = sarif_load_u64(b->text, 0);
+            if (existing_len == len && memcmp(b->text + 8, data, (size_t)len) == 0) {
+                return b->text;
+            }
+        }
+        idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
+    }
+    sarif_fatal_error("string interning table overflow");
+    return NULL;
+}
+
+// Intern a runtime text value into the persistent pool.
+// If the same content was already interned, returns the existing pointer.
+// The returned pointer is valid for the program's entire lifetime.
+__attribute__((used)) const unsigned char* sarif_text_intern(const unsigned char* text) {
+    if (text == NULL) return NULL;
+    uint64_t len = sarif_load_u64(text, 0);
+    return sarif_intern_find_or_insert(text + 8, len);
 }
 
 uint64_t sarif_text_len(const unsigned char* text) {

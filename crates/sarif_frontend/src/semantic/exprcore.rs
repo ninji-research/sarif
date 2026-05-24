@@ -91,49 +91,54 @@ struct BuiltinEntry {
     call_hint: &'static str,
     arg_types: &'static [Type],
     arg_helps: &'static [&'static str],
+    dispatch_simple: bool,
 }
 
 fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
     match name {
-        "text_len" => Some(BuiltinEntry {
-            name: "text_len",
+        "alloc_pop" => Some(BuiltinEntry {
+            name: "alloc_pop",
             runtime_code: None,
-            arity_error_code: "semantic.text_len-arity",
-            type_error_code: "semantic.text_len-type",
-            result_ty: Type::I32,
-            call_hint: "Call `text_len(text)` with exactly one Text argument.",
-            arg_types: &[Type::Text],
-            arg_helps: &["Pass a Text argument."],
+            arity_error_code: "semantic.alloc_pop-arity",
+            type_error_code: "",
+            result_ty: Type::Unit,
+            call_hint: "Call `alloc_pop()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
         }),
-        "bytes_len" => Some(BuiltinEntry {
-            name: "bytes_len",
+        "alloc_push" => Some(BuiltinEntry {
+            name: "alloc_push",
             runtime_code: None,
-            arity_error_code: "semantic.bytes_len-arity",
-            type_error_code: "semantic.bytes_len-type",
-            result_ty: Type::I32,
-            call_hint: "Call `bytes_len(bytes)` with exactly one Bytes argument.",
-            arg_types: &[Type::Bytes],
-            arg_helps: &["Pass a Bytes argument."],
+            arity_error_code: "semantic.alloc_push-arity",
+            type_error_code: "",
+            result_ty: Type::Unit,
+            call_hint: "Call `alloc_push()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
         }),
-        "bytes_to_text" => Some(BuiltinEntry {
-            name: "bytes_to_text",
+        "arg_count" => Some(BuiltinEntry {
+            name: "arg_count",
             runtime_code: None,
-            arity_error_code: "semantic.bytes_to_text-arity",
-            type_error_code: "semantic.bytes_to_text-type",
+            arity_error_code: "semantic.arg_count-arity",
+            type_error_code: "",
+            result_ty: Type::I32,
+            call_hint: "Call `arg_count()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: true,
+        }),
+        "arg_text" => Some(BuiltinEntry {
+            name: "arg_text",
+            runtime_code: None,
+            arity_error_code: "semantic.arg_text-arity",
+            type_error_code: "semantic.arg_text-type",
             result_ty: Type::Text,
-            call_hint: "Call `bytes_to_text(bytes)` with exactly one Bytes argument.",
-            arg_types: &[Type::Bytes],
-            arg_helps: &["Pass a Bytes argument."],
-        }),
-        "text_byte" => Some(BuiltinEntry {
-            name: "text_byte",
-            runtime_code: None,
-            arity_error_code: "semantic.text_byte-arity",
-            type_error_code: "semantic.text_byte-type",
-            result_ty: Type::I32,
-            call_hint: "Call `text_byte(text, index)`.",
-            arg_types: &[Type::Text, Type::I32],
-            arg_helps: &["Pass a Text argument.", "Pass an I32 index."],
+            call_hint: "Call `arg_text(index)` with one I32 argument.",
+            arg_types: &[Type::I32],
+            arg_helps: &["Pass an I32 index."],
+            dispatch_simple: true,
         }),
         "bytes_byte" => Some(BuiltinEntry {
             name: "bytes_byte",
@@ -144,30 +149,34 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             call_hint: "Call `bytes_byte(bytes, index)`.",
             arg_types: &[Type::Bytes, Type::I32],
             arg_helps: &["Pass a Bytes argument.", "Pass an I32 index."],
+            dispatch_simple: true,
         }),
-        "text_concat" => Some(BuiltinEntry {
-            name: "text_concat",
+        "bytes_find_byte_range" => Some(BuiltinEntry {
+            name: "bytes_find_byte_range",
             runtime_code: None,
-            arity_error_code: "semantic.text_concat-arity",
-            type_error_code: "semantic.text_concat-type",
-            result_ty: Type::Text,
-            call_hint: "Call `text_concat(a, b)`.",
-            arg_types: &[Type::Text, Type::Text],
-            arg_helps: &["Pass a Text argument.", "Pass a Text argument."],
-        }),
-        "text_slice" => Some(BuiltinEntry {
-            name: "text_slice",
-            runtime_code: None,
-            arity_error_code: "semantic.text_slice-arity",
-            type_error_code: "semantic.text_slice-type",
-            result_ty: Type::Text,
-            call_hint: "Call `text_slice(text, start, length)`.",
-            arg_types: &[Type::Text, Type::I32, Type::I32],
+            arity_error_code: "semantic.bytes_find_byte_range-arity",
+            type_error_code: "semantic.bytes_find_byte_range-type",
+            result_ty: Type::I32,
+            call_hint: "Call `bytes_find_byte_range(bytes, start, end, byte)`.",
+            arg_types: &[Type::Bytes, Type::I32, Type::I32, Type::I32],
             arg_helps: &[
-                "Pass a Text argument.",
+                "Pass a Bytes argument.",
                 "Pass an I32 start offset.",
-                "Pass an I32 length.",
+                "Pass an I32 end offset.",
+                "Pass an I32 byte value to find.",
             ],
+            dispatch_simple: false,
+        }),
+        "bytes_len" => Some(BuiltinEntry {
+            name: "bytes_len",
+            runtime_code: None,
+            arity_error_code: "semantic.bytes_len-arity",
+            type_error_code: "semantic.bytes_len-type",
+            result_ty: Type::I32,
+            call_hint: "Call `bytes_len(bytes)` with exactly one Bytes argument.",
+            arg_types: &[Type::Bytes],
+            arg_helps: &["Pass a Bytes argument."],
+            dispatch_simple: true,
         }),
         "bytes_slice" => Some(BuiltinEntry {
             name: "bytes_slice",
@@ -182,6 +191,367 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
                 "Pass an I32 start offset.",
                 "Pass an I32 length.",
             ],
+            dispatch_simple: true,
+        }),
+        "bytes_to_text" => Some(BuiltinEntry {
+            name: "bytes_to_text",
+            runtime_code: None,
+            arity_error_code: "semantic.bytes_to_text-arity",
+            type_error_code: "semantic.bytes_to_text-type",
+            result_ty: Type::Text,
+            call_hint: "Call `bytes_to_text(bytes)` with exactly one Bytes argument.",
+            arg_types: &[Type::Bytes],
+            arg_helps: &["Pass a Bytes argument."],
+            dispatch_simple: true,
+        }),
+        "codepoint_to_text" => Some(BuiltinEntry {
+            name: "codepoint_to_text",
+            runtime_code: None,
+            arity_error_code: "semantic.codepoint_to_text-arity",
+            type_error_code: "semantic.codepoint_to_text-type",
+            result_ty: Type::Text,
+            call_hint: "Call `codepoint_to_text(codepoint)` with one I32 argument.",
+            arg_types: &[Type::I32],
+            arg_helps: &["Pass an I32 codepoint."],
+            dispatch_simple: true,
+        }),
+        "const_assert" => Some(BuiltinEntry {
+            name: "const_assert",
+            runtime_code: None,
+            arity_error_code: "semantic.const_assert-arity",
+            type_error_code: "semantic.const_assert-type",
+            result_ty: Type::Unit,
+            call_hint: "Call `const_assert(condition)` with one Bool argument.",
+            arg_types: &[Type::Bool],
+            arg_helps: &["Pass a Bool condition."],
+            dispatch_simple: false,
+        }),
+        "enum_to_i32" => Some(BuiltinEntry {
+            name: "enum_to_i32",
+            runtime_code: None,
+            arity_error_code: "semantic.enum_to_i32-arity",
+            type_error_code: "",
+            result_ty: Type::I32,
+            call_hint: "Call `enum_to_i32(value)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "enum_to_text" => Some(BuiltinEntry {
+            name: "enum_to_text",
+            runtime_code: None,
+            arity_error_code: "semantic.enum_to_text-arity",
+            type_error_code: "",
+            result_ty: Type::Text,
+            call_hint: "Call `enum_to_text(value)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "f64_from_i32" => Some(BuiltinEntry {
+            name: "f64_from_i32",
+            runtime_code: None,
+            arity_error_code: "semantic.f64_from_i32-arity",
+            type_error_code: "semantic.f64_from_i32-type",
+            result_ty: Type::F64,
+            call_hint: "Call `f64_from_i32(value)` with one I32 argument.",
+            arg_types: &[Type::I32],
+            arg_helps: &["Pass an I32 value."],
+            dispatch_simple: true,
+        }),
+        "file_close" => Some(BuiltinEntry {
+            name: "file_close",
+            runtime_code: None,
+            arity_error_code: "semantic.file_close-arity",
+            type_error_code: "semantic.file_close-type",
+            result_ty: Type::Unit,
+            call_hint: "Call `file_close(file)` with one File argument.",
+            arg_types: &[Type::File],
+            arg_helps: &["Pass a File argument."],
+            dispatch_simple: true,
+        }),
+        "file_exists" => Some(BuiltinEntry {
+            name: "file_exists",
+            runtime_code: None,
+            arity_error_code: "semantic.file_exists-arity",
+            type_error_code: "semantic.file_exists-type",
+            result_ty: Type::Bool,
+            call_hint: "Call `file_exists(path)` with one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text path."],
+            dispatch_simple: true,
+        }),
+        "file_is_valid" => Some(BuiltinEntry {
+            name: "file_is_valid",
+            runtime_code: None,
+            arity_error_code: "semantic.file_is_valid-arity",
+            type_error_code: "semantic.file_is_valid-type",
+            result_ty: Type::Bool,
+            call_hint: "Call `file_is_valid(file)` with one File argument.",
+            arg_types: &[Type::File],
+            arg_helps: &["Pass a File argument."],
+            dispatch_simple: true,
+        }),
+        "file_open" => Some(BuiltinEntry {
+            name: "file_open",
+            runtime_code: None,
+            arity_error_code: "semantic.file_open-arity",
+            type_error_code: "semantic.file_open-type",
+            result_ty: Type::File,
+            call_hint: "Call `file_open(path, mode)` with two Text arguments.",
+            arg_types: &[Type::Text, Type::Text],
+            arg_helps: &["Pass a Text path.", "Pass a Text mode string."],
+            dispatch_simple: true,
+        }),
+        "file_read" => Some(BuiltinEntry {
+            name: "file_read",
+            runtime_code: None,
+            arity_error_code: "semantic.file_read-arity",
+            type_error_code: "semantic.file_read-type",
+            result_ty: Type::Bytes,
+            call_hint: "Call `file_read(file, count)`.",
+            arg_types: &[Type::File, Type::I32],
+            arg_helps: &["Pass a File argument.", "Pass an I32 byte count."],
+            dispatch_simple: true,
+        }),
+        "file_read_to_end" => Some(BuiltinEntry {
+            name: "file_read_to_end",
+            runtime_code: None,
+            arity_error_code: "semantic.file_read_to_end-arity",
+            type_error_code: "semantic.file_read_to_end-type",
+            result_ty: Type::Bytes,
+            call_hint: "Call `file_read_to_end(file)` with one File argument.",
+            arg_types: &[Type::File],
+            arg_helps: &["Pass a File argument."],
+            dispatch_simple: false,
+        }),
+        "file_remove" => Some(BuiltinEntry {
+            name: "file_remove",
+            runtime_code: None,
+            arity_error_code: "semantic.file_remove-arity",
+            type_error_code: "semantic.file_remove-type",
+            result_ty: Type::Bool,
+            call_hint: "Call `file_remove(path)` with one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text path."],
+            dispatch_simple: true,
+        }),
+        "file_seek" => Some(BuiltinEntry {
+            name: "file_seek",
+            runtime_code: None,
+            arity_error_code: "semantic.file_seek-arity",
+            type_error_code: "semantic.file_seek-type",
+            result_ty: Type::I32,
+            call_hint: "Call `file_seek(file, offset, whence)`.",
+            arg_types: &[Type::File, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a File argument.",
+                "Pass an I32 offset.",
+                "Pass an I32 whence (0=start, 1=current, 2=end).",
+            ],
+            dispatch_simple: true,
+        }),
+        "file_size" => Some(BuiltinEntry {
+            name: "file_size",
+            runtime_code: None,
+            arity_error_code: "semantic.file_size-arity",
+            type_error_code: "semantic.file_size-type",
+            result_ty: Type::I32,
+            call_hint: "Call `file_size(file)` with one File argument.",
+            arg_types: &[Type::File],
+            arg_helps: &["Pass a File argument."],
+            dispatch_simple: true,
+        }),
+        "file_tell" => Some(BuiltinEntry {
+            name: "file_tell",
+            runtime_code: None,
+            arity_error_code: "semantic.file_tell-arity",
+            type_error_code: "semantic.file_tell-type",
+            result_ty: Type::I32,
+            call_hint: "Call `file_tell(file)` with one File argument.",
+            arg_types: &[Type::File],
+            arg_helps: &["Pass a File argument."],
+            dispatch_simple: false,
+        }),
+        "file_write" => Some(BuiltinEntry {
+            name: "file_write",
+            runtime_code: None,
+            arity_error_code: "semantic.file_write-arity",
+            type_error_code: "semantic.file_write-type",
+            result_ty: Type::I32,
+            call_hint: "Call `file_write(file, data)` with File and Text/Bytes.",
+            arg_types: &[Type::File],
+            arg_helps: &["Pass a File argument.", "Pass Text or Bytes data."],
+            dispatch_simple: false,
+        }),
+        "len" => Some(BuiltinEntry {
+            name: "len",
+            runtime_code: None,
+            arity_error_code: "semantic.len-arity",
+            type_error_code: "semantic.len-type",
+            result_ty: Type::I32,
+            call_hint: "Call `len(xs)` with exactly one array argument.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_get" => Some(BuiltinEntry {
+            name: "list_get",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_get-arity",
+            type_error_code: "semantic.list_get-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_get(list, index)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_len" => Some(BuiltinEntry {
+            name: "list_len",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_len-arity",
+            type_error_code: "semantic.list_len-type",
+            result_ty: Type::I32,
+            call_hint: "Call `list_len(list)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_new" => Some(BuiltinEntry {
+            name: "list_new",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_new-arity",
+            type_error_code: "semantic.list_new-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_new(capacity, default)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_push" => Some(BuiltinEntry {
+            name: "list_push",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_push-arity",
+            type_error_code: "semantic.list_push-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_push(list, index, value)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_set" => Some(BuiltinEntry {
+            name: "list_set",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_set-arity",
+            type_error_code: "semantic.list_set-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_set(list, index, value)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_sort_by_text_field" => Some(BuiltinEntry {
+            name: "list_sort_by_text_field",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_sort_by_text_field-arity",
+            type_error_code: "semantic.list_sort_by_text_field-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_sort_by_text_field(list, field_index)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_sort_text" => Some(BuiltinEntry {
+            name: "list_sort_text",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_sort_text-arity",
+            type_error_code: "semantic.list_sort_text-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_sort_text(list, direction)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "parse_i32" => Some(BuiltinEntry {
+            name: "parse_i32",
+            runtime_code: None,
+            arity_error_code: "semantic.parse_i32-arity",
+            type_error_code: "semantic.parse_i32-type",
+            result_ty: Type::I32,
+            call_hint: "Call `parse_i32(text)` with one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text argument."],
+            dispatch_simple: true,
+        }),
+        "parse_i32_range" => Some(BuiltinEntry {
+            name: "parse_i32_range",
+            runtime_code: None,
+            arity_error_code: "semantic.parse_i32_range-arity",
+            type_error_code: "semantic.parse_i32_range-type",
+            result_ty: Type::I32,
+            call_hint: "Call `parse_i32_range(text, start, end)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 end offset.",
+            ],
+            dispatch_simple: true,
+        }),
+        "sqrt" => Some(BuiltinEntry {
+            name: "sqrt",
+            runtime_code: None,
+            arity_error_code: "semantic.sqrt-arity",
+            type_error_code: "semantic.sqrt-type",
+            result_ty: Type::F64,
+            call_hint: "Call `sqrt(value)` with one F64 argument.",
+            arg_types: &[Type::F64],
+            arg_helps: &["Pass an F64 value."],
+            dispatch_simple: true,
+        }),
+        "stdin_bytes" => Some(BuiltinEntry {
+            name: "stdin_bytes",
+            runtime_code: None,
+            arity_error_code: "semantic.stdin_bytes-arity",
+            type_error_code: "",
+            result_ty: Type::Bytes,
+            call_hint: "Call `stdin_bytes()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: true,
+        }),
+        "stdin_text" => Some(BuiltinEntry {
+            name: "stdin_text",
+            runtime_code: None,
+            arity_error_code: "semantic.stdin_text-arity",
+            type_error_code: "",
+            result_ty: Type::Text,
+            call_hint: "Call `stdin_text()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: true,
+        }),
+        "stdout_write" => Some(BuiltinEntry {
+            name: "stdout_write",
+            runtime_code: None,
+            arity_error_code: "semantic.stdout_write-arity",
+            type_error_code: "semantic.stdout_write-type",
+            result_ty: Type::Unit,
+            call_hint: "Call `stdout_write(data)` with one Text or Bytes argument.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "stdout_write_builder" => Some(BuiltinEntry {
+            name: "stdout_write_builder",
+            runtime_code: None,
+            arity_error_code: "semantic.stdout_write_builder-arity",
+            type_error_code: "semantic.stdout_write_builder-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `stdout_write_builder(builder)` with one TextBuilder.",
+            arg_types: &[Type::TextBuilder],
+            arg_helps: &["Pass a TextBuilder."],
+            dispatch_simple: true,
         }),
         "text_builder_append" => Some(BuiltinEntry {
             name: "text_builder_append",
@@ -192,16 +562,7 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             call_hint: "Call `text_builder_append(builder, text)`.",
             arg_types: &[Type::TextBuilder, Type::Text],
             arg_helps: &["Pass a TextBuilder.", "Pass a Text argument."],
-        }),
-        "text_builder_append_codepoint" => Some(BuiltinEntry {
-            name: "text_builder_append_codepoint",
-            runtime_code: Some("semantic.text_builder_append-codepoint-runtime-context"),
-            arity_error_code: "semantic.text_builder_append_codepoint-arity",
-            type_error_code: "semantic.text_builder_append_codepoint-type",
-            result_ty: Type::TextBuilder,
-            call_hint: "Call `text_builder_append_codepoint(builder, codepoint)`.",
-            arg_types: &[Type::TextBuilder, Type::I32],
-            arg_helps: &["Pass a TextBuilder.", "Pass an I32 codepoint."],
+            dispatch_simple: true,
         }),
         "text_builder_append_ascii" => Some(BuiltinEntry {
             name: "text_builder_append_ascii",
@@ -212,6 +573,29 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             call_hint: "Call `text_builder_append_ascii(builder, ascii)`.",
             arg_types: &[Type::TextBuilder, Type::I32],
             arg_helps: &["Pass a TextBuilder.", "Pass an I32 ascii byte."],
+            dispatch_simple: true,
+        }),
+        "text_builder_append_codepoint" => Some(BuiltinEntry {
+            name: "text_builder_append_codepoint",
+            runtime_code: Some("semantic.text_builder_append-codepoint-runtime-context"),
+            arity_error_code: "semantic.text_builder_append_codepoint-arity",
+            type_error_code: "semantic.text_builder_append_codepoint-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append_codepoint(builder, codepoint)`.",
+            arg_types: &[Type::TextBuilder, Type::I32],
+            arg_helps: &["Pass a TextBuilder.", "Pass an I32 codepoint."],
+            dispatch_simple: true,
+        }),
+        "text_builder_append_i32" => Some(BuiltinEntry {
+            name: "text_builder_append_i32",
+            runtime_code: Some("semantic.text_builder_append_i32-runtime-context"),
+            arity_error_code: "semantic.text_builder_append_i32-arity",
+            type_error_code: "semantic.text_builder_append_i32-type",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_append_i32(builder, value)`.",
+            arg_types: &[Type::TextBuilder, Type::I32],
+            arg_helps: &["Pass a TextBuilder.", "Pass an I32 value."],
+            dispatch_simple: true,
         }),
         "text_builder_append_slice" => Some(BuiltinEntry {
             name: "text_builder_append_slice",
@@ -227,16 +611,7 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
                 "Pass an I32 start offset.",
                 "Pass an I32 length.",
             ],
-        }),
-        "text_builder_append_i32" => Some(BuiltinEntry {
-            name: "text_builder_append_i32",
-            runtime_code: Some("semantic.text_builder_append_i32-runtime-context"),
-            arity_error_code: "semantic.text_builder_append_i32-arity",
-            type_error_code: "semantic.text_builder_append_i32-type",
-            result_ty: Type::TextBuilder,
-            call_hint: "Call `text_builder_append_i32(builder, value)`.",
-            arg_types: &[Type::TextBuilder, Type::I32],
-            arg_helps: &["Pass a TextBuilder.", "Pass an I32 value."],
+            dispatch_simple: true,
         }),
         "text_builder_finish" => Some(BuiltinEntry {
             name: "text_builder_finish",
@@ -247,6 +622,248 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             call_hint: "Call `text_builder_finish(builder)`.",
             arg_types: &[Type::TextBuilder],
             arg_helps: &["Pass a TextBuilder."],
+            dispatch_simple: true,
+        }),
+        "text_builder_new" => Some(BuiltinEntry {
+            name: "text_builder_new",
+            runtime_code: Some("semantic.text_builder_new-runtime-context"),
+            arity_error_code: "semantic.text_builder_new-arity",
+            type_error_code: "",
+            result_ty: Type::TextBuilder,
+            call_hint: "Call `text_builder_new()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "text_byte" => Some(BuiltinEntry {
+            name: "text_byte",
+            runtime_code: None,
+            arity_error_code: "semantic.text_byte-arity",
+            type_error_code: "semantic.text_byte-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_byte(text, index)`.",
+            arg_types: &[Type::Text, Type::I32],
+            arg_helps: &["Pass a Text argument.", "Pass an I32 index."],
+            dispatch_simple: true,
+        }),
+        "text_cmp" => Some(BuiltinEntry {
+            name: "text_cmp",
+            runtime_code: None,
+            arity_error_code: "semantic.text_cmp-arity",
+            type_error_code: "semantic.text_cmp-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_cmp(a, b)` with two Text arguments.",
+            arg_types: &[Type::Text, Type::Text],
+            arg_helps: &["Pass a Text argument.", "Pass a Text argument."],
+            dispatch_simple: true,
+        }),
+        "text_concat" => Some(BuiltinEntry {
+            name: "text_concat",
+            runtime_code: None,
+            arity_error_code: "semantic.text_concat-arity",
+            type_error_code: "semantic.text_concat-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_concat(a, b)`.",
+            arg_types: &[Type::Text, Type::Text],
+            arg_helps: &["Pass a Text argument.", "Pass a Text argument."],
+            dispatch_simple: true,
+        }),
+        "text_eq_range" => Some(BuiltinEntry {
+            name: "text_eq_range",
+            runtime_code: None,
+            arity_error_code: "semantic.text_eq_range-arity",
+            type_error_code: "semantic.text_eq_range-type",
+            result_ty: Type::Bool,
+            call_hint: "Call `text_eq_range(a, start, length, b)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32, Type::Text],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 length.",
+                "Pass a Text argument to compare against.",
+            ],
+            dispatch_simple: true,
+        }),
+        "text_field_end" => Some(BuiltinEntry {
+            name: "text_field_end",
+            runtime_code: None,
+            arity_error_code: "semantic.text_field_end-arity",
+            type_error_code: "semantic.text_field_end-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_field_end(text, start, end, separator)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 end offset.",
+                "Pass an I32 separator byte.",
+            ],
+            dispatch_simple: false,
+        }),
+        "text_find_byte_range" => Some(BuiltinEntry {
+            name: "text_find_byte_range",
+            runtime_code: None,
+            arity_error_code: "semantic.text_find_byte_range-arity",
+            type_error_code: "semantic.text_find_byte_range-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_find_byte_range(text, start, end, byte)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 end offset.",
+                "Pass an I32 byte value to find.",
+            ],
+            dispatch_simple: false,
+        }),
+        "text_from_f64_fixed" => Some(BuiltinEntry {
+            name: "text_from_f64_fixed",
+            runtime_code: None,
+            arity_error_code: "semantic.text_from_f64_fixed-arity",
+            type_error_code: "semantic.text_from_f64_fixed-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_from_f64_fixed(value, decimals)`.",
+            arg_types: &[Type::F64, Type::I32],
+            arg_helps: &["Pass an F64 value.", "Pass an I32 decimal places."],
+            dispatch_simple: true,
+        }),
+        "text_index_contains" => Some(BuiltinEntry {
+            name: "text_index_contains",
+            runtime_code: Some("semantic.text_index-runtime-context"),
+            arity_error_code: "semantic.text_index_contains-arity",
+            type_error_code: "semantic.text_index_contains-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_index_contains(index, key)`.",
+            arg_types: &[Type::TextIndex, Type::Text],
+            arg_helps: &["Pass a TextIndex.", "Pass a Text key."],
+            dispatch_simple: false,
+        }),
+        "text_index_get" => Some(BuiltinEntry {
+            name: "text_index_get",
+            runtime_code: Some("semantic.text_index-runtime-context"),
+            arity_error_code: "semantic.text_index_get-arity",
+            type_error_code: "semantic.text_index_get-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_index_get(index, key)`.",
+            arg_types: &[Type::TextIndex, Type::Text],
+            arg_helps: &["Pass a TextIndex.", "Pass a Text key."],
+            dispatch_simple: false,
+        }),
+        "text_index_get_or_insert" => Some(BuiltinEntry {
+            name: "text_index_get_or_insert",
+            runtime_code: Some("semantic.text_index-runtime-context"),
+            arity_error_code: "semantic.text_index_get_or_insert-arity",
+            type_error_code: "semantic.text_index_get_or_insert-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_index_get_or_insert(index, key, value)`.",
+            arg_types: &[Type::TextIndex, Type::Text, Type::I32],
+            arg_helps: &[
+                "Pass a TextIndex.",
+                "Pass a Text key.",
+                "Pass an I32 default value.",
+            ],
+            dispatch_simple: false,
+        }),
+        "text_index_keys" => Some(BuiltinEntry {
+            name: "text_index_keys",
+            runtime_code: Some("semantic.text_index-runtime-context"),
+            arity_error_code: "semantic.text_index_keys-arity",
+            type_error_code: "semantic.text_index_keys-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_index_keys(index)` with one TextIndex.",
+            arg_types: &[Type::TextIndex],
+            arg_helps: &["Pass a TextIndex."],
+            dispatch_simple: false,
+        }),
+        "text_index_new" => Some(BuiltinEntry {
+            name: "text_index_new",
+            runtime_code: Some("semantic.text_index-runtime-context"),
+            arity_error_code: "semantic.text_index_new-arity",
+            type_error_code: "",
+            result_ty: Type::TextIndex,
+            call_hint: "Call `text_index_new()`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "text_index_set" => Some(BuiltinEntry {
+            name: "text_index_set",
+            runtime_code: Some("semantic.text_index-runtime-context"),
+            arity_error_code: "semantic.text_index_set-arity",
+            type_error_code: "semantic.text_index_set-type",
+            result_ty: Type::TextIndex,
+            call_hint: "Call `text_index_set(index, key, value)`.",
+            arg_types: &[Type::TextIndex, Type::Text, Type::I32],
+            arg_helps: &[
+                "Pass a TextIndex.",
+                "Pass a Text key.",
+                "Pass an I32 value.",
+            ],
+            dispatch_simple: false,
+        }),
+        "text_len" => Some(BuiltinEntry {
+            name: "text_len",
+            runtime_code: None,
+            arity_error_code: "semantic.text_len-arity",
+            type_error_code: "semantic.text_len-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_len(text)` with exactly one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text argument."],
+            dispatch_simple: true,
+        }),
+        "text_line_end" => Some(BuiltinEntry {
+            name: "text_line_end",
+            runtime_code: None,
+            arity_error_code: "semantic.text_line_end-arity",
+            type_error_code: "semantic.text_line_end-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_line_end(text, start)`.",
+            arg_types: &[Type::Text, Type::I32],
+            arg_helps: &["Pass a Text argument.", "Pass an I32 start offset."],
+            dispatch_simple: false,
+        }),
+        "text_next_field" => Some(BuiltinEntry {
+            name: "text_next_field",
+            runtime_code: None,
+            arity_error_code: "semantic.text_next_field-arity",
+            type_error_code: "semantic.text_next_field-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_next_field(text, start, end, separator)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 end offset.",
+                "Pass an I32 separator byte.",
+            ],
+            dispatch_simple: false,
+        }),
+        "text_next_line" => Some(BuiltinEntry {
+            name: "text_next_line",
+            runtime_code: None,
+            arity_error_code: "semantic.text_next_line-arity",
+            type_error_code: "semantic.text_next_line-type",
+            result_ty: Type::I32,
+            call_hint: "Call `text_next_line(text, start)`.",
+            arg_types: &[Type::Text, Type::I32],
+            arg_helps: &["Pass a Text argument.", "Pass an I32 start offset."],
+            dispatch_simple: false,
+        }),
+        "text_slice" => Some(BuiltinEntry {
+            name: "text_slice",
+            runtime_code: None,
+            arity_error_code: "semantic.text_slice-arity",
+            type_error_code: "semantic.text_slice-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_slice(text, start, length)`.",
+            arg_types: &[Type::Text, Type::I32, Type::I32],
+            arg_helps: &[
+                "Pass a Text argument.",
+                "Pass an I32 start offset.",
+                "Pass an I32 length.",
+            ],
+            dispatch_simple: true,
         }),
         _ => None,
     }
@@ -256,60 +873,6 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
 #[allow(dead_code)]
 pub(super) fn is_builtin(name: &str) -> bool {
     builtin_entry(name).is_some()
-        || matches!(
-            name,
-            ARRAY_LEN_BUILTIN
-                | "const_assert"
-                | "text_builder_new"
-                | "list_new"
-                | "list_len"
-                | "list_get"
-                | "list_set"
-                | "list_push"
-                | "list_sort_text"
-                | "list_sort_by_text_field"
-                | "text_index_new"
-                | "text_index_get"
-                | "text_index_set"
-                | "text_index_get_or_insert"
-                | "text_index_contains"
-                | "text_index_keys"
-                | "f64_from_i32"
-                | "text_from_f64_fixed"
-                | "sqrt"
-                | "parse_i32"
-                | "parse_i32_range"
-                | "text_eq_range"
-                | "text_cmp"
-                | "text_find_byte_range"
-                | "bytes_find_byte_range"
-                | "text_line_end"
-                | "text_next_line"
-                | "text_field_end"
-                | "text_next_field"
-                | "arg_count"
-                | "arg_text"
-                | "stdin_text"
-                | "stdin_bytes"
-                | "stdout_write"
-                | "stdout_write_builder"
-                | "codepoint_to_text"
-                | "enum_to_i32"
-                | "enum_to_text"
-                | "file_open"
-                | "file_read"
-                | "file_read_to_end"
-                | "file_write"
-                | "file_size"
-                | "file_seek"
-                | "file_tell"
-                | "file_is_valid"
-                | "file_exists"
-                | "file_remove"
-                | "file_close"
-                | "alloc_push"
-                | "alloc_pop"
-        )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -735,6 +1298,7 @@ pub(super) fn infer_call_expr(
 
     if let Some(entry) = builtin_entry(&expr.callee)
         && !functions.contains_key(&expr.callee)
+        && entry.dispatch_simple
     {
         let context_param = entry.runtime_code.map(|code| (context, code));
         let specs: Vec<BuiltinArgSpec> = entry
@@ -755,177 +1319,6 @@ pub(super) fn infer_call_expr(
             entry.result_ty,
             entry.call_hint.to_owned(),
             &specs,
-        );
-    }
-
-    if expr.callee == "bytes_len" && !functions.contains_key("bytes_len") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "bytes_len",
-            "semantic.bytes_len-arity",
-            "semantic.bytes_len-type",
-            Type::I32,
-            "Call `bytes_len(bytes)` with exactly one Bytes argument.".to_owned(),
-            &[BuiltinArgSpec {
-                ty: &Type::Bytes,
-                help: "Pass a Bytes argument.",
-            }],
-        );
-    }
-
-    if expr.callee == "bytes_to_text" && !functions.contains_key("bytes_to_text") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "bytes_to_text",
-            "semantic.bytes_to_text-arity",
-            "semantic.bytes_to_text-type",
-            Type::Text,
-            "Call `bytes_to_text(bytes)` with exactly one Bytes argument.".to_owned(),
-            &[BuiltinArgSpec {
-                ty: &Type::Bytes,
-                help: "Pass a Bytes argument.",
-            }],
-        );
-    }
-
-    if expr.callee == "text_byte" && !functions.contains_key("text_byte") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "text_byte",
-            "semantic.text_byte-arity",
-            "semantic.text_byte-type",
-            Type::I32,
-            "Call `text_byte(text, index)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a Text argument.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 index.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "bytes_byte" && !functions.contains_key("bytes_byte") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "bytes_byte",
-            "semantic.bytes_byte-arity",
-            "semantic.bytes_byte-type",
-            Type::I32,
-            "Call `bytes_byte(bytes, index)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::Bytes,
-                    help: "Pass a Bytes argument.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 index.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_concat" && !functions.contains_key("text_concat") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "text_concat",
-            "semantic.text_concat-arity",
-            "semantic.text_concat-type",
-            Type::Text,
-            "Call `text_concat(left, right)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a Text argument.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a Text argument.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_slice" && !functions.contains_key("text_slice") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "text_slice",
-            "semantic.text_slice-arity",
-            "semantic.text_slice-type",
-            Type::Text,
-            "Call `text_slice(text, start, end)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a Text argument.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 start offset.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 end offset.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "bytes_slice" && !functions.contains_key("bytes_slice") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "bytes_slice",
-            "semantic.bytes_slice-arity",
-            "semantic.bytes_slice-type",
-            Type::Bytes,
-            "Call `bytes_slice(bytes, start, end)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::Bytes,
-                    help: "Pass a Bytes argument.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 start offset.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 end offset.",
-                },
-            ],
         );
     }
 
@@ -964,175 +1357,6 @@ pub(super) fn infer_call_expr(
             ty: Type::TextBuilder,
             calls,
         };
-    }
-
-    if expr.callee == "text_builder_append" && !functions.contains_key("text_builder_append") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            Some((context, "semantic.text_builder_append-runtime-context")),
-            "text_builder_append",
-            "semantic.text_builder_append-arity",
-            "semantic.text_builder_append-type",
-            Type::TextBuilder,
-            "Call `text_builder_append(builder, text)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::TextBuilder,
-                    help: "Pass a TextBuilder accumulator.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a Text value to append.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_builder_append_codepoint"
-        && !functions.contains_key("text_builder_append_codepoint")
-    {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            Some((
-                context,
-                "semantic.text_builder_append_codepoint-runtime-context",
-            )),
-            "text_builder_append_codepoint",
-            "semantic.text_builder_append_codepoint-arity",
-            "semantic.text_builder_append_codepoint-type",
-            Type::TextBuilder,
-            "Call `text_builder_append_codepoint(builder, codepoint)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::TextBuilder,
-                    help: "Pass a TextBuilder accumulator.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass a Unicode scalar value as an I32.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_builder_append_ascii"
-        && !functions.contains_key("text_builder_append_ascii")
-    {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            Some((
-                context,
-                "semantic.text_builder_append_ascii-runtime-context",
-            )),
-            "text_builder_append_ascii",
-            "semantic.text_builder_append_ascii-arity",
-            "semantic.text_builder_append_ascii-type",
-            Type::TextBuilder,
-            "Call `text_builder_append_ascii(builder, byte)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::TextBuilder,
-                    help: "Pass a TextBuilder accumulator.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an ASCII byte value as an I32.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_builder_append_slice"
-        && !functions.contains_key("text_builder_append_slice")
-    {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            Some((
-                context,
-                "semantic.text_builder_append_slice-runtime-context",
-            )),
-            "text_builder_append_slice",
-            "semantic.text_builder_append_slice-arity",
-            "semantic.text_builder_append_slice-type",
-            Type::TextBuilder,
-            "Call `text_builder_append_slice(builder, text, start, end)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::TextBuilder,
-                    help: "Pass a TextBuilder accumulator.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a Text source value.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 start index.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an I32 end index.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_builder_append_i32"
-        && !functions.contains_key("text_builder_append_i32")
-    {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            Some((context, "semantic.text_builder_append_i32-runtime-context")),
-            "text_builder_append_i32",
-            "semantic.text_builder_append_i32-arity",
-            "semantic.text_builder_append_i32-type",
-            Type::TextBuilder,
-            "Call `text_builder_append_i32(builder, value)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::TextBuilder,
-                    help: "Pass a TextBuilder accumulator.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass an integer value.",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "text_builder_finish" && !functions.contains_key("text_builder_finish") {
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            Some((context, "semantic.text_builder_finish-runtime-context")),
-            "text_builder_finish",
-            "semantic.text_builder_finish-arity",
-            "semantic.text_builder_finish-type",
-            Type::Text,
-            "Call `text_builder_finish(builder)`.".to_owned(),
-            &[BuiltinArgSpec {
-                ty: &Type::TextBuilder,
-                help: "Pass a TextBuilder value.",
-            }],
-        );
     }
 
     if expr.callee == "list_new" && !functions.contains_key("list_new") {
@@ -1760,311 +1984,6 @@ must have type `Text`, found `{}`",
         };
     }
 
-    if expr.callee == "f64_from_i32" && !functions.contains_key("f64_from_i32") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.f64_from_i32-arity",
-                format!(
-                    "builtin `f64_from_i32` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `f64_from_i32(value)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::I32 && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.f64_from_i32-type",
-                format!(
-                    "builtin `f64_from_i32` expects I32, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an integer value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::F64,
-            calls,
-        };
-    }
-
-    if expr.callee == "text_from_f64_fixed" && !functions.contains_key("text_from_f64_fixed") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_from_f64_fixed-arity",
-                format!(
-                    "builtin `text_from_f64_fixed` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_from_f64_fixed(value, digits)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::F64 && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_from_f64_fixed-type",
-                format!(
-                    "builtin `text_from_f64_fixed` first argument must be F64, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a float value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_from_f64_fixed-type",
-                format!(
-                    "builtin `text_from_f64_fixed` second argument must be I32, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an integer digit count.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Text,
-            calls,
-        };
-    }
-
-    if expr.callee == "sqrt" && !functions.contains_key("sqrt") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.sqrt-arity",
-                format!("builtin `sqrt` expects 1 argument but got {}", args.len()),
-                expr.span,
-                Some("Call `sqrt(value)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::F64 && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.sqrt-type",
-                format!(
-                    "builtin `sqrt` expects F64, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a float value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::F64,
-            calls,
-        };
-    }
-
-    if expr.callee == "parse_i32" && !functions.contains_key("parse_i32") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.parse_i32-arity",
-                format!(
-                    "builtin `parse_i32` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `parse_i32(text)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.parse_i32-type",
-                format!(
-                    "builtin `parse_i32` expects Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "parse_i32_range" && !functions.contains_key("parse_i32_range") {
-        if args.len() != 3 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.parse_i32_range-arity",
-                format!(
-                    "builtin `parse_i32_range` expects 3 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `parse_i32_range(text, start, end)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.parse_i32_range-type",
-                format!(
-                    "builtin `parse_i32_range` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.parse_i32_range-type",
-                format!(
-                    "builtin `parse_i32_range` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.parse_i32_range-type",
-                format!(
-                    "builtin `parse_i32_range` third argument must be I32, found `{}`",
-                    args[2].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer end offset.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "text_eq_range" && !functions.contains_key("text_eq_range") {
-        if args.len() != 4 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_eq_range-arity",
-                format!(
-                    "builtin `text_eq_range` expects 4 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_eq_range(text, start, end, expected)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_eq_range-type",
-                format!(
-                    "builtin `text_eq_range` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_eq_range-type",
-                format!(
-                    "builtin `text_eq_range` second argument must be I32, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer start offset.".to_owned()),
-            ));
-        }
-        if args[2].ty != Type::I32 && args[2].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_eq_range-type",
-                format!(
-                    "builtin `text_eq_range` third argument must be I32, found `{}`",
-                    args[2].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer end offset.".to_owned()),
-            ));
-        }
-        if args[3].ty != Type::Text && args[3].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_eq_range-type",
-                format!(
-                    "builtin `text_eq_range` fourth argument must be Text, found `{}`",
-                    args[3].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Bool,
-            calls,
-        };
-    }
-
-    if expr.callee == "text_cmp" && !functions.contains_key("text_cmp") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_cmp-arity",
-                format!(
-                    "builtin `text_cmp` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `text_cmp(left, right)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_cmp-type",
-                format!(
-                    "builtin `text_cmp` first argument must be Text, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::Text && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.text_cmp-type",
-                format!(
-                    "builtin `text_cmp` second argument must be Text, found `{}`",
-                    args[1].ty.render()
-                ),
-                expr.span,
-                Some("Pass a Text value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
     if expr.callee == "text_find_byte_range" && !functions.contains_key("text_find_byte_range") {
         return infer_range_scan_builtin_expr(
             expr,
@@ -2141,139 +2060,6 @@ must have type `Text`, found `{}`",
         );
     }
 
-    if expr.callee == "arg_count" && !functions.contains_key("arg_count") {
-        if !args.is_empty() {
-            diagnostics.push(Diagnostic::new(
-                "semantic.arg_count-arity",
-                format!(
-                    "builtin `arg_count` expects 0 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `arg_count()` with no arguments.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_open" && !functions.contains_key("file_open") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_open-arity",
-                format!(
-                    "builtin `file_open` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_open(path, mode)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::Text,
-            "file_open",
-            "path",
-            "Pass a Text path to file_open",
-        );
-        expect_type(
-            diagnostics,
-            &expr.args[1],
-            &args[1].ty,
-            &Type::Text,
-            "file_open",
-            "mode",
-            "Pass a Text mode ('r', 'w', 'a') to file_open",
-        );
-        return ExprInfo {
-            ty: Type::File,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_close" && !functions.contains_key("file_close") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_close-arity",
-                format!(
-                    "builtin `file_close` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_close(handle)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::File,
-            "file_close",
-            "handle",
-            "Pass a File handle to file_close",
-        );
-        return ExprInfo {
-            ty: Type::Unit,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_read" && !functions.contains_key("file_read") {
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_read-arity",
-                format!(
-                    "builtin `file_read` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_read(handle, len)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::File,
-            "file_read",
-            "handle",
-            "Pass a File handle to file_read",
-        );
-        expect_type(
-            diagnostics,
-            &expr.args[1],
-            &args[1].ty,
-            &Type::I32,
-            "file_read",
-            "length",
-            "Pass an I32 length to file_read",
-        );
-        return ExprInfo {
-            ty: Type::Bytes,
-            calls,
-        };
-    }
-
     if expr.callee == "file_write" && !functions.contains_key("file_write") {
         if args.len() != 2 {
             diagnostics.push(Diagnostic::new(
@@ -2313,179 +2099,6 @@ must have type `Text`, found `{}`",
         }
         return ExprInfo {
             ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_size" && !functions.contains_key("file_size") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_size-arity",
-                format!(
-                    "builtin `file_size` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_size(handle)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::File,
-            "file_size",
-            "handle",
-            "Pass a File handle to file_size",
-        );
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_seek" && !functions.contains_key("file_seek") {
-        if args.len() != 3 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_seek-arity",
-                format!(
-                    "builtin `file_seek` expects 3 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_seek(handle, offset, whence)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::File,
-            "file_seek",
-            "handle",
-            "Pass a File handle to file_seek",
-        );
-        expect_type(
-            diagnostics,
-            &expr.args[1],
-            &args[1].ty,
-            &Type::I32,
-            "file_seek",
-            "offset",
-            "Pass an I32 offset to file_seek",
-        );
-        expect_type(
-            diagnostics,
-            &expr.args[2],
-            &args[2].ty,
-            &Type::I32,
-            "file_seek",
-            "whence",
-            "Pass an I32 whence (0: start, 1: cur, 2: end) to file_seek",
-        );
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_is_valid" && !functions.contains_key("file_is_valid") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_is_valid-arity",
-                format!(
-                    "builtin `file_is_valid` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_is_valid(handle)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::File,
-            "file_is_valid",
-            "handle",
-            "Pass a File handle to file_is_valid",
-        );
-        return ExprInfo {
-            ty: Type::Bool,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_exists" && !functions.contains_key("file_exists") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_exists-arity",
-                format!(
-                    "builtin `file_exists` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_exists(path)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::Text,
-            "file_exists",
-            "path",
-            "Pass a Text path to file_exists",
-        );
-        return ExprInfo {
-            ty: Type::Bool,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_remove" && !functions.contains_key("file_remove") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_remove-arity",
-                format!(
-                    "builtin `file_remove` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_remove(path)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        expect_type(
-            diagnostics,
-            &expr.args[0],
-            &args[0].ty,
-            &Type::Text,
-            "file_remove",
-            "path",
-            "Pass a Text path to file_remove",
-        );
-        return ExprInfo {
-            ty: Type::Bool,
             calls,
         };
     }
@@ -2546,105 +2159,6 @@ must have type `Text`, found `{}`",
         };
     }
 
-    if expr.callee == "arg_text" && !functions.contains_key("arg_text") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.arg_text-arity",
-                format!(
-                    "builtin `arg_text` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `arg_text(index)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::I32 && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.arg_text-type",
-                format!(
-                    "builtin `arg_text` expects I32, found `{}`",
-                    args[0].ty.render()
-                ),
-                expr.span,
-                Some("Pass an integer index.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Text,
-            calls,
-        };
-    }
-
-    if expr.callee == "stdin_text" && !functions.contains_key("stdin_text") {
-        if !args.is_empty() {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdin_text-arity",
-                format!(
-                    "builtin `stdin_text` expects 0 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `stdin_text()` with no arguments.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::Text,
-            calls,
-        };
-    }
-
-    if expr.callee == "stdin_bytes" && !functions.contains_key("stdin_bytes") {
-        if !args.is_empty() {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdin_bytes-arity",
-                format!(
-                    "builtin `stdin_bytes` expects 0 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `stdin_bytes()` with no arguments.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::Bytes,
-            calls,
-        };
-    }
-
-    if expr.callee == "stdin_bytes" && !functions.contains_key("stdin_bytes") {
-        if !args.is_empty() {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdin_bytes-arity",
-                format!(
-                    "builtin `stdin_bytes` expects 0 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `stdin_bytes()` with no arguments.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::Bytes,
-            calls,
-        };
-    }
-
     if expr.callee == "stdout_write" && !functions.contains_key("stdout_write") {
         if args.len() != 1 {
             diagnostics.push(Diagnostic::new(
@@ -2682,39 +2196,6 @@ must have type `Text`, found `{}`",
         }
         return ExprInfo {
             ty: Type::Unit,
-            calls,
-        };
-    }
-
-    if expr.callee == "stdout_write_builder" && !functions.contains_key("stdout_write_builder") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdout_write_builder-arity",
-                format!(
-                    "builtin `stdout_write_builder` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `stdout_write_builder(builder)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::TextBuilder && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdout_write_builder-type",
-                format!(
-                    "builtin `stdout_write_builder` expects TextBuilder, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a TextBuilder value.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::TextBuilder,
             calls,
         };
     }
@@ -2763,123 +2244,6 @@ must have type `Text`, found `{}`",
         };
     }
 
-    if expr.callee == "codepoint_to_text" && !functions.contains_key("codepoint_to_text") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.codepoint_to_text-arity",
-                format!(
-                    "builtin `codepoint_to_text` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `codepoint_to_text(value)` with an I32 codepoint.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        let Some(first_arg) = args.first() else {
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        };
-        if first_arg.ty != Type::I32 && first_arg.ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.codepoint_to_text-type",
-                format!(
-                    "builtin `codepoint_to_text` expects I32 argument but got `{}`",
-                    first_arg.ty.render()
-                ),
-                expr.span,
-                Some("Pass an I32 Unicode codepoint to `codepoint_to_text`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::Text,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_open" && !functions.contains_key("file_open") {
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                format!("builtin `file_open` requires `io` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "file_open",
-            "semantic.file_open-arity",
-            "semantic.file_open-type",
-            Type::File,
-            "Call `file_open(path, mode)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a file path as Text.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::Text,
-                    help: "Pass a mode string (\"r\", \"w\", \"a\").",
-                },
-            ],
-        );
-    }
-
-    if expr.callee == "file_read" && !functions.contains_key("file_read") {
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                format!("builtin `file_read` requires `io` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        if !caller_effects.contains(&Effect::Alloc) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.alloc-effect",
-                format!("builtin `file_read` requires `alloc` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect alloc` to the function signature.".to_owned()),
-            ));
-        }
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "file_read",
-            "semantic.file_read-arity",
-            "semantic.file_read-type",
-            Type::Bytes,
-            "Call `file_read(handle, size)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::File,
-                    help: "Pass an open File handle.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass the number of bytes to read.",
-                },
-            ],
-        );
-    }
-
     if expr.callee == "file_read_to_end" && !functions.contains_key("file_read_to_end") {
         if !caller_effects.contains(&Effect::Io) {
             diagnostics.push(Diagnostic::new(
@@ -2912,149 +2276,6 @@ must have type `Text`, found `{}`",
                 ty: &Type::File,
                 help: "Pass an open File handle.",
             }],
-        );
-    }
-
-    if expr.callee == "file_write" && !functions.contains_key("file_write") {
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                format!("builtin `file_write` requires `io` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        if args.len() != 2 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_write-arity",
-                format!(
-                    "builtin `file_write` expects 2 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `file_write(handle, data)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::File && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_write-type",
-                format!(
-                    "builtin `file_write` first argument must be File, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass an open File handle.".to_owned()),
-            ));
-        }
-        if args[1].ty != Type::Text && args[1].ty != Type::Bytes && args[1].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.file_write-type",
-                format!(
-                    "builtin `file_write` second argument must be Text or Bytes, found `{}`",
-                    args[1].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Text or Bytes value to write.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_size" && !functions.contains_key("file_size") {
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                format!("builtin `file_size` requires `io` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "file_size",
-            "semantic.file_size-arity",
-            "semantic.file_size-type",
-            Type::I32,
-            "Call `file_size(handle)`.".to_owned(),
-            &[BuiltinArgSpec {
-                ty: &Type::File,
-                help: "Pass an open File handle.",
-            }],
-        );
-    }
-
-    if expr.callee == "file_close" && !functions.contains_key("file_close") {
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                format!("builtin `file_close` requires `io` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "file_close",
-            "semantic.file_close-arity",
-            "semantic.file_close-type",
-            Type::Unit,
-            "Call `file_close(handle)`.".to_owned(),
-            &[BuiltinArgSpec {
-                ty: &Type::File,
-                help: "Pass an open File handle to close.",
-            }],
-        );
-    }
-
-    if expr.callee == "file_seek" && !functions.contains_key("file_seek") {
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                format!("builtin `file_seek` requires `io` effect in `{fn_name}`"),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        return infer_fixed_builtin_expr(
-            expr,
-            &args,
-            diagnostics,
-            calls,
-            None,
-            "file_seek",
-            "semantic.file_seek-arity",
-            "semantic.file_seek-type",
-            Type::I32,
-            "Call `file_seek(handle, offset, whence)`.".to_owned(),
-            &[
-                BuiltinArgSpec {
-                    ty: &Type::File,
-                    help: "Pass an open File handle.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass the seek offset.",
-                },
-                BuiltinArgSpec {
-                    ty: &Type::I32,
-                    help: "Pass whence (0: start, 1: current, 2: end).",
-                },
-            ],
         );
     }
 

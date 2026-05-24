@@ -1,6 +1,14 @@
+fn is_empty_text(source: Text) -> Bool {
+    let length = text_len(source);
+    length == 0
+}
+
 fn analyze_borrow_escape(module: HirModuleData) -> Text {
     let mut diags = "";
     let fns = module.funcs;
+    
+    let builtin_types_text = "I32 F64 Bool";
+    
     let mut i = 1;
     while i <= 16 {
         let opt = if i == 1 { fns.f1 }
@@ -21,8 +29,39 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
              else { fns.f16 };
         if opt.present {
             let f = opt.f;
-            if text_len(f.name) > 100 {
-                diags = text_concat(diags, "error: function name too long\n");
+            let mut pi = 1;
+            let mut param_table = "";
+            while pi <= f.params.len {
+                let popt = if pi == 1 { f.params.p1 }
+                     else if pi == 2 { f.params.p2 }
+                     else if pi == 3 { f.params.p3 }
+                     else if pi == 4 { f.params.p4 }
+                     else if pi == 5 { f.params.p5 }
+                     else if pi == 6 { f.params.p6 }
+                     else if pi == 7 { f.params.p7 }
+                     else if pi == 8 { f.params.p8 }
+                     else if pi == 9 { f.params.p9 }
+                     else if pi == 10 { f.params.p10 }
+                     else if pi == 11 { f.params.p11 }
+                     else if pi == 12 { f.params.p12 }
+                     else if pi == 13 { f.params.p13 }
+                     else if pi == 14 { f.params.p14 }
+                     else if pi == 15 { f.params.p15 }
+                     else { f.params.p16 };
+                if popt.present {
+                    if is_empty_text(param_table) {
+                        param_table = popt.param.name;
+                    } else {
+                        param_table = text_concat(param_table, text_concat(" ", popt.param.name));
+                    };
+                };
+                pi = pi + 1;
+            };
+            
+            if f.body.present {
+                if is_empty_text(f.name) {
+                    diags = text_concat(diags, "warning: unnamed function body exists\n");
+                };
             };
         };
         i = i + 1;
