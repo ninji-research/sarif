@@ -1279,12 +1279,28 @@ fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
     HirLowering { module: module, expr_pool: hir_expr_pool_new(), body_pool: hir_body_pool_new(), fns: hir_fn_list_2_new(), enums: hir_enum_list_new(), structs: hir_struct_list_new(), diags: hir_diag_list_new() }
 }
 
+fn is_empty_text(source: Text) -> Bool {
+    let length = text_len(source);
+    length == 0
+}
+
 fn hir_selfcheck() -> I32 {
     let source = "struct Pair {}\nenum Option { none, some }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32) { let y = x; y }\n";
     let report = parse_module_report(source);
     if report.ok {
         let module = hir_module_from_report(report, source);
-        hir_validate_module(module)
+        let resolve_ok = is_empty_text(check_duplicate_definitions(module));
+        let typ_ok = is_empty_text(typecheck_hir_module(module));
+        let own_ok = is_empty_text(analyze_borrow_escape(module));
+        if resolve_ok and typ_ok and own_ok {
+            hir_validate_module(module)
+        } else {
+            let mut score = 0;
+            if resolve_ok { score = score + 1; };
+            if typ_ok { score = score + 1; };
+            if own_ok { score = score + 1; };
+            score
+        }
     } else {
         0
     }

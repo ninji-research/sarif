@@ -1,13 +1,6 @@
-fn is_empty_text(source: Text) -> Bool {
-    let length = text_len(source);
-    length == 0
-}
-
 fn analyze_borrow_escape(module: HirModuleData) -> Text {
     let mut diags = "";
     let fns = module.funcs;
-    
-    let builtin_types_text = "I32 F64 Bool";
     
     let mut i = 1;
     while i <= 16 {
@@ -29,8 +22,8 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
              else { fns.f16 };
         if opt.present {
             let f = opt.f;
+            let mut param_seen = "";
             let mut pi = 1;
-            let mut param_table = "";
             while pi <= f.params.len {
                 let popt = if pi == 1 { f.params.p1 }
                      else if pi == 2 { f.params.p2 }
@@ -49,22 +42,47 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
                      else if pi == 15 { f.params.p15 }
                      else { f.params.p16 };
                 if popt.present {
-                    if is_empty_text(param_table) {
-                        param_table = popt.param.name;
-                    } else {
-                        param_table = text_concat(param_table, text_concat(" ", popt.param.name));
+                    let p = popt.param;
+                    if not is_empty_text(p.name) {
+                        if is_empty_text(param_seen) {
+                            param_seen = p.name;
+                        } else {
+                            diags = text_concat(diags, text_concat("warning: duplicate parameter name `", text_concat(p.name, "`\n")));
+                        };
                     };
                 };
                 pi = pi + 1;
             };
-            
-            if f.body.present {
-                if is_empty_text(f.name) {
-                    diags = text_concat(diags, "warning: unnamed function body exists\n");
-                };
-            };
         };
         i = i + 1;
     };
+    
+    let mut ci = 1;
+    let consts = module.consts;
+    while ci <= 16 {
+        let opt = if ci == 1 { consts.c1 }
+             else if ci == 2 { consts.c2 }
+             else if ci == 3 { consts.c3 }
+             else if ci == 4 { consts.c4 }
+             else if ci == 5 { consts.c5 }
+             else if ci == 6 { consts.c6 }
+             else if ci == 7 { consts.c7 }
+             else if ci == 8 { consts.c8 }
+             else if ci == 9 { consts.c9 }
+             else if ci == 10 { consts.c10 }
+             else if ci == 11 { consts.c11 }
+             else if ci == 12 { consts.c12 }
+             else if ci == 13 { consts.c13 }
+             else if ci == 14 { consts.c14 }
+             else if ci == 15 { consts.c15 }
+             else { consts.c16 };
+        if opt.present {
+            if is_empty_text(opt.c.name) {
+                diags = text_concat(diags, "error: unnamed constant\n");
+            };
+        };
+        ci = ci + 1;
+    };
+    
     diags
 }

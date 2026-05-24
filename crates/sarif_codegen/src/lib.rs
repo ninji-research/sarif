@@ -10357,9 +10357,15 @@ mod tests {
             .expect("bootstrap syntax core should be readable");
         let hir = fs::read_to_string(format!("{root}/hir.sarif"))
             .expect("bootstrap syntax hir should be readable");
+        let typeck = fs::read_to_string(format!("{root}/typecheck.sarif"))
+            .expect("bootstrap syntax typecheck should be readable");
+        let own = fs::read_to_string(format!("{root}/ownership.sarif"))
+            .expect("bootstrap syntax ownership should be readable");
+        let resolve = fs::read_to_string(format!("{root}/resolve.sarif"))
+            .expect("bootstrap syntax resolve should be readable");
         let entry = fs::read_to_string(format!("{root}/selfcheck.sarif"))
             .expect("bootstrap syntax entrypoint should be readable");
-        let result = format!("{core}\n{hir}\n{entry}");
+        let result = format!("{core}\n{hir}\n{typeck}\n{own}\n{resolve}\n{entry}");
         eprintln!("Source chars: {}", result.chars().count());
         eprintln!("Source lines: {}", result.lines().count());
         eprintln!("Has fn main: {}", result.contains("fn main()"));

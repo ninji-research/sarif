@@ -1,8 +1,3 @@
-fn is_empty_text(source: Text) -> Bool {
-    let length = text_len(source);
-    length == 0
-}
-
 fn type_name_from_ref(ty: HirTypeRef) -> Text {
     if ty.kind == HirTypeKind.I32 { "I32" }
     else if ty.kind == HirTypeKind.F64 { "F64" }
@@ -23,22 +18,26 @@ fn check_type_ref_exists(ty: HirTypeRef, known_types: Text) -> Text {
     else if ty.kind == HirTypeKind.Text { "" }
     else if ty.kind == HirTypeKind.Unit { "" }
     else if ty.kind == HirTypeKind.Named {
-        if is_empty_text(known_types) { text_concat("error: unknown type `", text_concat(name, "`\n")) }
-        else {
-            let mut found = false;
-            let mut i = 0;
-            let kt_len = text_len(known_types);
+        let mut found = false;
+        let mut i = 0;
+        let kt_len = text_len(known_types);
+        if kt_len > 0 {
             while i <= kt_len - text_len(name) and not found {
-                if text_eq_range(known_types, i, text_len(name), name) {
+                if text_eq_range(known_types, i, i + text_len(name), name) {
                     found = true;
                 };
                 i = i + 1;
             };
-            if not found { text_concat("error: unknown type `", text_concat(name, "`\n")) }
-            else { "" }
-        }
+        };
+        if not found { text_concat("error: unknown type `", text_concat(name, "`\n")) }
+        else { "" }
     }
     else { "" }
+}
+
+fn add_name_to_table(table: Text, name: Text) -> Text {
+    if is_empty_text(table) { name }
+    else { text_concat(table, text_concat("\n", name)) }
 }
 
 fn typecheck_hir_module(module: HirModuleData) -> Text {
@@ -47,24 +46,131 @@ fn typecheck_hir_module(module: HirModuleData) -> Text {
     let mut known_types = "I32\nF64\nBool\nText\nBytes\nUnit\nTextIndex\nTextBuilder\nFile\nList";
     
     let mut i = 1;
-    let enums_list = module.funcs;
+    let enums_list = module.enums;
     while i <= 16 {
-        let opt = if i == 1 { enums_list.f1 }
-             else if i == 2 { enums_list.f2 }
-             else if i == 3 { enums_list.f3 }
-             else if i == 4 { enums_list.f4 }
-             else if i == 5 { enums_list.f5 }
-             else if i == 6 { enums_list.f6 }
-             else if i == 7 { enums_list.f7 }
-             else if i == 8 { enums_list.f8 }
-             else if i == 9 { enums_list.f9 }
-             else if i == 10 { enums_list.f10 }
-             else if i == 11 { enums_list.f11 }
-             else if i == 12 { enums_list.f12 }
-             else if i == 13 { enums_list.f13 }
-             else if i == 14 { enums_list.f14 }
-             else if i == 15 { enums_list.f15 }
-             else { enums_list.f16 };
+        let opt = if i == 1 { enums_list.e1 }
+             else if i == 2 { enums_list.e2 }
+             else if i == 3 { enums_list.e3 }
+             else if i == 4 { enums_list.e4 }
+             else if i == 5 { enums_list.e5 }
+             else if i == 6 { enums_list.e6 }
+             else if i == 7 { enums_list.e7 }
+             else if i == 8 { enums_list.e8 }
+             else if i == 9 { enums_list.e9 }
+             else if i == 10 { enums_list.e10 }
+             else if i == 11 { enums_list.e11 }
+             else if i == 12 { enums_list.e12 }
+             else if i == 13 { enums_list.e13 }
+             else if i == 14 { enums_list.e14 }
+             else if i == 15 { enums_list.e15 }
+             else { enums_list.e16 };
+        if opt.present {
+            let e = opt.e;
+            known_types = add_name_to_table(known_types, e.name);
+            let mut vi = 1;
+            while vi <= e.variants.len {
+                let vopt = if vi == 1 { e.variants.v1 }
+                     else if vi == 2 { e.variants.v2 }
+                     else if vi == 3 { e.variants.v3 }
+                     else if vi == 4 { e.variants.v4 }
+                     else if vi == 5 { e.variants.v5 }
+                     else if vi == 6 { e.variants.v6 }
+                     else if vi == 7 { e.variants.v7 }
+                     else if vi == 8 { e.variants.v8 }
+                     else if vi == 9 { e.variants.v9 }
+                     else if vi == 10 { e.variants.v10 }
+                     else if vi == 11 { e.variants.v11 }
+                     else if vi == 12 { e.variants.v12 }
+                     else if vi == 13 { e.variants.v13 }
+                     else if vi == 14 { e.variants.v14 }
+                     else if vi == 15 { e.variants.v15 }
+                     else { e.variants.v16 };
+                if vopt.present {
+                    let v = vopt.variant;
+                    if v.payload.present {
+                        let e2 = check_type_ref_exists(v.payload.ty, known_types);
+                        if not is_empty_text(e2) {
+                            diags = text_concat(diags, e2);
+                        };
+                    };
+                };
+                vi = vi + 1;
+            };
+        };
+        i = i + 1;
+    };
+    
+    i = 1;
+    let structs_list = module.structs;
+    while i <= 16 {
+        let opt = if i == 1 { structs_list.s1 }
+             else if i == 2 { structs_list.s2 }
+             else if i == 3 { structs_list.s3 }
+             else if i == 4 { structs_list.s4 }
+             else if i == 5 { structs_list.s5 }
+             else if i == 6 { structs_list.s6 }
+             else if i == 7 { structs_list.s7 }
+             else if i == 8 { structs_list.s8 }
+             else if i == 9 { structs_list.s9 }
+             else if i == 10 { structs_list.s10 }
+             else if i == 11 { structs_list.s11 }
+             else if i == 12 { structs_list.s12 }
+             else if i == 13 { structs_list.s13 }
+             else if i == 14 { structs_list.s14 }
+             else if i == 15 { structs_list.s15 }
+             else { structs_list.s16 };
+        if opt.present {
+            let s = opt.s;
+            known_types = add_name_to_table(known_types, s.name);
+            let mut fi = 1;
+            while fi <= s.fields.len {
+                let fopt = if fi == 1 { s.fields.f1 }
+                     else if fi == 2 { s.fields.f2 }
+                     else if fi == 3 { s.fields.f3 }
+                     else if fi == 4 { s.fields.f4 }
+                     else if fi == 5 { s.fields.f5 }
+                     else if fi == 6 { s.fields.f6 }
+                     else if fi == 7 { s.fields.f7 }
+                     else if fi == 8 { s.fields.f8 }
+                     else if fi == 9 { s.fields.f9 }
+                     else if fi == 10 { s.fields.f10 }
+                     else if fi == 11 { s.fields.f11 }
+                     else if fi == 12 { s.fields.f12 }
+                     else if fi == 13 { s.fields.f13 }
+                     else if fi == 14 { s.fields.f14 }
+                     else if fi == 15 { s.fields.f15 }
+                     else { s.fields.f16 };
+                if fopt.present {
+                    let e2 = check_type_ref_exists(fopt.field.ty, known_types);
+                    if not is_empty_text(e2) {
+                        diags = text_concat(diags, e2);
+                    };
+                };
+                fi = fi + 1;
+            };
+        };
+        i = i + 1;
+    };
+    
+    i = 1;
+    let fns_list = module.funcs;
+    while i <= 16 {
+        let opt = if i == 1 { fns_list.f1 }
+             else if i == 2 { fns_list.f2 }
+             else if i == 3 { fns_list.f3 }
+             else if i == 4 { fns_list.f4 }
+             else if i == 5 { fns_list.f5 }
+             else if i == 6 { fns_list.f6 }
+             else if i == 7 { fns_list.f7 }
+             else if i == 8 { fns_list.f8 }
+             else if i == 9 { fns_list.f9 }
+             else if i == 10 { fns_list.f10 }
+             else if i == 11 { fns_list.f11 }
+             else if i == 12 { fns_list.f12 }
+             else if i == 13 { fns_list.f13 }
+             else if i == 14 { fns_list.f14 }
+             else if i == 15 { fns_list.f15 }
+             else { fns_list.f16 };
         if opt.present {
             let f = opt.f;
             let mut pi = 1;
@@ -86,19 +192,45 @@ fn typecheck_hir_module(module: HirModuleData) -> Text {
                      else if pi == 15 { f.params.p15 }
                      else { f.params.p16 };
                 if popt.present {
-                    let p = popt.param;
-                    let e = check_type_ref_exists(p.ty, known_types);
-                    if not is_empty_text(e) {
-                        diags = text_concat(diags, e);
+                    let e2 = check_type_ref_exists(popt.param.ty, known_types);
+                    if not is_empty_text(e2) {
+                        diags = text_concat(diags, e2);
                     };
                 };
                 pi = pi + 1;
             };
             if f.ret.present {
-                let e = check_type_ref_exists(f.ret.ty, known_types);
-                if not is_empty_text(e) {
-                    diags = text_concat(diags, e);
+                let e2 = check_type_ref_exists(f.ret.ty, known_types);
+                if not is_empty_text(e2) {
+                    diags = text_concat(diags, e2);
                 };
+            };
+            let mut effects_seen = "";
+            let mut fi = 1;
+            while fi <= f.fx.len {
+                let fxopt = if fi == 1 { f.fx.fx1 }
+                     else if fi == 2 { f.fx.fx2 }
+                     else if fi == 3 { f.fx.fx3 }
+                     else if fi == 4 { f.fx.fx4 }
+                     else if fi == 5 { f.fx.fx5 }
+                     else if fi == 6 { f.fx.fx6 }
+                     else if fi == 7 { f.fx.fx7 }
+                     else if fi == 8 { f.fx.fx8 }
+                     else if fi == 9 { f.fx.fx9 }
+                     else if fi == 10 { f.fx.fx10 }
+                     else if fi == 11 { f.fx.fx11 }
+                     else if fi == 12 { f.fx.fx12 }
+                     else if fi == 13 { f.fx.fx13 }
+                     else if fi == 14 { f.fx.fx14 }
+                     else if fi == 15 { f.fx.fx15 }
+                     else { f.fx.fx16 };
+                if fxopt.present {
+                    if not is_empty_text(effects_seen) {
+                        diags = text_concat(diags, text_concat("warning: duplicate effect `", text_concat(fxopt.name, "`\n")));
+                    };
+                    effects_seen = fxopt.name;
+                };
+                fi = fi + 1;
             };
         };
         i = i + 1;
