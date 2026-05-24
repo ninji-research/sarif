@@ -1051,6 +1051,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn parse_generic_type
+
+- signature: `fn parse_generic_type(source: Text, state: ParseState) -> ParseState`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn parse_param
 
 - signature: `fn parse_param(source: Text, state: ParseState) -> ParseState`
