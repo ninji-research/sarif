@@ -579,7 +579,7 @@ fn emit_requested_dump(loaded: &LoadedSource, command: &command::Command) -> Res
 
     let rendered = match pass {
         "hir" | "resolve" => loaded.database.hir(loaded.source_id).module.pretty(),
-        "sem" | "typecheck" => render_semantic_doc(loaded, command.profile)?,
+        "semantic" | "typecheck" | "sem" => render_semantic_doc(loaded, command.profile)?,
         #[cfg(feature = "codegen")]
         "mir" | "lower" => render_lower_dump(loaded),
         #[cfg(not(feature = "codegen"))]
@@ -593,7 +593,7 @@ fn emit_requested_dump(loaded: &LoadedSource, command: &command::Command) -> Res
         "wasm" | "c" | "codegen" => render_codegen_dump(loaded, command)?,
         other => {
             return Err(format!(
-                "unknown IR dump pass `{other}`; expected hir, sem, mir, cranelift, wasm, or c"
+                "unknown IR dump pass `{other}`; expected hir, semantic, mir, cranelift, wasm, or c"
             ));
         }
     };

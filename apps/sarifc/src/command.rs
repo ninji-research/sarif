@@ -43,12 +43,12 @@ pub fn usage() -> String {
     usage += "  check             verify semantic correctness (default)\n";
     usage += "  doc               generate markdown documentation\n";
     usage += "  format            pretty-print source code\n";
-    usage += "  bootstrap-check   maintained-semantic check bridge\n";
-    usage += "  bootstrap-doc     maintained-semantic doc bridge\n";
-    usage += "  bootstrap-format  retained formatter parity command\n";
+    usage += "  bootstrap-check   run self-hosted semantic checks (stage-0 WASM)\n";
+    usage += "  bootstrap-doc     run self-hosted doc generation (stage-0 WASM)\n";
+    usage += "  bootstrap-format  run self-hosted formatter (stage-0 WASM)\n";
     usage += "  run               execute the program's main function\n";
     usage += "                    append `-- <args>` to pass runtime args to `main` builtins\n";
-    usage += "  build             compile to a native executable or wasm (`-o` required)\n";
+    usage += "  build             compile to native, wasm, or C (`-o` required)\n";
     usage += "  help              show this help message\n";
     usage += "  version           show compiler version\n\n";
     usage += "profiles:\n";
@@ -63,9 +63,11 @@ pub fn usage() -> String {
     usage += "  -o <path>         output path for build\n";
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
+    usage += "  --semantic        use the Rust semantic backend (default is stage-0 bootstrap)\n";
     usage +=
-        "  --dump-ir=<pass>  dump IR after specific pass (hir, sem, mir, cranelift, wasm, c)\n";
-    usage += "  --inspect=<tool>  inspection tool (wasmprinter)\n";
+        "  --dump-ir=<pass>  dump IR after a compiler pass (hir, semantic, mir, cranelift, wasm, c)\n";
+    usage += "                    wasm/c dumps require `--target wasm` or `--target c`\n";
+    usage += "  --inspect=<tool>  inspect build output (wasmprinter; only for `build`)\n";
     usage += "  --debug           enable target runtime null-pointer trap checks\n";
     usage
 }
@@ -225,6 +227,9 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     }
     if print_main && kind != CommandKind::Build {
         return Err("`--print-main` is only supported for `build`".to_owned());
+    }
+    if inspect.is_some() && kind != CommandKind::Build {
+        return Err("`--inspect` is only supported for `build`".to_owned());
     }
 
     Ok(Command {

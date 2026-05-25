@@ -3,7 +3,7 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
     let fns = module.funcs;
     
     let mut i = 1;
-    while i <= 16 {
+    while i <= fns.len and i <= 16 {
         let opt = if i == 1 { fns.f1 }
              else if i == 2 { fns.f2 }
              else if i == 3 { fns.f3 }
@@ -56,10 +56,13 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
         };
         i = i + 1;
     };
+    if i <= fns.len {
+        diags = text_concat(diags, "error: too many function definitions (only 16 supported)\n");
+    };
     
     let mut ci = 1;
     let consts = module.consts;
-    while ci <= 16 {
+    while ci <= consts.len and ci <= 16 {
         let opt = if ci == 1 { consts.c1 }
              else if ci == 2 { consts.c2 }
              else if ci == 3 { consts.c3 }
@@ -83,6 +86,84 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
         };
         ci = ci + 1;
     };
+    if ci <= consts.len {
+        diags = text_concat(diags, "error: too many const definitions (only 16 supported)\n");
+    };
     
     diags
+}
+
+fn is_borrow_only_builtin(fn_name: Text) -> Bool {
+    if text_eq_simple(fn_name, "text_len") { true }
+    else if text_eq_simple(fn_name, "text_byte") { true }
+    else if text_eq_simple(fn_name, "text_slice") { true }
+    else if text_eq_simple(fn_name, "text_cmp") { true }
+    else if text_eq_simple(fn_name, "text_eq_range") { true }
+    else if text_eq_simple(fn_name, "bytes_len") { true }
+    else if text_eq_simple(fn_name, "bytes_byte") { true }
+    else if text_eq_simple(fn_name, "bytes_slice") { true }
+    else if text_eq_simple(fn_name, "list_len") { true }
+    else if text_eq_simple(fn_name, "list_get") { true }
+    else if text_eq_simple(fn_name, "text_builder_append_i32") { true }
+    else if text_eq_simple(fn_name, "text_builder_append_codepoint") { true }
+    else if text_eq_simple(fn_name, "text_builder_append_ascii") { true }
+    else if text_eq_simple(fn_name, "text_builder_append_slice") { true }
+    else if text_eq_simple(fn_name, "text_index_get") { true }
+    else if text_eq_simple(fn_name, "text_index_contains") { true }
+    else if text_eq_simple(fn_name, "text_index_set") { true }
+    else if text_eq_simple(fn_name, "text_index_get_or_insert") { true }
+    else if text_eq_simple(fn_name, "stdout_write") { true }
+    else if text_eq_simple(fn_name, "stdout_write_builder") { true }
+    else if text_eq_simple(fn_name, "parse_i32_range") { true }
+    else if text_eq_simple(fn_name, "file_open") { true }
+    else if text_eq_simple(fn_name, "file_read") { true }
+    else if text_eq_simple(fn_name, "file_read_to_end") { true }
+    else if text_eq_simple(fn_name, "file_write") { true }
+    else if text_eq_simple(fn_name, "file_size") { true }
+    else if text_eq_simple(fn_name, "file_seek") { true }
+    else if text_eq_simple(fn_name, "file_tell") { true }
+    else if text_eq_simple(fn_name, "len") { true }
+    else { false }
+}
+
+fn is_consuming_builtin(fn_name: Text) -> Bool {
+    if text_eq_simple(fn_name, "list_push") { true }
+    else if text_eq_simple(fn_name, "list_set") { true }
+    else if text_eq_simple(fn_name, "list_sort_text") { true }
+    else if text_eq_simple(fn_name, "list_sort_by_text_field") { true }
+    else if text_eq_simple(fn_name, "text_builder_new") { true }
+    else if text_eq_simple(fn_name, "text_builder_append") { true }
+    else if text_eq_simple(fn_name, "text_builder_finish") { true }
+    else if text_eq_simple(fn_name, "text_index_new") { true }
+    else if text_eq_simple(fn_name, "parse_i32") { true }
+    else if text_eq_simple(fn_name, "parse_f64") { true }
+    else if text_eq_simple(fn_name, "stdin_text") { true }
+    else if text_eq_simple(fn_name, "stdin_bytes") { true }
+    else { false }
+}
+
+fn is_text_type(ty: Text) -> Bool {
+    if text_eq_simple(ty, "Text") { true }
+    else if text_eq_simple(ty, "Bytes") { true }
+    else if text_eq_simple(ty, "TextBuilder") { true }
+    else if text_eq_simple(ty, "TextIndex") { true }
+    else if text_eq_simple(ty, "List[Text]") { true }
+    else if text_eq_simple(ty, "List[TextBuilder]") { true }
+    else if text_eq_simple(ty, "List[TextIndex]") { true }
+    else if text_eq_simple(ty, "Optional[Text]") { true }
+    else if text_eq_simple(ty, "Optional[TextBuilder]") { true }
+    else if text_eq_simple(ty, "Optional[TextIndex]") { true }
+    else { false }
+}
+
+fn is_affine_type(ty: Text) -> Bool {
+    is_text_type(ty)
+}
+
+fn check_affine_param_usage(param_name: Text, param_type: Text, fn_name: Text) -> Text {
+    if is_affine_type(param_type) and is_borrow_only_builtin(fn_name) { "" }
+    else if is_affine_type(param_type) and is_consuming_builtin(fn_name) {
+        text_concat("warning: consuming affine value `", text_concat(param_name, "` in `", text_concat(fn_name, "`\n")))
+    }
+    else { "" }
 }

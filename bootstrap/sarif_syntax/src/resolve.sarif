@@ -37,7 +37,7 @@ fn check_duplicate_definitions(module: HirModuleData) -> Text {
     // 1. Check constants
     let mut i = 1;
     let list = module.consts;
-    while i <= 16 {
+    while i <= list.len and i <= 16 {
         let opt = if i == 1 { list.c1 }
              else if i == 2 { list.c2 }
              else if i == 3 { list.c3 }
@@ -65,11 +65,14 @@ fn check_duplicate_definitions(module: HirModuleData) -> Text {
         };
         i = i + 1;
     };
+    if i <= list.len {
+        diags = text_concat(diags, "error: too many const definitions (only 16 supported)\n");
+    };
     
     // 2. Check functions
     i = 1;
     let fns = module.funcs;
-    while i <= 16 {
+    while i <= fns.len and i <= 16 {
         let opt = if i == 1 { fns.f1 }
              else if i == 2 { fns.f2 }
              else if i == 3 { fns.f3 }
@@ -97,11 +100,14 @@ fn check_duplicate_definitions(module: HirModuleData) -> Text {
         };
         i = i + 1;
     };
+    if i <= fns.len {
+        diags = text_concat(diags, "error: too many function definitions (only 16 supported)\n");
+    };
 
     // 3. Check structs
     i = 1;
     let structs = module.structs;
-    while i <= 16 {
+    while i <= structs.len and i <= 16 {
         let opt = if i == 1 { structs.s1 }
              else if i == 2 { structs.s2 }
              else if i == 3 { structs.s3 }
@@ -129,11 +135,14 @@ fn check_duplicate_definitions(module: HirModuleData) -> Text {
         };
         i = i + 1;
     };
+    if i <= structs.len {
+        diags = text_concat(diags, "error: too many struct definitions (only 16 supported)\n");
+    };
 
     // 4. Check enums
     i = 1;
     let enums = module.enums;
-    while i <= 16 {
+    while i <= enums.len and i <= 16 {
         let opt = if i == 1 { enums.e1 }
              else if i == 2 { enums.e2 }
              else if i == 3 { enums.e3 }
@@ -160,6 +169,9 @@ fn check_duplicate_definitions(module: HirModuleData) -> Text {
             };
         };
         i = i + 1;
+    };
+    if i <= enums.len {
+        diags = text_concat(diags, "error: too many enum definitions (only 16 supported)\n");
     };
     
     diags
