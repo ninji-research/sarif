@@ -163,7 +163,7 @@ fn is_affine_type(ty: Text) -> Bool {
 fn check_affine_param_usage(param_name: Text, param_type: Text, fn_name: Text) -> Text {
     if is_affine_type(param_type) and is_borrow_only_builtin(fn_name) { "" }
     else if is_affine_type(param_type) and is_consuming_builtin(fn_name) {
-        text_concat("warning: consuming affine value `", text_concat(param_name, "` in `", text_concat(fn_name, "`\n")))
+        text_concat("warning: consuming affine value `", text_concat(param_name, text_concat("` in `", text_concat(fn_name, "`\n"))))
     }
     else { "" }
 }

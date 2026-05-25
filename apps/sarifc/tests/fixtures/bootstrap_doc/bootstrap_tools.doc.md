@@ -62,7 +62,7 @@
 
 ### enum ExprKind
 
-- variants: `15`
+- variants: `16`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 

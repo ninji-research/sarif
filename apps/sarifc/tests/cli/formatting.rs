@@ -95,6 +95,9 @@ fn format_keeps_shipped_control_flow_example_stable() {
 
     assert!(output.status.success());
     let formatted = String::from_utf8_lossy(&output.stdout);
+    if std::env::var("UPDATE_EXPECT").is_ok() {
+        std::fs::write(fixture("const_control_flow.format.sarif"), &*formatted).unwrap();
+    }
     let expected = std::fs::read_to_string(fixture("const_control_flow.format.sarif"))
         .expect("fixture should be readable");
     assert_text_eq_with_context(&formatted, &expected);
@@ -107,6 +110,9 @@ fn format_keeps_bootstrap_syntax_stable_and_idempotent() {
 
     assert!(output.status.success());
     let formatted = String::from_utf8_lossy(&output.stdout).into_owned();
+    if std::env::var("UPDATE_EXPECT").is_ok() {
+        std::fs::write(fixture("bootstrap_syntax.format.sarif"), &formatted).unwrap();
+    }
     let expected = std::fs::read_to_string(fixture("bootstrap_syntax.format.sarif"))
         .expect("fixture should be readable");
     assert_text_eq_with_context(&formatted, &expected);

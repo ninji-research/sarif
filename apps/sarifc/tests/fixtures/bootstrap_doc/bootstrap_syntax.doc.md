@@ -62,7 +62,7 @@
 
 ### enum ExprKind
 
-- variants: `15`
+- variants: `16`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -2578,6 +2578,132 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn hir_parse_type_ref_from_name
+
+- signature: `fn hir_parse_type_ref_from_name(name: Text) -> HirTypeRef`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_is_ws
+
+- signature: `fn hir_is_ws(b: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_trim_text
+
+- signature: `fn hir_trim_text(text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_parse_param_from_slice
+
+- signature: `fn hir_parse_param_from_slice(text: Text, start: I32, end: I32) -> OptionalHirParam`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_find_comma_inner
+
+- signature: `fn hir_find_comma_inner(text: Text, start: I32, end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_extract_param_list_from_source
+
+- signature: `fn hir_extract_param_list_from_source(source: Text, span_start: I32, span_end: I32) -> HirParamList`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_strip_return_arrow
+
+- signature: `fn hir_strip_return_arrow(text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_enrich_single_fn
+
+- signature: `fn hir_enrich_single_fn(f: HirFn, shape: FnHeaderShape, source: Text) -> HirFn`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_enrich_fn_list
+
+- signature: `fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> HirFnList2`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_enrich_struct_payload
+
+- signature: `fn hir_enrich_struct_payload(s: HirStruct, fields: HirFieldList) -> HirStruct`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_enrich_enum_payload
+
+- signature: `fn hir_enrich_enum_payload(e: HirEnum, variants: HirVariantList) -> HirEnum`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_find_open_brace
+
+- signature: `fn hir_find_open_brace(text: Text, start: I32, end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_find_close_brace
+
+- signature: `fn hir_find_close_brace(text: Text, start: I32, end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_find_open_paren
+
+- signature: `fn hir_find_open_paren(text: Text, start: I32, end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_find_close_paren
+
+- signature: `fn hir_find_close_paren(text: Text, start: I32, end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_parse_field_from_slice
+
+- signature: `fn hir_parse_field_from_slice(text: Text, start: I32, end: I32) -> OptionalHirField`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_extract_fields_from_span
+
+- signature: `fn hir_extract_fields_from_span(source: Text, span_start: I32, span_end: I32) -> HirFieldList`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_parse_variant_from_slice
+
+- signature: `fn hir_parse_variant_from_slice(text: Text, start: I32, end: I32) -> OptionalHirVariant`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_extract_variants_from_span
+
+- signature: `fn hir_extract_variants_from_span(source: Text, span_start: I32, span_end: I32) -> HirVariantList`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_enrich_structs_from_outline
+
+- signature: `fn hir_enrich_structs_from_outline(structs: HirStructList, outline: TopLevelOutline, source: Text) -> HirStructList`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn hir_enrich_enums_from_outline
+
+- signature: `fn hir_enrich_enums_from_outline(enums: HirEnumList, outline: TopLevelOutline, source: Text) -> HirEnumList`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn hir_span_from_optional
 
 - signature: `fn hir_span_from_optional(span: OptionalSpan) -> Span`
@@ -2599,6 +2725,12 @@
 ### fn hir_module_to_lowering
 
 - signature: `fn hir_module_to_lowering(module: HirModuleData) -> HirLowering`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_empty_text
+
+- signature: `fn is_empty_text(source: Text) -> Bool`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2662,5 +2794,131 @@
 
 - signature: `fn main() -> I32`
 - ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+
+## bootstrap/sarif_syntax/src/typecheck.sarif
+
+### fn type_name_from_ref
+
+- signature: `fn type_name_from_ref(ty: HirTypeRef) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_type_ref_exists
+
+- signature: `fn check_type_ref_exists(ty: HirTypeRef, known_types: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn add_name_to_table
+
+- signature: `fn add_name_to_table(table: Text, name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn text_eq_simple
+
+- signature: `fn text_eq_simple(a: Text, b: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn types_compatible_helper
+
+- signature: `fn types_compatible_helper(k1: HirTypeKind, k2: HirTypeKind) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn types_compatible
+
+- signature: `fn types_compatible(ty1: HirTypeRef, ty2: HirTypeRef) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn get_builtin_fn_return_type
+
+- signature: `fn get_builtin_fn_return_type(fn_name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_builtin_fn
+
+- signature: `fn is_builtin_fn(fn_name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_binary_op_result_type
+
+- signature: `fn infer_binary_op_result_type(op: Text, left_type: Text, right_type: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_unary_op_result_type
+
+- signature: `fn infer_unary_op_result_type(op: Text, operand_type: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn typecheck_hir_module
+
+- signature: `fn typecheck_hir_module(module: HirModuleData) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+## bootstrap/sarif_syntax/src/ownership.sarif
+
+### fn analyze_borrow_escape
+
+- signature: `fn analyze_borrow_escape(module: HirModuleData) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_borrow_only_builtin
+
+- signature: `fn is_borrow_only_builtin(fn_name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_consuming_builtin
+
+- signature: `fn is_consuming_builtin(fn_name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_text_type
+
+- signature: `fn is_text_type(ty: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_affine_type
+
+- signature: `fn is_affine_type(ty: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_affine_param_usage
+
+- signature: `fn check_affine_param_usage(param_name: Text, param_type: Text, fn_name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+## bootstrap/sarif_syntax/src/resolve.sarif
+
+### fn symbol_table_has_name
+
+- signature: `fn symbol_table_has_name(table: Text, name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn symbol_table_add_name
+
+- signature: `fn symbol_table_add_name(table: Text, name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_duplicate_definitions
+
+- signature: `fn check_duplicate_definitions(module: HirModuleData) -> Text`
+- ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 

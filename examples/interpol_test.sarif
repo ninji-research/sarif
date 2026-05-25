@@ -1,0 +1,9 @@
+fn text_concat(a: Text, b: Text) -> Text {
+    a
+}
+
+fn main() -> Text {
+    let name = "world";
+    let msg = "hello {name}";
+    text_concat(msg, "!")
+}

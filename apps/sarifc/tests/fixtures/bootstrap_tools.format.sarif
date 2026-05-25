@@ -460,6 +460,10 @@ enum TokenKind {
     Star,
     StarEq,
     Underscore,
+    Pipe,
+    Ampersand,
+    Shl,
+    Shr,
     Invalid,
     Eof,
 }
@@ -1664,7 +1668,11 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
             if next_is(source, offset, len, 61) {
                 make_double(TokenKind.Ge, offset)
             } else {
-                make_single(TokenKind.Gt, offset)
+                if next_is(source, offset, len, 62) {
+                    make_double(TokenKind.Shr, offset)
+                } else {
+                    make_single(TokenKind.Gt, offset)
+                }
             }
         },
         123 => {
@@ -1674,7 +1682,11 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
             if next_is(source, offset, len, 61) {
                 make_double(TokenKind.Le, offset)
             } else {
-                make_single(TokenKind.Lt, offset)
+                if next_is(source, offset, len, 60) {
+                    make_double(TokenKind.Shl, offset)
+                } else {
+                    make_single(TokenKind.Lt, offset)
+                }
             }
         },
         91 => {
@@ -1695,6 +1707,12 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
         },
         95 => {
             make_single(TokenKind.Underscore, offset)
+        },
+        124 => {
+            make_single(TokenKind.Pipe, offset)
+        },
+        38 => {
+            make_single(TokenKind.Ampersand, offset)
         },
         _ => {
             make_single(TokenKind.Invalid, offset)
@@ -1833,7 +1851,13 @@ fn infix_left_bp(kind: TokenKind) -> I32 {
         TokenKind.KwOr => {
             1
         },
+        TokenKind.Pipe => {
+            1
+        },
         TokenKind.KwAnd => {
+            3
+        },
+        TokenKind.Ampersand => {
             3
         },
         TokenKind.EqEq => {
@@ -1845,10 +1869,16 @@ fn infix_left_bp(kind: TokenKind) -> I32 {
         TokenKind.Lt => {
             5
         },
+        TokenKind.Shl => {
+            5
+        },
         TokenKind.Le => {
             5
         },
         TokenKind.Gt => {
+            5
+        },
+        TokenKind.Shr => {
             5
         },
         TokenKind.Ge => {
@@ -1928,15 +1958,41 @@ fn starts_expr(kind: TokenKind) -> Bool {
 
 fn next_after_name(source: Text, cursor: Token) -> Token {
     let mut current = next_significant(source, cursor.offset);
-    let mut keep_going = current.kind == TokenKind.Dot;
+    let mut keep_going = true;
     while keep_going {
-        let next = next_significant(source, current.offset);
-        if next.kind == TokenKind.Ident {
-            current = next_significant(source, next.offset);
-            keep_going = current.kind == TokenKind.Dot;
+        if current.kind == TokenKind.Dot {
+            let next = next_significant(source, current.offset);
+            if next.kind == TokenKind.Ident {
+                current = next_significant(source, next.offset);
+            } else {
+                keep_going = false;
+                current = next;
+            };
         } else {
-            keep_going = false;
-            current = next;
+            if current.kind == TokenKind.LBracket {
+                let mut depth = 1;
+                let mut scan = next_significant(source, current.offset);
+                while depth > 0 and scan.kind != TokenKind.Eof {
+                    if scan.kind == TokenKind.LBracket {
+                        depth = depth + 1;
+                    } else {
+                        if scan.kind == TokenKind.RBracket {
+                            depth = depth - 1;
+                        }
+                    };
+                    if depth > 0 {
+                        scan = next_significant(source, scan.offset);
+                    };
+                };
+                if scan.kind == TokenKind.RBracket {
+                    current = next_significant(source, scan.offset);
+                } else {
+                    keep_going = false;
+                    current = scan;
+                };
+            } else {
+                keep_going = false;
+            }
         };
     };
     current
@@ -2086,6 +2142,10 @@ fn parse_match_expr(source: Text, state: ParseState) -> ParseState {
     current = parse_expect(source, current, TokenKind.LBrace);
     while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RBrace {
         current = parse_match_pattern(source, current);
+        while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Pipe {
+            current = parse_expect(source, current, TokenKind.Pipe);
+            current = parse_match_pattern(source, current);
+        };
         current = parse_expect(source, current, TokenKind.FatArrow);
         current = parse_block(source, current);
         if current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Comma {
@@ -2272,7 +2332,12 @@ fn parse_type(source: Text, state: ParseState) -> ParseState {
         ParseStatus.Ok => {
             match state.cursor.kind {
                 TokenKind.Ident => {
-                    parse_named_type(source, state)
+                    let after_ident = next_significant(source, state.cursor.offset);
+                    if after_ident.kind == TokenKind.LBracket {
+                        parse_generic_type(source, state)
+                    } else {
+                        parse_named_type(source, state)
+                    }
                 },
                 TokenKind.LBracket => {
                     parse_array_type(source, state)
@@ -2283,6 +2348,17 @@ fn parse_type(source: Text, state: ParseState) -> ParseState {
             }
         },
     }
+}
+
+fn parse_generic_type(source: Text, state: ParseState) -> ParseState {
+    let mut current = parse_expect(source, state, TokenKind.Ident);
+    current = parse_expect(source, current, TokenKind.LBracket);
+    current = parse_type(source, current);
+    while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.Comma {
+        current = parse_expect(source, current, TokenKind.Comma);
+        current = parse_type(source, current);
+    };
+    parse_expect(source, current, TokenKind.RBracket)
 }
 
 fn parse_param(source: Text, state: ParseState) -> ParseState {
@@ -2465,6 +2541,11 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
         if starts_assign(source, state) {
             let target_start = state.cursor.start;
             let mut current = parse_named_type(source, state);
+            while current.status == ParseStatus.Ok and current.cursor.kind == TokenKind.LBracket {
+                current = parse_expect(source, current, TokenKind.LBracket);
+                current = parse_expr_bp(source, current, 0);
+                current = parse_expect(source, current, TokenKind.RBracket);
+            };
             let target_end = current.last_end;
             current = parse_expect_assign(source, current);
             let expr_start = current.cursor.start;
@@ -2498,7 +2579,11 @@ fn is_binary_operator_token(kind: TokenKind) -> Bool {
     kind == TokenKind.Star or
     kind == TokenKind.Slash or
     kind == TokenKind.KwAnd or
-    kind == TokenKind.KwOr
+    kind == TokenKind.KwOr or
+    kind == TokenKind.Pipe or
+    kind == TokenKind.Ampersand or
+    kind == TokenKind.Shl or
+    kind == TokenKind.Shr
 }
 
 fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {

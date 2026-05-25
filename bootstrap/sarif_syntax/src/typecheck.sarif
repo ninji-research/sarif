@@ -44,17 +44,16 @@ fn text_eq_simple(a: Text, b: Text) -> Bool {
     text_eq_range(a, 0, text_len(a), b)
 }
 
-fn types_compatible_helper(k1: I32, k2: I32) -> Bool {
-    if k1 == 9 or k2 == 9 { true }
-    else if k1 == 0 and k2 == 0 { true }
-    else if k1 == 1 and k2 == 1 { true }
-    else if k1 == 2 and k2 == 2 { true }
-    else if k1 == 3 and k2 == 3 { true }
-    else if k1 == 4 and k2 == 4 { true }
-    else if k1 == 5 and k2 == 5 { true }
-    else if k1 == 6 and k2 == 6 { true }
-    else if k1 == 7 and k2 == 7 { true }
-    else if k1 == 8 and k2 == 8 { true }
+fn types_compatible_helper(k1: HirTypeKind, k2: HirTypeKind) -> Bool {
+    if k1 == HirTypeKind.Result or k2 == HirTypeKind.Result { true }
+    else if k1 == HirTypeKind.I32 and k2 == HirTypeKind.I32 { true }
+    else if k1 == HirTypeKind.F64 and k2 == HirTypeKind.F64 { true }
+    else if k1 == HirTypeKind.Bool and k2 == HirTypeKind.Bool { true }
+    else if k1 == HirTypeKind.Text and k2 == HirTypeKind.Text { true }
+    else if k1 == HirTypeKind.Unit and k2 == HirTypeKind.Unit { true }
+    else if k1 == HirTypeKind.Array and k2 == HirTypeKind.Array { true }
+    else if k1 == HirTypeKind.Named and k2 == HirTypeKind.Named { true }
+    else if k1 == HirTypeKind.Optional and k2 == HirTypeKind.Optional { true }
     else { false }
 }
 
@@ -62,10 +61,10 @@ fn types_compatible(ty1: HirTypeRef, ty2: HirTypeRef) -> Bool {
     let k1 = ty1.kind;
     let k2 = ty2.kind;
     if not types_compatible_helper(k1, k2) { false }
-    else if k1 == 5 and k2 == 5 {
+    else if k1 == HirTypeKind.Array and k2 == HirTypeKind.Array {
         text_eq_simple(ty1.t1, ty2.t1)
     }
-    else if k1 == 6 and k2 == 6 {
+    else if k1 == HirTypeKind.Optional and k2 == HirTypeKind.Optional {
         text_eq_simple(ty1.t1, ty2.t1)
     }
     else { true }
@@ -388,10 +387,12 @@ fn typecheck_hir_module(module: HirModuleData) -> Text {
                      else if fi == 15 { f.fx.fx15 }
                      else { f.fx.fx16 };
                 if fxopt.present {
-                    if not is_empty_text(effects_seen) {
-                        diags = text_concat(diags, text_concat("warning: duplicate effect `", text_concat(fxopt.name, "`\n")));
+                    let name = fxopt.name;
+                    if is_empty_text(effects_seen) {
+                        effects_seen = name;
+                    } else {
+                        diags = text_concat(diags, text_concat("warning: duplicate effect `", text_concat(name, "`\n")));
                     };
-                    effects_seen = fxopt.name;
                 };
                 fi = fi + 1;
             };

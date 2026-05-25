@@ -1,0 +1,22 @@
+struct Pair { left: I32, right: I32 }
+
+fn double(x: I32) -> I32 {
+    x + x
+}
+
+fn get_left(p: Pair) -> I32 {
+    p.left
+}
+
+fn test_ufcs() -> I32 {
+    let v = 21;
+    let out = v.double();
+    out
+}
+
+fn main() -> I32 {
+    let p = Pair { left: 10, right: 20 };
+    let v = p.get_left();
+    let r = test_ufcs();
+    v + r
+}

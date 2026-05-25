@@ -88,6 +88,7 @@ enum ExprKind {
     Call,
     Index,
     Binary,
+    Unary,
 }
 
 enum MirInst {
@@ -2634,6 +2635,9 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
         },
         TokenKind.KwWhile => {
             ExprKind.While
+        },
+        TokenKind.KwNot => {
+            ExprKind.Unary
         },
         _ => {
             ExprKind.Name

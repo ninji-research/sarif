@@ -1,0 +1,12 @@
+fn test_if_let() -> I32 {
+    let value = 42;
+    if let x = value {
+        x
+    } else {
+        0
+    }
+}
+
+fn main() -> I32 {
+    test_if_let()
+}

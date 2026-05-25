@@ -869,12 +869,6 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
     }
 }
 
-/// Return true if `name` is a recognized builtin function name.
-#[allow(dead_code)]
-pub(super) fn is_builtin(name: &str) -> bool {
-    builtin_entry(name).is_some()
-}
-
 #[allow(clippy::too_many_arguments)]
 fn infer_fixed_builtin_expr(
     expr: &crate::hir::CallExpr,
