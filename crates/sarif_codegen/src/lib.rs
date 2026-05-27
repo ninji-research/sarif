@@ -8129,7 +8129,7 @@ struct Interpreter<'a> {
     text_builders: Vec<Vec<u8>>,
     text_indices: Vec<HashMap<String, i64>>,
     lists: Vec<Vec<RuntimeValue>>,
-    handlers: Vec<Vec<HandleArm>>,
+    handlers: Vec<&'a [HandleArm]>,
     files: Vec<Option<File>>,
 }
 
@@ -8261,36 +8261,182 @@ impl<'a> Interpreter<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn execute_insts<'b>(
+    fn execute_insts(
         &mut self,
         mut function: &'a Function,
-        mut instructions: &'b [Inst],
+        mut instructions: &'a [Inst],
         values: &mut Vec<RuntimeValue>,
         slots: &mut Vec<RuntimeValue>,
         function_args: &[RuntimeValue],
-    ) -> Result<(), RuntimeError>
-    where
-        'a: 'b,
-    {
+    ) -> Result<(), RuntimeError> {
         let mut pc = 0;
         let mut active_args: Vec<RuntimeValue> = function_args.to_vec();
-        let mut callee_stack: Vec<CalleeFrame<'a, 'b>> = Vec::new();
+        let mut frame_stack: Vec<Frame<'a>> = Vec::new();
         loop {
             if pc >= instructions.len() {
-                if let Some(frame) = callee_stack.pop() {
-                    let result = function.result.map_or(RuntimeValue::Unit, |r| {
-                        values
-                            .get(r.0 as usize)
-                            .cloned()
-                            .unwrap_or(RuntimeValue::Unit)
-                    });
-                    *values = frame.saved_values;
-                    *slots = frame.saved_slots;
-                    active_args = frame.saved_args;
-                    values[frame.dest.0 as usize] = result;
-                    function = frame.saved_function;
-                    instructions = frame.saved_instructions;
-                    pc = frame.pc;
+                if let Some(frame) = frame_stack.pop() {
+                    match frame {
+                        Frame::Call {
+                            saved_function,
+                            saved_instructions,
+                            saved_values,
+                            saved_slots,
+                            saved_args,
+                            pc: saved_pc,
+                            dest,
+                        } => {
+                            let result = function.result.map_or(RuntimeValue::Unit, |r| {
+                                values
+                                    .get(r.0 as usize)
+                                    .cloned()
+                                    .unwrap_or(RuntimeValue::Unit)
+                            });
+
+                            *values = saved_values;
+                            *slots = saved_slots;
+                            active_args = saved_args;
+                            values[dest.0 as usize] = result;
+                            function = saved_function;
+                            instructions = saved_instructions;
+                            pc = saved_pc;
+                        }
+                        Frame::IfBranch {
+                            saved_pc,
+                            saved_instructions,
+                            dest,
+                            branch_result,
+                        } => {
+                            let result = branch_result.map_or(RuntimeValue::Unit, |r| {
+                                values
+                                    .get(r.0 as usize)
+                                    .cloned()
+                                    .unwrap_or(RuntimeValue::Unit)
+                            });
+                            values[dest.0 as usize] = result;
+                            instructions = saved_instructions;
+                            pc = saved_pc;
+                        }
+                        Frame::WhileLoop {
+                            saved_pc,
+                            saved_instructions,
+                            dest,
+                            condition_insts,
+                            condition,
+                            body_insts,
+                            phase,
+                        } => match phase {
+                            WhilePhase::Condition => {
+                                let cond_val = extract_bool(values, condition)?;
+                                if cond_val {
+                                    frame_stack.push(Frame::WhileLoop {
+                                        saved_pc,
+                                        saved_instructions,
+                                        dest,
+                                        condition_insts,
+                                        condition,
+                                        body_insts,
+                                        phase: WhilePhase::Body,
+                                    });
+                                    instructions = body_insts;
+                                    pc = 0;
+                                } else {
+                                    values[dest.0 as usize] = RuntimeValue::Unit;
+                                    instructions = saved_instructions;
+                                    pc = saved_pc;
+                                }
+                            }
+                            WhilePhase::Body => {
+                                frame_stack.push(Frame::WhileLoop {
+                                    saved_pc,
+                                    saved_instructions,
+                                    dest,
+                                    condition_insts,
+                                    condition,
+                                    body_insts,
+                                    phase: WhilePhase::Condition,
+                                });
+                                instructions = condition_insts;
+                                pc = 0;
+                            }
+                        },
+                        Frame::RepeatLoop {
+                            saved_pc,
+                            saved_instructions,
+                            dest,
+                            count,
+                            mut index,
+                            index_slot,
+                            body_insts,
+                        } => {
+                            index += 1;
+                            if index < count {
+                                if let Some(slot) = index_slot {
+                                    slots[slot.0 as usize] = RuntimeValue::Int(index);
+                                }
+                                frame_stack.push(Frame::RepeatLoop {
+                                    saved_pc,
+                                    saved_instructions,
+                                    dest,
+                                    count,
+                                    index,
+                                    index_slot,
+                                    body_insts,
+                                });
+                                instructions = body_insts;
+                                pc = 0;
+                            } else {
+                                values[dest.0 as usize] = RuntimeValue::Unit;
+                                instructions = saved_instructions;
+                                pc = saved_pc;
+                            }
+                        }
+                        Frame::PerformBody {
+                            saved_pc,
+                            saved_instructions,
+                            saved_args,
+                            dest,
+                            body_result,
+                        } => {
+                            if let Some(result_id) = body_result {
+                                let value =
+                                    values.get(result_id.0 as usize).cloned().ok_or_else(|| {
+                                        RuntimeError::new("missing handler arm result")
+                                    })?;
+                                values[dest.0 as usize] = value;
+                            } else {
+                                values[dest.0 as usize] = RuntimeValue::Unit;
+                            }
+                            active_args = saved_args;
+                            instructions = saved_instructions;
+                            pc = saved_pc;
+                        }
+                        Frame::HandleBody {
+                            saved_function,
+                            saved_instructions,
+                            saved_values,
+                            saved_slots,
+                            saved_args,
+                            pc: saved_pc,
+                            dest,
+                            body_result,
+                        } => {
+                            let value = if let Some(result_id) = body_result {
+                                values.get(result_id.0 as usize).cloned().ok_or_else(|| {
+                                    RuntimeError::new("missing handle body result")
+                                })?
+                            } else {
+                                RuntimeValue::Unit
+                            };
+                            *values = saved_values;
+                            *slots = saved_slots;
+                            values[dest.0 as usize] = value;
+                            active_args = saved_args;
+                            function = saved_function;
+                            self.handlers.pop();
+                            instructions = saved_instructions;
+                            pc = saved_pc;
+                        }
+                    }
                 } else {
                     return Ok(());
                 }
@@ -9613,23 +9759,20 @@ impl<'a> Interpreter<'a> {
                     else_insts,
                     else_result,
                 } => {
-                    let condition = extract_bool(values, *condition)?;
-                    let (branch_insts, branch_result) = if condition {
+                    let cond_val = extract_bool(values, *condition)?;
+                    let (branch_insts, branch_result) = if cond_val {
                         (then_insts, then_result)
                     } else {
                         (else_insts, else_result)
                     };
-                    self.execute_insts(function, branch_insts, values, slots, &active_args)?;
-                    let result = branch_result.map_or(Ok(RuntimeValue::Unit), |result| {
-                        values.get(result.0 as usize).cloned().ok_or_else(|| {
-                            RuntimeError::new(format!(
-                                "missing conditional branch result in `{}` for {}",
-                                function.name,
-                                result.render()
-                            ))
-                        })
-                    })?;
-                    values[dest.0 as usize] = result;
+                    frame_stack.push(Frame::IfBranch {
+                        saved_pc: pc,
+                        saved_instructions: instructions,
+                        dest: *dest,
+                        branch_result: *branch_result,
+                    });
+                    instructions = branch_insts;
+                    pc = 0;
                 }
                 Inst::Repeat {
                     dest,
@@ -9637,16 +9780,25 @@ impl<'a> Interpreter<'a> {
                     index_slot,
                     body_insts,
                 } => {
-                    let count = extract_int(values, *count)?;
-                    if count > 0 {
-                        for index in 0..count {
-                            if let Some(slot) = index_slot {
-                                slots[slot.0 as usize] = RuntimeValue::Int(index);
-                            }
-                            self.execute_insts(function, body_insts, values, slots, &active_args)?;
+                    let count_val = extract_int(values, *count)?;
+                    if count_val > 0 {
+                        frame_stack.push(Frame::RepeatLoop {
+                            saved_pc: pc,
+                            saved_instructions: instructions,
+                            dest: *dest,
+                            count: count_val,
+                            index: 0,
+                            index_slot: *index_slot,
+                            body_insts,
+                        });
+                        instructions = body_insts;
+                        if let Some(slot) = index_slot {
+                            slots[slot.0 as usize] = RuntimeValue::Int(0);
                         }
+                        pc = 0;
+                    } else {
+                        values[dest.0 as usize] = RuntimeValue::Unit;
                     }
-                    values[dest.0 as usize] = RuntimeValue::Unit;
                 }
                 Inst::While {
                     dest,
@@ -9654,28 +9806,17 @@ impl<'a> Interpreter<'a> {
                     condition,
                     body_insts,
                 } => {
-                    loop {
-                        self.execute_insts(function, condition_insts, values, slots, &active_args)?;
-                        let RuntimeValue::Bool(keep_going) =
-                            values.get(condition.0 as usize).cloned().ok_or_else(|| {
-                                RuntimeError::new(format!(
-                                    "missing while condition result in `{}` for {}",
-                                    function.name,
-                                    condition.render()
-                                ))
-                            })?
-                        else {
-                            return Err(RuntimeError::new(format!(
-                                "while condition in `{}` did not evaluate to `Bool`",
-                                function.name
-                            )));
-                        };
-                        if !keep_going {
-                            break;
-                        }
-                        self.execute_insts(function, body_insts, values, slots, &active_args)?;
-                    }
-                    values[dest.0 as usize] = RuntimeValue::Unit;
+                    frame_stack.push(Frame::WhileLoop {
+                        saved_pc: pc,
+                        saved_instructions: instructions,
+                        dest: *dest,
+                        condition_insts,
+                        condition: *condition,
+                        body_insts,
+                        phase: WhilePhase::Condition,
+                    });
+                    instructions = condition_insts;
+                    pc = 0;
                 }
                 Inst::Add { dest, left, right } => {
                     run_arithmetic!(
@@ -9818,7 +9959,7 @@ impl<'a> Interpreter<'a> {
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    callee_stack.push(CalleeFrame {
+                    frame_stack.push(Frame::Call {
                         saved_function: function,
                         saved_instructions: instructions,
                         saved_values: std::mem::take(values),
@@ -9866,22 +10007,18 @@ impl<'a> Interpreter<'a> {
                         frame
                             .iter()
                             .find(|arm| arm.effect == *effect && arm.operation == *operation)
-                            .cloned()
                     });
                     if let Some(arm) = matched_arm {
-                        let saved_args = std::mem::take(&mut active_args);
+                        frame_stack.push(Frame::PerformBody {
+                            saved_pc: pc,
+                            saved_instructions: instructions,
+                            saved_args: active_args.clone(),
+                            dest: *dest,
+                            body_result: arm.body_result,
+                        });
                         active_args = arg_values;
-                        self.execute_insts(function, &arm.body_insts, values, slots, &active_args)?;
-                        active_args = saved_args;
-                        if let Some(result_id) = arm.body_result {
-                            let value = values
-                                .get(result_id.0 as usize)
-                                .cloned()
-                                .ok_or_else(|| RuntimeError::new("missing handler arm result"))?;
-                            values[dest.0 as usize] = value;
-                        } else {
-                            values[dest.0 as usize] = RuntimeValue::Unit;
-                        }
+                        instructions = &arm.body_insts;
+                        pc = 0;
                     } else {
                         return Err(RuntimeError::EffectUnwind {
                             effect: effect.clone(),
@@ -9896,28 +10033,22 @@ impl<'a> Interpreter<'a> {
                     body_result,
                     arms,
                 } => {
-                    self.handlers.push(arms.clone());
-                    let mut local_values =
-                        vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
-                    let mut local_slots =
-                        vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
-                    self.execute_insts(
-                        function,
-                        body_insts,
-                        &mut local_values,
-                        &mut local_slots,
-                        &[],
-                    )?;
-                    self.handlers.pop();
-                    if let Some(result_id) = body_result {
-                        let value = local_values
-                            .get(result_id.0 as usize)
-                            .cloned()
-                            .ok_or_else(|| RuntimeError::new("missing handle body result"))?;
-                        values[dest.0 as usize] = value;
-                    } else {
-                        values[dest.0 as usize] = RuntimeValue::Unit;
-                    }
+                    self.handlers.push(arms);
+                    frame_stack.push(Frame::HandleBody {
+                        saved_function: function,
+                        saved_instructions: instructions,
+                        saved_values: std::mem::take(values),
+                        saved_slots: std::mem::take(slots),
+                        saved_args: active_args.clone(),
+                        pc,
+                        dest: *dest,
+                        body_result: *body_result,
+                    });
+                    *values = vec![RuntimeValue::Unit; function.value_count.max(1) as usize];
+                    *slots = vec![RuntimeValue::Unit; function.slot_count.max(1) as usize];
+                    active_args = Vec::new();
+                    instructions = body_insts;
+                    pc = 0;
                 }
             }
         }
@@ -10099,14 +10230,62 @@ pub fn decode_enum_tag(
     }))
 }
 
-struct CalleeFrame<'a, 'b> {
-    saved_function: &'a Function,
-    saved_instructions: &'b [Inst],
-    saved_values: Vec<RuntimeValue>,
-    saved_slots: Vec<RuntimeValue>,
-    saved_args: Vec<RuntimeValue>,
-    pc: usize,
-    dest: ValueId,
+enum Frame<'a> {
+    Call {
+        saved_function: &'a Function,
+        saved_instructions: &'a [Inst],
+        saved_values: Vec<RuntimeValue>,
+        saved_slots: Vec<RuntimeValue>,
+        saved_args: Vec<RuntimeValue>,
+        pc: usize,
+        dest: ValueId,
+    },
+    IfBranch {
+        saved_pc: usize,
+        saved_instructions: &'a [Inst],
+        dest: ValueId,
+        branch_result: Option<ValueId>,
+    },
+    WhileLoop {
+        saved_pc: usize,
+        saved_instructions: &'a [Inst],
+        dest: ValueId,
+        condition_insts: &'a [Inst],
+        condition: ValueId,
+        body_insts: &'a [Inst],
+        phase: WhilePhase,
+    },
+    RepeatLoop {
+        saved_pc: usize,
+        saved_instructions: &'a [Inst],
+        dest: ValueId,
+        count: i64,
+        index: i64,
+        index_slot: Option<LocalSlotId>,
+        body_insts: &'a [Inst],
+    },
+    PerformBody {
+        saved_pc: usize,
+        saved_instructions: &'a [Inst],
+        saved_args: Vec<RuntimeValue>,
+        dest: ValueId,
+        body_result: Option<ValueId>,
+    },
+    HandleBody {
+        saved_function: &'a Function,
+        saved_instructions: &'a [Inst],
+        saved_values: Vec<RuntimeValue>,
+        saved_slots: Vec<RuntimeValue>,
+        saved_args: Vec<RuntimeValue>,
+        pc: usize,
+        dest: ValueId,
+        body_result: Option<ValueId>,
+    },
+}
+
+enum WhilePhase {
+    Condition,
+    Body,
 }
 
 #[inline(always)]

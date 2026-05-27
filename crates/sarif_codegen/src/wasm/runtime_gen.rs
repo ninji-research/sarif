@@ -8,7 +8,6 @@ use wasm_encoder::*;
 use super::{WasmEnum, WasmError, WasmRecord};
 use crate::Program;
 
-#[allow(dead_code)]
 const fn memarg(offset: u64) -> MemArg {
     MemArg {
         offset,

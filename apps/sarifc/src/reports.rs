@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 #[cfg(feature = "codegen")]
 use sarif_codegen::{Program, RuntimeError, RuntimeValue, run_function};
 use sarif_frontend::diagnostics::render_diagnostics;
-#[cfg(feature = "codegen")]
 use sarif_frontend::semantic::Profile;
 use sarif_syntax::ast::lower as lower_ast;
 use sarif_syntax::lexer::lex;
@@ -379,4 +378,124 @@ fn semantic_const_values(target: &LoadedSource) -> BTreeMap<String, String> {
 #[cfg(not(feature = "codegen"))]
 fn semantic_const_values(_target: &LoadedSource) -> BTreeMap<String, String> {
     BTreeMap::new()
+}
+
+pub fn render_sarif_json(
+    target: &LoadedSource,
+    diagnostics: &[Diagnostic],
+    profile: Profile,
+) -> String {
+    let mut results = Vec::new();
+    for diagnostic in diagnostics {
+        let is_alloc_escape_warning = diagnostic.code == "semantic.alloc-escape";
+        let level = if is_alloc_escape_warning && profile != Profile::Rt {
+            "warning"
+        } else {
+            "error"
+        };
+
+        let (file_path, rel_span, source_text) = if let Some((segment, span)) =
+            map_diagnostic_to_segment(&target.segments, diagnostic.span)
+        {
+            (&segment.path, span, &segment.source)
+        } else {
+            (&target.path, diagnostic.span, &target.source)
+        };
+
+        let (start_line, start_col) = get_line_col(source_text, rel_span.start);
+        let (end_line, end_col) = get_line_col(source_text, rel_span.end.max(rel_span.start));
+
+        let help_text = diagnostic.help.as_ref().map_or_else(String::new, |help| {
+            format!("\\n\\nHelp: {}", escape_json(help))
+        });
+        let full_message = format!("{}{}", escape_json(&diagnostic.message), help_text);
+
+        let result_json = format!(
+            r#"        {{
+          "ruleId": "{}",
+          "level": "{}",
+          "message": {{
+            "text": "{}"
+          }},
+          "locations": [
+            {{
+              "physicalLocation": {{
+                "artifactLocation": {{
+                  "uri": "{}"
+                }},
+                "region": {{
+                  "startLine": {},
+                  "startColumn": {},
+                  "endLine": {},
+                  "endColumn": {}
+                }}
+              }}
+            }}
+          ]
+        }}"#,
+            escape_json(diagnostic.code),
+            level,
+            full_message,
+            escape_json(file_path),
+            start_line,
+            start_col,
+            end_line,
+            end_col
+        );
+        results.push(result_json);
+    }
+
+    format!(
+        r#"{{
+  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json",
+  "version": "2.1.0",
+  "runs": [
+    {{
+      "tool": {{
+        "driver": {{
+          "name": "sarifc",
+          "rules": []
+        }}
+      }},
+      "results": [
+{}
+      ]
+    }}
+  ]
+}}
+"#,
+        results.join(",\n")
+    )
+}
+
+fn get_line_col(source: &str, offset: usize) -> (usize, usize) {
+    let mut line = 1;
+    let mut col = 1;
+    for (i, c) in source.char_indices() {
+        if i >= offset {
+            break;
+        }
+        if c == '\n' {
+            line += 1;
+            col = 1;
+        } else {
+            col += 1;
+        }
+    }
+    (line, col)
+}
+
+fn escape_json(s: &str) -> String {
+    let mut escaped = String::new();
+    for c in s.chars() {
+        match c {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            other => escaped.push(other),
+        }
+    }
+    escaped
 }

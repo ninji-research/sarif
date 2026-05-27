@@ -13,6 +13,7 @@ pub struct Command {
     pub inspect: Option<String>,
     pub semantic: bool,
     pub debug: bool,
+    pub format: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,11 +65,11 @@ pub fn usage() -> String {
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
     usage += "  --semantic        use the Rust semantic backend (default is stage-0 bootstrap)\n";
-    usage +=
-        "  --dump-ir=<pass>  dump IR after a compiler pass (hir, semantic, mir, cranelift, wasm, c)\n";
+    usage += "  --dump-ir=<pass>  dump IR after a compiler pass (hir, semantic, mir, cranelift, wasm, c)\n";
     usage += "                    wasm/c dumps require `--target wasm` or `--target c`\n";
     usage += "  --inspect=<tool>  inspect build output (wasmprinter; only for `build`)\n";
     usage += "  --debug           enable target runtime null-pointer trap checks\n";
+    usage += "  --format <format> diagnostic output format (text, sarif)\n";
     usage
 }
 
@@ -130,6 +131,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut inspect = None;
     let mut semantic = false;
     let mut debug = false;
+    let mut format = None;
 
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -175,6 +177,23 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             "--print-main" => print_main = true,
             "--semantic" => semantic = true,
             "--debug" => debug = true,
+            "--format" => {
+                if let Some(f) = iter.next() {
+                    if f != "text" && f != "sarif" {
+                        return Err(format!("unknown format `{f}`"));
+                    }
+                    format = Some(f.clone());
+                } else {
+                    return Err("missing argument for `--format`".to_owned());
+                }
+            }
+            other if other.starts_with("--format=") => {
+                let f = other.strip_prefix("--format=").unwrap();
+                if f != "text" && f != "sarif" {
+                    return Err(format!("unknown format `{f}`"));
+                }
+                format = Some(f.to_string());
+            }
             other if other.starts_with("--dump-ir=") => {
                 dump_ir = other.strip_prefix("--dump-ir=").map(String::from);
             }
@@ -218,6 +237,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             inspect,
             semantic,
             debug,
+            format: None,
         });
     }
 
@@ -232,6 +252,10 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         return Err("`--inspect` is only supported for `build`".to_owned());
     }
 
+    if format.is_some() && kind != CommandKind::Check && kind != CommandKind::Build {
+        return Err("`--format` is only supported for `check` and `build`".to_owned());
+    }
+
     Ok(Command {
         kind,
         path,
@@ -244,6 +268,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         inspect,
         semantic,
         debug,
+        format,
     })
 }
 

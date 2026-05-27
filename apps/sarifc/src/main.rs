@@ -169,7 +169,9 @@ fn exit_code_from_result(result: Result<(), String>) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(msg) => {
-            eprintln!("{msg}");
+            if !msg.is_empty() {
+                eprintln!("{msg}");
+            }
             ExitCode::FAILURE
         }
     }
@@ -208,7 +210,17 @@ fn run_command(command: command::Command) -> ExitCode {
 }
 
 fn run_check(command: &command::Command) -> Result<(), String> {
-    if command.semantic {
+    if command.format.as_deref() == Some("sarif") {
+        let loaded = LoadedSource::load(&command.path)?;
+        let all_diagnostics = loaded.mir_diagnostics(command.profile);
+        let sarif_json = reports::render_sarif_json(&loaded, &all_diagnostics, command.profile);
+        print!("{sarif_json}");
+        let blocking = LoadedSource::blocking_diagnostics(&all_diagnostics, command.profile);
+        if !blocking.is_empty() {
+            return Err(String::new());
+        }
+        Ok(())
+    } else if command.semantic {
         print_loaded_render(command, |loaded| {
             emit_requested_dump(loaded, command)?;
             render_semantic_check(loaded, command.profile)
@@ -406,10 +418,19 @@ fn build_program(command: &command::Command) -> Result<(), String> {
     sarif_codegen::native_set_debug(command.debug);
     let loaded = LoadedSource::load(&command.path)?;
     let all_diagnostics = loaded.mir_diagnostics(command.profile);
-    loaded.ensure_no_diagnostics(
-        &LoadedSource::blocking_diagnostics(&all_diagnostics, command.profile),
-        "build failed",
-    )?;
+    if command.format.as_deref() == Some("sarif") {
+        let sarif_json = reports::render_sarif_json(&loaded, &all_diagnostics, command.profile);
+        print!("{sarif_json}");
+        let blocking = LoadedSource::blocking_diagnostics(&all_diagnostics, command.profile);
+        if !blocking.is_empty() {
+            return Err(String::new());
+        }
+    } else {
+        loaded.ensure_no_diagnostics(
+            &LoadedSource::blocking_diagnostics(&all_diagnostics, command.profile),
+            "build failed",
+        )?;
+    }
     emit_requested_dump(&loaded, command)?;
 
     let output_path = command
