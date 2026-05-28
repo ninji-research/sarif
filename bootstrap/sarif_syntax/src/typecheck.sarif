@@ -91,6 +91,7 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
     else if text_eq_simple(fn_name, "f64_from_i32") { "F64" }
     else if text_eq_simple(fn_name, "text_builder_new") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_append") { "TextBuilder" }
+    else if text_eq_simple(fn_name, "text_builder_append_i32") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_finish") { "Text" }
     else if text_eq_simple(fn_name, "text_intern") { "Text" }
     else if text_eq_simple(fn_name, "text_index_new") { "TextIndex" }
