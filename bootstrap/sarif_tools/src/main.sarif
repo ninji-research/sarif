@@ -1003,6 +1003,15 @@ fn is_builtin_fn(name: Text) -> Bool {
     name_table_has("text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_contains\ntext_index_get_or_insert\ntext_index_set\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\nlen", name)
 }
 
+fn builtin_return_type(name: Text) -> Text {
+    let tb = "text_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32";
+    if name_table_has(tb, name) {
+        "TextBuilder"
+    } else {
+        "I32"
+    }
+}
+
 fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
     if expr_span.start >= expr_span.end {
         ""
@@ -1323,7 +1332,7 @@ fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text {
         let ret_type = type_table_lookup(fns, callee);
         if is_empty(ret_type) {
             if is_builtin_fn(callee) {
-                "I32"
+                builtin_return_type(callee)
             } else {
                 ""
             }
