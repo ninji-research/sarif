@@ -1024,7 +1024,8 @@ fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
             };
             if name_start < name_end {
                 let callee = text_slice(text, name_start, name_end);
-                if callee != "_" and not name_table_has(known, callee) and not is_builtin_fn(callee) {
+                let before_name_is_dot = name_start > 0 and text_byte(text, name_start - 1) == 46;
+                if callee != "_" and not before_name_is_dot and not name_table_has(known, callee) and not is_builtin_fn(callee) {
                     let err = text_concat("error: unknown function `", text_concat(callee, "`\n"));
                     out = if is_empty(out) { err } else { text_concat(out, err) };
                 };
