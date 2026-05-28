@@ -77,13 +77,18 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
     else if text_eq_simple(fn_name, "text_slice") { "Text" }
     else if text_eq_simple(fn_name, "text_concat") { "Text" }
     else if text_eq_simple(fn_name, "text_find_byte_range") { "I32" }
+    else if text_eq_simple(fn_name, "bytes_find_byte_range") { "I32" }
     else if text_eq_simple(fn_name, "bytes_len") { "I32" }
     else if text_eq_simple(fn_name, "bytes_byte") { "I32" }
     else if text_eq_simple(fn_name, "bytes_slice") { "Bytes" }
+    else if text_eq_simple(fn_name, "bytes_to_text") { "Text" }
     else if text_eq_simple(fn_name, "list_new") { "List" }
     else if text_eq_simple(fn_name, "list_len") { "I32" }
     else if text_eq_simple(fn_name, "list_get") { "Text" }
+    else if text_eq_simple(fn_name, "list_set") { "Unit" }
     else if text_eq_simple(fn_name, "list_push") { "Unit" }
+    else if text_eq_simple(fn_name, "list_sort_text") { "List" }
+    else if text_eq_simple(fn_name, "list_sort_by_text_field") { "List" }
     else if text_eq_simple(fn_name, "parse_i32") { "I32" }
     else if text_eq_simple(fn_name, "parse_i32_range") { "I32" }
     else if text_eq_simple(fn_name, "parse_f64") { "F64" }
@@ -91,6 +96,9 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
     else if text_eq_simple(fn_name, "f64_from_i32") { "F64" }
     else if text_eq_simple(fn_name, "text_builder_new") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_append") { "TextBuilder" }
+    else if text_eq_simple(fn_name, "text_builder_append_codepoint") { "TextBuilder" }
+    else if text_eq_simple(fn_name, "text_builder_append_ascii") { "TextBuilder" }
+    else if text_eq_simple(fn_name, "text_builder_append_slice") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_append_i32") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_finish") { "Text" }
     else if text_eq_simple(fn_name, "text_intern") { "Text" }
@@ -106,8 +114,14 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
     else if text_eq_simple(fn_name, "arg_text") { "Text" }
     else if text_eq_simple(fn_name, "file_open") { "File" }
     else if text_eq_simple(fn_name, "file_read") { "Text" }
+    else if text_eq_simple(fn_name, "file_read_to_end") { "Text" }
     else if text_eq_simple(fn_name, "file_write") { "Unit" }
     else if text_eq_simple(fn_name, "file_size") { "I32" }
+    else if text_eq_simple(fn_name, "file_seek") { "I32" }
+    else if text_eq_simple(fn_name, "file_tell") { "I32" }
+    else if text_eq_simple(fn_name, "file_exists") { "Bool" }
+    else if text_eq_simple(fn_name, "file_remove") { "I32" }
+    else if text_eq_simple(fn_name, "file_is_valid") { "I32" }
     else if text_eq_simple(fn_name, "is_empty") { "Bool" }
     else if text_eq_simple(fn_name, "len") { "I32" }
     else { "I32" }
