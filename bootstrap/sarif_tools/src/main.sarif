@@ -1005,11 +1005,7 @@ fn is_builtin_fn(name: Text) -> Bool {
 
 fn builtin_return_type(name: Text) -> Text {
     let tb = "text_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32";
-    if name_table_has(tb, name) {
-        "TextBuilder"
-    } else {
-        "I32"
-    }
+    if name_table_has(tb, name) { "TextBuilder" } else { "I32" }
 }
 
 fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
