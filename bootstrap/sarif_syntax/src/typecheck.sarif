@@ -92,6 +92,7 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
     else if text_eq_simple(fn_name, "text_builder_new") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_append") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_finish") { "Text" }
+    else if text_eq_simple(fn_name, "text_intern") { "Text" }
     else if text_eq_simple(fn_name, "text_index_new") { "TextIndex" }
     else if text_eq_simple(fn_name, "text_index_get") { "I32" }
     else if text_eq_simple(fn_name, "text_index_contains") { "Bool" }
@@ -134,6 +135,7 @@ fn is_builtin_fn(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "text_builder_append_slice") { true }
     else if text_eq_simple(fn_name, "text_builder_append_i32") { true }
     else if text_eq_simple(fn_name, "text_builder_finish") { true }
+    else if text_eq_simple(fn_name, "text_intern") { true }
     else if text_eq_simple(fn_name, "text_index_new") { true }
     else if text_eq_simple(fn_name, "text_index_get") { true }
     else if text_eq_simple(fn_name, "text_index_contains") { true }

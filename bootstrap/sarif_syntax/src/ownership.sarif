@@ -99,6 +99,7 @@ fn is_borrow_only_builtin(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "text_slice") { true }
     else if text_eq_simple(fn_name, "text_cmp") { true }
     else if text_eq_simple(fn_name, "text_eq_range") { true }
+    else if text_eq_simple(fn_name, "text_intern") { true }
     else if text_eq_simple(fn_name, "bytes_len") { true }
     else if text_eq_simple(fn_name, "bytes_byte") { true }
     else if text_eq_simple(fn_name, "bytes_slice") { true }

@@ -225,6 +225,7 @@ fn format_array_expr(expr: &sarif_syntax::ast::ArrayExpr, indent: usize) -> Stri
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn format_expr_with_indent(expr: &Expr, indent: usize) -> String {
     match expr {
         Expr::Integer(expr) => expr.value.to_string(),

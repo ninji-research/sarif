@@ -475,6 +475,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextFieldEnd { dest, .. }
                 | Inst::TextNextField { dest, .. }
                 | Inst::TextConcat { dest, .. }
+                | Inst::TextIntern { dest, .. }
                 | Inst::TextSlice { dest, .. }
                 | Inst::BytesSlice { dest, .. }
                 | Inst::TextBuilderNew { dest }
@@ -709,6 +710,9 @@ impl<'a> WasmEmitter<'a> {
             }
             Inst::TextConcat { dest, left, right } => {
                 w_call(output, *dest, &[*left, *right], "$__sarif_text_concat");
+            }
+            Inst::TextIntern { dest, text } => {
+                w_call(output, *dest, &[*text], "$__sarif_text_intern");
             }
             Inst::TextSlice {
                 dest,
@@ -1883,6 +1887,7 @@ fn collect_inst_kinds(
             }
             Inst::ConstText { dest, .. }
             | Inst::TextConcat { dest, .. }
+            | Inst::TextIntern { dest, .. }
             | Inst::TextSlice { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgText { dest, .. }

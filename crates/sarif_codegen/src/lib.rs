@@ -335,6 +335,10 @@ pub enum Inst {
         dest: ValueId,
         builder: ValueId,
     },
+    TextIntern {
+        dest: ValueId,
+        text: ValueId,
+    },
     StdoutWriteBuilder {
         dest: ValueId,
         builder: ValueId,
@@ -981,6 +985,9 @@ impl Inst {
                 left.render(),
                 right.render()
             ),
+            Self::TextIntern { dest, text } => {
+                format!("{} = text-intern {}", dest.render(), text.render())
+            }
             Self::TextSlice {
                 dest,
                 text,
@@ -3371,6 +3378,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextBuilderAppendSlice { .. }
             | Inst::TextBuilderAppendI32 { .. }
             | Inst::TextBuilderFinish { .. }
+            | Inst::TextIntern { .. }
             | Inst::TextIndexGet { .. }
             | Inst::TextIndexContains { .. }
             | Inst::TextIndexGetOrInsert { .. }
@@ -3760,6 +3768,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
                 self.lower_text_builder_finish_expr(expr)
             }
+            "text_intern" if self.builtin_is_available("text_intern") => {
+                self.lower_text_intern_expr(expr)
+            }
             "text_index_get" if self.builtin_is_available("text_index_get") => {
                 self.lower_text_index_get_expr(expr)
             }
@@ -3968,6 +3979,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
                 LowerType::Text
             }
+            "text_intern" if self.builtin_is_available("text_intern") => LowerType::Text,
             "text_index_get" if self.builtin_is_available("text_index_get") => LowerType::I32,
             "text_index_contains" if self.builtin_is_available("text_index_contains") => {
                 LowerType::I32
@@ -7135,6 +7147,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_intern_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let text = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextIntern { dest, text });
+        dest
+    }
+
     fn lower_text_index_get_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
@@ -8984,6 +9006,13 @@ impl<'a> Interpreter<'a> {
                     let mut value = left_text;
                     value.push_str(&right_text);
                     values[dest.0 as usize] = RuntimeValue::Text(value);
+                }
+                Inst::TextIntern { dest, text } => {
+                    let text_val = extract_value(values, *text)?;
+                    let RuntimeValue::Text(t) = text_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Text(t);
                 }
                 Inst::TextSlice {
                     dest,

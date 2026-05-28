@@ -397,6 +397,7 @@ fn infer_inst_kinds(
             }
 
             Inst::TextConcat { dest, .. }
+            | Inst::TextIntern { dest, .. }
             | Inst::TextSlice { dest, .. }
             | Inst::BytesSlice { dest, .. }
             | Inst::TextBuilderFinish { dest, .. }
@@ -1196,6 +1197,7 @@ pub fn lower_insts<M: Module>(
     list_sort_text_id: Option<FuncId>,
     list_sort_by_text_field_id: Option<FuncId>,
     text_concat_id: FuncId,
+    text_intern_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
     text_eq_range_id: FuncId,
@@ -1261,6 +1263,7 @@ pub fn lower_insts<M: Module>(
             list_sort_text_id,
             list_sort_by_text_field_id,
             text_concat_id,
+            text_intern_id,
             text_slice_id,
             bytes_slice_id,
             text_eq_range_id,
@@ -1332,6 +1335,7 @@ pub fn lower_inst<M: Module>(
     list_sort_text_id: Option<FuncId>,
     list_sort_by_text_field_id: Option<FuncId>,
     text_concat_id: FuncId,
+    text_intern_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
     text_eq_range_id: FuncId,
@@ -2081,6 +2085,20 @@ pub fn lower_inst<M: Module>(
                 helper,
                 &[left_val, right_val],
                 "text concat",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TextIntern { dest, text } => {
+            let text_val = native_value(values, *text, function, "text_intern input", backend)?;
+            let helper = module.declare_func_in_func(text_intern_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[text_val],
+                "text intern",
                 function,
                 backend,
             )?;
@@ -3242,6 +3260,7 @@ pub fn lower_inst<M: Module>(
                 list_sort_text_id,
                 list_sort_by_text_field_id,
                 text_concat_id,
+                text_intern_id,
                 text_slice_id,
                 bytes_slice_id,
                 text_eq_range_id,
@@ -3321,6 +3340,7 @@ pub fn lower_inst<M: Module>(
                 list_sort_text_id,
                 list_sort_by_text_field_id,
                 text_concat_id,
+                text_intern_id,
                 text_slice_id,
                 bytes_slice_id,
                 text_eq_range_id,
@@ -3502,6 +3522,7 @@ pub fn lower_inst<M: Module>(
                 list_sort_text_id,
                 list_sort_by_text_field_id,
                 text_concat_id,
+                text_intern_id,
                 text_slice_id,
                 bytes_slice_id,
                 text_eq_range_id,
@@ -3596,6 +3617,7 @@ pub fn lower_inst<M: Module>(
                 list_sort_text_id,
                 list_sort_by_text_field_id,
                 text_concat_id,
+                text_intern_id,
                 text_slice_id,
                 bytes_slice_id,
                 text_eq_range_id,
@@ -3684,6 +3706,7 @@ pub fn lower_inst<M: Module>(
                 list_sort_text_id,
                 list_sort_by_text_field_id,
                 text_concat_id,
+                text_intern_id,
                 text_slice_id,
                 bytes_slice_id,
                 text_eq_range_id,
@@ -3808,6 +3831,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::TextLen { dest, .. }
             | Inst::BytesLen { dest, .. }
             | Inst::TextConcat { dest, .. }
+            | Inst::TextIntern { dest, .. }
             | Inst::TextSlice { dest, .. }
             | Inst::BytesSlice { dest, .. }
             | Inst::TextByte { dest, .. }
@@ -4163,6 +4187,17 @@ pub fn declare_text_concat<M: Module>(module: &mut M, backend: &str) -> Result<F
         backend,
         "text concat helper",
         &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_text_intern<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_text_intern",
+        backend,
+        "text intern helper",
+        &[types::I64],
         &[types::I64],
     )
 }

@@ -23,8 +23,8 @@ use crate::native::{
     declare_text_eq_range, declare_text_field_end, declare_text_find_byte_range,
     declare_text_from_f64_fixed, declare_text_index_contains, declare_text_index_get,
     declare_text_index_get_or_insert, declare_text_index_keys, declare_text_index_new,
-    declare_text_index_set, declare_text_line_end, declare_text_next_field, declare_text_next_line,
-    declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts,
+    declare_text_index_set, declare_text_intern, declare_text_line_end, declare_text_next_field,
+    declare_text_next_line, declare_text_slice, encode_text_blob, infer_value_kinds, lower_insts,
     native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
 use crate::{Function, Program, ValueId};
@@ -124,6 +124,7 @@ struct ObjectBackend<'a> {
     bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
+    text_intern_id: FuncId,
     records: BTreeMap<String, NativeRecord>,
     native_enums: BTreeMap<String, NativeEnum>,
 }
@@ -186,6 +187,7 @@ impl<'a> ObjectBackend<'a> {
         let list_sort_by_text_field_id =
             Some(declare_fn(&mut module, declare_list_sort_by_text_field)?);
         let text_concat_id = declare_fn(&mut module, declare_text_concat)?;
+        let text_intern_id = declare_fn(&mut module, declare_text_intern)?;
         let text_slice_id = declare_fn(&mut module, declare_text_slice)?;
         let bytes_slice_id = declare_fn(&mut module, declare_bytes_slice)?;
         let text_eq_range_id = declare_fn(&mut module, declare_text_eq_range)?;
@@ -238,6 +240,7 @@ impl<'a> ObjectBackend<'a> {
             list_sort_text_id,
             list_sort_by_text_field_id,
             text_concat_id,
+            text_intern_id,
             text_slice_id,
             bytes_slice_id,
             text_eq_range_id,
@@ -452,6 +455,7 @@ impl<'a> ObjectBackend<'a> {
             self.list_sort_text_id,
             self.list_sort_by_text_field_id,
             self.text_concat_id,
+            self.text_intern_id,
             self.text_slice_id,
             self.bytes_slice_id,
             self.text_eq_range_id,
@@ -569,6 +573,7 @@ struct ClifDumper<'a> {
     bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
+    text_intern_id: FuncId,
 }
 
 impl<'a> ClifDumper<'a> {
@@ -652,6 +657,7 @@ impl<'a> ClifDumper<'a> {
             declare_list_sort_by_text_field,
         )?);
         let text_concat_id = Self::declare_fn(&mut dummy_module, declare_text_concat)?;
+        let text_intern_id = Self::declare_fn(&mut dummy_module, declare_text_intern)?;
         let text_slice_id = Self::declare_fn(&mut dummy_module, declare_text_slice)?;
         let bytes_slice_id = Self::declare_fn(&mut dummy_module, declare_bytes_slice)?;
         let text_eq_range_id = Self::declare_fn(&mut dummy_module, declare_text_eq_range)?;
@@ -707,6 +713,7 @@ impl<'a> ClifDumper<'a> {
             list_sort_text_id,
             list_sort_by_text_field_id,
             text_concat_id,
+            text_intern_id,
             text_slice_id,
             bytes_slice_id,
             text_eq_range_id,
@@ -882,6 +889,7 @@ impl<'a> ClifDumper<'a> {
             self.list_sort_text_id,
             self.list_sort_by_text_field_id,
             self.text_concat_id,
+            self.text_intern_id,
             self.text_slice_id,
             self.bytes_slice_id,
             self.text_eq_range_id,

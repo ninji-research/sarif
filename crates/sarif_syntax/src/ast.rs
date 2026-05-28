@@ -479,6 +479,7 @@ impl Expr {
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn pretty(&self) -> String {
         match self {
             Self::Integer(expr) => expr.value.to_string(),
@@ -1501,7 +1502,7 @@ impl Lowerer {
                 let string_expr = Self::lower_string_expr(node);
                 match &string_expr {
                     Some(s) if s.value.contains('{') && Self::has_interpolation(&s.value) => {
-                        match self.lower_template_expr(node) {
+                        match Self::lower_template_expr(node) {
                             Some(template)
                                 if template
                                     .segments
@@ -1716,7 +1717,7 @@ impl Lowerer {
         false
     }
 
-    fn lower_template_expr(&mut self, node: &Node) -> Option<TemplateExpr> {
+    fn lower_template_expr(node: &Node) -> Option<TemplateExpr> {
         let token = Self::first_token(node, TokenKind::String)?;
         let raw = token
             .lexeme
@@ -1751,16 +1752,13 @@ impl Lowerer {
                 for ec in chars.by_ref() {
                     if ec == '{' {
                         depth += 1;
-                        expr_text.push(ec);
                     } else if ec == '}' {
                         depth -= 1;
                         if depth == 0 {
                             break;
                         }
-                        expr_text.push(ec);
-                    } else {
-                        expr_text.push(ec);
                     }
+                    expr_text.push(ec);
                 }
                 let fake_source = format!("let _x = {expr_text}; _x");
                 let tokens = crate::lexer::lex(&fake_source).tokens;
@@ -1831,7 +1829,7 @@ impl Lowerer {
                     name.name
                         .chars()
                         .next()
-                        .map_or(false, |c| c.is_ascii_uppercase())
+                        .is_some_and(|c| c.is_ascii_uppercase())
                 } else {
                     false
                 };
@@ -1839,7 +1837,7 @@ impl Lowerer {
                     field.pretty()
                 } else {
                     args.push(*field.base.clone());
-                    field.field.clone()
+                    field.field
                 }
             }
             Expr::Name(name) => name.name,

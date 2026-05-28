@@ -93,6 +93,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern void* sarif_text_builder_finish(void* builder);")?;
     out.line("extern void* sarif_stdout_write_builder(void* builder);")?;
     out.line("extern void* sarif_text_index_new(void);")?;
+    out.line("extern void* sarif_text_intern(const unsigned char* text);")?;
     out.line("extern void* sarif_text_index_set(void* index, uint64_t key, int64_t value);")?;
     out.line("extern int64_t sarif_text_index_get(void* index, uint64_t key);")?;
     out.line("extern int sarif_text_index_contains(void* index, uint64_t key);")?;
@@ -336,6 +337,7 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TextBuilderAppendSlice { dest, .. } => Some(*dest),
         Inst::TextBuilderAppendI32 { dest, .. } => Some(*dest),
         Inst::TextBuilderFinish { dest, .. } => Some(*dest),
+        Inst::TextIntern { dest, .. } => Some(*dest),
         Inst::StdoutWriteBuilder { dest, .. } => Some(*dest),
         Inst::TextIndexNew { dest } => Some(*dest),
         Inst::TextIndexSet { dest, .. } => Some(*dest),
@@ -961,6 +963,13 @@ fn emit_inst(
                 "v{} = (uint64_t)sarif_text_builder_finish((void*){});",
                 dest.0,
                 vref(builder)
+            ))?;
+        }
+        Inst::TextIntern { dest, text } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_text_intern((const unsigned char*){});",
+                dest.0,
+                vref(text)
             ))?;
         }
         Inst::StdoutWriteBuilder { dest, builder } => {
@@ -1623,6 +1632,9 @@ fn infer_inst_kind_c(
             kinds.insert(*dest, CodegenValueKind::TextBuilder);
         }
         Inst::TextBuilderFinish { dest, .. } => {
+            kinds.insert(*dest, CodegenValueKind::Text);
+        }
+        Inst::TextIntern { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Text);
         }
         Inst::TextIndexNew { dest } | Inst::TextIndexSet { dest, .. } => {

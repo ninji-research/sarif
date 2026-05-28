@@ -149,3 +149,53 @@ jobs:
         with:
           name: release-bundle
           path: release.tar.gz
+
+  benchmark:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - uses: actions/cache@v5
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-target-bench-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-bench-
+
+      - name: Build sarifc (release)
+        run: cargo build --release -p sarifc
+
+      - name: Clone bnch benchmark suite
+        run: |
+          git clone https://github.com/ninji-research/bnch bnch --depth 1 2>/dev/null || echo "bnch clone skipped (repo may not be accessible)"
+
+      - name: Run bnch sarif lane
+        if: success()
+        run: |
+          if [ -d bnch ]; then
+            cd bnch && ./bnch run sarif 2>&1 | tee ../bnch-results.log || true
+          else
+            echo "bnch not cloned; benchmark regression check skipped"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-results
+          path: bnch-results.log

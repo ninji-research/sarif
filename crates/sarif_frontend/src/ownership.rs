@@ -32,6 +32,7 @@ fn is_borrow_only_builtin(callee: &str) -> bool {
             | "bytes_byte"
             | "text_cmp"
             | "text_eq_range"
+            | "text_intern"
             | "text_builder_append_i32"
             | "parse_i32_range"
             | "text_builder_append_codepoint"

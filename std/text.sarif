@@ -1,0 +1,17 @@
+fn text_intern(text: Text) -> Text effects []
+
+// Ensure a text value has process-lifetime storage.
+// Use this when a scoped arena-allocated text must outlive its arena scope,
+// such as when storing into a global data structure or returning from
+// an [alloc]-free function. Interned texts are never freed and each
+// unique content is stored exactly once (deduplicated via FNV-1a hash).
+//
+// Use cases:
+//   - Promoting temporary arena text to persistent storage
+//   - Avoiding use-after-free diagnostics when text crosses scope boundaries
+//   - Reducing memory footprint through deduplication of repeated values
+//
+// Example:
+//   fn make_persistent_label(prefix: Text, suffix: Text) -> Text {
+//       text_intern(text_concat(prefix, suffix))
+//   }

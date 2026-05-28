@@ -154,6 +154,7 @@ impl Env<'_> {
             | Inst::ListNew { dest, .. }
             | Inst::ListPush { dest, .. }
             | Inst::TextConcat { dest, .. }
+            | Inst::TextIntern { dest, .. }
             | Inst::TextSlice { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgText { dest, .. }
