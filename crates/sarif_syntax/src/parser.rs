@@ -1075,10 +1075,8 @@ impl<'a> Parser<'a> {
             Some(TokenKind::Integer) => {
                 children.push(Element::Token(self.expect(TokenKind::Integer)));
                 self.collect_trivia(&mut children);
-                if self.at(TokenKind::Dot) && self.peek_trivia_then(TokenKind::Dot) {
-                    children.push(Element::Token(self.expect(TokenKind::Dot)));
-                    self.collect_trivia(&mut children);
-                    children.push(Element::Token(self.expect(TokenKind::Dot)));
+                if self.at(TokenKind::DotDot) {
+                    children.push(Element::Token(self.expect(TokenKind::DotDot)));
                     self.collect_trivia(&mut children);
                     children.push(Element::Token(self.expect(TokenKind::Integer)));
                 }

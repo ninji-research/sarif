@@ -88,6 +88,8 @@ enum RawTokenKind {
     Colon,
     #[token(",")]
     Comma,
+    #[token("..")]
+    DotDot,
     #[token(".")]
     Dot,
     #[token("=")]
@@ -298,6 +300,7 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::Integer => TokenKind::Integer,
         RawTokenKind::String => TokenKind::String,
         RawTokenKind::Ident => TokenKind::Ident,
+        RawTokenKind::DotDot => TokenKind::DotDot,
     }
 }
 

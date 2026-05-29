@@ -407,6 +407,7 @@ enum TokenKind {
     Comment,
     Comma,
     Dot,
+    DotDot,
     Ident,
     Integer,
     Float,
@@ -1626,7 +1627,11 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
             make_single(TokenKind.Comma, offset)
         },
         46 => {
-            make_single(TokenKind.Dot, offset)
+            if next_is(source, offset, len, 46) {
+                make_double(TokenKind.DotDot, offset)
+            } else {
+                make_single(TokenKind.Dot, offset)
+            }
         },
         59 => {
             make_single(TokenKind.Semicolon, offset)
@@ -1721,7 +1726,7 @@ fn lex_next(source: Text, offset: I32) -> Token {
             LeadClass.Digit => {
                 let start = offset;
                 let end = scan_while(source, offset, len, ByteClass.Digit);
-                if end < len and text_byte(source, end) == 46 {
+                if end < len and text_byte(source, end) == 46 and text_byte(source, end + 1) != 46 {
                     let after_dot = scan_while(source, end + 1, len, ByteClass.Digit);
                     make_token(TokenKind.Float, start, after_dot)
                 } else {
@@ -2093,7 +2098,13 @@ fn parse_match_pattern(source: Text, state: ParseState) -> ParseState {
             parse_payload_pattern(source, parse_named_type(source, state))
         },
         TokenKind.Integer => {
-            parse_expect(source, state, TokenKind.Integer)
+            let after_int = parse_expect(source, state, TokenKind.Integer);
+            if after_int.cursor.kind == TokenKind.DotDot {
+                let after_dotdot = parse_expect(source, after_int, TokenKind.DotDot);
+                parse_expect(source, after_dotdot, TokenKind.Integer)
+            } else {
+                after_int
+            }
         },
         TokenKind.String => {
             parse_expect(source, state, TokenKind.String)

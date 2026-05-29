@@ -87,6 +87,7 @@ pub enum TokenKind {
     Colon,
     Comma,
     Dot,
+    DotDot,
     Eq,
     PlusEq,
     MinusEq,

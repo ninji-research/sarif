@@ -2066,15 +2066,14 @@ impl Lowerer {
                 Element::Node(_) => None,
             })
             .collect::<Vec<_>>();
-        if tokens.len() == 4
+        if tokens.len() == 3
             && tokens[0].kind == TokenKind::Integer
-            && tokens[1].kind == TokenKind::Dot
-            && tokens[2].kind == TokenKind::Dot
-            && tokens[3].kind == TokenKind::Integer
+            && tokens[1].kind == TokenKind::DotDot
+            && tokens[2].kind == TokenKind::Integer
         {
             return Some(MatchPattern::IntegerRange {
                 start: tokens[0].lexeme.parse::<i64>().ok()?,
-                end: tokens[3].lexeme.parse::<i64>().ok()?,
+                end: tokens[2].lexeme.parse::<i64>().ok()?,
                 span: node.span,
             });
         }
