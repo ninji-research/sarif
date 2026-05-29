@@ -558,15 +558,24 @@ impl<'a> Parser<'a> {
     }
 
     fn next_expr_is_statement(&self) -> bool {
-        let mut probe = Parser {
-            tokens: self.tokens,
-            cursor: self.cursor,
-            diagnostics: Vec::new(),
-        };
-        let _ = probe.parse_expr_bp(0);
-        let mut trivia = Vec::new();
-        probe.collect_trivia(&mut trivia);
-        probe.at(TokenKind::Semicolon)
+        let mut depth: u32 = 0;
+        let mut i = self.cursor;
+        while let Some(token) = self.tokens.get(i) {
+            match token.kind {
+                k if k.is_trivia() => {}
+                TokenKind::LParen | TokenKind::LBracket | TokenKind::LBrace => depth += 1,
+                TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace => {
+                    if depth == 0 {
+                        return false;
+                    }
+                    depth -= 1;
+                }
+                TokenKind::Semicolon if depth == 0 => return true,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
     }
 
     fn next_name_is_assign_statement(&self) -> bool {
