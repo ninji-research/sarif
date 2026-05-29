@@ -70,23 +70,15 @@ pub fn strip_ansi(text: &str) -> String {
 }
 
 pub fn run_sarif(args: &[&str]) -> Output {
-    let mut actual_args = args.to_vec();
-    if !args.is_empty() && (args[0] == "check" || args[0] == "format" || args[0] == "doc") {
-        actual_args.push("--semantic");
-    }
     Command::new(bin())
-        .args(&actual_args)
+        .args(args)
         .output()
         .expect("sarifc should run")
 }
 
 pub fn run_sarif_with_env(args: &[&str], envs: &[(&str, &str)]) -> Output {
-    let mut actual_args = args.to_vec();
-    if !args.is_empty() && (args[0] == "check" || args[0] == "format" || args[0] == "doc") {
-        actual_args.push("--semantic");
-    }
     let mut command = Command::new(bin());
-    command.args(&actual_args);
+    command.args(args);
     for (key, value) in envs {
         command.env(key, value);
     }

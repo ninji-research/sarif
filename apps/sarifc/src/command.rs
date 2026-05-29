@@ -11,7 +11,6 @@ pub struct Command {
     pub output_path: Option<String>,
     pub dump_ir: Option<String>,
     pub inspect: Option<String>,
-    pub semantic: bool,
     pub debug: bool,
     pub format: Option<String>,
 }
@@ -64,7 +63,6 @@ pub fn usage() -> String {
     usage += "  -o <path>         output path for build\n";
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
-    usage += "  --semantic        use the Rust semantic backend (default is stage-0 bootstrap)\n";
     usage += "  --dump-ir=<pass>  dump IR after a compiler pass (hir, semantic, mir, cranelift, wasm, c)\n";
     usage += "                    wasm/c dumps require `--target wasm` or `--target c`\n";
     usage += "  --inspect=<tool>  inspect build output (wasmprinter; only for `build`)\n";
@@ -129,7 +127,6 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut output_path = None;
     let mut dump_ir = None;
     let mut inspect = None;
-    let mut semantic = false;
     let mut debug = false;
     let mut format = None;
 
@@ -175,7 +172,6 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             }
             "-o" => output_path = iter.next().cloned(),
             "--print-main" => print_main = true,
-            "--semantic" => semantic = true,
             "--debug" => debug = true,
             "--format" => {
                 if let Some(f) = iter.next() {
@@ -235,7 +231,6 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             output_path,
             dump_ir,
             inspect,
-            semantic,
             debug,
             format: None,
         });
@@ -266,7 +261,6 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         output_path,
         dump_ir,
         inspect,
-        semantic,
         debug,
         format,
     })

@@ -220,36 +220,17 @@ fn run_check(command: &command::Command) -> Result<(), String> {
             return Err(String::new());
         }
         Ok(())
-    } else if command.semantic {
-        print_loaded_render(command, |loaded| {
-            emit_requested_dump(loaded, command)?;
-            render_semantic_check(loaded, command.profile)
-        })
     } else {
         run_bootstrap_check(command)
     }
 }
 
 fn run_format(command: &command::Command) -> Result<(), String> {
-    if command.semantic {
-        print_loaded_render(command, |loaded| {
-            emit_requested_dump(loaded, command)?;
-            render_semantic_format(loaded)
-        })
-    } else {
-        run_bootstrap_format(command)
-    }
+    run_bootstrap_format(command)
 }
 
 fn run_doc(command: &command::Command) -> Result<(), String> {
-    if command.semantic {
-        print_loaded_render(command, |loaded| {
-            emit_requested_dump(loaded, command)?;
-            render_semantic_doc(loaded, command.profile)
-        })
-    } else {
-        run_bootstrap_doc(command)
-    }
+    run_bootstrap_doc(command)
 }
 
 fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
