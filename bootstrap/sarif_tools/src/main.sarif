@@ -899,13 +899,24 @@ fn name_table_has(table: Text, name: Text) -> Bool {
             end == text_len(table) or text_byte(table, end) == 10
         } else {
             let search = text_concat("\n", name);
-            let idx = find_operator_index(table, search, 0);
-            if idx < 0 {
-                false
-            } else {
-                let after = idx + text_len(search);
-                after >= text_len(table) or text_byte(table, after) == 10
-            }
+            let mut idx = 0;
+            let mut found = false;
+            let mut searching = true;
+            while searching {
+                idx = find_operator_index(table, search, idx);
+                if idx < 0 {
+                    searching = false;
+                } else {
+                    let after = idx + text_len(search);
+                    if after >= text_len(table) or text_byte(table, after) == 10 {
+                        found = true;
+                        searching = false;
+                    } else {
+                        idx = after;
+                    };
+                };
+            };
+            found
         }
     }
 }

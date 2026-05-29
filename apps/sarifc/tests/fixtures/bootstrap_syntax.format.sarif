@@ -407,6 +407,7 @@ enum TokenKind {
     Comment,
     Comma,
     Dot,
+    DotDot,
     Ident,
     Integer,
     Float,
@@ -1642,7 +1643,11 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
             make_single(TokenKind.Comma, offset)
         },
         46 => {
-            make_single(TokenKind.Dot, offset)
+            if next_is(source, offset, len, 46) {
+                make_double(TokenKind.DotDot, offset)
+            } else {
+                make_single(TokenKind.Dot, offset)
+            }
         },
         59 => {
             make_single(TokenKind.Semicolon, offset)
@@ -1741,7 +1746,7 @@ fn lex_next(source: Text, offset: I32) -> Token {
             LeadClass.Digit => {
                 let start = offset;
                 let end = scan_while(source, offset, len, ByteClass.Digit);
-                if end < len and text_byte(source, end) == 46 {
+                if end < len and text_byte(source, end) == 46 and text_byte(source, end + 1) != 46 {
                     let after_dot = scan_while(source, end + 1, len, ByteClass.Digit);
                     make_token(TokenKind.Float, start, after_dot)
                 } else {
@@ -2117,7 +2122,13 @@ fn parse_match_pattern(source: Text, state: ParseState) -> ParseState {
             parse_payload_pattern(source, parse_named_type(source, state))
         },
         TokenKind.Integer => {
-            parse_expect(source, state, TokenKind.Integer)
+            let after_int = parse_expect(source, state, TokenKind.Integer);
+            if after_int.cursor.kind == TokenKind.DotDot {
+                let after_dotdot = parse_expect(source, after_int, TokenKind.DotDot);
+                parse_expect(source, after_dotdot, TokenKind.Integer)
+            } else {
+                after_int
+            }
         },
         TokenKind.String => {
             parse_expect(source, state, TokenKind.String)
@@ -6905,103 +6916,163 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
                         if text_eq_simple(fn_name, "text_find_byte_range") {
                             "I32"
                         } else {
-                            if text_eq_simple(fn_name, "bytes_len") {
+                            if text_eq_simple(fn_name, "bytes_find_byte_range") {
                                 "I32"
                             } else {
-                                if text_eq_simple(fn_name, "bytes_byte") {
+                                if text_eq_simple(fn_name, "bytes_len") {
                                     "I32"
                                 } else {
-                                    if text_eq_simple(fn_name, "bytes_slice") {
-                                        "Bytes"
+                                    if text_eq_simple(fn_name, "bytes_byte") {
+                                        "I32"
                                     } else {
-                                        if text_eq_simple(fn_name, "list_new") {
-                                            "List"
+                                        if text_eq_simple(fn_name, "bytes_slice") {
+                                            "Bytes"
                                         } else {
-                                            if text_eq_simple(fn_name, "list_len") {
-                                                "I32"
+                                            if text_eq_simple(fn_name, "bytes_to_text") {
+                                                "Text"
                                             } else {
-                                                if text_eq_simple(fn_name, "list_get") {
-                                                    "Text"
+                                                if text_eq_simple(fn_name, "list_new") {
+                                                    "List"
                                                 } else {
-                                                    if text_eq_simple(fn_name, "list_push") {
-                                                        "Unit"
+                                                    if text_eq_simple(fn_name, "list_len") {
+                                                        "I32"
                                                     } else {
-                                                        if text_eq_simple(fn_name, "parse_i32") {
-                                                            "I32"
+                                                        if text_eq_simple(fn_name, "list_get") {
+                                                            "Text"
                                                         } else {
-                                                            if text_eq_simple(fn_name, "parse_i32_range") {
-                                                                "I32"
+                                                            if text_eq_simple(fn_name, "list_set") {
+                                                                "Unit"
                                                             } else {
-                                                                if text_eq_simple(fn_name, "parse_f64") {
-                                                                    "F64"
+                                                                if text_eq_simple(fn_name, "list_push") {
+                                                                    "Unit"
                                                                 } else {
-                                                                    if text_eq_simple(fn_name, "sqrt") {
-                                                                        "F64"
+                                                                    if text_eq_simple(fn_name, "list_sort_text") {
+                                                                        "List"
                                                                     } else {
-                                                                        if text_eq_simple(fn_name, "f64_from_i32") {
-                                                                            "F64"
+                                                                        if text_eq_simple(fn_name, "list_sort_by_text_field") {
+                                                                            "List"
                                                                         } else {
-                                                                            if text_eq_simple(fn_name, "text_builder_new") {
-                                                                                "TextBuilder"
+                                                                            if text_eq_simple(fn_name, "parse_i32") {
+                                                                                "I32"
                                                                             } else {
-                                                                                if text_eq_simple(fn_name, "text_builder_append") {
-                                                                                    "TextBuilder"
+                                                                                if text_eq_simple(fn_name, "parse_i32_range") {
+                                                                                    "I32"
                                                                                 } else {
-                                                                                    if text_eq_simple(fn_name, "text_builder_finish") {
-                                                                                        "Text"
+                                                                                    if text_eq_simple(fn_name, "parse_f64") {
+                                                                                        "F64"
                                                                                     } else {
-                                                                                        if text_eq_simple(fn_name, "text_intern") {
-                                                                                            "Text"
+                                                                                        if text_eq_simple(fn_name, "sqrt") {
+                                                                                            "F64"
                                                                                         } else {
-                                                                                            if text_eq_simple(fn_name, "text_index_new") {
-                                                                                                "TextIndex"
+                                                                                            if text_eq_simple(fn_name, "f64_from_i32") {
+                                                                                                "F64"
                                                                                             } else {
-                                                                                                if text_eq_simple(fn_name, "text_index_get") {
-                                                                                                    "I32"
+                                                                                                if text_eq_simple(fn_name, "text_builder_new") {
+                                                                                                    "TextBuilder"
                                                                                                 } else {
-                                                                                                    if text_eq_simple(fn_name, "text_index_contains") {
-                                                                                                        "Bool"
+                                                                                                    if text_eq_simple(fn_name, "text_builder_append") {
+                                                                                                        "TextBuilder"
                                                                                                     } else {
-                                                                                                        if text_eq_simple(fn_name, "text_index_set") {
-                                                                                                            "Unit"
+                                                                                                        if text_eq_simple(fn_name, "text_builder_append_codepoint") {
+                                                                                                            "TextBuilder"
                                                                                                         } else {
-                                                                                                            if text_eq_simple(fn_name, "stdout_write") {
-                                                                                                                "Unit"
+                                                                                                            if text_eq_simple(fn_name, "text_builder_append_ascii") {
+                                                                                                                "TextBuilder"
                                                                                                             } else {
-                                                                                                                if text_eq_simple(fn_name, "stdout_write_builder") {
-                                                                                                                    "Unit"
+                                                                                                                if text_eq_simple(fn_name, "text_builder_append_slice") {
+                                                                                                                    "TextBuilder"
                                                                                                                 } else {
-                                                                                                                    if text_eq_simple(fn_name, "stdin_text") {
-                                                                                                                        "Text"
+                                                                                                                    if text_eq_simple(fn_name, "text_builder_append_i32") {
+                                                                                                                        "TextBuilder"
                                                                                                                     } else {
-                                                                                                                        if text_eq_simple(fn_name, "stdin_bytes") {
-                                                                                                                            "Bytes"
+                                                                                                                        if text_eq_simple(fn_name, "text_builder_finish") {
+                                                                                                                            "Text"
                                                                                                                         } else {
-                                                                                                                            if text_eq_simple(fn_name, "arg_count") {
-                                                                                                                                "I32"
+                                                                                                                            if text_eq_simple(fn_name, "text_intern") {
+                                                                                                                                "Text"
                                                                                                                             } else {
-                                                                                                                                if text_eq_simple(fn_name, "arg_text") {
-                                                                                                                                    "Text"
+                                                                                                                                if text_eq_simple(fn_name, "text_index_new") {
+                                                                                                                                    "TextIndex"
                                                                                                                                 } else {
-                                                                                                                                    if text_eq_simple(fn_name, "file_open") {
-                                                                                                                                        "File"
+                                                                                                                                    if text_eq_simple(fn_name, "text_index_get") {
+                                                                                                                                        "I32"
                                                                                                                                     } else {
-                                                                                                                                        if text_eq_simple(fn_name, "file_read") {
-                                                                                                                                            "Text"
+                                                                                                                                        if text_eq_simple(fn_name, "text_index_contains") {
+                                                                                                                                            "Bool"
                                                                                                                                         } else {
-                                                                                                                                            if text_eq_simple(fn_name, "file_write") {
+                                                                                                                                            if text_eq_simple(fn_name, "text_index_set") {
                                                                                                                                                 "Unit"
                                                                                                                                             } else {
-                                                                                                                                                if text_eq_simple(fn_name, "file_size") {
-                                                                                                                                                    "I32"
+                                                                                                                                                if text_eq_simple(fn_name, "stdout_write") {
+                                                                                                                                                    "Unit"
                                                                                                                                                 } else {
-                                                                                                                                                    if text_eq_simple(fn_name, "is_empty") {
-                                                                                                                                                        "Bool"
+                                                                                                                                                    if text_eq_simple(fn_name, "stdout_write_builder") {
+                                                                                                                                                        "Unit"
                                                                                                                                                     } else {
-                                                                                                                                                        if text_eq_simple(fn_name, "len") {
-                                                                                                                                                            "I32"
+                                                                                                                                                        if text_eq_simple(fn_name, "stdin_text") {
+                                                                                                                                                            "Text"
                                                                                                                                                         } else {
-                                                                                                                                                            "I32"
+                                                                                                                                                            if text_eq_simple(fn_name, "stdin_bytes") {
+                                                                                                                                                                "Bytes"
+                                                                                                                                                            } else {
+                                                                                                                                                                if text_eq_simple(fn_name, "arg_count") {
+                                                                                                                                                                    "I32"
+                                                                                                                                                                } else {
+                                                                                                                                                                    if text_eq_simple(fn_name, "arg_text") {
+                                                                                                                                                                        "Text"
+                                                                                                                                                                    } else {
+                                                                                                                                                                        if text_eq_simple(fn_name, "file_open") {
+                                                                                                                                                                            "File"
+                                                                                                                                                                        } else {
+                                                                                                                                                                            if text_eq_simple(fn_name, "file_read") {
+                                                                                                                                                                                "Text"
+                                                                                                                                                                            } else {
+                                                                                                                                                                                if text_eq_simple(fn_name, "file_read_to_end") {
+                                                                                                                                                                                    "Text"
+                                                                                                                                                                                } else {
+                                                                                                                                                                                    if text_eq_simple(fn_name, "file_write") {
+                                                                                                                                                                                        "Unit"
+                                                                                                                                                                                    } else {
+                                                                                                                                                                                        if text_eq_simple(fn_name, "file_size") {
+                                                                                                                                                                                            "I32"
+                                                                                                                                                                                        } else {
+                                                                                                                                                                                            if text_eq_simple(fn_name, "file_seek") {
+                                                                                                                                                                                                "I32"
+                                                                                                                                                                                            } else {
+                                                                                                                                                                                                if text_eq_simple(fn_name, "file_tell") {
+                                                                                                                                                                                                    "I32"
+                                                                                                                                                                                                } else {
+                                                                                                                                                                                                    if text_eq_simple(fn_name, "file_exists") {
+                                                                                                                                                                                                        "Bool"
+                                                                                                                                                                                                    } else {
+                                                                                                                                                                                                        if text_eq_simple(fn_name, "file_remove") {
+                                                                                                                                                                                                            "I32"
+                                                                                                                                                                                                        } else {
+                                                                                                                                                                                                            if text_eq_simple(fn_name, "file_is_valid") {
+                                                                                                                                                                                                                "I32"
+                                                                                                                                                                                                            } else {
+                                                                                                                                                                                                                if text_eq_simple(fn_name, "is_empty") {
+                                                                                                                                                                                                                    "Bool"
+                                                                                                                                                                                                                } else {
+                                                                                                                                                                                                                    if text_eq_simple(fn_name, "len") {
+                                                                                                                                                                                                                        "I32"
+                                                                                                                                                                                                                    } else {
+                                                                                                                                                                                                                        "I32"
+                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                }
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                }
+                                                                                                                                                                                            }
+                                                                                                                                                                                        }
+                                                                                                                                                                                    }
+                                                                                                                                                                                }
+                                                                                                                                                                            }
+                                                                                                                                                                        }
+                                                                                                                                                                    }
+                                                                                                                                                                }
+                                                                                                                                                            }
                                                                                                                                                         }
                                                                                                                                                     }
                                                                                                                                                 }

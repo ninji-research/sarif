@@ -206,7 +206,7 @@
 
 ### enum TokenKind
 
-- variants: `65`
+- variants: `66`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
