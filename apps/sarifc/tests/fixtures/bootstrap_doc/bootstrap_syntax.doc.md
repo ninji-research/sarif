@@ -68,7 +68,7 @@
 
 ### enum MirInst
 
-- variants: `54`
+- variants: `55`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -206,7 +206,7 @@
 
 ### enum TokenKind
 
-- variants: `66`
+- variants: `68`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1456,6 +1456,12 @@
 ### fn mir_inst_div
 
 - signature: `fn mir_inst_div(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn mir_inst_rem
+
+- signature: `fn mir_inst_rem(dest: I32, left: I32, right: I32) -> MirInstData`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 

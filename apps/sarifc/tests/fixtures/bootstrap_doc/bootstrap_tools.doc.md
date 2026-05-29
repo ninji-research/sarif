@@ -68,7 +68,7 @@
 
 ### enum MirInst
 
-- variants: `54`
+- variants: `55`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -206,7 +206,7 @@
 
 ### enum TokenKind
 
-- variants: `66`
+- variants: `68`
 - ownership: `plain tag`
 - rt status: `profile-compatible`
 
@@ -1459,6 +1459,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn mir_inst_rem
+
+- signature: `fn mir_inst_rem(dest: I32, left: I32, right: I32) -> MirInstData`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn mir_inst_bitand
 
 - signature: `fn mir_inst_bitand(dest: I32, left: I32, right: I32) -> MirInstData`
@@ -1701,6 +1707,729 @@
 
 ## bootstrap/sarif_tools/src/main.sarif
 
-# Sarif Semantic Docs
+### fn is_empty
 
-invalid
+- signature: `fn is_empty(source: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn int_to_text
+
+- signature: `fn int_to_text(n: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn has_terminal_newline
+
+- signature: `fn has_terminal_newline(source: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_layout_byte
+
+- signature: `fn is_layout_byte(byte: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_start_index
+
+- signature: `fn trim_start_index(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_end_index
+
+- signature: `fn trim_end_index(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_text
+
+- signature: `fn trim_text(source: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_body_start_index
+
+- signature: `fn trim_body_start_index(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn leading_indent_end
+
+- signature: `fn leading_indent_end(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_line_end
+
+- signature: `fn find_line_end(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn text_starts_with_at
+
+- signature: `fn text_starts_with_at(source: Text, needle: Text, index: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn contains_byte
+
+- signature: `fn contains_byte(source: Text, byte: I32, index: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn has_second_operator
+
+- signature: `fn has_second_operator(content: Text, op: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn chain_suffix
+
+- signature: `fn chain_suffix(op: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn indent_text
+
+- signature: `fn indent_text(width: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_operator_index
+
+- signature: `fn find_operator_index(source: Text, op: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn format_chain_content
+
+- signature: `fn format_chain_content(content: Text, op: Text, indent_width: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn line_chain_operator
+
+- signature: `fn line_chain_operator(content: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn rewrite_chain_line
+
+- signature: `fn rewrite_chain_line(line: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_byte_index
+
+- signature: `fn find_byte_index(source: Text, byte: I32, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn rewrite_body_lines_from
+
+- signature: `fn rewrite_body_lines_from(source: Text, index: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn indent_lines_from
+
+- signature: `fn indent_lines_from(source: Text, index: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_indent_byte
+
+- signature: `fn is_indent_byte(byte: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn line_indent_width
+
+- signature: `fn line_indent_width(source: Text, index: I32, line_end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn first_content_indent
+
+- signature: `fn first_content_indent(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn strip_line_indent
+
+- signature: `fn strip_line_indent(source: Text, index: I32, line_end: I32, remaining: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn strip_indent_lines_from
+
+- signature: `fn strip_indent_lines_from(source: Text, index: I32, indent: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn top_level_source_text
+
+- signature: `fn top_level_source_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn span_text
+
+- signature: `fn span_text(source: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn body_source_text
+
+- signature: `fn body_source_text(source: Text, shape: FnHeaderShape) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn top_level_kind_text
+
+- signature: `fn top_level_kind_text(kind: TopLevelKind) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn top_level_name_text
+
+- signature: `fn top_level_name_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn name_text
+
+- signature: `fn name_text(source: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn count_enum_variants
+
+- signature: `fn count_enum_variants(source: Text, start: I32, end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn append_span_text
+
+- signature: `fn append_span_text(source: Text, current: Text, prefix: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn fn_signature_text
+
+- signature: `fn fn_signature_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn format_fn_entry_text
+
+- signature: `fn format_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn format_stream_from
+
+- signature: `fn format_stream_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn format_text
+
+- signature: `fn format_text(source: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn block_item_kind_text
+
+- signature: `fn block_item_kind_text(kind: BlockItemKind) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn expr_kind_text
+
+- signature: `fn expr_kind_text(kind: ExprKind) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn block_item_text
+
+- signature: `fn block_item_text(entry: BlockItemEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn body_outline_text_from
+
+- signature: `fn body_outline_text_from(outline: BlockOutline, index: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn body_outline_text
+
+- signature: `fn body_outline_text(outline: BlockOutline) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn doc_entry_text
+
+- signature: `fn doc_entry_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn doc_non_fn_entry_text
+
+- signature: `fn doc_non_fn_entry_text(source: Text, entry: TopLevelEntry) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn doc_fn_entry_text
+
+- signature: `fn doc_fn_entry_text(source: Text, entry: TopLevelEntry, shape: FnHeaderShape) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn outline_text_from
+
+- signature: `fn outline_text_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn contains_blocked_effect
+
+- signature: `fn contains_blocked_effect(source: Text, span: OptionalSpan) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn fn_has_blocked_effect
+
+- signature: `fn fn_has_blocked_effect(source: Text, shape: FnHeaderShape) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_const_value_from_span
+
+- signature: `fn extract_const_value_from_span(source: Text, item_start: I32, item_end: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn struct_body_contains_affine
+
+- signature: `fn struct_body_contains_affine(source: Text, body_start: I32, body_end: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn outline_doc_text_from
+
+- signature: `fn outline_doc_text_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn outline_doc_text
+
+- signature: `fn outline_doc_text(source: Text) -> Text effects [alloc]`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn doc_text
+
+- signature: `fn doc_text(source: Text) -> Text effects [alloc]`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn name_table_add
+
+- signature: `fn name_table_add(table: Text, name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn name_table_has
+
+- signature: `fn name_table_has(table: Text, name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn name_table_count
+
+- signature: `fn name_table_count(table: Text, name: Text) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_call_callee
+
+- signature: `fn extract_call_callee(expr_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_all_names_from
+
+- signature: `fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_all_names
+
+- signature: `fn collect_all_names(source: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_duplicate_defs_from
+
+- signature: `fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_builtin_fn
+
+- signature: `fn is_builtin_fn(name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn builtin_return_type
+
+- signature: `fn builtin_return_type(name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_expr_for_calls
+
+- signature: `fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_body_outline_calls
+
+- signature: `fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_body_calls_from
+
+- signature: `fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn span_text_safe
+
+- signature: `fn span_text_safe(source: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_type_text
+
+- signature: `fn extract_type_text(type_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_builtin_type
+
+- signature: `fn is_builtin_type(name: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_numeric_type
+
+- signature: `fn is_numeric_type(ty: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn type_table_lookup
+
+- signature: `fn type_table_lookup(table: Text, key: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn type_table_extend
+
+- signature: `fn type_table_extend(table: Text, key: Text, value: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_struct_field_layout
+
+- signature: `fn collect_struct_field_layout(body: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_struct_types
+
+- signature: `fn collect_struct_types(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_name_type
+
+- signature: `fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_dotted_type
+
+- signature: `fn infer_dotted_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn resolve_nested_struct_field
+
+- signature: `fn resolve_nested_struct_field(field_path: Text, struct_fields: Text, consts: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn resolve_struct_field
+
+- signature: `fn resolve_struct_field(field: Text, fields_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_call_ret_type
+
+- signature: `fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_matching_close_raw
+
+- signature: `fn find_matching_close_raw(source: Text, start: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn skip_expr_text
+
+- signature: `fn skip_expr_text(source: Text, start: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_operator_in_expr
+
+- signature: `fn find_operator_in_expr(source: Text, span: Span) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_binary_type_deep
+
+- signature: `fn infer_binary_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_unary_type_deep
+
+- signature: `fn infer_unary_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_if_type_deep
+
+- signature: `fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_match_type_deep
+
+- signature: `fn infer_match_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_match_arm_type
+
+- signature: `fn extract_match_arm_type(body: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_group_type_deep
+
+- signature: `fn infer_group_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_expr_type_deep
+
+- signature: `fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_expr_type_from_outline
+
+- signature: `fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn line_start_index
+
+- signature: `fn line_start_index(source: Text, pos: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_simple_name
+
+- signature: `fn is_simple_name(text: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn format_type_diag
+
+- signature: `fn format_type_diag(source: Text, span: Span, message: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn format_type_diag_at
+
+- signature: `fn format_type_diag_at(source: Text, span_start: I32, span_end: I32, message: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_param_types_from
+
+- signature: `fn extract_param_types_from(source: Text, span: OptionalSpan) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn parse_params_from
+
+- signature: `fn parse_params_from(content: Text, index: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_snippet_type
+
+- signature: `fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_group_type
+
+- signature: `fn infer_group_type(text: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_if_type_from_text
+
+- signature: `fn infer_if_type_from_text(text: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_block_body
+
+- signature: `fn extract_block_body(block_text: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn infer_branch_type
+
+- signature: `fn infer_branch_type(branch_text: Text, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_if_type_deep
+
+- signature: `fn check_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_unary_operator_args
+
+- signature: `fn check_unary_operator_args(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_expr_types_deep
+
+- signature: `fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_fn_return_type
+
+- signature: `fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_affine_type
+
+- signature: `fn is_affine_type(ty: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_array_or_list_type
+
+- signature: `fn is_array_or_list_type(ty: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn strip_mut_prefix
+
+- signature: `fn strip_mut_prefix(ty: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_comparison_operator
+
+- signature: `fn is_comparison_operator(expr_text: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_chain_operator
+
+- signature: `fn is_chain_operator(expr_text: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_binary_operator_args
+
+- signature: `fn check_binary_operator_args(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_match_arm_types
+
+- signature: `fn check_match_arm_types(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_const_type
+
+- signature: `fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_const_types_from
+
+- signature: `fn check_const_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_fn_types_from
+
+- signature: `fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_const_types
+
+- signature: `fn collect_const_types(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_fn_sigs_from
+
+- signature: `fn collect_fn_sigs_from(source: Text, state: ParseState) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_text
+
+- signature: `fn check_text(source: Text, package_names: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn bool_score
+
+- signature: `fn bool_score(value: Bool) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn main
+
+- signature: `fn main() -> I32`
+- ownership: `affine-safe in stage-0`
+- rt status: `profile-compatible`
+

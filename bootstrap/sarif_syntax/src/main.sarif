@@ -103,6 +103,7 @@ enum MirInst {
     Sub,
     Mul,
     Div,
+    Rem,
     BitAnd,
     BitOr,
     BitXor,
@@ -466,6 +467,8 @@ enum TokenKind {
     Ampersand,
     Shl,
     Shr,
+    Percent,
+    PercentEq,
     Invalid,
     Eof,
 }
@@ -1611,6 +1614,13 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
                 make_double(TokenKind.SlashEq, offset)
             } else {
                 make_single(TokenKind.Slash, offset)
+}
+        },
+         37 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.PercentEq, offset)
+            } else {
+                make_single(TokenKind.Percent, offset)
             }
         },
          42 => {
@@ -1620,7 +1630,7 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
                 make_single(TokenKind.Star, offset)
             }
         },
-        58 => {
+         58 => {
             make_single(TokenKind.Colon, offset)
         },
         44 => {
@@ -1882,6 +1892,9 @@ fn infix_left_bp(kind: TokenKind) -> I32 {
         TokenKind.Slash => {
             9
         },
+        TokenKind.Percent => {
+            9
+        },
         TokenKind.Dot => {
             11
         },
@@ -1986,6 +1999,7 @@ fn is_assign_op(kind: TokenKind) -> Bool {
         or kind == TokenKind.MinusEq
         or kind == TokenKind.StarEq
         or kind == TokenKind.SlashEq
+        or kind == TokenKind.PercentEq
 }
 
 fn starts_assign(source: Text, state: ParseState) -> Bool {
@@ -2564,6 +2578,7 @@ fn is_binary_operator_token(kind: TokenKind) -> Bool {
         or kind == TokenKind.Minus
         or kind == TokenKind.Star
         or kind == TokenKind.Slash
+        or kind == TokenKind.Percent
         or kind == TokenKind.KwAnd
         or kind == TokenKind.KwOr
         or kind == TokenKind.Pipe
@@ -2955,6 +2970,9 @@ fn mir_inst_tag_is_alloc_push(tag: MirInst) -> Bool {
         MirInst.Div => {
             false
         },
+        MirInst.Rem => {
+            false
+        },
         MirInst.BitAnd => {
             false
         },
@@ -3121,6 +3139,9 @@ fn mir_inst_tag_name(tag: MirInst) -> Text {
         },
         MirInst.Div => {
             "div"
+        },
+        MirInst.Rem => {
+            "rem"
         },
         MirInst.BitAnd => {
             "bit-and"
@@ -3318,6 +3339,10 @@ fn mir_inst_mul(dest: I32, left: I32, right: I32) -> MirInstData {
 
 fn mir_inst_div(dest: I32, left: I32, right: I32) -> MirInstData {
     MirInstData { tag: MirInst.Div, a: dest, b: left, c: right, d: 0, t1: "", t2: "" }
+}
+
+fn mir_inst_rem(dest: I32, left: I32, right: I32) -> MirInstData {
+    MirInstData { tag: MirInst.Rem, a: dest, b: left, c: right, d: 0, t1: "", t2: "" }
 }
 
 fn mir_inst_bitand(dest: I32, left: I32, right: I32) -> MirInstData {
