@@ -796,7 +796,12 @@ fn emit_inst(
                 write!(c, "{}", vref(arg)).map_err(to_string)?;
             }
             c.push(')');
-            out.line(&format!("v{} = (uint64_t){};", dest.0, c))?;
+            let dest_kind = value_kinds.get(dest);
+            if dest_kind == Some(&CodegenValueKind::Unit) {
+                out.line(&format!("{};", c))?;
+            } else {
+                out.line(&format!("v{} = (uint64_t){};", dest.0, c))?;
+            }
         }
         Inst::LoadParam { dest, index } => {
             out.line(&format!("v{} = p{};", dest.0, index))?;
@@ -1488,7 +1493,11 @@ fn emit_main_wrapper(
         if kind == CodegenValueKind::Unit {
             continue;
         }
-        out.line(&format!("uint64_t v{};", i))?;
+        let tn = func_type_name(Some(match kind {
+            CodegenValueKind::F64 => "F64",
+            _ => "I32",
+        }));
+        out.line(&format!("{} v{};", tn, i))?;
     }
     for local in &main.mutable_locals {
         let tn = func_type_name(Some(&local.ty));
