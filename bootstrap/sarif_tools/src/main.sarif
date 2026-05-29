@@ -1015,8 +1015,71 @@ fn is_builtin_fn(name: Text) -> Bool {
 }
 
 fn builtin_return_type(name: Text) -> Text {
-    let tb = "text_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32";
-    if name_table_has(tb, name) { "TextBuilder" } else { "I32" }
+    if text_cmp(name, "text_len") == 0 { "I32" }
+    else if text_cmp(name, "text_byte") == 0 { "I32" }
+    else if text_cmp(name, "text_cmp") == 0 { "I32" }
+    else if text_cmp(name, "text_find_byte_range") == 0 { "I32" }
+    else if text_cmp(name, "text_index_contains") == 0 { "I32" }
+    else if text_cmp(name, "text_index_get") == 0 { "I32" }
+    else if text_cmp(name, "text_index_get_or_insert") == 0 { "I32" }
+    else if text_cmp(name, "text_line_end") == 0 { "I32" }
+    else if text_cmp(name, "text_next_field") == 0 { "I32" }
+    else if text_cmp(name, "text_next_line") == 0 { "I32" }
+    else if text_cmp(name, "bytes_len") == 0 { "I32" }
+    else if text_cmp(name, "bytes_byte") == 0 { "I32" }
+    else if text_cmp(name, "bytes_find_byte_range") == 0 { "I32" }
+    else if text_cmp(name, "file_seek") == 0 { "I32" }
+    else if text_cmp(name, "file_size") == 0 { "I32" }
+    else if text_cmp(name, "file_tell") == 0 { "I32" }
+    else if text_cmp(name, "file_write") == 0 { "I32" }
+    else if text_cmp(name, "parse_i32") == 0 { "I32" }
+    else if text_cmp(name, "parse_i32_range") == 0 { "I32" }
+    else if text_cmp(name, "enum_to_i32") == 0 { "I32" }
+    else if text_cmp(name, "len") == 0 { "I32" }
+    else if text_cmp(name, "list_len") == 0 { "I32" }
+    else if text_cmp(name, "arg_count") == 0 { "I32" }
+    else if text_cmp(name, "text_slice") == 0 { "Text" }
+    else if text_cmp(name, "text_concat") == 0 { "Text" }
+    else if text_cmp(name, "text_from_f64_fixed") == 0 { "Text" }
+    else if text_cmp(name, "text_intern") == 0 { "Text" }
+    else if text_cmp(name, "text_builder_finish") == 0 { "Text" }
+    else if text_cmp(name, "stdin_text") == 0 { "Text" }
+    else if text_cmp(name, "arg_text") == 0 { "Text" }
+    else if text_cmp(name, "bytes_to_text") == 0 { "Text" }
+    else if text_cmp(name, "codepoint_to_text") == 0 { "Text" }
+    else if text_cmp(name, "enum_to_text") == 0 { "Text" }
+    else if text_cmp(name, "text_eq_range") == 0 { "Bool" }
+    else if text_cmp(name, "file_exists") == 0 { "Bool" }
+    else if text_cmp(name, "file_is_valid") == 0 { "Bool" }
+    else if text_cmp(name, "file_remove") == 0 { "Bool" }
+    else if text_cmp(name, "stdout_write") == 0 { "Unit" }
+    else if text_cmp(name, "alloc_pop") == 0 { "Unit" }
+    else if text_cmp(name, "alloc_push") == 0 { "Unit" }
+    else if text_cmp(name, "file_close") == 0 { "Unit" }
+    else if text_cmp(name, "const_assert") == 0 { "Unit" }
+    else if text_cmp(name, "list_set") == 0 { "Unit" }
+    else if text_cmp(name, "list_push") == 0 { "Unit" }
+    else if text_cmp(name, "file_read") == 0 { "Bytes" }
+    else if text_cmp(name, "file_read_to_end") == 0 { "Bytes" }
+    else if text_cmp(name, "stdin_bytes") == 0 { "Bytes" }
+    else if text_cmp(name, "bytes_slice") == 0 { "Bytes" }
+    else if text_cmp(name, "text_index_new") == 0 { "TextIndex" }
+    else if text_cmp(name, "text_index_set") == 0 { "TextIndex" }
+    else if text_cmp(name, "text_builder_new") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_codepoint") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_ascii") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_i32") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_slice") == 0 { "TextBuilder" }
+    else if text_cmp(name, "stdout_write_builder") == 0 { "TextBuilder" }
+    else if text_cmp(name, "file_open") == 0 { "File" }
+    else if text_cmp(name, "list_new") == 0 { "List" }
+    else if text_cmp(name, "list_sort_text") == 0 { "List" }
+    else if text_cmp(name, "list_sort_by_text_field") == 0 { "List" }
+    else if text_cmp(name, "f64_from_i32") == 0 { "F64" }
+    else if text_cmp(name, "sqrt") == 0 { "F64" }
+    else if text_cmp(name, "list_get") == 0 { "Text" }
+    else { "I32" }
 }
 
 fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
@@ -1136,7 +1199,7 @@ fn extract_type_text(type_text: Text) -> Text {
 }
 
 fn is_builtin_type(name: Text) -> Bool {
-    name == "I32" or name == "F64" or name == "Bool" or name == "Text" or name == "Unit" or name == "Bytes" or name == "TextIndex" or name == "TextBuilder"
+    name == "I32" or name == "F64" or name == "Bool" or name == "Text" or name == "Unit" or name == "Bytes" or name == "TextIndex" or name == "TextBuilder" or name == "File" or name == "List"
 }
 
 fn is_numeric_type(ty: Text) -> Bool {
@@ -1786,7 +1849,7 @@ fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> T
                         let ret = type_table_lookup(fns, callee);
                         if is_empty(ret) {
                             if is_builtin_fn(callee) {
-                                "I32"
+                                builtin_return_type(callee)
                             } else {
                                 ""
                             }
