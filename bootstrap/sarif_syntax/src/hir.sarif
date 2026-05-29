@@ -2046,76 +2046,74 @@ fn hir_unary_to_mir(expr: HirExpr) -> MirBlock {
     }
 }
 
+fn operator_code(op: Text) -> I32 {
+    let c = text_byte(op, 0);
+    if c == 43 { 0 }
+    else if c == 45 { 1 }
+    else if c == 42 { 2 }
+    else if c == 47 { 3 }
+    else if c == 61 {
+        let len = text_len(op);
+        if len == 1 { 4 }
+        else if text_byte(op, 1) == 61 { 5 }
+        else { -1 }
+    }
+    else if c == 33 { 6 }
+    else if c == 60 {
+        let len = text_len(op);
+        if len == 1 { 7 }
+        else if text_byte(op, 1) == 61 { 8 }
+        else if text_byte(op, 1) == 60 { 9 }
+        else { -1 }
+    }
+    else if c == 62 {
+        let len = text_len(op);
+        if len == 1 { 10 }
+        else if text_byte(op, 1) == 61 { 11 }
+        else if text_byte(op, 1) == 62 { 12 }
+        else { -1 }
+    }
+    else if c == 38 {
+        let len = text_len(op);
+        if len == 1 { 13 }
+        else if text_byte(op, 1) == 38 { 14 }
+        else { -1 }
+    }
+    else if c == 124 {
+        let len = text_len(op);
+        if len == 1 { 15 }
+        else if text_byte(op, 1) == 124 { 16 }
+        else { -1 }
+    }
+    else if c == 94 { 17 }
+    else if c == 37 { 18 }
+    else { -1 }
+}
+
 fn hir_binary_to_mir(expr: HirExpr) -> MirBlock {
     let op = expr.t1;
-    if op == "+" {
-        mir_block_with_inst(mir_inst_add(0, expr.a, expr.b))
-    } else {
-        if op == "-" {
-            mir_block_with_inst(mir_inst_sub(0, expr.a, expr.b))
-        } else {
-            if op == "*" {
-                mir_block_with_inst(mir_inst_mul(0, expr.a, expr.b))
-            } else {
-                if op == "/" {
-                    mir_block_with_inst(mir_inst_div(0, expr.a, expr.b))
-                } else {
-                    if op == "==" {
-                        mir_block_with_inst(mir_inst_eq(0, expr.a, expr.b))
-                    } else {
-                        if op == "!=" {
-                            mir_block_with_inst(mir_inst_ne(0, expr.a, expr.b))
-                        } else {
-                            if op == "<" {
-                                mir_block_with_inst(mir_inst_lt(0, expr.a, expr.b))
-                            } else {
-                                if op == "<=" {
-                                    mir_block_with_inst(mir_inst_le(0, expr.a, expr.b))
-                                } else {
-                                    if op == ">" {
-                                        mir_block_with_inst(mir_inst_gt(0, expr.a, expr.b))
-                                    } else {
-                                        if op == ">=" {
-                                            mir_block_with_inst(mir_inst_ge(0, expr.a, expr.b))
-                                        } else {
-                                            if op == "&&" {
-                                                mir_block_with_inst(mir_inst_and(0, expr.a, expr.b))
-                                            } else {
-                                                if op == "||" {
-                                                    mir_block_with_inst(mir_inst_or(0, expr.a, expr.b))
-                                                } else {
-                                                    if op == "&" {
-                                                        mir_block_with_inst(mir_inst_bitand(0, expr.a, expr.b))
-                                                    } else {
-                                                        if op == "|" {
-                                                            mir_block_with_inst(mir_inst_bitor(0, expr.a, expr.b))
-                                                        } else {
-                                                            if op == "^" {
-                                                                mir_block_with_inst(mir_inst_bitxor(0, expr.a, expr.b))
-                                                            } else {
-                                                                if op == "<<" {
-                                                                    mir_block_with_inst(mir_inst_shl(0, expr.a, expr.b))
-                                                                } else {
-                                                                    if op == ">>" {
-                                                                        mir_block_with_inst(mir_inst_shr(0, expr.a, expr.b))
-                                                                    } else {
-                                                                        mir_block_new()
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    let code = operator_code(op);
+    match code {
+        0 => mir_block_with_inst(mir_inst_add(0, expr.a, expr.b)),
+        1 => mir_block_with_inst(mir_inst_sub(0, expr.a, expr.b)),
+        2 => mir_block_with_inst(mir_inst_mul(0, expr.a, expr.b)),
+        3 => mir_block_with_inst(mir_inst_div(0, expr.a, expr.b)),
+        4 => mir_block_with_inst(mir_inst_eq(0, expr.a, expr.b)),
+        5 => mir_block_with_inst(mir_inst_eq(0, expr.a, expr.b)),
+        6 => mir_block_with_inst(mir_inst_ne(0, expr.a, expr.b)),
+        7 => mir_block_with_inst(mir_inst_lt(0, expr.a, expr.b)),
+        8 => mir_block_with_inst(mir_inst_le(0, expr.a, expr.b)),
+        9 => mir_block_with_inst(mir_inst_shl(0, expr.a, expr.b)),
+        10 => mir_block_with_inst(mir_inst_gt(0, expr.a, expr.b)),
+        11 => mir_block_with_inst(mir_inst_ge(0, expr.a, expr.b)),
+        12 => mir_block_with_inst(mir_inst_shr(0, expr.a, expr.b)),
+        13 => mir_block_with_inst(mir_inst_bitand(0, expr.a, expr.b)),
+        14 => mir_block_with_inst(mir_inst_and(0, expr.a, expr.b)),
+        15 => mir_block_with_inst(mir_inst_bitor(0, expr.a, expr.b)),
+        16 => mir_block_with_inst(mir_inst_or(0, expr.a, expr.b)),
+        17 => mir_block_with_inst(mir_inst_bitxor(0, expr.a, expr.b)),
+        18 => mir_block_with_inst(mir_inst_rem(0, expr.a, expr.b)),
+        _ => mir_block_new()
     }
 }
 
