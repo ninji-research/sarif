@@ -285,7 +285,7 @@ static inline __attribute__((always_inline)) uint64_t sarif_load_u64(const unsig
 // Persistent string interning pool.
 // Strings allocated here are never freed during program lifetime.
 // Each unique content string is stored exactly once.
-#define SARIF_INTERN_BUCKET_COUNT 2048u
+#define SARIF_INTERN_BUCKET_COUNT 262144u
 #define SARIF_INTERN_CHUNK_SIZE (64u * 1024u)
 
 struct SarifInternBucket {
