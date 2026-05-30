@@ -35,8 +35,8 @@ use crate::{Function, Program, RuntimeError, RuntimeValue, ValueId};
 // ---------------------------------------------------------------------------
 
 thread_local! {
-    static ARENA: RefCell<Vec<u8>> = RefCell::new(Vec::new());
-    static SCOPE_STACK: RefCell<Vec<usize>> = RefCell::new(Vec::new());
+    static ARENA: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    static SCOPE_STACK: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
 }
 
 const ARENA_ALIGN: usize = 16;
@@ -430,8 +430,10 @@ pub unsafe extern "C" fn sarif_text_builder_new() -> i64 {
 unsafe fn builder_grow(builder: *mut SarifTextBuilder, needed: usize) {
     unsafe {
         let cap = (*builder).cap as usize;
-        let new_cap = cap.max(128) * 2;
-        while new_cap < needed { /* already doubled */ }
+        let mut new_cap = cap.max(128) * 2;
+        while new_cap < needed {
+            new_cap *= 2;
+        }
         let old_ptr = (*builder).bytes;
         let _old_len = (*builder).len as usize;
         let mut new_buf = Vec::from_raw_parts(old_ptr, cap, cap);
@@ -551,7 +553,7 @@ pub unsafe extern "C" fn sarif_text_builder_append_i32(builder: i64, value: i64)
 pub unsafe extern "C" fn sarif_text_builder_finish(builder: i64) -> i64 {
     unsafe {
         let builder = builder as *mut SarifTextBuilder;
-        let len = (*builder).len as u64;
+        let len = (*builder).len;
         let result = alloc_text(len);
         std::ptr::copy_nonoverlapping((*builder).bytes, text_data_mut(result), len as usize);
         drop(Box::from_raw(builder));
@@ -859,7 +861,7 @@ pub unsafe extern "C" fn sarif_text_next_field(_text: i64, _offset: i64) -> i64 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_text_from_f64_fixed(value: f64, digits: i64) -> i64 {
     unsafe {
-        let d = digits.max(0).min(100) as usize;
+        let d = digits.clamp(0, 100) as usize;
         if value.is_nan() || value.is_infinite() {
             let s = if value.is_nan() {
                 "nan"
@@ -1474,12 +1476,8 @@ impl<'a> JitBackend<'a> {
         if falls_through {
             if let Some(result_val) = function.result {
                 match values.get(&result_val) {
-                    Some(NativeValueRepr::Native(val)) => {
-                        if signature.returns.first().is_some() {
-                            builder.ins().return_(&[*val]);
-                        } else {
-                            builder.ins().return_(&[]);
-                        }
+                    Some(NativeValueRepr::Native(val)) if !signature.returns.is_empty() => {
+                        builder.ins().return_(&[*val]);
                     }
                     _ => {
                         builder.ins().return_(&[]);

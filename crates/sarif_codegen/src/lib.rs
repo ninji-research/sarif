@@ -3895,7 +3895,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "file_remove" if self.builtin_is_available("file_remove") => {
                 self.lower_file_remove_expr(expr)
             }
-        "arg_text" if self.builtin_is_available("arg_text") => self.lower_arg_text_expr(expr),
+            "arg_text" if self.builtin_is_available("arg_text") => self.lower_arg_text_expr(expr),
             "stdin_text" if self.builtin_is_available("stdin_text") => {
                 self.lower_stdin_text_expr(expr)
             }
@@ -4024,17 +4024,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     _ => LowerType::Error,
                 }
             }
-    "f64_from_i32" if self.builtin_is_available("f64_from_i32") => LowerType::F64,
-    "text_concat" if self.builtin_is_available("text_concat") => LowerType::Text,
-    "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
-    "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
-    "bytes_to_text" if self.builtin_is_available("bytes_to_text") => LowerType::Text,
-    "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
-        LowerType::Text
-    }
-    "file_is_valid" if self.builtin_is_available("file_is_valid") => LowerType::Bool,
-    "file_read_to_end" if self.builtin_is_available("file_read_to_end") => LowerType::Bytes,
-    "arg_text" if self.builtin_is_available("arg_text") => LowerType::Text,
+            "f64_from_i32" if self.builtin_is_available("f64_from_i32") => LowerType::F64,
+            "text_concat" if self.builtin_is_available("text_concat") => LowerType::Text,
+            "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
+            "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
+            "bytes_to_text" if self.builtin_is_available("bytes_to_text") => LowerType::Text,
+            "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
+                LowerType::Text
+            }
+            "file_is_valid" if self.builtin_is_available("file_is_valid") => LowerType::Bool,
+            "file_read_to_end" if self.builtin_is_available("file_read_to_end") => LowerType::Bytes,
+            "arg_text" if self.builtin_is_available("arg_text") => LowerType::Text,
             "file_open" if self.builtin_is_available("file_open") => LowerType::File,
             "file_read" if self.builtin_is_available("file_read") => LowerType::Bytes,
             "file_write" if self.builtin_is_available("file_write") => LowerType::I32,
@@ -7688,7 +7688,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
-fn lower_const_assert_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+    fn lower_const_assert_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             self.diagnostics.push(Diagnostic::new(
                 DIAG_CONST_ASSERT,
@@ -11093,6 +11093,7 @@ fn main() -> I32 {
 
     #[cfg(feature = "backend-native")]
     #[test]
+    #[allow(clippy::approx_constant)]
     fn jit_runs_f64_function() {
         let mir = lower_source("fn main() -> F64 { 3.14 }");
         assert!(mir.diagnostics.is_empty());

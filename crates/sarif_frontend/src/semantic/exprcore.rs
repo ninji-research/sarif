@@ -96,7 +96,7 @@ struct BuiltinEntry {
 
 fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
     match name {
-    "arg_count" => Some(BuiltinEntry {
+        "arg_count" => Some(BuiltinEntry {
             name: "arg_count",
             runtime_code: None,
             arity_error_code: "semantic.arg_count-arity",

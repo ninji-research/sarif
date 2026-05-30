@@ -30,6 +30,14 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     writeln!(out.buf, "#include <math.h>").map_err(to_string)?;
     writeln!(out.buf).map_err(to_string)?;
 
+    out.line("typedef int64_t (*sarif_effect_handler_t)(uint64_t* args, int32_t nargs);")?;
+    out.line("struct SarifEffectHandler {")?;
+    out.line("    const char* effect;")?;
+    out.line("    const char* operation;")?;
+    out.line("    sarif_effect_handler_t handler;")?;
+    out.line("};")?;
+    out.line("")?;
+
     out.line("extern void* sarif_record_alloc(uint64_t size);")?;
     out.line(
         "extern void* sarif_text_concat(const unsigned char* left, const unsigned char* right);",
@@ -50,8 +58,10 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern int64_t sarif_parse_i32(const unsigned char* text);")?;
     out.line("extern void* sarif_text_from_f64_fixed(double value, int64_t digits);")?;
     out.line("extern void sarif_stdout_write(const unsigned char* text);")?;
-    out.line("extern void sarif_alloc_push(void);")?;
-    out.line("extern void sarif_alloc_pop(void);")?;
+    out.line("extern int64_t sarif_perform_effect(")?;
+    out.line("    const char* effect, const char* operation,")?;
+    out.line("    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3,")?;
+    out.line("    int32_t nargs);")?;
     out.line("extern uint64_t sarif_arg_count(void);")?;
     out.line("extern void* sarif_arg_text(int64_t index);")?;
     out.line("extern void* sarif_stdin_text(void);")?;
@@ -154,6 +164,9 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
             &mut out,
         )?;
     }
+
+    out.line("const struct SarifEffectHandler sarif_effect_table[1] = { {0, 0, 0} };")?;
+    out.line("const size_t sarif_effect_table_len = 0;")?;
 
     Ok(out.buf)
 }
@@ -469,6 +482,10 @@ fn func_type_name(ty: Option<&str>) -> &'static str {
     }
 }
 
+fn is_signed(val: &ValueId, value_kinds: &BTreeMap<ValueId, CodegenValueKind>) -> bool {
+    matches!(value_kinds.get(val), Some(CodegenValueKind::I32))
+}
+
 fn emit_instructions(
     insts: &[Inst],
     func: &Function,
@@ -541,10 +558,28 @@ fn emit_inst(
             out.line(&format!("v{} = {} * {};", dest.0, vref(left), vref(right)))?;
         }
         Inst::Div { dest, left, right } => {
-            out.line(&format!("v{} = {} / {};", dest.0, vref(left), vref(right)))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = (int64_t){} / (int64_t){};",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!("v{} = {} / {};", dest.0, vref(left), vref(right)))?;
+            }
         }
         Inst::Rem { dest, left, right } => {
-            out.line(&format!("v{} = {} % {};", dest.0, vref(left), vref(right)))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = (int64_t){} % (int64_t){};",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!("v{} = {} % {};", dest.0, vref(left), vref(right)))?;
+            }
         }
         Inst::BitAnd { dest, left, right } => {
             out.line(&format!("v{} = {} & {};", dest.0, vref(left), vref(right)))?;
@@ -607,36 +642,72 @@ fn emit_inst(
             ))?;
         }
         Inst::Lt { dest, left, right } => {
-            out.line(&format!(
-                "v{} = ({} < {}) ? 1 : 0;",
-                dest.0,
-                vref(left),
-                vref(right)
-            ))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = ((int64_t){} < (int64_t){}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!(
+                    "v{} = ({} < {}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            }
         }
         Inst::Le { dest, left, right } => {
-            out.line(&format!(
-                "v{} = ({} <= {}) ? 1 : 0;",
-                dest.0,
-                vref(left),
-                vref(right)
-            ))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = ((int64_t){} <= (int64_t){}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!(
+                    "v{} = ({} <= {}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            }
         }
         Inst::Gt { dest, left, right } => {
-            out.line(&format!(
-                "v{} = ({} > {}) ? 1 : 0;",
-                dest.0,
-                vref(left),
-                vref(right)
-            ))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = ((int64_t){} > (int64_t){}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!(
+                    "v{} = ({} > {}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            }
         }
         Inst::Ge { dest, left, right } => {
-            out.line(&format!(
-                "v{} = ({} >= {}) ? 1 : 0;",
-                dest.0,
-                vref(left),
-                vref(right)
-            ))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = ((int64_t){} >= (int64_t){}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!(
+                    "v{} = ({} >= {}) ? 1 : 0;",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            }
         }
         Inst::F64FromI32 { dest, value } => {
             out.line(&format!("v{} = (double)(int64_t){};", dest.0, vref(value)))?;
@@ -1432,13 +1503,18 @@ fn emit_inst(
             operation,
             args,
         } => {
+            let nargs = args.len().min(4);
+            for (i, arg) in args.iter().enumerate().take(nargs) {
+                out.line(&format!("uint64_t __perf_arg{} = {};", i, vref(arg)))?;
+            }
+            let a0 = if nargs > 0 { "__perf_arg0" } else { "0" };
+            let a1 = if nargs > 1 { "__perf_arg1" } else { "0" };
+            let a2 = if nargs > 2 { "__perf_arg2" } else { "0" };
+            let a3 = if nargs > 3 { "__perf_arg3" } else { "0" };
             out.line(&format!(
-                "// perform {} {} with {} args",
-                effect,
-                operation,
-                args.len()
+                "v{} = sarif_perform_effect(\"{}\", \"{}\", {}, {}, {}, {}, {});",
+                dest.0, effect, operation, a0, a1, a2, a3, nargs
             ))?;
-            out.line(&format!("v{} = 0;", dest.0))?;
         }
         Inst::Handle {
             dest,
@@ -1446,7 +1522,6 @@ fn emit_inst(
             body_result,
             arms: _arms,
         } => {
-            out.line("// handle effect block")?;
             emit_instructions(body_insts, func, value_kinds, structs, enums, out)?;
             if let Some(r) = body_result {
                 out.line(&format!("v{} = v{};", dest.0, r.0))?;

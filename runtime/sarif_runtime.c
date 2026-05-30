@@ -1816,6 +1816,50 @@ void* sarif_bytes_to_text(const unsigned char* bytes) {
     return result;
 }
 
+static int sarif_str_eq(const char* a, const char* b) {
+    while (*a && *b) {
+        if (*a != *b) return 0;
+        a++; b++;
+    }
+    return *a == *b;
+}
+
+typedef int64_t (*sarif_effect_handler_t)(uint64_t* args, int32_t nargs);
+
+struct SarifEffectHandler {
+    const char* effect;
+    const char* operation;
+    sarif_effect_handler_t handler;
+};
+
+static const struct SarifEffectHandler* sarif_find_handler(
+    const char* effect, const char* operation,
+    sarif_effect_handler_t* out_handler
+) {
+    extern const struct SarifEffectHandler sarif_effect_table[];
+    extern const size_t sarif_effect_table_len;
+    for (size_t i = 0; i < sarif_effect_table_len; i++) {
+        if (sarif_str_eq(sarif_effect_table[i].effect, effect) &&
+            sarif_str_eq(sarif_effect_table[i].operation, operation)) {
+            *out_handler = sarif_effect_table[i].handler;
+            return &sarif_effect_table[i];
+        }
+    }
+    return NULL;
+}
+
+int64_t sarif_perform_effect(const char* effect, const char* operation,
+    uint64_t arg0, uint64_t arg1,
+    uint64_t arg2, uint64_t arg3, int32_t nargs) {
+    sarif_effect_handler_t handler = NULL;
+    if (sarif_find_handler(effect, operation, &handler)) {
+        uint64_t args[8];
+        args[0] = arg0; args[1] = arg1; args[2] = arg2; args[3] = arg3;
+        return handler(args, nargs);
+    }
+    return 0;
+}
+
 int main(int argc, char** argv) {
     sarif_argc = argc;
     sarif_argv = argv;
