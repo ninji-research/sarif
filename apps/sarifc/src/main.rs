@@ -12,9 +12,7 @@ use command::{BuildTarget, CommandKind, parse_command, usage};
 use input::resolve_input;
 #[cfg(feature = "codegen")]
 use reports::{render_bootstrap_check, render_bootstrap_doc, render_bootstrap_format};
-use reports::{
-    render_package_diagnostics, render_semantic_doc,
-};
+use reports::{render_package_diagnostics, render_semantic_doc};
 #[cfg(feature = "c-backend")]
 use sarif_codegen::c::emit_c;
 #[cfg(feature = "native-build")]

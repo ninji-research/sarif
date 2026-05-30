@@ -10,14 +10,16 @@ use sarif_syntax::{Diagnostic, Span};
 #[cfg(feature = "backend-c")]
 pub mod c;
 #[cfg(feature = "backend-native")]
+mod jit;
+#[cfg(feature = "backend-native")]
 mod native;
 #[cfg(feature = "backend-native")]
 mod object;
-#[cfg(feature = "backend-native")]
-mod jit;
 #[cfg(feature = "backend-wasm")]
 mod wasm;
 
+#[cfg(feature = "backend-native")]
+pub use jit::run_function_native;
 #[cfg(feature = "backend-native")]
 pub use native::{
     NativeEnum, NativeRecord, NativeRecordField, NativeValueKind, collect_native_enums,
@@ -25,8 +27,6 @@ pub use native::{
 };
 #[cfg(feature = "backend-native")]
 pub use object::{ENTRYPOINT_SYMBOL, ObjectError, emit_clif, emit_object};
-#[cfg(feature = "backend-native")]
-pub use jit::run_function_native;
 #[cfg(feature = "backend-wasm")]
 pub use wasm::{WasmError, emit_wasm, emit_wat, run_function_wasm, run_main_wasm};
 
@@ -11100,19 +11100,17 @@ fn main() -> I32 {
     fn jit_runs_simple_integer_function() {
         let mir = lower_source("fn main() -> I32 { 42 }");
         assert!(mir.diagnostics.is_empty());
-        let result = crate::jit::run_function_native(
-            &mir.program,
-            "main",
-            &[],
-        )
-        .expect("JIT should execute main");
+        let result = crate::jit::run_function_native(&mir.program, "main", &[])
+            .expect("JIT should execute main");
         assert_eq!(result, RuntimeValue::Int(42));
     }
 
     #[cfg(feature = "backend-native")]
     #[test]
     fn jit_runs_function_with_args() {
-        let mir = lower_source("fn add(a: I32, b: I32) -> I32 { a + b }\nfn main() -> I32 { add(20, 22) }");
+        let mir = lower_source(
+            "fn add(a: I32, b: I32) -> I32 { a + b }\nfn main() -> I32 { add(20, 22) }",
+        );
         assert!(mir.diagnostics.is_empty());
         let result = crate::jit::run_function_native(
             &mir.program,
@@ -11128,12 +11126,8 @@ fn main() -> I32 {
     fn jit_runs_f64_function() {
         let mir = lower_source("fn main() -> F64 { 3.14 }");
         assert!(mir.diagnostics.is_empty());
-        let result = crate::jit::run_function_native(
-            &mir.program,
-            "main",
-            &[],
-        )
-        .expect("JIT should execute main");
+        let result = crate::jit::run_function_native(&mir.program, "main", &[])
+            .expect("JIT should execute main");
         assert_eq!(result, RuntimeValue::F64(3.14));
     }
 }

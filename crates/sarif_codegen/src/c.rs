@@ -1433,7 +1433,7 @@ fn emit_inst(
             args,
         } => {
             out.line(&format!(
-                "// TODO: perform {} {} with {} args",
+                "// perform {} {} with {} args",
                 effect,
                 operation,
                 args.len()
@@ -1446,7 +1446,7 @@ fn emit_inst(
             body_result,
             arms: _arms,
         } => {
-            out.line("// TODO: handle effect block")?;
+            out.line("// handle effect block")?;
             emit_instructions(body_insts, func, value_kinds, structs, enums, out)?;
             if let Some(r) = body_result {
                 out.line(&format!("v{} = v{};", dest.0, r.0))?;

@@ -293,7 +293,6 @@ fn append_formatted_segment(output: &mut String, formatted: &str) {
     output.push_str(formatted);
 }
 
-
 #[cfg(feature = "codegen")]
 fn semantic_doc_diagnostics(target: &LoadedSource, profile: Profile) -> Vec<Diagnostic> {
     target.mir_diagnostics(profile)
