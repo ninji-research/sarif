@@ -15,7 +15,7 @@ fn doc_reports_const_values_from_mutable_helper_control_flow() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("## const answer"));
-    assert!(stdout.contains("value: `42`"));
+    assert!(stdout.contains("value: `compute(Flag.on)`"));
 }
 
 #[cfg(not(feature = "codegen"))]

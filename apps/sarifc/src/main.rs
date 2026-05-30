@@ -13,7 +13,7 @@ use input::resolve_input;
 #[cfg(feature = "codegen")]
 use reports::{render_bootstrap_check, render_bootstrap_doc, render_bootstrap_format};
 use reports::{
-    render_package_diagnostics, render_semantic_check, render_semantic_doc, render_semantic_format,
+    render_package_diagnostics, render_semantic_doc,
 };
 #[cfg(feature = "c-backend")]
 use sarif_codegen::c::emit_c;
@@ -210,19 +210,24 @@ fn run_command(command: command::Command) -> ExitCode {
 }
 
 fn run_check(command: &command::Command) -> Result<(), String> {
+    let loaded = LoadedSource::load(&command.path)?;
+    emit_requested_dump(&loaded, command)?;
+    let all_diagnostics = loaded.mir_diagnostics(command.profile);
     if command.format.as_deref() == Some("sarif") {
-        let loaded = LoadedSource::load(&command.path)?;
-        let all_diagnostics = loaded.mir_diagnostics(command.profile);
         let sarif_json = reports::render_sarif_json(&loaded, &all_diagnostics, command.profile);
         print!("{sarif_json}");
         let blocking = LoadedSource::blocking_diagnostics(&all_diagnostics, command.profile);
         if !blocking.is_empty() {
             return Err(String::new());
         }
-        Ok(())
     } else {
-        run_bootstrap_check(command)
+        loaded.ensure_no_diagnostics(
+            &LoadedSource::blocking_diagnostics(&all_diagnostics, command.profile),
+            "check failed",
+        )?;
+        println!("ok [{}]", command.profile.keyword());
     }
+    Ok(())
 }
 
 fn run_format(command: &command::Command) -> Result<(), String> {

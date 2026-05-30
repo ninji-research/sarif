@@ -4,27 +4,13 @@ use std::collections::BTreeMap;
 use sarif_codegen::{Program, RuntimeError, RuntimeValue, run_function};
 use sarif_frontend::diagnostics::render_diagnostics;
 use sarif_frontend::semantic::Profile;
-use sarif_syntax::ast::lower as lower_ast;
-use sarif_syntax::lexer::lex;
-use sarif_syntax::parser::parse;
 use sarif_syntax::{Diagnostic, Span};
-use sarif_tools::format::format_file;
 use sarif_tools::report::{
-    render_semantic_check as render_semantic_check_output,
     render_semantic_doc as render_semantic_doc_output, semantic_package_snapshot_from_analysis,
-    semantic_snapshot, semantic_snapshot_from_analysis,
+    semantic_snapshot_from_analysis,
 };
 
 use crate::{LoadedSource, PackageSegment};
-
-pub fn render_semantic_format(target: &LoadedSource) -> Result<String, String> {
-    let mut output = String::new();
-    for segment in &target.segments {
-        let formatted = format_segment(segment)?;
-        append_formatted_segment(&mut output, &formatted);
-    }
-    Ok(output)
-}
 
 pub fn render_semantic_doc(target: &LoadedSource, profile: Profile) -> Result<String, String> {
     let diags = semantic_doc_diagnostics(target, profile);
@@ -49,13 +35,6 @@ pub fn render_semantic_doc(target: &LoadedSource, profile: Profile) -> Result<St
         render_semantic_doc_output(&snapshot)
     };
     Ok(rendered)
-}
-
-pub fn render_semantic_check(target: &LoadedSource, profile: Profile) -> Result<String, String> {
-    let all_diags = semantic_check_diagnostics(target, profile);
-    let blocking_diags = LoadedSource::blocking_diagnostics(&all_diags, profile);
-    target.ensure_no_diagnostics(&blocking_diags, "check failed")?;
-    Ok(render_semantic_check_output(&semantic_snapshot(profile)))
 }
 
 #[cfg(feature = "codegen")]
@@ -178,7 +157,13 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
 }
 
 pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
-    loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap doc failed")?;
+    loaded.ensure_no_diagnostics(
+        &LoadedSource::blocking_diagnostics(
+            &loaded.semantic_diagnostics(Profile::Core),
+            Profile::Core,
+        ),
+        "doc generation failed",
+    )?;
     let program = bootstrap_tools_program()?;
     let segments: Vec<(String, String)> = loaded
         .segments
@@ -308,52 +293,6 @@ fn append_formatted_segment(output: &mut String, formatted: &str) {
     output.push_str(formatted);
 }
 
-fn format_segment(segment: &PackageSegment) -> Result<String, String> {
-    let lexed = lex(&segment.source);
-    if !lexed.diagnostics.is_empty() {
-        return Err(render_segment_failure(
-            segment,
-            &lexed.diagnostics,
-            "format failed",
-        ));
-    }
-
-    let parsed = parse(&lexed.tokens);
-    if !parsed.diagnostics.is_empty() {
-        return Err(render_segment_failure(
-            segment,
-            &parsed.diagnostics,
-            "format failed",
-        ));
-    }
-
-    let lowered = lower_ast(&parsed.root);
-    if !lowered.diagnostics.is_empty() {
-        return Err(render_segment_failure(
-            segment,
-            &lowered.diagnostics,
-            "format failed",
-        ));
-    }
-
-    Ok(format_file(&lowered.file))
-}
-
-fn render_segment_failure(
-    segment: &PackageSegment,
-    diagnostics: &[Diagnostic],
-    failure: &str,
-) -> String {
-    eprint!(
-        "{}",
-        render_diagnostics(&segment.path, &segment.source, diagnostics)
-    );
-    failure.to_owned()
-}
-
-fn semantic_check_diagnostics(target: &LoadedSource, profile: Profile) -> Vec<Diagnostic> {
-    target.mir_diagnostics(profile)
-}
 
 #[cfg(feature = "codegen")]
 fn semantic_doc_diagnostics(target: &LoadedSource, profile: Profile) -> Vec<Diagnostic> {

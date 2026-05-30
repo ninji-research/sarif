@@ -4,7 +4,7 @@
 ## struct Greeting
 
 - ownership: `contains affine fields`
-- rt status: `blocked in rt`
+- rt status: `profile-compatible`
 
 ## fn add
 
@@ -16,6 +16,5 @@
 
 - signature: `fn main() -> I32 effects [io]`
 - ownership: `affine-safe in stage-0`
-- rt status: `blocked in rt`
-
+- rt status: `profile-compatible`
 

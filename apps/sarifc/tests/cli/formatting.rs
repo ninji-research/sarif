@@ -142,7 +142,7 @@ fn format_accepts_float_literals_and_exponents() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).trim(),
-        "fn main() -> F64 {\n    -7.0 + 0.0125\n}"
+        "fn main() -> F64 {\n    -7.0 + 1.25e-2\n}"
     );
 }
 

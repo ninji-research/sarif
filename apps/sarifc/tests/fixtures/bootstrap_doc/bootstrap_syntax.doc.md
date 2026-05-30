@@ -733,6 +733,12 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
+### fn scan_exponent
+
+- signature: `fn scan_exponent(source: Text, offset: I32, len: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn scan_string
 
 - signature: `fn scan_string(source: Text, offset: I32, len: I32) -> I32`

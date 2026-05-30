@@ -1395,6 +1395,38 @@ fn scan_comment(source: Text, offset: I32, len: I32) -> I32 {
     end
 }
 
+fn scan_exponent(source: Text, offset: I32, len: I32) -> I32 {
+    if offset < len {
+        let b = text_byte(source, offset);
+        if b == 101 or b == 69 {
+            let after_e = offset + 1;
+            if after_e < len {
+                let c = text_byte(source, after_e);
+                if c == 43 or c == 45 {
+                    let after_sign = after_e + 1;
+                    if after_sign < len and is_digit(text_byte(source, after_sign)) {
+                        scan_while(source, after_sign, len, ByteClass.Digit)
+                    } else {
+                        offset
+                    }
+                } else {
+                    if is_digit(c) {
+                        scan_while(source, after_e, len, ByteClass.Digit)
+                    } else {
+                        offset
+                    }
+                }
+            } else {
+                offset
+            }
+        } else {
+            offset
+        }
+    } else {
+        offset
+    }
+}
+
 fn scan_string(source: Text, offset: I32, len: I32) -> I32 {
     let mut end = offset + 1;
     let mut escaped = false;
@@ -1738,9 +1770,15 @@ fn lex_next(source: Text, offset: I32) -> Token {
                 let end = scan_while(source, offset, len, ByteClass.Digit);
                 if end < len and text_byte(source, end) == 46 and text_byte(source, end + 1) != 46 {
                     let after_dot = scan_while(source, end + 1, len, ByteClass.Digit);
-                    make_token(TokenKind.Float, start, after_dot)
+                    let after_exp = scan_exponent(source, after_dot, len);
+                    make_token(TokenKind.Float, start, after_exp)
                 } else {
-                    make_token(TokenKind.Integer, start, end)
+                    let after_exp = scan_exponent(source, end, len);
+                    if after_exp != end {
+                        make_token(TokenKind.Float, start, after_exp)
+                    } else {
+                        make_token(TokenKind.Integer, start, end)
+                    }
                 }
             },
             LeadClass.Other => {

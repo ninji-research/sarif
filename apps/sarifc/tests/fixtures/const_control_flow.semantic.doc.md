@@ -10,7 +10,7 @@
 ## const answer
 
 - type: `I32`
-- value: `42`
+- value: `compute(Flag.on)`
 ## fn compute
 
 - signature: `fn compute(flag: Flag) -> I32`
@@ -22,5 +22,4 @@
 - signature: `fn main() -> I32`
 - ownership: `affine-safe in stage-0`
 - rt status: `profile-compatible`
-
 

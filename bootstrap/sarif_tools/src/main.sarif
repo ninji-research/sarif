@@ -264,7 +264,7 @@ fn rewrite_body_lines_from(source: Text, index: I32) -> Text {
                 if is_empty(right) {
                     left
                 } else {
-                    text_concat(left, text_concat("\n", text_concat(indent_text(leading_indent_end(line, 0)), right)))
+                    text_concat(left, text_concat("\n", text_concat(indent_text(leading_indent_end(line, 0)), rewrite_body_lines_from(right, 0))))
                 }
             } else {
                 line
