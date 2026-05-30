@@ -2,7 +2,8 @@
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::io::{self, Read, Write};
+use std::fs::File as RustFile;
+use std::io::{self, Read as RustRead, Seek as RustSeek, SeekFrom, Write as RustWrite};
 
 use cranelift_codegen::ir::{AbiParam, InstBuilder, UserFuncName, types};
 use cranelift_codegen::isa::CallConv;
@@ -927,69 +928,235 @@ pub unsafe extern "C" fn sarif_parse_f64(text: i64) -> f64 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_arg_count() -> i64 {
-    unsafe { 0 }
+    std::env::args().len() as i64
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_arg_text(_index: i64) -> i64 {
-    unsafe { EMPTY_TEXT.as_ptr() as i64 }
+pub unsafe extern "C" fn sarif_arg_text(index: i64) -> i64 {
+    unsafe {
+        if index < 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        let args: Vec<String> = std::env::args().collect();
+        let idx = index as usize;
+        if idx >= args.len() { return EMPTY_TEXT.as_ptr() as i64; }
+        let s = &args[idx];
+        let len = s.len() as u64;
+        let blob = alloc_text(len);
+        std::ptr::copy_nonoverlapping(s.as_ptr(), text_data_mut(blob), len as usize);
+        blob
+    }
 }
 
 // ---------------------------------------------------------------------------
-// File I/O stubs
+// File I/O (real POSIX I/O via Rust std::fs)
 // ---------------------------------------------------------------------------
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_open(_path: i64, _mode: i64) -> i64 {
-    unsafe { 0 }
+thread_local! {
+    static FILE_TABLE: RefCell<Vec<Option<RustFile>>> = const { RefCell::new(Vec::new()) };
+}
+
+fn file_handle_to_id(f: RustFile) -> i64 {
+    FILE_TABLE.with(|table| {
+        let mut table = table.borrow_mut();
+        for (i, slot) in table.iter_mut().enumerate() {
+            if slot.is_none() {
+            *slot = Some(f);
+            return (i as i64) + 1;
+        }
+        }
+        let id = table.len() as i64 + 1;
+        table.push(Some(f));
+        id
+    })
+}
+
+fn id_to_file(id: i64) -> Option<RustFile> {
+    if id <= 0 { return None; }
+    let idx = (id - 1) as usize;
+    FILE_TABLE.with(|table| {
+        let mut table = table.borrow_mut();
+        if idx < table.len() {
+            table[idx].take()
+        } else {
+            None
+        }
+    })
+}
+
+fn with_file<F, R>(id: i64, f: F) -> Option<R>
+where
+    F: FnOnce(&mut RustFile) -> R,
+{
+    if id <= 0 { return None; }
+    let idx = (id - 1) as usize;
+    FILE_TABLE.with(|table| {
+        let mut table = table.borrow_mut();
+        if idx < table.len() {
+            table[idx].as_mut().map(f)
+        } else {
+            None
+        }
+    })
+}
+
+unsafe fn text_to_str(ptr: i64) -> Option<String> {
+    if ptr == 0 { return None; }
+    let len = text_len(ptr) as usize;
+    let data = std::slice::from_raw_parts(text_data(ptr), len);
+    std::str::from_utf8(data).map(|s| s.to_owned()).ok()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_close(_handle: i64) {}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_read(_handle: i64, _count: i64) -> i64 {
-    unsafe { EMPTY_TEXT.as_ptr() as i64 }
+pub unsafe extern "C" fn sarif_file_open(path: i64, mode: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else { return 0 };
+        let Some(mode_str) = text_to_str(mode) else { return 0 };
+        let rust_mode = match mode_str.as_str() {
+            "r" | "rb" => "r",
+            "w" | "wb" => "w",
+            "a" | "ab" => "a",
+            "r+" | "rb+" | "r+b" => "r+",
+            "w+" | "wb+" | "w+b" => "w+",
+            "a+" | "ab+" | "a+b" => "a+",
+            _ => "r",
+        };
+        let file = std::fs::OpenOptions::new()
+            .read(rust_mode.contains('r') || rust_mode.contains('+'))
+            .write(rust_mode.contains('w') || rust_mode.contains('a') || rust_mode.contains('+'))
+            .append(rust_mode.starts_with('a'))
+            .create(rust_mode.contains('w') || rust_mode.contains('a'))
+            .truncate(rust_mode.starts_with('w') && !rust_mode.contains('+'))
+            .open(&path_str)
+            .ok();
+        match file {
+            Some(f) => file_handle_to_id(f),
+            None => 0,
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_read_to_end(_handle: i64) -> i64 {
-    unsafe { EMPTY_TEXT.as_ptr() as i64 }
+pub unsafe extern "C" fn sarif_file_close(handle: i64) {
+    unsafe {
+        let _ = id_to_file(handle);
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_write(_handle: i64, _data: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_file_read(handle: i64, count: i64) -> i64 {
+    unsafe {
+        if handle <= 0 || count < 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        let count = count as usize;
+        let result = with_file(handle, |file| {
+            let mut buf = vec![0u8; count];
+            match file.read(&mut buf) {
+                Ok(n) => {
+                    buf.truncate(n);
+                    Some(buf)
+                }
+                Err(_) => None,
+            }
+        });
+        let Some(buf) = result.flatten() else { return EMPTY_TEXT.as_ptr() as i64 };
+        let len = buf.len() as u64;
+        let blob = alloc_text(len);
+        std::ptr::copy_nonoverlapping(buf.as_ptr(), text_data_mut(blob), len as usize);
+        blob
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_seek(_handle: i64, _offset: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_file_read_to_end(handle: i64) -> i64 {
+    unsafe {
+        if handle <= 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        let result = with_file(handle, |file| {
+            let mut buf = Vec::new();
+            match file.read_to_end(&mut buf) {
+                Ok(_) => Some(buf),
+                Err(_) => None,
+            }
+        });
+        let Some(buf) = result.flatten() else { return EMPTY_TEXT.as_ptr() as i64 };
+        let len = buf.len() as u64;
+        let blob = alloc_text(len);
+        std::ptr::copy_nonoverlapping(buf.as_ptr(), text_data_mut(blob), len as usize);
+        blob
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_size(_handle: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_file_write(handle: i64, data: i64) -> i64 {
+    unsafe {
+        if handle <= 0 || data == 0 { return 0; }
+        let len = text_len(data) as usize;
+        let bytes = std::slice::from_raw_parts(text_data(data), len);
+        let result = with_file(handle, |file| {
+            match file.write_all(bytes) {
+                Ok(()) => {
+                    let _ = file.flush();
+                    len as i64
+                }
+                Err(_) => 0,
+            }
+        });
+        result.unwrap_or(0)
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_exists(_path: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_file_seek(handle: i64, offset: i64) -> i64 {
+    unsafe {
+        if handle <= 0 { return -1; }
+        let result = with_file(handle, |file| {
+            file.seek(SeekFrom::Current(offset)).ok().map(|p| p as i64)
+        });
+        result.flatten().unwrap_or(-1)
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_remove(_path: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_file_size(handle: i64) -> i64 {
+    unsafe {
+        if handle <= 0 { return -1; }
+        let result = with_file(handle, |file| {
+            let cur = file.stream_position().ok()?;
+            let end = file.seek(SeekFrom::End(0)).ok()?;
+            let _ = file.seek(SeekFrom::Start(cur));
+            Some(end as i64)
+        });
+        result.flatten().unwrap_or(-1)
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_file_is_valid(_handle: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_file_exists(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else { return 0 };
+        if std::path::Path::new(&path_str).exists() { 1 } else { 0 }
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_bytes_to_text(_bytes: i64) -> i64 {
-    unsafe { EMPTY_TEXT.as_ptr() as i64 }
+pub unsafe extern "C" fn sarif_file_remove(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else { return 0 };
+        if std::fs::remove_file(&path_str).is_ok() { 1 } else { 0 }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_file_is_valid(handle: i64) -> i64 {
+    if handle > 0 { 1 } else { 0 }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_to_text(bytes: i64) -> i64 {
+    unsafe {
+        if bytes == 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        let len = text_len(bytes) as usize;
+        let result = alloc_text(len as u64);
+        std::ptr::copy_nonoverlapping(text_data(bytes), text_data_mut(result), len);
+        result
+    }
 }
 
 #[unsafe(no_mangle)]
