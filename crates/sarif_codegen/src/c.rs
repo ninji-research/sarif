@@ -599,12 +599,21 @@ fn emit_inst(
             ))?;
         }
         Inst::Shr { dest, left, right } => {
-            out.line(&format!(
-                "v{} = {} >> (int){};",
-                dest.0,
-                vref(left),
-                vref(right)
-            ))?;
+            if is_signed(left, value_kinds) {
+                out.line(&format!(
+                    "v{} = (int64_t){} >> (int){};",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            } else {
+                out.line(&format!(
+                    "v{} = {} >> (int){};",
+                    dest.0,
+                    vref(left),
+                    vref(right)
+                ))?;
+            }
         }
         Inst::Sqrt { dest, value } => {
             out.line(&format!("v{} = sqrt({});", dest.0, vref(value)))?;
