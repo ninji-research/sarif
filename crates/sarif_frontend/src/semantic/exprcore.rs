@@ -96,29 +96,7 @@ struct BuiltinEntry {
 
 fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
     match name {
-        "alloc_pop" => Some(BuiltinEntry {
-            name: "alloc_pop",
-            runtime_code: None,
-            arity_error_code: "semantic.alloc_pop-arity",
-            type_error_code: "",
-            result_ty: Type::Unit,
-            call_hint: "Call `alloc_pop()`.",
-            arg_types: &[],
-            arg_helps: &[],
-            dispatch_simple: false,
-        }),
-        "alloc_push" => Some(BuiltinEntry {
-            name: "alloc_push",
-            runtime_code: None,
-            arity_error_code: "semantic.alloc_push-arity",
-            type_error_code: "",
-            result_ty: Type::Unit,
-            call_hint: "Call `alloc_push()`.",
-            arg_types: &[],
-            arg_helps: &[],
-            dispatch_simple: false,
-        }),
-        "arg_count" => Some(BuiltinEntry {
+    "arg_count" => Some(BuiltinEntry {
             name: "arg_count",
             runtime_code: None,
             arity_error_code: "semantic.arg_count-arity",
@@ -2104,62 +2082,6 @@ must have type `Text`, found `{}`",
         }
         return ExprInfo {
             ty: Type::I32,
-            calls,
-        };
-    }
-
-    if expr.callee == "alloc_push" && !functions.contains_key("alloc_push") {
-        diagnostics.push(Diagnostic::new(
-            "semantic.alloc_push-deprecated",
-            "builtin `alloc_push` is deprecated; use `with_arena { ... }` instead",
-            expr.span,
-            Some("Replace `alloc_push()` with `with_arena { ... }` block.".to_owned()),
-        ));
-        if !args.is_empty() {
-            diagnostics.push(Diagnostic::new(
-                "semantic.alloc_push-arity",
-                format!(
-                    "builtin `alloc_push` expects 0 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `alloc_push()` with no arguments.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::Unit,
-            calls,
-        };
-    }
-
-    if expr.callee == "alloc_pop" && !functions.contains_key("alloc_pop") {
-        diagnostics.push(Diagnostic::new(
-            "semantic.alloc_pop-deprecated",
-            "builtin `alloc_pop` is deprecated; use `with_arena { ... }` instead",
-            expr.span,
-            Some("Replace `alloc_pop()` with `with_arena { ... }` block.".to_owned()),
-        ));
-        if !args.is_empty() {
-            diagnostics.push(Diagnostic::new(
-                "semantic.alloc_pop-arity",
-                format!(
-                    "builtin `alloc_pop` expects 0 arguments but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `alloc_pop()` with no arguments.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        return ExprInfo {
-            ty: Type::Unit,
             calls,
         };
     }
