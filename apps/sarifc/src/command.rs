@@ -54,7 +54,8 @@ pub fn usage() -> String {
     usage += "profiles:\n";
     usage += "  --core            minimal safe language (default)\n";
     usage += "  --total           core + totality enforcement\n";
-    usage += "  --rt              core + hard real-time enforcement\n\n";
+    usage += "  --rt              core + hard real-time enforcement\n";
+    usage += "  --profile <name>  specify profile by name (core, total, rt)\n\n";
     usage += "targets:\n";
     usage += "  --target native   compile to native executable (default)\n";
     usage += "  --target wasm     compile to binary webassembly (.wasm)\n";
@@ -68,6 +69,8 @@ pub fn usage() -> String {
     usage += "  --inspect=<tool>  inspect build output (wasmprinter; only for `build`)\n";
     usage += "  --debug           enable target runtime null-pointer trap checks\n";
     usage += "  --format <format> diagnostic output format (text, sarif)\n";
+    usage += "  -h, --help        show this help message\n";
+    usage += "  -v, --version     show compiler version\n";
     usage
 }
 
