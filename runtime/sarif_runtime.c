@@ -40,6 +40,7 @@ static int sarif_write_all(const unsigned char* bytes, uint64_t len) {
     if (fwrite(bytes, 1, chunk, stdout) != chunk) {
         return 1;
     }
+    fflush(stdout);
     return 0;
 }
 
