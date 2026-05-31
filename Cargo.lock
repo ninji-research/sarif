@@ -723,17 +723,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sarif_orchestrator"
-version = "0.1.0"
-dependencies = [
- "sarif_codegen",
- "sarif_frontend",
- "sarif_syntax",
- "wasmtime",
- "wat",
-]
-
-[[package]]
 name = "sarif_syntax"
 version = "0.1.0"
 dependencies = [

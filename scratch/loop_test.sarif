@@ -1,0 +1,8 @@
+fn main() -> Text effects [alloc] {
+    let mut text = "hello";
+    let outer_var = "world";
+    while text_len(text) < 10 {
+        text = text_concat(text, outer_var);
+    };
+    text
+}

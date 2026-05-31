@@ -1,11 +1,10 @@
 [workspace]
 members = [
-    "apps/sarifc",
-    "crates/sarif_codegen",
-    "crates/sarif_frontend",
-    "crates/sarif_orchestrator",
-    "crates/sarif_syntax",
-    "crates/sarif_tools",
+  "apps/sarifc",
+  "crates/sarif_codegen",
+  "crates/sarif_frontend",
+  "crates/sarif_syntax",
+  "crates/sarif_tools",
 ]
 exclude = ["fuzz"]
 resolver = "3"
