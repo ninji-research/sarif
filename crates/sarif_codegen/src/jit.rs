@@ -13,24 +13,10 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataId, FuncId, Linkage, Module, default_libcall_names};
 
 use crate::native::{
-    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TextIndexHelperIds, TrustedListAccesses,
-    collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
-    declare_arg_count, declare_arg_text,     declare_bytes_byte, declare_bytes_len, declare_bytes_materialize, declare_bytes_slice,
-    declare_bytes_to_text,
-    declare_file_close, declare_file_exists, declare_file_is_valid, declare_file_open,
-    declare_file_read, declare_file_read_to_end, declare_file_mmap, declare_file_remove, declare_file_seek,
-    declare_file_size, declare_file_write, declare_list_new, declare_list_push,
-    declare_list_sort_by_text_field, declare_list_sort_text, declare_parse_f64, declare_parse_i32,
-    declare_parse_i32_range, declare_record_allocator, declare_stdin_text, declare_stdout_write,
-    declare_stdout_write_builder, declare_text_builder_append, declare_text_builder_append_ascii,
-    declare_text_builder_append_codepoint, declare_text_builder_append_i32,
-    declare_text_builder_append_slice, declare_text_builder_finish, declare_text_builder_new,
-    declare_text_cmp, declare_text_concat, declare_text_eq, declare_text_eq_range,
-    declare_text_field_end, declare_text_find_byte_range, declare_text_from_f64_fixed,
-    declare_text_index_contains, declare_text_index_get, declare_text_index_get_or_insert,
-    declare_text_index_keys, declare_text_index_new, declare_text_index_set, declare_text_intern,
-    declare_text_line_end, declare_text_next_field, declare_text_next_line, declare_text_slice,
-    encode_text_blob, infer_value_kinds, lower_insts, native_type as shared_native_type,
+    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, RuntimeHelperIds,
+    TrustedListAccesses, collect_native_enums, collect_native_records,
+    declare_runtime_helpers, encode_text_blob, infer_value_kinds, lower_insts,
+    native_type as shared_native_type,
 };
 use crate::{Function, Inst, Program, RuntimeError, RuntimeValue, ValueId};
 
@@ -1563,62 +1549,7 @@ struct JitBackend<'a> {
     program: &'a Program,
     module: JITModule,
     function_ids: BTreeMap<String, FuncId>,
-    allocator_id: FuncId,
-    alloc_push_id: FuncId,
-    alloc_pop_id: FuncId,
-    text_builder_new_id: Option<FuncId>,
-    text_builder_append_id: Option<FuncId>,
-    text_builder_append_codepoint_id: Option<FuncId>,
-    text_builder_append_ascii_id: Option<FuncId>,
-    text_builder_append_slice_id: Option<FuncId>,
-    text_builder_append_i32_id: Option<FuncId>,
-    text_builder_finish_id: Option<FuncId>,
-    stdout_write_builder_id: Option<FuncId>,
-    list_new_id: FuncId,
-    list_push_id: FuncId,
-    list_sort_text_id: Option<FuncId>,
-    list_sort_by_text_field_id: Option<FuncId>,
-    text_concat_id: FuncId,
-    text_slice_id: FuncId,
-    bytes_slice_id: FuncId,
-    bytes_len_id: FuncId,
-    bytes_byte_id: FuncId,
-    bytes_materialize_id: FuncId,
-    text_eq_range_id: FuncId,
-    text_find_byte_range_id: FuncId,
-    text_line_end_id: FuncId,
-    text_next_line_id: FuncId,
-    text_field_end_id: FuncId,
-    text_next_field_id: FuncId,
-    text_from_f64_fixed_id: FuncId,
-    parse_i32_id: FuncId,
-    parse_i32_range_id: FuncId,
-    parse_f64_id: FuncId,
-    arg_count_id: FuncId,
-    arg_text_id: FuncId,
-    stdin_text_id: FuncId,
-    stdout_write_id: FuncId,
-    file_open_id: FuncId,
-    file_close_id: FuncId,
-    file_read_id: FuncId,
-    file_read_to_end_id: FuncId,
-    file_mmap_id: FuncId,
-    file_write_id: FuncId,
-    file_seek_id: FuncId,
-    file_size_id: FuncId,
-    file_exists_id: FuncId,
-    file_remove_id: FuncId,
-    file_is_valid_id: FuncId,
-    bytes_to_text_id: FuncId,
-    text_eq_id: FuncId,
-    text_cmp_id: FuncId,
-    text_index_new_id: Option<FuncId>,
-    text_index_get_id: Option<FuncId>,
-    text_index_contains_id: Option<FuncId>,
-    text_index_get_or_insert_id: Option<FuncId>,
-    text_index_set_id: Option<FuncId>,
-    text_index_keys_id: Option<FuncId>,
-    text_intern_id: FuncId,
+    helpers: RuntimeHelperIds,
     text_data_index: BTreeMap<String, usize>,
     text_data_func_id: FuncId,
     records: BTreeMap<String, NativeRecord>,
@@ -1645,100 +1576,12 @@ impl<'a> JitBackend<'a> {
 
         let mut module = JITModule::new(jit_builder);
         let records = collect_native_records(program)?;
-        let native_enums = collect_native_enums(program);
+let native_enums = collect_native_enums(program);
 
-        let mut declare = |name: &str,
-                           f: fn(&mut JITModule, &str) -> Result<FuncId, String>|
-         -> Result<FuncId, String> {
-            f(&mut module, "jit").map_err(|e| format!("failed to declare {name}: {e}"))
-        };
+    let helpers = declare_runtime_helpers(&mut module, "jit")
+        .map_err(|e| format!("failed to declare runtime helpers: {e}"))?;
 
-        let allocator_id = declare("record_allocator", declare_record_allocator)?;
-        let alloc_push_id = declare("alloc_push", declare_alloc_push)?;
-        let alloc_pop_id = declare("alloc_pop", declare_alloc_pop)?;
-        let list_new_id = declare("list_new", declare_list_new)?;
-        let list_push_id = declare("list_push", declare_list_push)?;
-        let text_concat_id = declare("text_concat", declare_text_concat)?;
-        let text_slice_id = declare("text_slice", declare_text_slice)?;
-let bytes_slice_id = declare("bytes_slice", declare_bytes_slice)?;
-let bytes_len_id = declare("bytes_len", declare_bytes_len)?;
-let bytes_byte_id = declare("bytes_byte", declare_bytes_byte)?;
-let bytes_materialize_id = declare("bytes_materialize", declare_bytes_materialize)?;
-let text_eq_range_id = declare("text_eq_range", declare_text_eq_range)?;
-        let text_find_byte_range_id =
-            declare("text_find_byte_range", declare_text_find_byte_range)?;
-        let text_line_end_id = declare("text_line_end", declare_text_line_end)?;
-        let text_next_line_id = declare("text_next_line", declare_text_next_line)?;
-        let text_field_end_id = declare("text_field_end", declare_text_field_end)?;
-        let text_next_field_id = declare("text_next_field", declare_text_next_field)?;
-        let text_from_f64_fixed_id = declare("text_from_f64_fixed", declare_text_from_f64_fixed)?;
-        let parse_i32_id = declare("parse_i32", declare_parse_i32)?;
-        let parse_i32_range_id = declare("parse_i32_range", declare_parse_i32_range)?;
-        let parse_f64_id = declare("parse_f64", declare_parse_f64)?;
-        let arg_count_id = declare("arg_count", declare_arg_count)?;
-        let arg_text_id = declare("arg_text", declare_arg_text)?;
-        let stdin_text_id = declare("stdin_text", declare_stdin_text)?;
-        let stdout_write_id = declare("stdout_write", declare_stdout_write)?;
-        let stdout_write_builder_id = Some(declare(
-            "stdout_write_builder",
-            declare_stdout_write_builder,
-        )?);
-        let text_intern_id = declare("text_intern", declare_text_intern)?;
-        let text_eq_id = declare("text_eq", declare_text_eq)?;
-        let text_cmp_id = declare("text_cmp", declare_text_cmp)?;
-        let file_open_id = declare("file_open", declare_file_open)?;
-        let file_close_id = declare("file_close", declare_file_close)?;
-        let file_read_id = declare("file_read", declare_file_read)?;
-        let file_read_to_end_id = declare("file_read_to_end", declare_file_read_to_end)?;
-        let file_mmap_id = declare("file_mmap", declare_file_mmap)?;
-        let file_write_id = declare("file_write", declare_file_write)?;
-        let file_seek_id = declare("file_seek", declare_file_seek)?;
-        let file_size_id = declare("file_size", declare_file_size)?;
-        let file_exists_id = declare("file_exists", declare_file_exists)?;
-        let file_remove_id = declare("file_remove", declare_file_remove)?;
-        let file_is_valid_id = declare("file_is_valid", declare_file_is_valid)?;
-        let bytes_to_text_id = declare("bytes_to_text", declare_bytes_to_text)?;
-
-        let text_index_new_id = Some(declare("text_index_new", declare_text_index_new)?);
-        let text_index_get_id = Some(declare("text_index_get", declare_text_index_get)?);
-        let text_index_contains_id =
-            Some(declare("text_index_contains", declare_text_index_contains)?);
-        let text_index_get_or_insert_id = Some(declare(
-            "text_index_get_or_insert",
-            declare_text_index_get_or_insert,
-        )?);
-        let text_index_set_id = Some(declare("text_index_set", declare_text_index_set)?);
-        let text_index_keys_id = Some(declare("text_index_keys", declare_text_index_keys)?);
-
-        let text_builder_new_id = Some(declare("text_builder_new", declare_text_builder_new)?);
-        let text_builder_append_id =
-            Some(declare("text_builder_append", declare_text_builder_append)?);
-        let text_builder_append_codepoint_id = Some(declare(
-            "text_builder_append_codepoint",
-            declare_text_builder_append_codepoint,
-        )?);
-        let text_builder_append_ascii_id = Some(declare(
-            "text_builder_append_ascii",
-            declare_text_builder_append_ascii,
-        )?);
-        let text_builder_append_slice_id = Some(declare(
-            "text_builder_append_slice",
-            declare_text_builder_append_slice,
-        )?);
-        let text_builder_append_i32_id = Some(declare(
-            "text_builder_append_i32",
-            declare_text_builder_append_i32,
-        )?);
-        let text_builder_finish_id =
-            Some(declare("text_builder_finish", declare_text_builder_finish)?);
-
-        let list_sort_text_id = Some(declare("list_sort_text", declare_list_sort_text)?);
-        let list_sort_by_text_field_id = Some(declare(
-            "list_sort_by_text_field",
-            declare_list_sort_by_text_field,
-        )?);
-
-        let mut function_ids = BTreeMap::new();
+    let mut function_ids = BTreeMap::new();
         for function in &program.functions {
             let mut signature = module.make_signature();
             signature.call_conv = CallConv::triple_default(module.isa().triple());
@@ -1784,62 +1627,7 @@ let text_eq_range_id = declare("text_eq_range", declare_text_eq_range)?;
             program,
             module,
             function_ids,
-            allocator_id,
-            alloc_push_id,
-            alloc_pop_id,
-            text_builder_new_id,
-            text_builder_append_id,
-            text_builder_append_codepoint_id,
-            text_builder_append_ascii_id,
-            text_builder_append_slice_id,
-            text_builder_append_i32_id,
-            text_builder_finish_id,
-            stdout_write_builder_id,
-            list_new_id,
-            list_push_id,
-            list_sort_text_id,
-            list_sort_by_text_field_id,
-            text_concat_id,
-            text_slice_id,
-            bytes_slice_id,
-            bytes_len_id,
-            bytes_byte_id,
-            bytes_materialize_id,
-            text_eq_range_id,
-            text_find_byte_range_id,
-            text_line_end_id,
-            text_next_line_id,
-            text_field_end_id,
-            text_next_field_id,
-            text_from_f64_fixed_id,
-            parse_i32_id,
-            parse_i32_range_id,
-            parse_f64_id,
-            arg_count_id,
-            arg_text_id,
-            stdin_text_id,
-            stdout_write_id,
-            file_open_id,
-            file_close_id,
-            file_read_id,
-            file_read_to_end_id,
-            file_mmap_id,
-            file_write_id,
-            file_seek_id,
-            file_size_id,
-            file_exists_id,
-            file_remove_id,
-            file_is_valid_id,
-            bytes_to_text_id,
-            text_index_new_id,
-            text_index_get_id,
-            text_index_contains_id,
-            text_index_get_or_insert_id,
-            text_index_set_id,
-            text_index_keys_id,
-            text_eq_id,
-            text_cmp_id,
-            text_intern_id,
+            helpers,
             text_data_index,
             text_data_func_id,
             records,
@@ -1898,71 +1686,12 @@ let text_eq_range_id = declare("text_eq_range", declare_text_eq_range)?;
         }
 
         let empty_data_ids = BTreeMap::<String, DataId>::new();
-        let text_index_helpers = TextIndexHelperIds {
-            new_id: self.text_index_new_id,
-            get_id: self.text_index_get_id,
-            contains_id: self.text_index_contains_id,
-            get_or_insert_id: self.text_index_get_or_insert_id,
-            set_id: self.text_index_set_id,
-            keys_id: self.text_index_keys_id,
-        };
-
         let falls_through = lower_insts(
             &self.function_ids,
             &empty_data_ids,
             Some(self.text_data_func_id),
             &self.text_data_index,
-            self.allocator_id,
-            self.alloc_push_id,
-            self.alloc_pop_id,
-            self.text_builder_new_id,
-            self.text_builder_append_id,
-            self.text_builder_append_codepoint_id,
-            self.text_builder_append_ascii_id,
-            self.text_builder_append_slice_id,
-            self.text_builder_append_i32_id,
-            self.text_builder_finish_id,
-            self.stdout_write_builder_id,
-            &text_index_helpers,
-            self.list_new_id,
-            self.list_push_id,
-            self.list_sort_text_id,
-            self.list_sort_by_text_field_id,
-            self.text_concat_id,
-            self.text_intern_id,
-            self.text_slice_id,
-            self.bytes_slice_id,
-            self.bytes_len_id,
-            self.bytes_byte_id,
-            self.bytes_materialize_id,
-            self.text_eq_range_id,
-            self.text_find_byte_range_id,
-            self.text_line_end_id,
-            self.text_next_line_id,
-            self.text_field_end_id,
-            self.text_next_field_id,
-            self.text_from_f64_fixed_id,
-            self.parse_i32_id,
-            self.parse_i32_range_id,
-            self.parse_f64_id,
-            self.arg_count_id,
-            self.arg_text_id,
-            self.stdin_text_id,
-            self.stdout_write_id,
-            self.file_open_id,
-            self.file_close_id,
-            self.file_read_id,
-            self.file_read_to_end_id,
-            self.file_mmap_id,
-            self.file_write_id,
-            self.file_seek_id,
-            self.file_size_id,
-            self.file_exists_id,
-            self.file_remove_id,
-            self.file_is_valid_id,
-            self.bytes_to_text_id,
-            self.text_eq_id,
-            self.text_cmp_id,
+            &self.helpers,
             &self.records,
             &self.native_enums,
             &value_kinds,
