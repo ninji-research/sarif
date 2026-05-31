@@ -52,9 +52,12 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line(
         "extern void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end);",
     )?;
-    out.line(
-        "extern void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end);",
-    )?;
+ out.line(
+ "extern void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end);",
+ )?;
+ out.line("extern uint64_t sarif_bytes_len(const unsigned char* bytes);")?;
+ out.line("extern int64_t sarif_bytes_byte(const unsigned char* bytes, uint64_t index);")?;
+ out.line("extern void* sarif_bytes_materialize(const unsigned char* bytes);")?;
     out.line("extern int64_t sarif_parse_i32(const unsigned char* text);")?;
     out.line("extern void* sarif_text_from_f64_fixed(double value, int64_t digits);")?;
     out.line("extern void sarif_stdout_write(const unsigned char* text);")?;
@@ -342,6 +345,7 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TextSlice { dest, .. } => Some(*dest),
         Inst::BytesSlice { dest, .. } => Some(*dest),
         Inst::BytesToText { dest, .. } => Some(*dest),
+            Inst::BytesMaterialize { dest, .. } => Some(*dest),
         Inst::TextFromF64Fixed { dest, .. } => Some(*dest),
         Inst::F64FromI32 { dest, .. } => Some(*dest),
         Inst::TextBuilderNew { dest } => Some(*dest),
@@ -730,13 +734,13 @@ fn emit_inst(
                 vref(text)
             ))?;
         }
-        Inst::BytesLen { dest, bytes } => {
-            out.line(&format!(
-                "v{} = sarif_text_len((const unsigned char*){});",
-                dest.0,
-                vref(bytes)
-            ))?;
-        }
+ Inst::BytesLen { dest, bytes } => {
+ out.line(&format!(
+ "v{} = (int64_t)sarif_bytes_len((const unsigned char*){});",
+ dest.0,
+ vref(bytes)
+ ))?;
+ }
         Inst::TextByte { dest, text, index } => {
             out.line(&format!(
                 "v{} = (uint64_t)((const unsigned char*){})[8 + (uint64_t){}];",
@@ -745,14 +749,14 @@ fn emit_inst(
                 vref(index)
             ))?;
         }
-        Inst::BytesByte { dest, bytes, index } => {
-            out.line(&format!(
-                "v{} = (uint64_t)((const unsigned char*){})[8 + (uint64_t){}];",
-                dest.0,
-                vref(bytes),
-                vref(index)
-            ))?;
-        }
+ Inst::BytesByte { dest, bytes, index } => {
+ out.line(&format!(
+ "v{} = sarif_bytes_byte((const unsigned char*){}, (uint64_t)(int64_t){});",
+ dest.0,
+ vref(bytes),
+ vref(index)
+ ))?;
+ }
         Inst::TextCmp { dest, left, right } => {
             out.line(&format!("v{} = (uint64_t)(int64_t)sarif_text_cmp((const unsigned char*){}, (const unsigned char*){});", dest.0, vref(left), vref(right)))?;
         }
@@ -844,13 +848,18 @@ fn emit_inst(
         } => {
             out.line(&format!("v{} = (uint64_t)sarif_bytes_slice((const unsigned char*){}, (uint64_t)(int64_t){}, (uint64_t)(int64_t){});", dest.0, vref(bytes), vref(start), vref(end)))?;
         }
-        Inst::BytesToText { dest, bytes } => {
-            out.line(&format!(
-                "v{} = (uint64_t)sarif_bytes_to_text((const unsigned char*){});",
-                dest.0,
-                vref(bytes)
-            ))?;
-        }
+Inst::BytesToText { dest, bytes } => {
+                out.line(&format!(
+                    "v{} = (uint64_t)sarif_bytes_to_text((const unsigned char*){});",
+                    dest.0, vref(bytes)
+                ))?;
+            }
+            Inst::BytesMaterialize { dest, bytes } => {
+                out.line(&format!(
+                    "v{} = (uint64_t)sarif_bytes_materialize((const unsigned char*){});",
+                    dest.0, vref(bytes)
+                ))?;
+            }
         Inst::TextFromF64Fixed {
             dest,
             value,
@@ -1717,13 +1726,16 @@ fn infer_inst_kind_c(
         | Inst::TextNextField { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::I32);
         }
-        Inst::TextConcat { dest, .. }
-        | Inst::TextSlice { dest, .. }
-        | Inst::BytesSlice { dest, .. }
-        | Inst::BytesToText { dest, .. }
-        | Inst::TextFromF64Fixed { dest, .. } => {
-            kinds.insert(*dest, CodegenValueKind::Text);
-        }
+Inst::TextConcat { dest, .. }
+            | Inst::TextSlice { dest, .. }
+            | Inst::BytesSlice { dest, .. }
+            | Inst::BytesToText { dest, .. }
+            | Inst::TextFromF64Fixed { dest, .. } => {
+                kinds.insert(*dest, CodegenValueKind::Text);
+            }
+            Inst::BytesMaterialize { dest, .. } => {
+                kinds.insert(*dest, CodegenValueKind::Bytes);
+            }
         Inst::TextBuilderNew { dest }
         | Inst::TextBuilderAppend { dest, .. }
         | Inst::TextBuilderAppendCodepoint { dest, .. }

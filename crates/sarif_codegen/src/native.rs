@@ -409,6 +409,9 @@ fn infer_inst_kinds(
             | Inst::StdinText { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
             }
+            Inst::BytesMaterialize { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::Bytes);
+            }
             Inst::StdinBytes { dest } | Inst::FileReadToEnd { dest, .. } | Inst::FileMmap { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
@@ -1217,6 +1220,9 @@ pub fn lower_insts<M: Module>(
     text_intern_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
+    bytes_len_id: FuncId,
+    bytes_byte_id: FuncId,
+    bytes_materialize_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
     text_line_end_id: FuncId,
@@ -1284,51 +1290,54 @@ pub fn lower_insts<M: Module>(
             list_sort_by_text_field_id,
             text_concat_id,
             text_intern_id,
-            text_slice_id,
-            bytes_slice_id,
-            text_eq_range_id,
-            text_find_byte_range_id,
-            text_line_end_id,
-            text_next_line_id,
-            text_field_end_id,
-            text_next_field_id,
-            text_from_f64_fixed_id,
-            parse_i32_id,
-            parse_i32_range_id,
-            parse_f64_id,
-            arg_count_id,
-            arg_text_id,
-            stdin_text_id,
-            stdout_write_id,
-            file_open_id,
-            file_close_id,
-            file_read_id,
-            file_read_to_end_id,
-            file_mmap_id,
-            file_write_id,
-            file_seek_id,
-            file_size_id,
-            file_exists_id,
-            file_remove_id,
-            file_is_valid_id,
-            bytes_to_text_id,
-            text_eq_id,
-            text_cmp_id,
-            records,
-            enums,
-            value_kinds,
-            module,
-            function,
-            builder,
-            block_params,
-            slot_vars,
-            slot_types,
-            values,
-            list_headers,
-            trusted_list_accesses,
-            inst,
-            backend,
-        )? {
+        text_slice_id,
+        bytes_slice_id,
+        bytes_len_id,
+        bytes_byte_id,
+        bytes_materialize_id,
+        text_eq_range_id,
+        text_find_byte_range_id,
+        text_line_end_id,
+        text_next_line_id,
+        text_field_end_id,
+        text_next_field_id,
+        text_from_f64_fixed_id,
+        parse_i32_id,
+        parse_i32_range_id,
+        parse_f64_id,
+        arg_count_id,
+        arg_text_id,
+        stdin_text_id,
+        stdout_write_id,
+        file_open_id,
+        file_close_id,
+        file_read_id,
+        file_read_to_end_id,
+        file_mmap_id,
+        file_write_id,
+        file_seek_id,
+        file_size_id,
+        file_exists_id,
+        file_remove_id,
+        file_is_valid_id,
+                bytes_to_text_id,
+                text_eq_id,
+                text_cmp_id,
+                records,
+        enums,
+        value_kinds,
+        module,
+        function,
+        builder,
+        block_params,
+        slot_vars,
+        slot_types,
+        values,
+        list_headers,
+        trusted_list_accesses,
+        inst,
+        backend,
+    )? {
             return Ok(false);
         }
     }
@@ -1361,6 +1370,9 @@ pub fn lower_inst<M: Module>(
     text_intern_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
+    bytes_len_id: FuncId,
+    bytes_byte_id: FuncId,
+    bytes_materialize_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
     text_line_end_id: FuncId,
@@ -2111,12 +2123,15 @@ pub fn lower_inst<M: Module>(
         }
         Inst::BytesLen { dest, bytes } => {
             let bytes_val = native_value(values, *bytes, function, "bytes_len", backend)?;
-            let len = builder.ins().load(
-                types::I64,
-                cranelift_codegen::ir::MemFlags::trusted(),
-                bytes_val,
-                0,
-            );
+            let helper = module.declare_func_in_func(bytes_len_id, builder.func);
+            let len = call_helper(
+                builder,
+                helper,
+                &[bytes_val],
+                "bytes len",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(len));
             Ok(true)
         }
@@ -2209,15 +2224,15 @@ pub fn lower_inst<M: Module>(
         Inst::BytesByte { dest, bytes, index } => {
             let bytes_val = native_value(values, *bytes, function, "bytes_byte bytes", backend)?;
             let index_val = native_value(values, *index, function, "bytes_byte index", backend)?;
-            let offset = builder.ins().iadd_imm(index_val, 8);
-            let addr = builder.ins().iadd(bytes_val, offset);
-            let byte = builder.ins().load(
-                types::I8,
-                cranelift_codegen::ir::MemFlags::trusted(),
-                addr,
-                0,
-            );
-            let byte_i64 = builder.ins().uextend(types::I64, byte);
+            let helper = module.declare_func_in_func(bytes_byte_id, builder.func);
+            let byte_i64 = call_helper(
+                builder,
+                helper,
+                &[bytes_val, index_val],
+                "bytes byte",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(byte_i64));
             Ok(true)
         }
@@ -2577,6 +2592,20 @@ pub fn lower_inst<M: Module>(
                 helper,
                 &[bytes_val],
                 "bytes to text",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::BytesMaterialize { dest, bytes } => {
+            let bytes_val = native_value(values, *bytes, function, "bytes_materialize bytes", backend)?;
+            let helper = module.declare_func_in_func(bytes_materialize_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[bytes_val],
+                "bytes materialize",
                 function,
                 backend,
             )?;
@@ -3314,32 +3343,35 @@ pub fn lower_inst<M: Module>(
             let mut then_values = values.clone();
             let mut then_headers = list_headers.clone();
             builder.switch_to_block(then_block);
-            let then_falls = lower_insts(
-                function_ids,
-                data_ids,
-                text_data_func_id,
-                text_data_index,
-                allocator_id,
-                alloc_push_id,
-                alloc_pop_id,
-                text_builder_new_id,
-                text_builder_append_id,
-                text_builder_append_codepoint_id,
-                text_builder_append_ascii_id,
-                text_builder_append_slice_id,
-                text_builder_append_i32_id,
-                text_builder_finish_id,
-                stdout_write_builder_id,
-                text_index_helpers,
-                list_new_id,
-                list_push_id,
-                list_sort_text_id,
-                list_sort_by_text_field_id,
-                text_concat_id,
-                text_intern_id,
-                text_slice_id,
-                bytes_slice_id,
-                text_eq_range_id,
+    let then_falls = lower_insts(
+        function_ids,
+        data_ids,
+        text_data_func_id,
+        text_data_index,
+        allocator_id,
+        alloc_push_id,
+        alloc_pop_id,
+        text_builder_new_id,
+        text_builder_append_id,
+        text_builder_append_codepoint_id,
+        text_builder_append_ascii_id,
+        text_builder_append_slice_id,
+        text_builder_append_i32_id,
+        text_builder_finish_id,
+        stdout_write_builder_id,
+        text_index_helpers,
+        list_new_id,
+        list_push_id,
+        list_sort_text_id,
+        list_sort_by_text_field_id,
+        text_concat_id,
+        text_intern_id,
+        text_slice_id,
+        bytes_slice_id,
+        bytes_len_id,
+        bytes_byte_id,
+        bytes_materialize_id,
+        text_eq_range_id,
                 text_find_byte_range_id,
                 text_line_end_id,
                 text_next_line_id,
@@ -3397,32 +3429,35 @@ pub fn lower_inst<M: Module>(
             let mut else_values = values.clone();
             let mut else_headers = list_headers.clone();
             builder.switch_to_block(else_block);
-            let else_falls = lower_insts(
-                function_ids,
-                data_ids,
-                text_data_func_id,
-                text_data_index,
-                allocator_id,
-                alloc_push_id,
-                alloc_pop_id,
-                text_builder_new_id,
-                text_builder_append_id,
-                text_builder_append_codepoint_id,
-                text_builder_append_ascii_id,
-                text_builder_append_slice_id,
-                text_builder_append_i32_id,
-                text_builder_finish_id,
-                stdout_write_builder_id,
-                text_index_helpers,
-                list_new_id,
-                list_push_id,
-                list_sort_text_id,
-                list_sort_by_text_field_id,
-                text_concat_id,
-                text_intern_id,
-                text_slice_id,
-                bytes_slice_id,
-                text_eq_range_id,
+    let else_falls = lower_insts(
+        function_ids,
+        data_ids,
+        text_data_func_id,
+        text_data_index,
+        allocator_id,
+        alloc_push_id,
+        alloc_pop_id,
+        text_builder_new_id,
+        text_builder_append_id,
+        text_builder_append_codepoint_id,
+        text_builder_append_ascii_id,
+        text_builder_append_slice_id,
+        text_builder_append_i32_id,
+        text_builder_finish_id,
+        stdout_write_builder_id,
+        text_index_helpers,
+        list_new_id,
+        list_push_id,
+        list_sort_text_id,
+        list_sort_by_text_field_id,
+        text_concat_id,
+        text_intern_id,
+        text_slice_id,
+        bytes_slice_id,
+        bytes_len_id,
+        bytes_byte_id,
+        bytes_materialize_id,
+        text_eq_range_id,
                 text_find_byte_range_id,
                 text_line_end_id,
                 text_next_line_id,
@@ -3580,34 +3615,37 @@ pub fn lower_inst<M: Module>(
                 })?;
                 let current_index =
                     coerce_var_value(builder, current_index, expected, function, backend)?;
-                builder.def_var(var, current_index);
-            }
-            let body_falls = lower_insts(
-                function_ids,
-                data_ids,
-                text_data_func_id,
-                text_data_index,
-                allocator_id,
-                alloc_push_id,
-                alloc_pop_id,
-                text_builder_new_id,
-                text_builder_append_id,
-                text_builder_append_codepoint_id,
-                text_builder_append_ascii_id,
-                text_builder_append_slice_id,
-                text_builder_append_i32_id,
-                text_builder_finish_id,
-                stdout_write_builder_id,
-                text_index_helpers,
-                list_new_id,
-                list_push_id,
-                list_sort_text_id,
-                list_sort_by_text_field_id,
-                text_concat_id,
-                text_intern_id,
-                text_slice_id,
-                bytes_slice_id,
-                text_eq_range_id,
+        builder.def_var(var, current_index);
+        }
+        let body_falls = lower_insts(
+            function_ids,
+            data_ids,
+            text_data_func_id,
+            text_data_index,
+            allocator_id,
+            alloc_push_id,
+            alloc_pop_id,
+            text_builder_new_id,
+            text_builder_append_id,
+            text_builder_append_codepoint_id,
+            text_builder_append_ascii_id,
+            text_builder_append_slice_id,
+            text_builder_append_i32_id,
+            text_builder_finish_id,
+            stdout_write_builder_id,
+            text_index_helpers,
+            list_new_id,
+            list_push_id,
+            list_sort_text_id,
+            list_sort_by_text_field_id,
+            text_concat_id,
+            text_intern_id,
+            text_slice_id,
+            bytes_slice_id,
+            bytes_len_id,
+            bytes_byte_id,
+            bytes_materialize_id,
+            text_eq_range_id,
                 text_find_byte_range_id,
                 text_line_end_id,
                 text_next_line_id,
@@ -3675,37 +3713,40 @@ pub fn lower_inst<M: Module>(
             let condition_block = builder.create_block();
             let body_block = builder.create_block();
             let exit_block = builder.create_block();
-            builder.ins().jump(condition_block, &[]);
+        builder.ins().jump(condition_block, &[]);
 
-            builder.switch_to_block(condition_block);
-            let mut condition_values = values.clone();
-            let mut condition_headers = list_headers.clone();
-            let condition_falls = lower_insts(
-                function_ids,
-                data_ids,
-                text_data_func_id,
-                text_data_index,
-                allocator_id,
-                alloc_push_id,
-                alloc_pop_id,
-                text_builder_new_id,
-                text_builder_append_id,
-                text_builder_append_codepoint_id,
-                text_builder_append_ascii_id,
-                text_builder_append_slice_id,
-                text_builder_append_i32_id,
-                text_builder_finish_id,
-                stdout_write_builder_id,
-                text_index_helpers,
-                list_new_id,
-                list_push_id,
-                list_sort_text_id,
-                list_sort_by_text_field_id,
-                text_concat_id,
-                text_intern_id,
-                text_slice_id,
-                bytes_slice_id,
-                text_eq_range_id,
+        builder.switch_to_block(condition_block);
+        let mut condition_values = values.clone();
+        let mut condition_headers = list_headers.clone();
+        let condition_falls = lower_insts(
+            function_ids,
+            data_ids,
+            text_data_func_id,
+            text_data_index,
+            allocator_id,
+            alloc_push_id,
+            alloc_pop_id,
+            text_builder_new_id,
+            text_builder_append_id,
+            text_builder_append_codepoint_id,
+            text_builder_append_ascii_id,
+            text_builder_append_slice_id,
+            text_builder_append_i32_id,
+            text_builder_finish_id,
+            stdout_write_builder_id,
+            text_index_helpers,
+            list_new_id,
+            list_push_id,
+            list_sort_text_id,
+            list_sort_by_text_field_id,
+            text_concat_id,
+            text_intern_id,
+            text_slice_id,
+            bytes_slice_id,
+            bytes_len_id,
+            bytes_byte_id,
+            bytes_materialize_id,
+            text_eq_range_id,
                 text_find_byte_range_id,
                 text_line_end_id,
                 text_next_line_id,
@@ -3766,38 +3807,41 @@ pub fn lower_inst<M: Module>(
             builder
                 .ins()
                 .brif(condition_bool, body_block, &[], exit_block, &[]);
-            builder.seal_block(body_block);
-            builder.seal_block(exit_block);
+        builder.seal_block(body_block);
+        builder.seal_block(exit_block);
 
-            let mut body_values = values.clone();
-            let mut body_headers = list_headers.clone();
-            builder.switch_to_block(body_block);
-            let body_falls = lower_insts(
-                function_ids,
-                data_ids,
-                text_data_func_id,
-                text_data_index,
-                allocator_id,
-                alloc_push_id,
-                alloc_pop_id,
-                text_builder_new_id,
-                text_builder_append_id,
-                text_builder_append_codepoint_id,
-                text_builder_append_ascii_id,
-                text_builder_append_slice_id,
-                text_builder_append_i32_id,
-                text_builder_finish_id,
-                stdout_write_builder_id,
-                text_index_helpers,
-                list_new_id,
-                list_push_id,
-                list_sort_text_id,
-                list_sort_by_text_field_id,
-                text_concat_id,
-                text_intern_id,
-                text_slice_id,
-                bytes_slice_id,
-                text_eq_range_id,
+        let mut body_values = values.clone();
+        let mut body_headers = list_headers.clone();
+        builder.switch_to_block(body_block);
+        let body_falls = lower_insts(
+            function_ids,
+            data_ids,
+            text_data_func_id,
+            text_data_index,
+            allocator_id,
+            alloc_push_id,
+            alloc_pop_id,
+            text_builder_new_id,
+            text_builder_append_id,
+            text_builder_append_codepoint_id,
+            text_builder_append_ascii_id,
+            text_builder_append_slice_id,
+            text_builder_append_i32_id,
+            text_builder_finish_id,
+            stdout_write_builder_id,
+            text_index_helpers,
+            list_new_id,
+            list_push_id,
+            list_sort_text_id,
+            list_sort_by_text_field_id,
+            text_concat_id,
+            text_intern_id,
+            text_slice_id,
+            bytes_slice_id,
+            bytes_len_id,
+            bytes_byte_id,
+            bytes_materialize_id,
+            text_eq_range_id,
                 text_find_byte_range_id,
                 text_line_end_id,
                 text_next_line_id,
@@ -3952,6 +3996,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::MakeRecord { dest, .. }
             | Inst::FileOpen { dest, .. }
             | Inst::BytesToText { dest, .. }
+            | Inst::BytesMaterialize { dest, .. }
             | Inst::FileIsValid { dest, .. }
             | Inst::FileRead { dest, .. }
             | Inst::FileReadToEnd { dest, .. }
@@ -4521,14 +4566,50 @@ pub fn declare_text_slice<M: Module>(module: &mut M, backend: &str) -> Result<Fu
 }
 
 pub fn declare_bytes_slice<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
-    declare_runtime_fn(
-        module,
-        "sarif_bytes_slice",
-        backend,
-        "bytes slice helper",
-        &[types::I64, types::I64, types::I64],
-        &[types::I64],
-    )
+ declare_runtime_fn(
+ module,
+ "sarif_bytes_slice",
+ backend,
+ "bytes slice helper",
+ &[types::I64, types::I64, types::I64],
+ &[types::I64],
+ )
+}
+
+pub fn declare_bytes_len<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+ declare_runtime_fn(
+ module,
+ "sarif_bytes_len",
+ backend,
+ "bytes len helper",
+ &[types::I64],
+ &[types::I64],
+ )
+}
+
+pub fn declare_bytes_byte<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+ declare_runtime_fn(
+ module,
+ "sarif_bytes_byte",
+ backend,
+ "bytes byte helper",
+ &[types::I64, types::I64],
+ &[types::I64],
+ )
+}
+
+pub fn declare_bytes_materialize<M: Module>(
+ module: &mut M,
+ backend: &str,
+) -> Result<FuncId, String> {
+ declare_runtime_fn(
+ module,
+ "sarif_bytes_materialize",
+ backend,
+ "bytes materialize helper",
+ &[types::I64],
+ &[types::I64],
+ )
 }
 
 pub fn declare_text_eq_range<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {

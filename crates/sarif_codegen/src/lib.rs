@@ -422,11 +422,15 @@ pub enum Inst {
         dest: ValueId,
         bytes: ValueId,
     },
-    BytesToText {
-        dest: ValueId,
-        bytes: ValueId,
-    },
-    TextConcat {
+        BytesToText {
+            dest: ValueId,
+            bytes: ValueId,
+        },
+        BytesMaterialize {
+            dest: ValueId,
+            bytes: ValueId,
+        },
+        TextConcat {
         dest: ValueId,
         left: ValueId,
         right: ValueId,
@@ -986,6 +990,9 @@ impl Inst {
             }
             Self::BytesToText { dest, bytes } => {
                 format!("{} = bytes-to-text {}", dest.render(), bytes.render())
+            }
+            Self::BytesMaterialize { dest, bytes } => {
+                format!("{} = bytes-materialize {}", dest.render(), bytes.render())
             }
             Self::TextConcat { dest, left, right } => format!(
                 "{} = text-concat {}, {}",
@@ -1555,6 +1562,11 @@ pub enum RuntimeValue {
     Bool(bool),
     Text(String),
     Bytes(Vec<u8>),
+    BytesView {
+        data: std::sync::Arc<Vec<u8>>,
+        offset: usize,
+        len: usize,
+    },
     TextIndex(u64),
     TextBuilder(u64),
     File(u64),
@@ -1585,7 +1597,7 @@ impl RuntimeValue {
             Self::F64(value) => value.to_string(),
             Self::Bool(value) => value.to_string(),
             Self::Text(value) => value.clone(),
-            Self::Bytes(_) => "<bytes>".to_owned(),
+            Self::Bytes(_) | Self::BytesView { .. } => "<bytes>".to_owned(),
             Self::TextIndex(_) => "<text-index>".to_owned(),
             Self::TextBuilder(_) => "<text-builder>".to_owned(),
             Self::File(_) => "<file>".to_owned(),
@@ -3461,8 +3473,9 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Perform { .. }
             | Inst::Handle { .. }
             | Inst::FileOpen { .. }
-            | Inst::BytesToText { .. }
-            | Inst::FileIsValid { .. }
+| Inst::BytesToText { .. }
+| Inst::BytesMaterialize { .. }
+| Inst::FileIsValid { .. }
             | Inst::FileRead { .. }
             | Inst::FileReadToEnd { .. }
             | Inst::FileMmap { .. }
@@ -3820,6 +3833,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "bytes_to_text" if self.builtin_is_available("bytes_to_text") => {
                 self.lower_bytes_to_text_expr(expr)
             }
+            "bytes_materialize" if self.builtin_is_available("bytes_materialize") => {
+                self.lower_bytes_materialize_expr(expr)
+            }
             "text_concat" if self.builtin_is_available("text_concat") => {
                 self.lower_text_concat_expr(expr)
             }
@@ -4040,6 +4056,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
             "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
             "bytes_to_text" if self.builtin_is_available("bytes_to_text") => LowerType::Text,
+                "bytes_materialize" if self.builtin_is_available("bytes_materialize") => LowerType::Bytes,
             "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
                 LowerType::Text
             }
@@ -6714,7 +6731,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 });
                 dest
             }
-            RuntimeValue::Bytes(_) => {
+            RuntimeValue::Bytes(_) | RuntimeValue::BytesView { .. } => {
                 self.diagnostics.push(Diagnostic::new(
                     "mir.bytes-const",
                     format!(
@@ -7016,6 +7033,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let bytes = self.lower_expr(arg);
         let dest = self.fresh_value();
         self.instructions.push(Inst::BytesToText { dest, bytes });
+        dest
+    }
+
+    fn lower_bytes_materialize_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let bytes = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::BytesMaterialize { dest, bytes });
         dest
     }
 
@@ -7961,7 +7988,7 @@ pub(crate) fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
         RuntimeValue::F64(_) => LowerType::F64,
         RuntimeValue::Bool(_) => LowerType::Bool,
         RuntimeValue::Text(_) => LowerType::Text,
-        RuntimeValue::Bytes(_) => LowerType::Bytes,
+        RuntimeValue::Bytes(_) | RuntimeValue::BytesView { .. } => LowerType::Bytes,
         RuntimeValue::TextIndex(_) => LowerType::TextIndex,
         RuntimeValue::TextBuilder(_) => LowerType::TextBuilder,
         RuntimeValue::List(_) => LowerType::List(Box::new(LowerType::Error)), // opaque handle
@@ -8964,20 +8991,23 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
-                    let len = match text_val {
-                        RuntimeValue::Text(text) => text.len(),
-                        RuntimeValue::Bytes(bytes) => bytes.len(),
-                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
-                    };
+                let len = match text_val {
+                    RuntimeValue::Text(text) => text.len(),
+                    RuntimeValue::Bytes(bytes) => bytes.len(),
+                    RuntimeValue::BytesView { len, .. } => len,
+                    _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                };
                     values[dest.0 as usize] = RuntimeValue::Int(len as i64);
                 }
-                Inst::BytesLen { dest, bytes } => {
-                    let bytes_val = extract_value(values, *bytes)?;
-                    let RuntimeValue::Bytes(bytes) = bytes_val else {
-                        return Err(RuntimeError::new("expected Bytes"));
-                    };
-                    values[dest.0 as usize] = RuntimeValue::Int(bytes.len() as i64);
-                }
+            Inst::BytesLen { dest, bytes } => {
+                let bytes_val = extract_value(values, *bytes)?;
+                let len = match &bytes_val {
+                    RuntimeValue::Bytes(b) => b.len(),
+                    RuntimeValue::BytesView { len, .. } => *len,
+                    _ => return Err(RuntimeError::new("expected Bytes")),
+                };
+                values[dest.0 as usize] = RuntimeValue::Int(len as i64);
+            }
                 Inst::TextConcat { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
                     let right_val = extract_value(values, *right)?;
@@ -9038,34 +9068,50 @@ impl<'a> Interpreter<'a> {
                     };
                     values[dest.0 as usize] = RuntimeValue::Text(sliced);
                 }
-                Inst::BytesSlice {
-                    dest,
-                    bytes,
-                    start,
-                    end,
-                } => {
-                    let bytes_val = extract_value(values, *bytes)?;
-                    let start_val = extract_value(values, *start)?;
-                    let end_val = extract_value(values, *end)?;
-                    let RuntimeValue::Bytes(bytes) = bytes_val else {
-                        return Err(RuntimeError::new("expected Bytes"));
-                    };
-                    let RuntimeValue::Int(start) = start_val else {
-                        return Err(RuntimeError::new("expected Int"));
-                    };
-                    let RuntimeValue::Int(end) = end_val else {
-                        return Err(RuntimeError::new("expected Int"));
-                    };
-                    let len = bytes.len();
-                    let start = usize::try_from(start).unwrap_or(0).min(len);
-                    let end = usize::try_from(end).unwrap_or(0).min(len);
-                    let (start, end) = if end < start {
-                        (start, start)
-                    } else {
-                        (start, end)
-                    };
-                    values[dest.0 as usize] = RuntimeValue::Bytes(bytes[start..end].to_vec());
+            Inst::BytesSlice {
+                dest,
+                bytes,
+                start,
+                end,
+            } => {
+                let bytes_val = extract_value(values, *bytes)?;
+                let start_val = extract_value(values, *start)?;
+                let end_val = extract_value(values, *end)?;
+                let RuntimeValue::Int(start) = start_val else {
+                    return Err(RuntimeError::new("expected Int"));
+                };
+                let RuntimeValue::Int(end) = end_val else {
+                    return Err(RuntimeError::new("expected Int"));
+                };
+                match &bytes_val {
+                    RuntimeValue::Bytes(owned) => {
+                        let len = owned.len();
+                        let s = usize::try_from(start).unwrap_or(0).min(len);
+                        let e = usize::try_from(end).unwrap_or(0).min(len);
+                        let (s, e) = if e < s { (s, s) } else { (s, e) };
+                        values[dest.0 as usize] = RuntimeValue::BytesView {
+                            data: std::sync::Arc::new(owned.clone()),
+                            offset: s,
+                            len: e - s,
+                        };
+                    }
+                    RuntimeValue::BytesView {
+                        data,
+                        offset,
+                        len: view_len,
+                    } => {
+                        let s = usize::try_from(start).unwrap_or(0).min(*view_len);
+                        let e = usize::try_from(end).unwrap_or(0).min(*view_len);
+                        let (s, e) = if e < s { (s, s) } else { (s, e) };
+                        values[dest.0 as usize] = RuntimeValue::BytesView {
+                            data: std::sync::Arc::clone(data),
+                            offset: *offset + s,
+                            len: e - s,
+                        };
+                    }
+                    _ => return Err(RuntimeError::new("expected Bytes")),
                 }
+            }
                 Inst::TextByte { dest, text, index } => {
                     let text_val = extract_value(values, *text)?;
                     let index_val = extract_value(values, *index)?;
@@ -9080,18 +9126,25 @@ impl<'a> Interpreter<'a> {
                     let byte = bytes.get(idx as usize).copied().unwrap_or(0);
                     values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
                 }
-                Inst::BytesByte { dest, bytes, index } => {
-                    let bytes_val = extract_value(values, *bytes)?;
-                    let index_val = extract_value(values, *index)?;
-                    let RuntimeValue::Bytes(bytes) = bytes_val else {
-                        return Err(RuntimeError::new("expected Bytes"));
-                    };
-                    let RuntimeValue::Int(idx) = index_val else {
-                        return Err(RuntimeError::new("expected Int"));
-                    };
-                    let byte = bytes.get(idx as usize).copied().unwrap_or(0);
-                    values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
-                }
+            Inst::BytesByte { dest, bytes, index } => {
+                let bytes_val = extract_value(values, *bytes)?;
+                let index_val = extract_value(values, *index)?;
+                let RuntimeValue::Int(idx) = index_val else {
+                    return Err(RuntimeError::new("expected Int"));
+                };
+                let byte = match &bytes_val {
+                    RuntimeValue::Bytes(b) => b.get(idx as usize).copied().unwrap_or(0),
+                    RuntimeValue::BytesView { data, offset, len } => {
+                        if (idx as usize) < *len {
+                            data[*offset + idx as usize]
+                        } else {
+                            0
+                        }
+                    }
+                    _ => return Err(RuntimeError::new("expected Bytes")),
+                };
+                values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
+            }
                 Inst::TextCmp { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
                     let right_val = extract_value(values, *right)?;
@@ -9182,43 +9235,49 @@ impl<'a> Interpreter<'a> {
                     }
                     values[dest.0 as usize] = RuntimeValue::Int(found);
                 }
-                Inst::BytesFindByteRange {
-                    dest,
-                    source,
-                    start,
-                    end,
-                    byte,
-                } => {
-                    let source_val = extract_value(values, *source)?;
-                    let start_val = extract_value(values, *start)?;
-                    let end_val = extract_value(values, *end)?;
-                    let byte_val = extract_value(values, *byte)?;
-                    let RuntimeValue::Bytes(bytes) = source_val else {
-                        return Err(RuntimeError::new("expected Bytes"));
-                    };
-                    let RuntimeValue::Int(start) = start_val else {
-                        return Err(RuntimeError::new("expected Int"));
-                    };
-                    let RuntimeValue::Int(end) = end_val else {
-                        return Err(RuntimeError::new("expected Int"));
-                    };
-                    let RuntimeValue::Int(byte) = byte_val else {
-                        return Err(RuntimeError::new("expected Int"));
-                    };
-                    let start = usize::try_from(start).unwrap_or(0).min(bytes.len());
-                    let end = usize::try_from(end).unwrap_or(0).min(bytes.len());
-                    let end = end.max(start);
-                    let mut found = end as i64;
-                    let mut index = start;
-                    while index < end {
-                        if bytes[index] == byte as u8 {
-                            found = index as i64;
-                            break;
-                        }
-                        index += 1;
+            Inst::BytesFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => {
+                let source_val = extract_value(values, *source)?;
+                let start_val = extract_value(values, *start)?;
+                let end_val = extract_value(values, *end)?;
+                let byte_val = extract_value(values, *byte)?;
+                let (data, data_offset, data_len) = match &source_val {
+                    RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
+                    RuntimeValue::BytesView {
+                        data,
+                        offset,
+                        len,
+                    } => (data.as_slice(), *offset, *len),
+                    _ => return Err(RuntimeError::new("expected Bytes")),
+                };
+                let RuntimeValue::Int(start) = start_val else {
+                    return Err(RuntimeError::new("expected Int"));
+                };
+                let RuntimeValue::Int(end) = end_val else {
+                    return Err(RuntimeError::new("expected Int"));
+                };
+                let RuntimeValue::Int(byte) = byte_val else {
+                    return Err(RuntimeError::new("expected Int"));
+                };
+                let start = usize::try_from(start).unwrap_or(0).min(data_len);
+                let end = usize::try_from(end).unwrap_or(0).min(data_len);
+                let end = end.max(start);
+                let mut found = end as i64;
+                let mut index = start;
+                while index < end {
+                    if data[data_offset + index] == byte as u8 {
+                        found = index as i64;
+                        break;
                     }
-                    values[dest.0 as usize] = RuntimeValue::Int(found);
+                    index += 1;
                 }
+                values[dest.0 as usize] = RuntimeValue::Int(found);
+            }
                 Inst::TextLineEnd {
                     dest,
                     source,
@@ -9355,14 +9414,28 @@ impl<'a> Interpreter<'a> {
                     }
                     values[dest.0 as usize] = RuntimeValue::Int(next as i64);
                 }
-                Inst::BytesToText { dest, bytes } => {
-                    let bytes_val = extract_value(values, *bytes)?;
-                    let RuntimeValue::Bytes(bytes) = bytes_val else {
-                        return Err(RuntimeError::new("expected Bytes"));
-                    };
-                    values[dest.0 as usize] =
-                        RuntimeValue::Text(String::from_utf8_lossy(&bytes).into_owned());
-                }
+            Inst::BytesToText { dest, bytes } => {
+                let bytes_val = extract_value(values, *bytes)?;
+                let text = match &bytes_val {
+                    RuntimeValue::Bytes(b) => String::from_utf8_lossy(b).into_owned(),
+                    RuntimeValue::BytesView { data, offset, len } => {
+                        String::from_utf8_lossy(&data[*offset..*offset + *len]).into_owned()
+                    }
+                    _ => return Err(RuntimeError::new("expected Bytes")),
+                };
+                values[dest.0 as usize] = RuntimeValue::Text(text);
+            }
+            Inst::BytesMaterialize { dest, bytes } => {
+                let bytes_val = extract_value(values, *bytes)?;
+                let materialized = match &bytes_val {
+                    RuntimeValue::Bytes(b) => b.clone(),
+                    RuntimeValue::BytesView { data, offset, len } => {
+                        data[*offset..*offset + *len].to_vec()
+                    }
+                    _ => return Err(RuntimeError::new("expected Bytes")),
+                };
+                values[dest.0 as usize] = RuntimeValue::Bytes(materialized);
+            }
                 Inst::ParseI32 { dest, text } => {
                     let text_val = extract_value(values, *text)?;
                     let RuntimeValue::Text(text) = text_val else {
@@ -9539,11 +9612,14 @@ impl<'a> Interpreter<'a> {
                         .get_mut(id as usize)
                         .and_then(|f| f.as_mut())
                         .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
-                    let bytes = match data_val {
-                        RuntimeValue::Text(t) => t.into_bytes(),
-                        RuntimeValue::Bytes(b) => b,
-                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
-                    };
+                let bytes = match data_val {
+                    RuntimeValue::Text(t) => t.into_bytes(),
+                    RuntimeValue::Bytes(b) => b,
+                    RuntimeValue::BytesView { data, offset, len } => {
+                        data[offset..offset + len].to_vec()
+                    }
+                    _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                };
                     file.write_all(&bytes)
                         .map_err(|e| RuntimeError::new(format!("failed to write to file: {e}")))?;
                     values[dest.0 as usize] = RuntimeValue::Int(bytes.len() as i64);
@@ -9656,11 +9732,14 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::StdoutWrite { text } => {
                     let text_val = extract_value(values, *text)?;
-                    let text = match text_val {
-                        RuntimeValue::Text(t) => t,
-                        RuntimeValue::Bytes(b) => String::from_utf8_lossy(&b).into_owned(),
-                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
-                    };
+                let text = match text_val {
+                    RuntimeValue::Text(t) => t,
+                    RuntimeValue::Bytes(b) => String::from_utf8_lossy(&b).into_owned(),
+                    RuntimeValue::BytesView { data, offset, len } => {
+                        String::from_utf8_lossy(&data[offset..offset + len]).into_owned()
+                    }
+                    _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                };
                     self.stdout_text.push_str(&text);
                 }
                 Inst::StdoutWriteBuilder { dest, builder } => {
@@ -10092,6 +10171,7 @@ impl<'a> Interpreter<'a> {
             | ("Bool", RuntimeValue::Bool(_))
             | ("Text", RuntimeValue::Text(_))
             | ("Bytes", RuntimeValue::Bytes(_))
+        | ("Bytes", RuntimeValue::BytesView { .. })
             | ("TextBuilder", RuntimeValue::TextBuilder(_))
             | ("List", RuntimeValue::List(_))
             | ("Unit", RuntimeValue::Unit) => Ok(()),

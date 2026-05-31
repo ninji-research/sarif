@@ -120,6 +120,9 @@ fn hash_args(args: &[RuntimeValue]) -> u64 {
             RuntimeValue::Bool(v) => hasher.write_u64(u64::from(*v)),
             RuntimeValue::Text(v) => hasher.write(v.as_bytes()),
             RuntimeValue::Bytes(v) => hasher.write(v),
+            RuntimeValue::BytesView { data, offset, len } => {
+                hasher.write(&data[*offset..*offset + *len]);
+            }
             RuntimeValue::Unit
             | RuntimeValue::Enum(_)
             | RuntimeValue::Record(_)

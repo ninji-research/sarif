@@ -478,6 +478,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextIntern { dest, .. }
                 | Inst::TextSlice { dest, .. }
                 | Inst::BytesSlice { dest, .. }
+            | Inst::BytesMaterialize { dest, .. }
                 | Inst::TextBuilderNew { dest }
                 | Inst::TextIndexNew { dest }
                 | Inst::TextBuilderAppend { dest, .. }
@@ -572,8 +573,8 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::Assert { .. }
                 | Inst::AllocPush
                 | Inst::AllocPop
-                | Inst::BytesToText { .. }
-                | Inst::FileOpen { .. }
+| Inst::BytesToText { .. }
+            | Inst::FileOpen { .. }
                 | Inst::FileIsValid { .. }
                 | Inst::FileRead { .. }
                 | Inst::FileReadToEnd { .. }
@@ -1523,6 +1524,12 @@ impl<'a> WasmEmitter<'a> {
                     "wasm backend does not support bytes-to-text conversion",
                 ));
             }
+Inst::BytesMaterialize { dest, bytes } => {
+                writeln!(output, "    local.get ${}", wasm_id(*bytes))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
             Inst::FileOpen { .. } => {
                 return Err(WasmError::new("wasm backend does not support file open"));
             }
@@ -1901,6 +1908,9 @@ fn collect_inst_kinds(
             Inst::BytesSlice { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::Bytes);
             }
+            Inst::BytesMaterialize { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::Bytes);
+            }
             Inst::StdinBytes { dest } => {
                 kinds.insert(*dest, WasmValueKind::Bytes);
             }
@@ -2090,7 +2100,7 @@ fn collect_inst_kinds(
             }
             Inst::StoreLocal { .. }
             | Inst::Assert { .. }
-            | Inst::BytesToText { .. }
+| Inst::BytesToText { .. }
             | Inst::FileOpen { .. }
             | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }

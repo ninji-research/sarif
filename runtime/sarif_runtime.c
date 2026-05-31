@@ -24,6 +24,9 @@ __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     exit(1);
 }
 static unsigned char sarif_empty_text[8] = {0};
+
+#define SARIF_BYTES_VIEW_TAG (1ULL << 63)
+
 static int sarif_write_text_blob(const unsigned char* text, int newline);
 static int sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
@@ -281,6 +284,22 @@ static inline __attribute__((always_inline)) uint64_t sarif_load_u64(const unsig
     uint64_t value;
     memcpy(&value, base + offset, sizeof(uint64_t));
     return value;
+}
+
+static int sarif_bytes_is_view(const unsigned char* bytes) {
+    if (bytes == NULL) return 0;
+    uint64_t tag = sarif_load_u64(bytes, 0);
+    return (tag & SARIF_BYTES_VIEW_TAG) != 0;
+}
+
+static uint64_t sarif_bytes_view_len(const unsigned char* bytes) {
+    return sarif_load_u64(bytes, 0) & ~SARIF_BYTES_VIEW_TAG;
+}
+
+static const unsigned char* sarif_bytes_view_data(const unsigned char* view) {
+    uint64_t parent = sarif_load_u64(view, 8);
+    uint64_t offset = sarif_load_u64(view, 16);
+    return (const unsigned char*)(uintptr_t)parent + 8 + offset;
 }
 
 // Persistent string interning pool.
@@ -1281,7 +1300,32 @@ void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) 
 }
 
 void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end) {
-    return sarif_slice_blob(bytes, start, end, 0);
+    if (bytes == NULL) return NULL;
+    uint64_t src_len = 0;
+    const unsigned char* src_data = NULL;
+    uint64_t src_offset = 0;
+    const unsigned char* src_parent = NULL;
+    if (sarif_bytes_is_view(bytes)) {
+        src_len = sarif_bytes_view_len(bytes);
+        src_parent = (const unsigned char*)(uintptr_t)sarif_load_u64(bytes, 8);
+        src_offset = sarif_load_u64(bytes, 16);
+        src_data = src_parent + 8 + src_offset;
+    } else {
+        src_len = sarif_load_u64(bytes, 0);
+        src_parent = bytes;
+        src_offset = 0;
+        src_data = bytes + 8;
+    }
+    uint64_t cs = start < src_len ? start : src_len;
+    uint64_t ce = end < src_len ? end : src_len;
+    if (ce <= cs) return sarif_empty_text;
+    uint64_t view_len = ce - cs;
+    unsigned char* view = (unsigned char*)sarif_record_alloc(24);
+    if (view == NULL) return NULL;
+    sarif_store_u64(view, 0, view_len | SARIF_BYTES_VIEW_TAG);
+    sarif_store_u64(view, 8, (uint64_t)(uintptr_t)src_parent);
+    sarif_store_u64(view, 16, src_offset + cs);
+    return view;
 }
 
 void* sarif_text_from_f64_fixed(double value, int64_t digits) {
@@ -1849,14 +1893,58 @@ uint64_t sarif_file_mmap(const unsigned char* path_handle) {
     return (uint64_t)(uintptr_t)addr;
 }
 
+uint64_t sarif_bytes_len(const unsigned char* bytes) {
+    if (bytes == NULL) return 0;
+    if (sarif_bytes_is_view(bytes)) {
+        return sarif_bytes_view_len(bytes);
+    }
+    return sarif_load_u64(bytes, 0);
+}
+
+int64_t sarif_bytes_byte(const unsigned char* bytes, uint64_t index) {
+    if (bytes == NULL) return 0;
+    if (sarif_bytes_is_view(bytes)) {
+        uint64_t len = sarif_bytes_view_len(bytes);
+        if (index >= len) return 0;
+        const unsigned char* data = sarif_bytes_view_data(bytes);
+        return (int64_t)data[index];
+    }
+    uint64_t len = sarif_load_u64(bytes, 0);
+    if (index >= len) return 0;
+    return (int64_t)bytes[8 + index];
+}
+
+void* sarif_bytes_materialize(const unsigned char* bytes) {
+    if (bytes == NULL) return NULL;
+    if (!sarif_bytes_is_view(bytes)) {
+        uint64_t len = sarif_load_u64(bytes, 0);
+        unsigned char* result = sarif_bytes_alloc(len);
+        if (result == NULL) return NULL;
+        if (len != 0) memcpy(result + 8, bytes + 8, (size_t)len);
+        return result;
+    }
+    uint64_t len = sarif_bytes_view_len(bytes);
+    const unsigned char* data = sarif_bytes_view_data(bytes);
+    unsigned char* result = sarif_bytes_alloc(len);
+    if (result == NULL) return NULL;
+    if (len != 0) memcpy(result + 8, data, (size_t)len);
+    return result;
+}
+
 void* sarif_bytes_to_text(const unsigned char* bytes) {
     if (bytes == NULL) return NULL;
+    if (sarif_bytes_is_view(bytes)) {
+        uint64_t len = sarif_bytes_view_len(bytes);
+        const unsigned char* data = sarif_bytes_view_data(bytes);
+        unsigned char* result = sarif_text_alloc(len);
+        if (result == NULL) return NULL;
+        if (len != 0) memcpy(result + 8, data, (size_t)len);
+        return result;
+    }
     uint64_t len = sarif_load_u64(bytes, 0);
     unsigned char* result = sarif_text_alloc(len);
     if (result == NULL) return NULL;
-    if (len != 0) {
-        memcpy(result + 8, bytes + 8, (size_t)len);
-    }
+    if (len != 0) memcpy(result + 8, bytes + 8, (size_t)len);
     return result;
 }
 

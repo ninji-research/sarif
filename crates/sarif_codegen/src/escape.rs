@@ -178,6 +178,7 @@ impl Env<'_> {
             | Inst::Perform { dest, .. }
             | Inst::FileOpen { dest, .. }
             | Inst::BytesToText { dest, .. }
+            | Inst::BytesMaterialize { dest, .. }
             | Inst::FileIsValid { dest, .. }
             | Inst::FileRead { dest, .. }
             | Inst::FileReadToEnd { dest, .. }

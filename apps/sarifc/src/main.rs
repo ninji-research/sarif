@@ -385,6 +385,7 @@ fn runtime_value_to_exit_code(value: &RuntimeValue) -> ExitCode {
         RuntimeValue::F64(_)
         | RuntimeValue::Text(_)
         | RuntimeValue::Bytes(_)
+        | RuntimeValue::BytesView { .. }
         | RuntimeValue::TextIndex(_)
         | RuntimeValue::TextBuilder(_)
         | RuntimeValue::List(_)

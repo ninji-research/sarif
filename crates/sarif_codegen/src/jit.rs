@@ -15,7 +15,8 @@ use cranelift_module::{DataId, FuncId, Linkage, Module, default_libcall_names};
 use crate::native::{
     ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TextIndexHelperIds, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
-    declare_arg_count, declare_arg_text, declare_bytes_slice, declare_bytes_to_text,
+    declare_arg_count, declare_arg_text,     declare_bytes_byte, declare_bytes_len, declare_bytes_materialize, declare_bytes_slice,
+    declare_bytes_to_text,
     declare_file_close, declare_file_exists, declare_file_is_valid, declare_file_open,
     declare_file_read, declare_file_read_to_end, declare_file_mmap, declare_file_remove, declare_file_seek,
     declare_file_size, declare_file_write, declare_list_new, declare_list_push,
@@ -261,6 +262,36 @@ pub unsafe extern "C" fn sarif_text_slice(ptr: i64, start: i64, end: i64) -> i64
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_bytes_slice(ptr: i64, start: i64, end: i64) -> i64 {
     unsafe { sarif_text_slice(ptr, start, end) }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_len(ptr: i64) -> i64 {
+    unsafe { text_len(ptr) as i64 }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_byte(ptr: i64, index: i64) -> i64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
+            return 0;
+        }
+        let len = text_len(ptr);
+        let idx = index.max(0).min(len as i64 - 1) as usize;
+        i64::from(*text_data(ptr).add(idx))
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_materialize(ptr: i64) -> i64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
+        let len = text_len(ptr);
+        let result = alloc_text(len);
+        std::ptr::copy_nonoverlapping(text_data(ptr), text_data_mut(result), len as usize);
+        result
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1423,6 +1454,9 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
         ("sarif_text_cmp", sarif_text_cmp as *const u8),
         ("sarif_text_slice", sarif_text_slice as *const u8),
         ("sarif_bytes_slice", sarif_bytes_slice as *const u8),
+        ("sarif_bytes_len", sarif_bytes_len as *const u8),
+        ("sarif_bytes_byte", sarif_bytes_byte as *const u8),
+        ("sarif_bytes_materialize", sarif_bytes_materialize as *const u8),
         ("sarif_text_eq_range", sarif_text_eq_range as *const u8),
         (
             "sarif_text_find_byte_range",
@@ -1547,6 +1581,9 @@ struct JitBackend<'a> {
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
+    bytes_len_id: FuncId,
+    bytes_byte_id: FuncId,
+    bytes_materialize_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
     text_line_end_id: FuncId,
@@ -1623,8 +1660,11 @@ impl<'a> JitBackend<'a> {
         let list_push_id = declare("list_push", declare_list_push)?;
         let text_concat_id = declare("text_concat", declare_text_concat)?;
         let text_slice_id = declare("text_slice", declare_text_slice)?;
-        let bytes_slice_id = declare("bytes_slice", declare_bytes_slice)?;
-        let text_eq_range_id = declare("text_eq_range", declare_text_eq_range)?;
+let bytes_slice_id = declare("bytes_slice", declare_bytes_slice)?;
+let bytes_len_id = declare("bytes_len", declare_bytes_len)?;
+let bytes_byte_id = declare("bytes_byte", declare_bytes_byte)?;
+let bytes_materialize_id = declare("bytes_materialize", declare_bytes_materialize)?;
+let text_eq_range_id = declare("text_eq_range", declare_text_eq_range)?;
         let text_find_byte_range_id =
             declare("text_find_byte_range", declare_text_find_byte_range)?;
         let text_line_end_id = declare("text_line_end", declare_text_line_end)?;
@@ -1762,6 +1802,9 @@ impl<'a> JitBackend<'a> {
             text_concat_id,
             text_slice_id,
             bytes_slice_id,
+            bytes_len_id,
+            bytes_byte_id,
+            bytes_materialize_id,
             text_eq_range_id,
             text_find_byte_range_id,
             text_line_end_id,
@@ -1889,6 +1932,9 @@ impl<'a> JitBackend<'a> {
             self.text_intern_id,
             self.text_slice_id,
             self.bytes_slice_id,
+            self.bytes_len_id,
+            self.bytes_byte_id,
+            self.bytes_materialize_id,
             self.text_eq_range_id,
             self.text_find_byte_range_id,
             self.text_line_end_id,

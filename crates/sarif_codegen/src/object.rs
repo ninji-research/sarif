@@ -10,7 +10,7 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use crate::native::{
     ListHeader, NativeEnum, NativeRecord, NativeValueRepr, TextIndexHelperIds, TrustedListAccesses,
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
-    declare_arg_count, declare_arg_text, declare_bytes_slice, declare_bytes_to_text,
+    declare_arg_count, declare_arg_text, declare_bytes_byte, declare_bytes_len, declare_bytes_materialize, declare_bytes_slice, declare_bytes_to_text,
     declare_file_close, declare_file_exists, declare_file_is_valid, declare_file_open,
     declare_file_read, declare_file_read_to_end, declare_file_mmap, declare_file_remove, declare_file_seek,
     declare_file_size, declare_file_write, declare_list_new, declare_list_push,
@@ -97,6 +97,9 @@ struct ObjectBackend<'a> {
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
+    bytes_len_id: FuncId,
+    bytes_byte_id: FuncId,
+    bytes_materialize_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
     text_line_end_id: FuncId,
@@ -190,8 +193,10 @@ impl<'a> ObjectBackend<'a> {
         let text_concat_id = declare_fn(&mut module, declare_text_concat)?;
         let text_intern_id = declare_fn(&mut module, declare_text_intern)?;
         let text_slice_id = declare_fn(&mut module, declare_text_slice)?;
-        let bytes_slice_id = declare_fn(&mut module, declare_bytes_slice)?;
-        let text_eq_range_id = declare_fn(&mut module, declare_text_eq_range)?;
+    let bytes_slice_id = declare_fn(&mut module, declare_bytes_slice)?;
+    let bytes_len_id = declare_fn(&mut module, declare_bytes_len)?;
+    let bytes_byte_id = declare_fn(&mut module, declare_bytes_byte)?;
+    let text_eq_range_id = declare_fn(&mut module, declare_text_eq_range)?;
         let text_find_byte_range_id = declare_fn(&mut module, declare_text_find_byte_range)?;
         let text_line_end_id = declare_fn(&mut module, declare_text_line_end)?;
         let text_next_line_id = declare_fn(&mut module, declare_text_next_line)?;
@@ -217,6 +222,7 @@ impl<'a> ObjectBackend<'a> {
         let file_remove_id = declare_fn(&mut module, declare_file_remove)?;
         let file_is_valid_id = declare_fn(&mut module, declare_file_is_valid)?;
         let bytes_to_text_id = declare_fn(&mut module, declare_bytes_to_text)?;
+        let bytes_materialize_id = declare_fn(&mut module, declare_bytes_materialize)?;
         let text_eq_id = declare_fn(&mut module, declare_text_eq)?;
         let text_cmp_id = declare_fn(&mut module, declare_text_cmp)?;
 
@@ -245,6 +251,9 @@ impl<'a> ObjectBackend<'a> {
             text_intern_id,
             text_slice_id,
             bytes_slice_id,
+            bytes_len_id,
+            bytes_byte_id,
+            bytes_materialize_id,
             text_eq_range_id,
             text_find_byte_range_id,
             text_line_end_id,
@@ -463,6 +472,9 @@ impl<'a> ObjectBackend<'a> {
             self.text_intern_id,
             self.text_slice_id,
             self.bytes_slice_id,
+            self.bytes_len_id,
+            self.bytes_byte_id,
+            self.bytes_materialize_id,
             self.text_eq_range_id,
             self.text_find_byte_range_id,
             self.text_line_end_id,
@@ -552,6 +564,9 @@ struct ClifDumper<'a> {
     text_concat_id: FuncId,
     text_slice_id: FuncId,
     bytes_slice_id: FuncId,
+    bytes_len_id: FuncId,
+    bytes_byte_id: FuncId,
+    bytes_materialize_id: FuncId,
     text_eq_range_id: FuncId,
     text_find_byte_range_id: FuncId,
     text_line_end_id: FuncId,
@@ -667,6 +682,9 @@ impl<'a> ClifDumper<'a> {
         let text_intern_id = Self::declare_fn(&mut dummy_module, declare_text_intern)?;
         let text_slice_id = Self::declare_fn(&mut dummy_module, declare_text_slice)?;
         let bytes_slice_id = Self::declare_fn(&mut dummy_module, declare_bytes_slice)?;
+        let bytes_len_id = Self::declare_fn(&mut dummy_module, declare_bytes_len)?;
+        let bytes_byte_id = Self::declare_fn(&mut dummy_module, declare_bytes_byte)?;
+        let bytes_materialize_id = Self::declare_fn(&mut dummy_module, declare_bytes_materialize)?;
         let text_eq_range_id = Self::declare_fn(&mut dummy_module, declare_text_eq_range)?;
         let text_find_byte_range_id =
             Self::declare_fn(&mut dummy_module, declare_text_find_byte_range)?;
@@ -724,6 +742,9 @@ impl<'a> ClifDumper<'a> {
             text_intern_id,
             text_slice_id,
             bytes_slice_id,
+            bytes_len_id,
+            bytes_byte_id,
+            bytes_materialize_id,
             text_eq_range_id,
             text_find_byte_range_id,
             text_line_end_id,
@@ -903,6 +924,9 @@ impl<'a> ClifDumper<'a> {
             self.text_intern_id,
             self.text_slice_id,
             self.bytes_slice_id,
+            self.bytes_len_id,
+            self.bytes_byte_id,
+            self.bytes_materialize_id,
             self.text_eq_range_id,
             self.text_find_byte_range_id,
             self.text_line_end_id,
