@@ -181,6 +181,7 @@ impl Env<'_> {
             | Inst::FileIsValid { dest, .. }
             | Inst::FileRead { dest, .. }
             | Inst::FileReadToEnd { dest, .. }
+            | Inst::FileMmap { dest, .. }
             | Inst::FileWrite { dest, .. }
             | Inst::FileSeek { dest, .. }
             | Inst::FileSize { dest, .. }

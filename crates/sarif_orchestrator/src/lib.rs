@@ -627,13 +627,13 @@ mod tests {
     }
 
     #[test]
-    fn test_invalidation_propagation() {
-        let source = "
-            fn double_val(x: I32) -> I32 {
-                x * 2
-            }
-        ";
-        let program = lower_program(source);
+fn test_invalidation_propagation() {
+    let source = "
+fn double_val(x: I32) -> I32 {
+    x * 2
+}
+";
+    let _program = lower_program(source);
         let mut cache = ExecutionCache::new();
 
         let mut dependents = HashMap::new();

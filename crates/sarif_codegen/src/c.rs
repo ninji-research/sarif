@@ -87,6 +87,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern int64_t sarif_file_exists(const unsigned char* path);")?;
     out.line("extern int64_t sarif_file_remove(const unsigned char* path);")?;
     out.line("extern int64_t sarif_file_is_valid(uint64_t handle);")?;
+    out.line("extern uint64_t sarif_file_mmap(const unsigned char* path);")?;
     out.line("extern void* sarif_bytes_to_text(const unsigned char* bytes);")?;
     out.line("extern void* sarif_list_sort_text(void* list, int64_t len);")?;
     out.line(
@@ -377,6 +378,7 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::FileIsValid { dest, .. } => Some(*dest),
         Inst::FileRead { dest, .. } => Some(*dest),
         Inst::FileReadToEnd { dest, .. } => Some(*dest),
+        Inst::FileMmap { dest, .. } => Some(*dest),
         Inst::FileWrite { dest, .. } => Some(*dest),
         Inst::FileSeek { dest, .. } => Some(*dest),
         Inst::FileSize { dest, .. } => Some(*dest),
@@ -1401,6 +1403,13 @@ fn emit_inst(
                 vref(handle)
             ))?;
         }
+        Inst::FileMmap { dest, path } => {
+            out.line(&format!(
+                "v{} = sarif_file_mmap((const unsigned char*){});",
+                dest.0,
+                vref(path)
+            ))?;
+        }
         Inst::FileWrite { dest, handle, data } => {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_file_write({}, (const unsigned char*){});",
@@ -1825,7 +1834,7 @@ fn infer_inst_kind_c(
         Inst::FileOpen { dest, .. } | Inst::FileIsValid { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::File);
         }
-        Inst::FileRead { dest, .. } | Inst::FileReadToEnd { dest, .. } => {
+        Inst::FileRead { dest, .. } | Inst::FileReadToEnd { dest, .. } | Inst::FileMmap { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Bytes);
         }
         Inst::FileWrite { dest, .. }

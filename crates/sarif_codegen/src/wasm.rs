@@ -577,6 +577,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::FileIsValid { .. }
                 | Inst::FileRead { .. }
                 | Inst::FileReadToEnd { .. }
+                | Inst::FileMmap { .. }
                 | Inst::FileWrite { .. }
                 | Inst::FileClose { .. }
                 | Inst::FileSeek { .. }
@@ -1538,6 +1539,9 @@ impl<'a> WasmEmitter<'a> {
                     "wasm backend does not support file read to end",
                 ));
             }
+            Inst::FileMmap { .. } => {
+                return Err(WasmError::new("wasm backend does not support file mmap"));
+            }
             Inst::FileWrite { .. } => {
                 return Err(WasmError::new("wasm backend does not support file write"));
             }
@@ -2091,6 +2095,7 @@ fn collect_inst_kinds(
             | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }
             | Inst::FileReadToEnd { .. }
+            | Inst::FileMmap { .. }
             | Inst::FileWrite { .. }
             | Inst::FileClose { .. }
             | Inst::FileSeek { .. }

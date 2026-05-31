@@ -547,7 +547,7 @@ void* sarif_text_builder_append_codepoint(void* raw_builder, int64_t codepoint) 
 
 __attribute__((always_inline)) void* sarif_text_builder_append_ascii(void* raw_builder, int64_t byte) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
-    if (builder == NULL || byte < 0 || byte > 0x7f) {
+    if (builder == NULL || byte < 0 || byte > 0xff) {
         return NULL;
     }
     if (builder->len + 1 > builder->cap) {
@@ -687,7 +687,7 @@ void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
     uint64_t used = 0;
     uint64_t next_cap = 0;
     uint64_t* grown = NULL;
-    if (list == NULL || list->values == NULL || len < 0) {
+    if (list == NULL || (list->values == NULL && list->len > 0) || len < 0) {
         return NULL;
     }
     used = (uint64_t)len;
@@ -793,7 +793,7 @@ static int sarif_qsort_compare_record_text_field_handles(const void* left, const
 void* sarif_list_sort_text(void* list_ptr, int64_t len) {
     SarifList* list = (SarifList*)list_ptr;
     uint64_t used = 0;
-    if (list == NULL || list->values == NULL || len < 0) {
+    if (list == NULL || (list->values == NULL && list->len > 0) || len < 0) {
         return NULL;
     }
     used = (uint64_t)len;
@@ -815,7 +815,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     SarifList* list = (SarifList*)list_ptr;
     uint64_t used = 0;
     uint64_t field_offset = 0;
-    if (list == NULL || list->values == NULL || len < 0 || offset < 0) {
+    if (list == NULL || (list->values == NULL && list->len > 0) || len < 0 || offset < 0) {
         return NULL;
     }
     used = (uint64_t)len;
@@ -1804,6 +1804,49 @@ int64_t sarif_file_remove(const unsigned char* path_handle) {
 
 int64_t sarif_file_is_valid(uint64_t handle) {
     return handle != 0 ? 1 : 0;
+}
+
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+uint64_t sarif_file_mmap(const unsigned char* path_handle) {
+    if (path_handle == NULL) {
+        return (uint64_t)NULL;
+    }
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    char path[1024];
+    if (path_len >= 1024) {
+        return (uint64_t)NULL;
+    }
+    memcpy(path, path_handle + 8, (size_t)path_len);
+    path[path_len] = '\0';
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return (uint64_t)NULL;
+    }
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        close(fd);
+        return (uint64_t)NULL;
+    }
+    size_t size = st.st_size;
+    if (size < 8) {
+        close(fd);
+        return (uint64_t)NULL;
+    }
+    void* addr = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    if (addr == MAP_FAILED) {
+        return (uint64_t)NULL;
+    }
+    uint64_t file_data_len = *(uint64_t*)addr;
+    if (file_data_len + 8 > size) {
+        munmap(addr, size);
+        return (uint64_t)NULL;
+    }
+    return (uint64_t)(uintptr_t)addr;
 }
 
 void* sarif_bytes_to_text(const unsigned char* bytes) {

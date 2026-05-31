@@ -526,6 +526,10 @@ pub enum Inst {
         dest: ValueId,
         handle: ValueId,
     },
+    FileMmap {
+        dest: ValueId,
+        path: ValueId,
+    },
     FileWrite {
         dest: ValueId,
         handle: ValueId,
@@ -1151,6 +1155,9 @@ impl Inst {
             ),
             Self::FileReadToEnd { dest, handle } => {
                 format!("{} = file-read-to-end {}", dest.render(), handle.render())
+            }
+            Self::FileMmap { dest, path } => {
+                format!("{} = file-mmap {}", dest.render(), path.render())
             }
             Self::FileWrite { dest, handle, data } => format!(
                 "{} = file-write {}, {}",
@@ -3458,6 +3465,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }
             | Inst::FileReadToEnd { .. }
+            | Inst::FileMmap { .. }
             | Inst::FileWrite { .. }
             | Inst::FileClose { .. }
             | Inst::FileSeek { .. }
@@ -3873,6 +3881,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             "file_read_to_end" if self.builtin_is_available("file_read_to_end") => {
                 self.lower_file_read_to_end_expr(expr)
+            }
+            "file_mmap" if self.builtin_is_available("file_mmap") => {
+                self.lower_file_mmap_expr(expr)
             }
             "file_read" if self.builtin_is_available("file_read") => {
                 self.lower_file_read_expr(expr)
@@ -7638,6 +7649,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_file_mmap_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let path = self.lower_expr(&expr.args[0]);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::FileMmap { dest, path });
+        dest
+    }
+
     fn lower_file_write_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let handle = self.lower_expr(&expr.args[0]);
         let data = self.lower_expr(&expr.args[1]);
@@ -9497,6 +9515,16 @@ impl<'a> Interpreter<'a> {
                     let mut buffer = Vec::new();
                     file.read_to_end(&mut buffer).map_err(|e| {
                         RuntimeError::new(format!("failed to read from file to end: {e}"))
+                    })?;
+                    values[dest.0 as usize] = RuntimeValue::Bytes(buffer);
+                }
+                Inst::FileMmap { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path_str) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let buffer = std::fs::read(&*path_str).map_err(|e| {
+                        RuntimeError::new(format!("failed to read file `{path_str}`: {e}"))
                     })?;
                     values[dest.0 as usize] = RuntimeValue::Bytes(buffer);
                 }

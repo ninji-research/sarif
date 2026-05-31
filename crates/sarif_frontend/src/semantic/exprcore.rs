@@ -303,6 +303,17 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &["Pass a File argument."],
             dispatch_simple: false,
         }),
+        "file_mmap" => Some(BuiltinEntry {
+            name: "file_mmap",
+            runtime_code: None,
+            arity_error_code: "semantic.file_mmap-arity",
+            type_error_code: "semantic.file_mmap-type",
+            result_ty: Type::Bytes,
+            call_hint: "Call `file_mmap(path)` with one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text path."],
+            dispatch_simple: true,
+        }),
         "file_remove" => Some(BuiltinEntry {
             name: "file_remove",
             runtime_code: None,

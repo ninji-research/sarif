@@ -17,7 +17,7 @@ use crate::native::{
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
     declare_arg_count, declare_arg_text, declare_bytes_slice, declare_bytes_to_text,
     declare_file_close, declare_file_exists, declare_file_is_valid, declare_file_open,
-    declare_file_read, declare_file_read_to_end, declare_file_remove, declare_file_seek,
+    declare_file_read, declare_file_read_to_end, declare_file_mmap, declare_file_remove, declare_file_seek,
     declare_file_size, declare_file_write, declare_list_new, declare_list_push,
     declare_list_sort_by_text_field, declare_list_sort_text, declare_parse_f64, declare_parse_i32,
     declare_parse_i32_range, declare_record_allocator, declare_stdin_text, declare_stdout_write,
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn sarif_record_alloc(size: i64) -> i64 {
                 arena.reserve(1024 * 1024); // 1 MB
             }
             let pos = arena.len();
-            arena.extend(std::iter::repeat(0u8).take(aligned));
+            arena.extend(std::iter::repeat_n(0u8, aligned));
             (arena.as_ptr().add(pos)) as i64
         })
     }
@@ -1372,11 +1372,10 @@ fn collect_inst_text_data(
 ) {
     for inst in insts {
         match inst {
-            Inst::ConstText { value, .. } => {
-                if seen.insert(value.clone()) {
-                    result.push(value.clone());
-                }
+            Inst::ConstText { value, .. } if seen.insert(value.clone()) => {
+                result.push(value.clone());
             }
+            Inst::ConstText { .. } => {}
             Inst::EnumToText { variant_names, .. } => {
                 for name in variant_names {
                     if seen.insert(name.clone()) {
@@ -1504,6 +1503,7 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
             "sarif_file_read_to_end",
             sarif_file_read_to_end as *const u8,
         ),
+        ("sarif_file_mmap", sarif_file_mmap as *const u8),
         ("sarif_file_write", sarif_file_write as *const u8),
         ("sarif_file_seek", sarif_file_seek as *const u8),
         ("sarif_file_size", sarif_file_size as *const u8),
@@ -1565,6 +1565,7 @@ struct JitBackend<'a> {
     file_close_id: FuncId,
     file_read_id: FuncId,
     file_read_to_end_id: FuncId,
+    file_mmap_id: FuncId,
     file_write_id: FuncId,
     file_seek_id: FuncId,
     file_size_id: FuncId,
@@ -1649,6 +1650,7 @@ impl<'a> JitBackend<'a> {
         let file_close_id = declare("file_close", declare_file_close)?;
         let file_read_id = declare("file_read", declare_file_read)?;
         let file_read_to_end_id = declare("file_read_to_end", declare_file_read_to_end)?;
+        let file_mmap_id = declare("file_mmap", declare_file_mmap)?;
         let file_write_id = declare("file_write", declare_file_write)?;
         let file_seek_id = declare("file_seek", declare_file_seek)?;
         let file_size_id = declare("file_size", declare_file_size)?;
@@ -1778,6 +1780,7 @@ impl<'a> JitBackend<'a> {
             file_close_id,
             file_read_id,
             file_read_to_end_id,
+            file_mmap_id,
             file_write_id,
             file_seek_id,
             file_size_id,
@@ -1904,6 +1907,7 @@ impl<'a> JitBackend<'a> {
             self.file_close_id,
             self.file_read_id,
             self.file_read_to_end_id,
+            self.file_mmap_id,
             self.file_write_id,
             self.file_seek_id,
             self.file_size_id,
@@ -1966,6 +1970,22 @@ impl<'a> JitBackend<'a> {
             }
         });
         Ok(())
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_file_mmap(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else {
+            return EMPTY_TEXT.as_ptr() as i64;
+        };
+        let Ok(buf) = std::fs::read(&*path_str) else {
+            return EMPTY_TEXT.as_ptr() as i64;
+        };
+        let len = buf.len() as u64;
+        let blob = alloc_text(len);
+        std::ptr::copy_nonoverlapping(buf.as_ptr(), text_data_mut(blob), len as usize);
+        blob
     }
 }
 

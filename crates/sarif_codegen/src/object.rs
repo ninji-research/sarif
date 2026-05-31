@@ -12,7 +12,7 @@ use crate::native::{
     collect_native_enums, collect_native_records, declare_alloc_pop, declare_alloc_push,
     declare_arg_count, declare_arg_text, declare_bytes_slice, declare_bytes_to_text,
     declare_file_close, declare_file_exists, declare_file_is_valid, declare_file_open,
-    declare_file_read, declare_file_read_to_end, declare_file_remove, declare_file_seek,
+    declare_file_read, declare_file_read_to_end, declare_file_mmap, declare_file_remove, declare_file_seek,
     declare_file_size, declare_file_write, declare_list_new, declare_list_push,
     declare_list_sort_by_text_field, declare_list_sort_text, declare_parse_f64, declare_parse_i32,
     declare_parse_i32_range, declare_record_allocator, declare_stdin_text, declare_stdout_write,
@@ -115,6 +115,7 @@ struct ObjectBackend<'a> {
     file_close_id: FuncId,
     file_read_id: FuncId,
     file_read_to_end_id: FuncId,
+    file_mmap_id: FuncId,
     file_write_id: FuncId,
     file_seek_id: FuncId,
     file_size_id: FuncId,
@@ -208,6 +209,7 @@ impl<'a> ObjectBackend<'a> {
         let file_close_id = declare_fn(&mut module, declare_file_close)?;
         let file_read_id = declare_fn(&mut module, declare_file_read)?;
         let file_read_to_end_id = declare_fn(&mut module, declare_file_read_to_end)?;
+        let file_mmap_id = declare_fn(&mut module, declare_file_mmap)?;
         let file_write_id = declare_fn(&mut module, declare_file_write)?;
         let file_seek_id = declare_fn(&mut module, declare_file_seek)?;
         let file_size_id = declare_fn(&mut module, declare_file_size)?;
@@ -261,6 +263,7 @@ impl<'a> ObjectBackend<'a> {
             file_close_id,
             file_read_id,
             file_read_to_end_id,
+            file_mmap_id,
             file_write_id,
             file_seek_id,
             file_size_id,
@@ -478,6 +481,7 @@ impl<'a> ObjectBackend<'a> {
             self.file_close_id,
             self.file_read_id,
             self.file_read_to_end_id,
+            self.file_mmap_id,
             self.file_write_id,
             self.file_seek_id,
             self.file_size_id,
@@ -566,6 +570,7 @@ struct ClifDumper<'a> {
     file_close_id: FuncId,
     file_read_id: FuncId,
     file_read_to_end_id: FuncId,
+    file_mmap_id: FuncId,
     file_write_id: FuncId,
     file_seek_id: FuncId,
     file_size_id: FuncId,
@@ -682,6 +687,7 @@ impl<'a> ClifDumper<'a> {
         let file_close_id = Self::declare_fn(&mut dummy_module, declare_file_close)?;
         let file_read_id = Self::declare_fn(&mut dummy_module, declare_file_read)?;
         let file_read_to_end_id = Self::declare_fn(&mut dummy_module, declare_file_read_to_end)?;
+        let file_mmap_id = Self::declare_fn(&mut dummy_module, declare_file_mmap)?;
         let file_write_id = Self::declare_fn(&mut dummy_module, declare_file_write)?;
         let file_seek_id = Self::declare_fn(&mut dummy_module, declare_file_seek)?;
         let file_size_id = Self::declare_fn(&mut dummy_module, declare_file_size)?;
@@ -736,6 +742,7 @@ impl<'a> ClifDumper<'a> {
             file_close_id,
             file_read_id,
             file_read_to_end_id,
+            file_mmap_id,
             file_write_id,
             file_seek_id,
             file_size_id,
@@ -914,6 +921,7 @@ impl<'a> ClifDumper<'a> {
             self.file_close_id,
             self.file_read_id,
             self.file_read_to_end_id,
+            self.file_mmap_id,
             self.file_write_id,
             self.file_seek_id,
             self.file_size_id,

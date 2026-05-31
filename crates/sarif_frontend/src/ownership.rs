@@ -49,6 +49,7 @@ fn is_borrow_only_builtin(callee: &str) -> bool {
             | "file_open"
             | "file_read"
             | "file_read_to_end"
+            | "file_mmap"
             | "file_write"
             | "file_size"
             | "file_seek"
@@ -476,7 +477,6 @@ impl AffineUseChecker<'_> {
                 self.ok &= body_checker.ok;
             }
             Expr::While(expr) => {
-                self.collect(&expr.condition, true);
                 let mut body_checker = AffineUseChecker {
                     locals: self.locals.clone(),
                     functions: self.functions,
@@ -497,6 +497,7 @@ impl AffineUseChecker<'_> {
                     mode: self.mode,
                     ok: true,
                 };
+                body_checker.collect(&expr.condition, true);
                 collect_body_moves(&mut body_checker, &expr.body);
                 self.ok &= body_checker.ok;
             }

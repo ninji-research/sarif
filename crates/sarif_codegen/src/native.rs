@@ -409,7 +409,7 @@ fn infer_inst_kinds(
             | Inst::StdinText { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
             }
-            Inst::StdinBytes { dest } | Inst::FileReadToEnd { dest, .. } => {
+            Inst::StdinBytes { dest } | Inst::FileReadToEnd { dest, .. } | Inst::FileMmap { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdoutWrite { .. } => {}
@@ -1235,6 +1235,7 @@ pub fn lower_insts<M: Module>(
     file_close_id: FuncId,
     file_read_id: FuncId,
     file_read_to_end_id: FuncId,
+    file_mmap_id: FuncId,
     file_write_id: FuncId,
     file_seek_id: FuncId,
     file_size_id: FuncId,
@@ -1303,6 +1304,7 @@ pub fn lower_insts<M: Module>(
             file_close_id,
             file_read_id,
             file_read_to_end_id,
+            file_mmap_id,
             file_write_id,
             file_seek_id,
             file_size_id,
@@ -1377,6 +1379,7 @@ pub fn lower_inst<M: Module>(
     file_close_id: FuncId,
     file_read_id: FuncId,
     file_read_to_end_id: FuncId,
+    file_mmap_id: FuncId,
     file_write_id: FuncId,
     file_seek_id: FuncId,
     file_size_id: FuncId,
@@ -2621,6 +2624,26 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::FileMmap { dest, path } => {
+            let path_val = native_value(
+                values,
+                *path,
+                function,
+                "file_mmap path",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(file_mmap_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[path_val],
+                "file mmap",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::FileWrite { dest, handle, data } => {
             let handle_val = native_value(values, *handle, function, "file_write handle", backend)?;
             let data_val = native_value(values, *data, function, "file_write data", backend)?;
@@ -3334,6 +3357,7 @@ pub fn lower_inst<M: Module>(
                 file_close_id,
                 file_read_id,
                 file_read_to_end_id,
+                file_mmap_id,
                 file_write_id,
                 file_seek_id,
                 file_size_id,
@@ -3416,6 +3440,7 @@ pub fn lower_inst<M: Module>(
                 file_close_id,
                 file_read_id,
                 file_read_to_end_id,
+                file_mmap_id,
                 file_write_id,
                 file_seek_id,
                 file_size_id,
@@ -3600,6 +3625,7 @@ pub fn lower_inst<M: Module>(
                 file_close_id,
                 file_read_id,
                 file_read_to_end_id,
+                file_mmap_id,
                 file_write_id,
                 file_seek_id,
                 file_size_id,
@@ -3697,6 +3723,7 @@ pub fn lower_inst<M: Module>(
                 file_close_id,
                 file_read_id,
                 file_read_to_end_id,
+                file_mmap_id,
                 file_write_id,
                 file_seek_id,
                 file_size_id,
@@ -3788,6 +3815,7 @@ pub fn lower_inst<M: Module>(
                 file_close_id,
                 file_read_id,
                 file_read_to_end_id,
+                file_mmap_id,
                 file_write_id,
                 file_seek_id,
                 file_size_id,
@@ -3927,6 +3955,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::FileIsValid { dest, .. }
             | Inst::FileRead { dest, .. }
             | Inst::FileReadToEnd { dest, .. }
+            | Inst::FileMmap { dest, .. }
             | Inst::FileWrite { dest, .. }
             | Inst::FileSeek { dest, .. }
             | Inst::FileSize { dest, .. }
@@ -4823,6 +4852,20 @@ pub fn declare_file_read_to_end<M: Module>(
         "sarif_file_read_to_end",
         backend,
         "file read to end helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_file_mmap<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_mmap",
+        backend,
+        "file mmap helper",
         &[types::I64],
         &[types::I64],
     )
