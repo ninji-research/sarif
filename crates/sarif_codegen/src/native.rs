@@ -583,7 +583,7 @@ pub fn native_value_kind(
         let element_kind = native_value_kind(element, records, enums)?;
         return Ok(NativeValueKind::List(Box::new(element_kind)));
     }
-    if let Some(array_name) = array_record_name(name)
+    if let Some(array_name) = array_record_name(name, records, enums)
         && records.contains_key(&array_name)
     {
         return Ok(NativeValueKind::Record(array_name));
@@ -607,7 +607,11 @@ pub fn native_value_kind(
     }
 }
 
-fn array_record_name(name: &str) -> Option<String> {
+fn array_record_name(
+    name: &str,
+    records: &BTreeMap<String, NativeRecord>,
+    enums: &BTreeMap<String, NativeEnum>,
+) -> Option<String> {
     let inner = name.strip_prefix('[')?.strip_suffix(']')?;
     let mut depth = 0usize;
     let mut split = None::<usize>;
@@ -623,9 +627,20 @@ fn array_record_name(name: &str) -> Option<String> {
         }
     }
     let split = split?;
-    let element = inner[..split].trim();
+    let element_str = inner[..split].trim();
     let len = inner[split + 1..].trim().parse::<usize>().ok()?;
-    Some(array_struct_name(element, len))
+    // Recursively resolve the element type name to match the MIR compiler's naming:
+    // the compiler recursively builds names from inner record names (e.g. `__Array_I32_2`),
+    // not from raw type strings (e.g. `[I32; 2]` → sanitized to `_I32__2_`).
+    let element_name = if element_str.starts_with('[') {
+        array_record_name(element_str, records, enums)?
+    } else {
+        match native_value_kind(element_str, records, enums) {
+            Ok(NativeValueKind::Record(r)) => r,
+            _ => element_str.to_string(),
+        }
+    };
+    Some(array_struct_name(&element_name, len))
 }
 
 fn array_struct_name(element_ty: &str, len: usize) -> String {
@@ -1180,6 +1195,8 @@ pub struct TextIndexHelperIds {
 pub fn lower_insts<M: Module>(
     function_ids: &BTreeMap<String, FuncId>,
     data_ids: &BTreeMap<String, DataId>,
+    text_data_func_id: Option<FuncId>,
+    text_data_index: &BTreeMap<String, usize>,
     allocator_id: FuncId,
     alloc_push_id: FuncId,
     alloc_pop_id: FuncId,
@@ -1246,6 +1263,8 @@ pub fn lower_insts<M: Module>(
         if !lower_inst(
             function_ids,
             data_ids,
+            text_data_func_id,
+            text_data_index,
             allocator_id,
             alloc_push_id,
             alloc_pop_id,
@@ -1318,6 +1337,8 @@ pub fn lower_insts<M: Module>(
 pub fn lower_inst<M: Module>(
     function_ids: &BTreeMap<String, FuncId>,
     data_ids: &BTreeMap<String, DataId>,
+    text_data_func_id: Option<FuncId>,
+    text_data_index: &BTreeMap<String, usize>,
     allocator_id: FuncId,
     alloc_push_id: FuncId,
     alloc_pop_id: FuncId,
@@ -1449,15 +1470,35 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::ConstText { dest, value } => {
-            let data_id = *data_ids.get(value).ok_or_else(|| {
-                format!(
-                    "{backend} is missing text data for {:?} in `{}`",
-                    value, function.name
-                )
-            })?;
-            let global = module.declare_data_in_func(data_id, builder.func);
-            let native = builder.ins().symbol_value(types::I64, global);
-            values.insert(*dest, NativeValueRepr::Native(native));
+            if let Some(func_id) = text_data_func_id {
+                let idx = *text_data_index.get(value).ok_or_else(|| {
+                    format!(
+                        "{backend} is missing text data index for {:?} in `{}`",
+                        value, function.name
+                    )
+                })?;
+                let helper = module.declare_func_in_func(func_id, builder.func);
+                let idx_val = builder.ins().iconst(types::I64, idx as i64);
+                let native = call_helper(
+                    builder,
+                    helper,
+                    &[idx_val],
+                    "text_data_for_insts",
+                    function,
+                    backend,
+                )?;
+                values.insert(*dest, NativeValueRepr::Native(native));
+            } else {
+                let data_id = *data_ids.get(value).ok_or_else(|| {
+                    format!(
+                        "{backend} is missing text data for {:?} in `{}`",
+                        value, function.name
+                    )
+                })?;
+                let global = module.declare_data_in_func(data_id, builder.func);
+                let native = builder.ins().symbol_value(types::I64, global);
+                values.insert(*dest, NativeValueRepr::Native(native));
+            }
             Ok(true)
         }
         Inst::TextBuilderNew { dest } => {
@@ -2919,8 +2960,18 @@ pub fn lower_inst<M: Module>(
                     )
                 })?;
             let base = native_value(values, *base, function, "field base", backend)?;
+            let load_ty = native_kind_type(&field.kind);
+            if DEBUG_ENABLED.load(Ordering::Relaxed) && function.name == "first" {
+                eprintln!(
+                    "[TRAP] {} Field {name}: base=v{}, field.kind={:?}, load_ty={load_ty}, offset={}",
+                    function.name,
+                    base.as_u32(),
+                    field.kind,
+                    field.offset,
+                );
+            }
             let native = builder.ins().load(
-                native_kind_type(&field.kind),
+                load_ty,
                 MemFlags::trusted(),
                 base,
                 i32::try_from(field.offset)
@@ -3243,6 +3294,8 @@ pub fn lower_inst<M: Module>(
             let then_falls = lower_insts(
                 function_ids,
                 data_ids,
+                text_data_func_id,
+                text_data_index,
                 allocator_id,
                 alloc_push_id,
                 alloc_pop_id,
@@ -3323,6 +3376,8 @@ pub fn lower_inst<M: Module>(
             let else_falls = lower_insts(
                 function_ids,
                 data_ids,
+                text_data_func_id,
+                text_data_index,
                 allocator_id,
                 alloc_push_id,
                 alloc_pop_id,
@@ -3505,6 +3560,8 @@ pub fn lower_inst<M: Module>(
             let body_falls = lower_insts(
                 function_ids,
                 data_ids,
+                text_data_func_id,
+                text_data_index,
                 allocator_id,
                 alloc_push_id,
                 alloc_pop_id,
@@ -3600,6 +3657,8 @@ pub fn lower_inst<M: Module>(
             let condition_falls = lower_insts(
                 function_ids,
                 data_ids,
+                text_data_func_id,
+                text_data_index,
                 allocator_id,
                 alloc_push_id,
                 alloc_pop_id,
@@ -3689,6 +3748,8 @@ pub fn lower_inst<M: Module>(
             let body_falls = lower_insts(
                 function_ids,
                 data_ids,
+                text_data_func_id,
+                text_data_index,
                 allocator_id,
                 alloc_push_id,
                 alloc_pop_id,

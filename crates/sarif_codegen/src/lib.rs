@@ -19,7 +19,7 @@ mod object;
 mod wasm;
 
 #[cfg(feature = "backend-native")]
-pub use jit::run_function_native;
+pub use jit::{run_function_native, run_main_native_with_io_capture};
 #[cfg(feature = "backend-native")]
 pub use native::{
     NativeEnum, NativeRecord, NativeRecordField, NativeValueKind, collect_native_enums,

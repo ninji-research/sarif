@@ -438,6 +438,8 @@ impl<'a> ObjectBackend<'a> {
         let falls_through = lower_insts(
             &self.function_ids,
             &self.data_ids,
+            None,
+            &BTreeMap::new(),
             self.allocator_id,
             self.alloc_push_id,
             self.alloc_pop_id,
@@ -872,6 +874,8 @@ impl<'a> ClifDumper<'a> {
         let _falls_through = lower_insts(
             function_ids,
             data_ids,
+            None,
+            &BTreeMap::new(),
             self.allocator_id,
             self.alloc_push_id,
             self.alloc_pop_id,

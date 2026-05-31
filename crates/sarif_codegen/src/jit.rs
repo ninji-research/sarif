@@ -26,10 +26,12 @@ use crate::native::{
     declare_text_builder_append_slice, declare_text_builder_finish, declare_text_builder_new,
     declare_text_cmp, declare_text_concat, declare_text_eq, declare_text_eq_range,
     declare_text_field_end, declare_text_find_byte_range, declare_text_from_f64_fixed,
-    declare_text_intern, declare_text_line_end, declare_text_next_field, declare_text_next_line,
-    declare_text_slice, infer_value_kinds, lower_insts, native_type as shared_native_type,
+    declare_text_index_contains, declare_text_index_get, declare_text_index_get_or_insert,
+    declare_text_index_keys, declare_text_index_new, declare_text_index_set, declare_text_intern,
+    declare_text_line_end, declare_text_next_field, declare_text_next_line, declare_text_slice,
+    encode_text_blob, infer_value_kinds, lower_insts, native_type as shared_native_type,
 };
-use crate::{Function, Program, RuntimeError, RuntimeValue, ValueId};
+use crate::{Function, Inst, Program, RuntimeError, RuntimeValue, ValueId};
 
 // ---------------------------------------------------------------------------
 // Arena allocator (thread-local bump arena with scope stack)
@@ -43,6 +45,13 @@ thread_local! {
 const ARENA_ALIGN: usize = 16;
 static EMPTY_TEXT: [u8; 8] = [0u8; 8];
 
+thread_local! {
+    static PROGRAM_ARGS: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+    static STDIN_TEXT: RefCell<Option<String>> = const { RefCell::new(None) };
+    static STDOUT_BUF: RefCell<Option<Vec<u8>>> = const { RefCell::new(None) };
+    static TEXT_DATA_TABLE: RefCell<Vec<i64>> = const { RefCell::new(Vec::new()) };
+}
+
 fn arena_align_up(n: usize) -> usize {
     (n + ARENA_ALIGN - 1) & !(ARENA_ALIGN - 1)
 }
@@ -54,8 +63,13 @@ pub unsafe extern "C" fn sarif_record_alloc(size: i64) -> i64 {
         let aligned = arena_align_up(n);
         ARENA.with(|arena| {
             let mut arena = arena.borrow_mut();
+            // Pre-allocate capacity on first use so Vec::extend never reallocates,
+            // which would invalidate previously returned arena pointers.
+            if arena.capacity() == 0 {
+                arena.reserve(1024 * 1024); // 1 MB
+            }
             let pos = arena.len();
-            arena.resize(pos + aligned, 0);
+            arena.extend(std::iter::repeat(0u8).take(aligned));
             (arena.as_ptr().add(pos)) as i64
         })
     }
@@ -254,10 +268,17 @@ pub unsafe extern "C" fn sarif_bytes_slice(ptr: i64, start: i64, end: i64) -> i6
 // ---------------------------------------------------------------------------
 
 fn write_stdout(data: &[u8]) {
-    let stdout = io::stdout();
-    let mut handle = stdout.lock();
-    let _ = handle.write_all(data);
-    let _ = handle.flush();
+    STDOUT_BUF.with(|buf| {
+        let mut buf = buf.borrow_mut();
+        if let Some(ref mut captured) = *buf {
+            captured.extend_from_slice(data);
+        } else {
+            let stdout = io::stdout();
+            let mut handle = stdout.lock();
+            let _ = handle.write_all(data);
+            let _ = handle.flush();
+        }
+    });
 }
 
 #[unsafe(no_mangle)]
@@ -289,11 +310,19 @@ pub unsafe extern "C" fn sarif_stdout_write_builder(builder: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_stdin_text() -> i64 {
     unsafe {
-        let mut buf = Vec::new();
-        let _ = io::stdin().read_to_end(&mut buf);
-        let len = buf.len() as u64;
+        let text = STDIN_TEXT.with(|s| {
+            let mut s = s.borrow_mut();
+            if let Some(text) = s.take() {
+                text
+            } else {
+                let mut buf = Vec::new();
+                let _ = io::stdin().read_to_end(&mut buf);
+                String::from_utf8(buf).unwrap_or_default()
+            }
+        });
+        let len = text.len() as u64;
         let result = alloc_text(len);
-        std::ptr::copy_nonoverlapping(buf.as_ptr(), text_data_mut(result), len as usize);
+        std::ptr::copy_nonoverlapping(text.as_ptr(), text_data_mut(result), len as usize);
         result
     }
 }
@@ -826,13 +855,59 @@ pub unsafe extern "C" fn sarif_text_index_keys(index: i64) -> i64 {
 // ---------------------------------------------------------------------------
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_text_eq_range(left: i64, right: i64) -> i64 {
-    unsafe { sarif_text_eq(left, right) }
+pub unsafe extern "C" fn sarif_text_eq_range(
+    source: i64,
+    start: i64,
+    end: i64,
+    expected: i64,
+) -> i64 {
+    unsafe {
+        if source == 0 || expected == 0 {
+            return 0;
+        }
+        let source_len = text_len(source);
+        let expected_len = text_len(expected);
+        let s = start.max(0).min(source_len as i64) as u64;
+        let e = end.max(s as i64).min(source_len as i64) as u64;
+        if (e - s) != expected_len {
+            return 0;
+        }
+        if expected_len == 0 {
+            return 1;
+        }
+        let src_slice =
+            std::slice::from_raw_parts(text_data(source).add(s as usize), expected_len as usize);
+        let exp_slice = std::slice::from_raw_parts(text_data(expected), expected_len as usize);
+        if src_slice == exp_slice { 1 } else { 0 }
+    }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_text_find_byte_range(_text: i64, _byte: i64) -> i64 {
-    unsafe { -1 }
+pub unsafe extern "C" fn sarif_text_find_byte_range(
+    source: i64,
+    start: i64,
+    end: i64,
+    byte: i64,
+) -> i64 {
+    unsafe {
+        if source == 0 {
+            return end;
+        }
+        let source_len = text_len(source);
+        let s = start.max(0).min(source_len as i64) as usize;
+        let e = end.max(s as i64).min(source_len as i64) as usize;
+        if s >= e {
+            return end;
+        }
+        let bytes = text_data(source);
+        let data = std::slice::from_raw_parts(bytes, source_len as usize);
+        let needle = byte as u8;
+        if let Some(pos) = data[s..e].iter().position(|&b| b == needle) {
+            (s + pos) as i64
+        } else {
+            end
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -846,13 +921,29 @@ pub unsafe extern "C" fn sarif_text_next_line(_text: i64, _offset: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_text_field_end(_text: i64, _offset: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_text_field_end(source: i64, start: i64, end: i64, byte: i64) -> i64 {
+    unsafe { sarif_text_find_byte_range(source, start, end, byte) }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_text_next_field(_text: i64, _offset: i64) -> i64 {
-    unsafe { -1 }
+pub unsafe extern "C" fn sarif_text_next_field(
+    source: i64,
+    start: i64,
+    end: i64,
+    byte: i64,
+) -> i64 {
+    unsafe {
+        if source == 0 {
+            return end;
+        }
+        let source_len = text_len(source) as i64;
+        let field_end = sarif_text_find_byte_range(source, start, end, byte);
+        if field_end < end && field_end < source_len {
+            field_end + 1
+        } else {
+            field_end
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -906,8 +997,36 @@ pub unsafe extern "C" fn sarif_parse_i32(text: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_parse_i32_range(_text: i64) -> i64 {
-    unsafe { 0 }
+pub unsafe extern "C" fn sarif_parse_i32_range(text: i64, start: i64, end: i64) -> i64 {
+    unsafe {
+        if text == 0 {
+            return 0;
+        }
+        let len = text_len(text) as usize;
+        let s = start.max(0).min(len as i64) as usize;
+        let e = end.max(s as i64).min(len as i64) as usize;
+        if s >= e {
+            return 0;
+        }
+        let bytes = text_data(text);
+        let data = std::slice::from_raw_parts(bytes, len);
+        let mut idx = s;
+        let mut last = e;
+        while idx < last && data[idx] == b' ' {
+            idx += 1;
+        }
+        while last > idx && data[last - 1] == b' ' {
+            last -= 1;
+        }
+        if idx >= last {
+            return 0;
+        }
+        let s = std::str::from_utf8(&data[idx..last]);
+        match s {
+            Ok(s) => s.parse::<i32>().unwrap_or(0) as i64,
+            Err(_) => 0,
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -928,21 +1047,49 @@ pub unsafe extern "C" fn sarif_parse_f64(text: i64) -> f64 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_arg_count() -> i64 {
-    std::env::args().len() as i64
+    PROGRAM_ARGS.with(|args| {
+        let args = args.borrow();
+        if let Some(ref program_args) = *args {
+            program_args.len() as i64
+        } else {
+            std::env::args().len() as i64
+        }
+    })
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_arg_text(index: i64) -> i64 {
     unsafe {
-        if index < 0 { return EMPTY_TEXT.as_ptr() as i64; }
-        let args: Vec<String> = std::env::args().collect();
+        if index < 0 {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
         let idx = index as usize;
-        if idx >= args.len() { return EMPTY_TEXT.as_ptr() as i64; }
-        let s = &args[idx];
-        let len = s.len() as u64;
-        let blob = alloc_text(len);
-        std::ptr::copy_nonoverlapping(s.as_ptr(), text_data_mut(blob), len as usize);
-        blob
+        let text = PROGRAM_ARGS.with(|args| {
+            let args = args.borrow();
+            if let Some(ref program_args) = *args {
+                if idx < program_args.len() {
+                    Some(program_args[idx].clone())
+                } else {
+                    None
+                }
+            } else {
+                let env_args: Vec<String> = std::env::args().collect();
+                if idx < env_args.len() {
+                    Some(env_args[idx].clone())
+                } else {
+                    None
+                }
+            }
+        });
+        match text {
+            Some(s) => {
+                let len = s.len() as u64;
+                let blob = alloc_text(len);
+                std::ptr::copy_nonoverlapping(s.as_ptr(), text_data_mut(blob), len as usize);
+                blob
+            }
+            None => EMPTY_TEXT.as_ptr() as i64,
+        }
     }
 }
 
@@ -959,9 +1106,9 @@ fn file_handle_to_id(f: RustFile) -> i64 {
         let mut table = table.borrow_mut();
         for (i, slot) in table.iter_mut().enumerate() {
             if slot.is_none() {
-            *slot = Some(f);
-            return (i as i64) + 1;
-        }
+                *slot = Some(f);
+                return (i as i64) + 1;
+            }
         }
         let id = table.len() as i64 + 1;
         table.push(Some(f));
@@ -970,7 +1117,9 @@ fn file_handle_to_id(f: RustFile) -> i64 {
 }
 
 fn id_to_file(id: i64) -> Option<RustFile> {
-    if id <= 0 { return None; }
+    if id <= 0 {
+        return None;
+    }
     let idx = (id - 1) as usize;
     FILE_TABLE.with(|table| {
         let mut table = table.borrow_mut();
@@ -986,7 +1135,9 @@ fn with_file<F, R>(id: i64, f: F) -> Option<R>
 where
     F: FnOnce(&mut RustFile) -> R,
 {
-    if id <= 0 { return None; }
+    if id <= 0 {
+        return None;
+    }
     let idx = (id - 1) as usize;
     FILE_TABLE.with(|table| {
         let mut table = table.borrow_mut();
@@ -999,7 +1150,9 @@ where
 }
 
 unsafe fn text_to_str(ptr: i64) -> Option<String> {
-    if ptr == 0 { return None; }
+    if ptr == 0 {
+        return None;
+    }
     let len = text_len(ptr) as usize;
     let data = std::slice::from_raw_parts(text_data(ptr), len);
     std::str::from_utf8(data).map(|s| s.to_owned()).ok()
@@ -1008,8 +1161,12 @@ unsafe fn text_to_str(ptr: i64) -> Option<String> {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_open(path: i64, mode: i64) -> i64 {
     unsafe {
-        let Some(path_str) = text_to_str(path) else { return 0 };
-        let Some(mode_str) = text_to_str(mode) else { return 0 };
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        let Some(mode_str) = text_to_str(mode) else {
+            return 0;
+        };
         let rust_mode = match mode_str.as_str() {
             "r" | "rb" => "r",
             "w" | "wb" => "w",
@@ -1044,7 +1201,9 @@ pub unsafe extern "C" fn sarif_file_close(handle: i64) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_read(handle: i64, count: i64) -> i64 {
     unsafe {
-        if handle <= 0 || count < 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        if handle <= 0 || count < 0 {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
         let count = count as usize;
         let result = with_file(handle, |file| {
             let mut buf = vec![0u8; count];
@@ -1056,7 +1215,9 @@ pub unsafe extern "C" fn sarif_file_read(handle: i64, count: i64) -> i64 {
                 Err(_) => None,
             }
         });
-        let Some(buf) = result.flatten() else { return EMPTY_TEXT.as_ptr() as i64 };
+        let Some(buf) = result.flatten() else {
+            return EMPTY_TEXT.as_ptr() as i64;
+        };
         let len = buf.len() as u64;
         let blob = alloc_text(len);
         std::ptr::copy_nonoverlapping(buf.as_ptr(), text_data_mut(blob), len as usize);
@@ -1067,7 +1228,9 @@ pub unsafe extern "C" fn sarif_file_read(handle: i64, count: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_read_to_end(handle: i64) -> i64 {
     unsafe {
-        if handle <= 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        if handle <= 0 {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
         let result = with_file(handle, |file| {
             let mut buf = Vec::new();
             match file.read_to_end(&mut buf) {
@@ -1075,7 +1238,9 @@ pub unsafe extern "C" fn sarif_file_read_to_end(handle: i64) -> i64 {
                 Err(_) => None,
             }
         });
-        let Some(buf) = result.flatten() else { return EMPTY_TEXT.as_ptr() as i64 };
+        let Some(buf) = result.flatten() else {
+            return EMPTY_TEXT.as_ptr() as i64;
+        };
         let len = buf.len() as u64;
         let blob = alloc_text(len);
         std::ptr::copy_nonoverlapping(buf.as_ptr(), text_data_mut(blob), len as usize);
@@ -1086,17 +1251,17 @@ pub unsafe extern "C" fn sarif_file_read_to_end(handle: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_write(handle: i64, data: i64) -> i64 {
     unsafe {
-        if handle <= 0 || data == 0 { return 0; }
+        if handle <= 0 || data == 0 {
+            return 0;
+        }
         let len = text_len(data) as usize;
         let bytes = std::slice::from_raw_parts(text_data(data), len);
-        let result = with_file(handle, |file| {
-            match file.write_all(bytes) {
-                Ok(()) => {
-                    let _ = file.flush();
-                    len as i64
-                }
-                Err(_) => 0,
+        let result = with_file(handle, |file| match file.write_all(bytes) {
+            Ok(()) => {
+                let _ = file.flush();
+                len as i64
             }
+            Err(_) => 0,
         });
         result.unwrap_or(0)
     }
@@ -1105,7 +1270,9 @@ pub unsafe extern "C" fn sarif_file_write(handle: i64, data: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_seek(handle: i64, offset: i64) -> i64 {
     unsafe {
-        if handle <= 0 { return -1; }
+        if handle <= 0 {
+            return -1;
+        }
         let result = with_file(handle, |file| {
             file.seek(SeekFrom::Current(offset)).ok().map(|p| p as i64)
         });
@@ -1116,7 +1283,9 @@ pub unsafe extern "C" fn sarif_file_seek(handle: i64, offset: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_size(handle: i64) -> i64 {
     unsafe {
-        if handle <= 0 { return -1; }
+        if handle <= 0 {
+            return -1;
+        }
         let result = with_file(handle, |file| {
             let cur = file.stream_position().ok()?;
             let end = file.seek(SeekFrom::End(0)).ok()?;
@@ -1130,16 +1299,28 @@ pub unsafe extern "C" fn sarif_file_size(handle: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_exists(path: i64) -> i64 {
     unsafe {
-        let Some(path_str) = text_to_str(path) else { return 0 };
-        if std::path::Path::new(&path_str).exists() { 1 } else { 0 }
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        if std::path::Path::new(&path_str).exists() {
+            1
+        } else {
+            0
+        }
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_file_remove(path: i64) -> i64 {
     unsafe {
-        let Some(path_str) = text_to_str(path) else { return 0 };
-        if std::fs::remove_file(&path_str).is_ok() { 1 } else { 0 }
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        if std::fs::remove_file(&path_str).is_ok() {
+            1
+        } else {
+            0
+        }
     }
 }
 
@@ -1151,7 +1332,9 @@ pub unsafe extern "C" fn sarif_file_is_valid(handle: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_bytes_to_text(bytes: i64) -> i64 {
     unsafe {
-        if bytes == 0 { return EMPTY_TEXT.as_ptr() as i64; }
+        if bytes == 0 {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
         let len = text_len(bytes) as usize;
         let result = alloc_text(len as u64);
         std::ptr::copy_nonoverlapping(text_data(bytes), text_data_mut(result), len);
@@ -1160,7 +1343,70 @@ pub unsafe extern "C" fn sarif_bytes_to_text(bytes: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sarif_text_data_for_insts() {}
+pub unsafe extern "C" fn sarif_text_data_for_insts(idx: i64) -> i64 {
+    TEXT_DATA_TABLE.with(|table| {
+        let table = table.borrow();
+        if idx >= 0 && (idx as usize) < table.len() {
+            table[idx as usize]
+        } else {
+            EMPTY_TEXT.as_ptr() as i64
+        }
+    })
+}
+
+/// Collect unique text strings from ConstText and EnumToText instructions
+/// across all functions, preserving insertion order.
+fn collect_text_data_strings(program: &Program) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut result = Vec::new();
+    for function in &program.functions {
+        collect_inst_text_data(&function.instructions, &mut seen, &mut result);
+    }
+    result
+}
+
+fn collect_inst_text_data(
+    insts: &[Inst],
+    seen: &mut std::collections::BTreeSet<String>,
+    result: &mut Vec<String>,
+) {
+    for inst in insts {
+        match inst {
+            Inst::ConstText { value, .. } => {
+                if seen.insert(value.clone()) {
+                    result.push(value.clone());
+                }
+            }
+            Inst::EnumToText { variant_names, .. } => {
+                for name in variant_names {
+                    if seen.insert(name.clone()) {
+                        result.push(name.clone());
+                    }
+                }
+            }
+            Inst::If {
+                then_insts,
+                else_insts,
+                ..
+            } => {
+                collect_inst_text_data(then_insts, seen, result);
+                collect_inst_text_data(else_insts, seen, result);
+            }
+            Inst::While {
+                condition_insts,
+                body_insts,
+                ..
+            } => {
+                collect_inst_text_data(condition_insts, seen, result);
+                collect_inst_text_data(body_insts, seen, result);
+            }
+            Inst::Repeat { body_insts, .. } => {
+                collect_inst_text_data(body_insts, seen, result);
+            }
+            _ => {}
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Register all runtime helpers with the JIT builder
@@ -1328,7 +1574,15 @@ struct JitBackend<'a> {
     bytes_to_text_id: FuncId,
     text_eq_id: FuncId,
     text_cmp_id: FuncId,
+    text_index_new_id: Option<FuncId>,
+    text_index_get_id: Option<FuncId>,
+    text_index_contains_id: Option<FuncId>,
+    text_index_get_or_insert_id: Option<FuncId>,
+    text_index_set_id: Option<FuncId>,
+    text_index_keys_id: Option<FuncId>,
     text_intern_id: FuncId,
+    text_data_index: BTreeMap<String, usize>,
+    text_data_func_id: FuncId,
     records: BTreeMap<String, NativeRecord>,
     native_enums: BTreeMap<String, NativeEnum>,
 }
@@ -1403,6 +1657,17 @@ impl<'a> JitBackend<'a> {
         let file_is_valid_id = declare("file_is_valid", declare_file_is_valid)?;
         let bytes_to_text_id = declare("bytes_to_text", declare_bytes_to_text)?;
 
+        let text_index_new_id = Some(declare("text_index_new", declare_text_index_new)?);
+        let text_index_get_id = Some(declare("text_index_get", declare_text_index_get)?);
+        let text_index_contains_id =
+            Some(declare("text_index_contains", declare_text_index_contains)?);
+        let text_index_get_or_insert_id = Some(declare(
+            "text_index_get_or_insert",
+            declare_text_index_get_or_insert,
+        )?);
+        let text_index_set_id = Some(declare("text_index_set", declare_text_index_set)?);
+        let text_index_keys_id = Some(declare("text_index_keys", declare_text_index_keys)?);
+
         let text_builder_new_id = Some(declare("text_builder_new", declare_text_builder_new)?);
         let text_builder_append_id =
             Some(declare("text_builder_append", declare_text_builder_append)?);
@@ -1458,6 +1723,21 @@ impl<'a> JitBackend<'a> {
             function_ids.insert(function.name.clone(), id);
         }
 
+        // Collect text data strings for ConstText/EnumToText instructions
+        let text_data_list = collect_text_data_strings(program);
+        let text_data_index: BTreeMap<String, usize> = text_data_list
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| (s, i))
+            .collect();
+        let mut text_data_sig = module.make_signature();
+        text_data_sig.call_conv = CallConv::triple_default(module.isa().triple());
+        text_data_sig.params.push(AbiParam::new(types::I64));
+        text_data_sig.returns.push(AbiParam::new(types::I64));
+        let text_data_func_id = module
+            .declare_function("sarif_text_data_for_insts", Linkage::Import, &text_data_sig)
+            .map_err(|e| format!("failed to declare text_data_for_insts: {e}"))?;
+
         Ok(Self {
             program,
             module,
@@ -1505,9 +1785,17 @@ impl<'a> JitBackend<'a> {
             file_remove_id,
             file_is_valid_id,
             bytes_to_text_id,
+            text_index_new_id,
+            text_index_get_id,
+            text_index_contains_id,
+            text_index_get_or_insert_id,
+            text_index_set_id,
+            text_index_keys_id,
             text_eq_id,
             text_cmp_id,
             text_intern_id,
+            text_data_index,
+            text_data_func_id,
             records,
             native_enums,
         })
@@ -1563,19 +1851,21 @@ impl<'a> JitBackend<'a> {
             slot_types.insert(local.slot, ty);
         }
 
-        let data_ids = BTreeMap::<String, DataId>::new();
+        let empty_data_ids = BTreeMap::<String, DataId>::new();
         let text_index_helpers = TextIndexHelperIds {
-            new_id: None,
-            get_id: None,
-            contains_id: None,
-            get_or_insert_id: None,
-            set_id: None,
-            keys_id: None,
+            new_id: self.text_index_new_id,
+            get_id: self.text_index_get_id,
+            contains_id: self.text_index_contains_id,
+            get_or_insert_id: self.text_index_get_or_insert_id,
+            set_id: self.text_index_set_id,
+            keys_id: self.text_index_keys_id,
         };
 
         let falls_through = lower_insts(
             &self.function_ids,
-            &data_ids,
+            &empty_data_ids,
+            Some(self.text_data_func_id),
+            &self.text_data_index,
             self.allocator_id,
             self.alloc_push_id,
             self.alloc_pop_id,
@@ -1661,6 +1951,22 @@ impl<'a> JitBackend<'a> {
             .map_err(|e| format!("failed to define function `{}`: {e}", function.name))?;
         Ok(())
     }
+
+    fn define_data_objects(&mut self) -> Result<(), String> {
+        TEXT_DATA_TABLE.with(|table| {
+            let mut table = table.borrow_mut();
+            table.clear();
+            let index: BTreeMap<&String, &usize> = self.text_data_index.iter().collect();
+            let mut entries: Vec<(&String, &usize)> = index.into_iter().collect();
+            entries.sort_by_key(|(_, idx)| **idx);
+            for (value, _) in &entries {
+                let blob = encode_text_blob(value).into_boxed_slice();
+                let ptr = Box::leak(blob).as_ptr() as i64;
+                table.push(ptr);
+            }
+        });
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1695,6 +2001,11 @@ pub fn run_function_native(
             .define_function(func)
             .map_err(RuntimeError::Message)?;
     }
+
+    // Define text data objects (constant strings used in instructions)
+    backend
+        .define_data_objects()
+        .map_err(|e| RuntimeError::Message(format!("data define error: {e}")))?;
 
     // Finalize
     backend
@@ -1733,6 +2044,32 @@ pub fn run_function_native(
     let decoded = native_to_runtime_value(&native_result, return_type, records, native_enums);
 
     Ok(decoded)
+}
+
+/// Run the program's `main` function using the Cranelift JIT backend,
+/// with captured stdout and configurable program args / stdin.
+///
+/// This mirrors `run_main_with_io_capture` from the interpreter path.
+pub fn run_main_native_with_io_capture(
+    program: &Program,
+    program_args: &[String],
+    stdin_text: String,
+) -> Result<(RuntimeValue, String), RuntimeError> {
+    PROGRAM_ARGS.with(|a| *a.borrow_mut() = Some(program_args.to_vec()));
+    STDIN_TEXT.with(|s| *s.borrow_mut() = Some(stdin_text));
+    STDOUT_BUF.with(|b| *b.borrow_mut() = Some(Vec::new()));
+
+    let result = run_function_native(program, "main", &[]);
+
+    let stdout = STDOUT_BUF.with(|b| {
+        let buf = b.borrow_mut().take().unwrap_or_default();
+        String::from_utf8(buf).unwrap_or_default()
+    });
+
+    PROGRAM_ARGS.with(|a| *a.borrow_mut() = None);
+    STDIN_TEXT.with(|s| *s.borrow_mut() = None);
+
+    result.map(|v| (v, stdout))
 }
 
 // ---------------------------------------------------------------------------

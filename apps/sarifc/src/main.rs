@@ -328,10 +328,16 @@ fn run_program(command: command::Command) -> ExitCode {
     }
 
     let program = loaded.mir().program.clone();
+
+    #[cfg(feature = "native-build")]
+    let run_fn = sarif_codegen::run_main_native_with_io_capture;
+    #[cfg(not(feature = "native-build"))]
+    let run_fn = sarif_codegen::run_main_with_io_capture;
+
     let (result, stdout_text) = match std::thread::Builder::new()
         .name("sarif-run".to_owned())
         .stack_size(16 * 1024 * 1024)
-        .spawn(move || sarif_codegen::run_main_with_io_capture(&program, &program_args, stdin_text))
+        .spawn(move || run_fn(&program, &program_args, stdin_text))
     {
         Ok(handle) => match handle.join() {
             Ok(Ok((result, stdout_text))) => (result, stdout_text),
