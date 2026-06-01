@@ -207,12 +207,19 @@ fn c_build_text_slice_prints_to_stdout() {
 
 #[test]
 fn c_build_text_eq_range_as_bool_main() {
-    // text_eq_range works correctly (avoids the text == pointer comparison bug)
     let binary = c_build(
         "fn main() -> Bool { text_eq_range(\"sarif\", 0, 5, \"sarif\") and text_eq_range(\"sarif\", 1, 4, \"ari\") }",
         "c_build_text_eq_range",
     );
-    // Bool true -> exit code 0
+    assert_eq!(run_c_exit(&binary), 0);
+}
+
+#[test]
+fn c_build_text_equality_uses_content_comparison() {
+    let binary = c_build(
+        "fn main() -> Bool { text_concat(\"sa\", \"rif\") == \"sarif\" }",
+        "c_build_text_eq",
+    );
     assert_eq!(run_c_exit(&binary), 0);
 }
 
@@ -334,6 +341,28 @@ fn c_build_supports_text_from_f64_fixed() {
         "c_build_text_from_f64",
     );
     assert_eq!(run_c_stdout(&binary), "3.50");
+}
+
+#[test]
+fn c_build_supports_f64_list_get_set() {
+    let binary = c_build(
+        "fn main() -> Text effects [alloc] { let mut xs = [1.5, 2.5, 3.5]; xs[1] = 4.25; text_from_f64_fixed(xs[0] + xs[1] + xs[2], 2) }",
+        "c_build_f64_list",
+    );
+    assert_eq!(run_c_stdout(&binary), "9.25");
+}
+
+// ============================================================
+// For-loop tests
+// ============================================================
+
+#[test]
+fn c_build_supports_for_loop() {
+    let binary = c_build(
+        "fn main() -> I32 { let mut sum = 0; for i in 1..6 { sum += i; }; sum }",
+        "c_build_for_loop",
+    );
+    assert_eq!(run_c_exit(&binary), 15);
 }
 
 // ============================================================
@@ -676,23 +705,29 @@ fn c_build_accepts_bootstrap_syntax() {
     assert_eq!(run_c_exit(&binary), 35);
 }
 
-// NOTE: bootstrap_tools is not tested here because it uses with_arena (alloc scopes),
-// which the C backend does not yet support (missing extern declarations for
-// sarif_alloc_push and sarif_alloc_pop).
-
 // ============================================================
-// --print-main tests (note: currently C backend ignores --print-main)
+// --print-main tests
 // ============================================================
 
 #[test]
-fn c_build_print_main_i32_exit_code() {
-    // The C backend currently does NOT support --print-main (it ignores the flag).
-    // Without --print-main for the native backend, I32 main uses exit-code semantics.
-    // With --print-main for the C backend, the behavior is the same as without it:
-    // the I32 return value becomes the process exit code.
+fn c_build_print_main_i32_stdout() {
     let binary = c_build_print_main("fn main() -> I32 { 42 }", "c_build_print_main_i32");
-    // Even with --print-main, C backend uses exit-code semantics for I32
-    assert_eq!(run_c_exit(&binary), 42);
+    assert_eq!(run_c_stdout(&binary), "42");
+}
+
+#[test]
+fn c_build_print_main_bool_stdout() {
+    let binary = c_build_print_main("fn main() -> Bool { true }", "c_build_print_main_bool");
+    assert_eq!(run_c_stdout(&binary), "true");
+}
+
+#[test]
+fn c_build_print_main_f64_stdout() {
+    let binary = c_build_print_main(
+        "fn main() -> F64 { 3.5 }",
+        "c_build_print_main_f64",
+    );
+    assert_eq!(run_c_stdout(&binary), "3.5");
 }
 
 #[test]

@@ -526,12 +526,16 @@ fn build_for_target(
 
                 // Compile C source to executable with clang
                 let mut cmd = Command::new("clang");
-                cmd.arg("-O3")
-                    .arg("-std=c11")
-                    .arg("-Wall")
-                    .arg("-Wextra")
-                    .arg(format!("-DSARIF_MAIN_KIND={main_kind}"))
-                    .arg("-o")
+            cmd.arg("-O3")
+                .arg("-std=c11")
+                .arg("-Wall")
+                .arg("-Wextra")
+                .arg(format!("-DSARIF_MAIN_KIND={main_kind}"))
+                .arg(format!(
+                    "-DSARIF_MAIN_PRINT={}",
+                    i32::from(command.print_main)
+                ))
+                .arg("-o")
                     .arg(output_path)
                     .arg(&c_source_path)
                     .arg(concat!(

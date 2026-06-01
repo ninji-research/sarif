@@ -117,6 +117,9 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern void* sarif_text_index_keys(void* index);")?;
     out.line("extern double sarif_parse_f64(const unsigned char* text);")?;
     out.line("extern int64_t sarif_parse_i32_range(const unsigned char* text, int64_t start, int64_t end);")?;
+    out.line("extern void sarif_alloc_push(void);")?;
+    out.line("extern void sarif_alloc_pop(void);")?;
+    out.line("extern double sarif_f64_from_i32(int64_t value);")?;
     out.line("")?;
 
     out.line(
@@ -131,6 +134,18 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("static inline void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {")?;
     out.indent += 1;
     out.line("memcpy(base + offset, &value, sizeof(uint64_t));")?;
+    out.indent -= 1;
+    out.line("}")?;
+    out.line("static inline double sarif_load_f64(const unsigned char* base, uint64_t offset) {")?;
+    out.indent += 1;
+    out.line("double value;")?;
+    out.line("memcpy(&value, base + offset, sizeof(double));")?;
+    out.line("return value;")?;
+    out.indent -= 1;
+    out.line("}")?;
+    out.line("static inline void sarif_store_f64(unsigned char* base, uint64_t offset, double value) {")?;
+    out.indent += 1;
+    out.line("memcpy(base + offset, &value, sizeof(double));")?;
     out.indent -= 1;
     out.line("}")?;
     out.line("")?;
@@ -527,6 +542,14 @@ fn is_signed(val: &ValueId, value_kinds: &BTreeMap<ValueId, CodegenValueKind>) -
     matches!(value_kinds.get(val), Some(CodegenValueKind::I32))
 }
 
+fn is_text(val: &ValueId, value_kinds: &BTreeMap<ValueId, CodegenValueKind>) -> bool {
+    matches!(value_kinds.get(val), Some(CodegenValueKind::Text))
+}
+
+fn is_f64(val: &ValueId, value_kinds: &BTreeMap<ValueId, CodegenValueKind>) -> bool {
+    matches!(value_kinds.get(val), Some(CodegenValueKind::F64))
+}
+
 fn emit_instructions(
     insts: &[Inst],
     func: &Function,
@@ -675,23 +698,33 @@ fn emit_inst(
                 vref(right)
             ))?;
         }
-        Inst::Eq { dest, left, right } => {
+    Inst::Eq { dest, left, right } => {
+        if is_text(left, value_kinds) {
+            out.line(&format!(
+                "v{} = sarif_text_eq((const unsigned char*){}, (const unsigned char*){}) ? 1 : 0;",
+                dest.0, vref(left), vref(right)
+            ))?;
+        } else {
             out.line(&format!(
                 "v{} = ({} == {}) ? 1 : 0;",
-                dest.0,
-                vref(left),
-                vref(right)
+                dest.0, vref(left), vref(right)
             ))?;
         }
-        Inst::Ne { dest, left, right } => {
+    }
+    Inst::Ne { dest, left, right } => {
+        if is_text(left, value_kinds) {
+            out.line(&format!(
+                "v{} = sarif_text_eq((const unsigned char*){}, (const unsigned char*){}) ? 0 : 1;",
+                dest.0, vref(left), vref(right)
+            ))?;
+        } else {
             out.line(&format!(
                 "v{} = ({} != {}) ? 1 : 0;",
-                dest.0,
-                vref(left),
-                vref(right)
+                dest.0, vref(left), vref(right)
             ))?;
         }
-        Inst::Lt { dest, left, right } => {
+    }
+    Inst::Lt { dest, left, right } => {
             if is_signed(left, value_kinds) {
                 out.line(&format!(
                     "v{} = ((int64_t){} < (int64_t){}) ? 1 : 0;",
@@ -1175,14 +1208,22 @@ Inst::BytesFindByteRange {
                 vref(index)
             ))?;
         }
-        Inst::ListNew { dest, len, value } => {
+    Inst::ListNew { dest, len, value } => {
+        if is_f64(value, value_kinds) {
+            out.line("{")?;
+            out.indent += 1;
+            out.line("uint64_t _tmp;")?;
+            out.line(&format!("memcpy(&_tmp, &v{}, sizeof(double));", value.0))?;
+            out.line(&format!("v{} = (uint64_t)sarif_list_new((int64_t){}, _tmp);", dest.0, vref(len)))?;
+            out.indent -= 1;
+            out.line("}")?;
+        } else {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_list_new((int64_t){}, (uint64_t){});",
-                dest.0,
-                vref(len),
-                vref(value)
+                dest.0, vref(len), vref(value)
             ))?;
         }
+    }
         Inst::ListLen { dest, list } => {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_list_len((void*){});",
@@ -1190,42 +1231,63 @@ Inst::BytesFindByteRange {
                 vref(list)
             ))?;
         }
-        Inst::ListGet { dest, list, index } => {
+    Inst::ListGet { dest, list, index } => {
+        if is_f64(dest, value_kinds) {
+            out.line("{")?;
+            out.indent += 1;
+            out.line(&format!("uint64_t _tmp = sarif_list_get((void*){}, (int64_t){});", vref(list), vref(index)))?;
+            out.line(&format!("memcpy(&v{}, &_tmp, sizeof(double));", dest.0))?;
+            out.indent -= 1;
+            out.line("}")?;
+        } else {
             out.line(&format!(
                 "v{} = sarif_list_get((void*){}, (int64_t){});",
-                dest.0,
-                vref(list),
-                vref(index)
+                dest.0, vref(list), vref(index)
             ))?;
         }
-        Inst::ListSet {
-            dest,
-            list,
-            index,
-            value,
-        } => {
+    }
+    Inst::ListSet {
+        dest,
+        list,
+        index,
+        value,
+    } => {
+        if is_f64(value, value_kinds) {
+            out.line("{")?;
+            out.indent += 1;
+            out.line("uint64_t _tmp;")?;
+            out.line(&format!("memcpy(&_tmp, &v{}, sizeof(double));", value.0))?;
+            out.line(&format!("v{} = (uint64_t)sarif_list_set((void*){}, (int64_t){}, _tmp);", dest.0, vref(list), vref(index)))?;
+            out.indent -= 1;
+            out.line("}")?;
+        } else {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_list_set((void*){}, (int64_t){}, (uint64_t){});",
-                dest.0,
-                vref(list),
-                vref(index),
-                vref(value)
+                dest.0, vref(list), vref(index), vref(value)
             ))?;
         }
-        Inst::ListPush {
-            dest,
-            list,
-            len,
-            value,
-        } => {
+    }
+    Inst::ListPush {
+        dest,
+        list,
+        len,
+        value,
+    } => {
+        if is_f64(value, value_kinds) {
+            out.line("{")?;
+            out.indent += 1;
+            out.line("uint64_t _tmp;")?;
+            out.line(&format!("memcpy(&_tmp, &v{}, sizeof(double));", value.0))?;
+            out.line(&format!("v{} = (uint64_t)sarif_list_push((void*){}, (int64_t){}, _tmp);", dest.0, vref(list), vref(len)))?;
+            out.indent -= 1;
+            out.line("}")?;
+        } else {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_list_push((void*){}, (int64_t){}, (uint64_t){});",
-                dest.0,
-                vref(list),
-                vref(len),
-                vref(value)
+                dest.0, vref(list), vref(len), vref(value)
             ))?;
         }
+    }
         Inst::ListSortText { dest, list, len } => {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_list_sort_text((void*){}, (int64_t){});",
@@ -1268,14 +1330,19 @@ Inst::BytesFindByteRange {
                 dest.0,
                 size.max(8)
             ))?;
-            for (i, (_fname, fval)) in fields.iter().enumerate() {
+        for (i, (_fname, fval)) in fields.iter().enumerate() {
+            if is_f64(fval, value_kinds) {
+                out.line(&format!(
+                    "sarif_store_f64((unsigned char*)v{}, {}u, {});",
+                    dest.0, i * 8, vref(fval)
+                ))?;
+            } else {
                 out.line(&format!(
                     "sarif_store_u64((unsigned char*)v{}, {}u, {});",
-                    dest.0,
-                    i * 8,
-                    vref(fval)
+                    dest.0, i * 8, vref(fval)
                 ))?;
             }
+        }
         }
         Inst::Field { dest, base, name } => {
             let offset = value_kinds
@@ -1288,12 +1355,17 @@ Inst::BytesFindByteRange {
                     }
                 })
                 .unwrap_or(0);
+        if is_f64(dest, value_kinds) {
+            out.line(&format!(
+                "v{} = sarif_load_f64((const unsigned char*){}, {}u);",
+                dest.0, vref(base), offset
+            ))?;
+        } else {
             out.line(&format!(
                 "v{} = sarif_load_u64((const unsigned char*){}, {}u);",
-                dest.0,
-                vref(base),
-                offset
+                dest.0, vref(base), offset
             ))?;
+        }
         }
         Inst::MakeEnum {
             dest,
