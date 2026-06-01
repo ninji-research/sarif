@@ -1056,6 +1056,44 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
             body: lower_body(&expr.body),
             span: expr.span,
         })),
+        ast::Expr::For(expr) => {
+            let span = expr.span;
+            let count = Expr::Binary(BinaryExpr {
+                op: BinaryOp::Sub,
+                left: Box::new(lower_expr(&expr.end)),
+                right: Box::new(lower_expr(&expr.start)),
+                span,
+            });
+            let inner_binding = format!("__{}_idx", expr.binding);
+            let index_expr = Expr::Name(NameExpr {
+                name: inner_binding.clone(),
+                span,
+            });
+            let offset = Expr::Binary(BinaryExpr {
+                op: BinaryOp::Add,
+                left: Box::new(lower_expr(&expr.start)),
+                right: Box::new(index_expr),
+                span,
+            });
+            let mut stmts = vec![Stmt::Let(LetBinding {
+                mutable: false,
+                name: expr.binding.clone(),
+                value: offset,
+                span,
+            })];
+            let body = lower_body(&expr.body);
+            stmts.extend(body.statements);
+            Expr::Repeat(Box::new(RepeatExpr {
+                binding: Some(inner_binding),
+                count: Box::new(count),
+                body: Body {
+                    statements: stmts,
+                    tail: body.tail,
+                    span: body.span,
+                },
+                span,
+            }))
+        }
         ast::Expr::While(expr) => Expr::While(Box::new(WhileExpr {
             condition: Box::new(lower_expr(&expr.condition)),
             body: lower_body(&expr.body),

@@ -733,8 +733,9 @@ impl<'a> Parser<'a> {
                 | TokenKind::LParen
                 | TokenKind::KwIf
                 | TokenKind::KwMatch
-                | TokenKind::KwRepeat
-                | TokenKind::KwWhile
+        | TokenKind::KwRepeat
+        | TokenKind::KwFor
+        | TokenKind::KwWhile
                 | TokenKind::KwComptime
                 | TokenKind::KwHandle
         )
@@ -930,8 +931,9 @@ impl<'a> Parser<'a> {
         match self.current_non_trivia_kind() {
             Some(TokenKind::KwIf) => self.parse_if_expr(),
             Some(TokenKind::KwMatch) => self.parse_match_expr(),
-            Some(TokenKind::KwRepeat) => self.parse_repeat_expr(),
-            Some(TokenKind::KwWhile) => self.parse_while_expr(),
+        Some(TokenKind::KwRepeat) => self.parse_repeat_expr(),
+        Some(TokenKind::KwFor) => self.parse_for_expr(),
+        Some(TokenKind::KwWhile) => self.parse_while_expr(),
             Some(TokenKind::KwPerform) => self.parse_perform_expr(),
             Some(TokenKind::KwComptime) => self.parse_comptime_expr(),
             Some(TokenKind::KwHandle) => self.parse_handle_expr(),
@@ -1176,6 +1178,25 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
         children.push(Element::Node(self.parse_expr_body()));
         Node::new(NodeKind::ExprRepeat, children)
+    }
+
+    fn parse_for_expr(&mut self) -> Node {
+        let mut children = Vec::new();
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::KwFor)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::Ident)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::KwIn)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_expr_bp(0)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::DotDot)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_expr_bp(0)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Node(self.parse_expr_body()));
+        Node::new(NodeKind::ExprFor, children)
     }
 
     fn parse_while_expr(&mut self) -> Node {

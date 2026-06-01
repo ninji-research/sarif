@@ -67,6 +67,7 @@ pub enum TokenKind {
     KwElse,
     KwFalse,
     KwFn,
+    KwFor,
     KwHandle,
     KwIf,
     KwIn,
@@ -189,6 +190,7 @@ pub enum NodeKind {
     ExprIf,
     ExprMatch,
     ExprRepeat,
+    ExprFor,
     ExprWhile,
     ExprGroup,
     ExprInteger,
@@ -220,8 +222,9 @@ impl NodeKind {
                 | Self::ExprIndex
                 | Self::ExprIf
                 | Self::ExprMatch
-                | Self::ExprRepeat
-                | Self::ExprWhile
+            | Self::ExprRepeat
+            | Self::ExprFor
+            | Self::ExprWhile
                 | Self::ExprGroup
                 | Self::ExprInteger
                 | Self::ExprFloat

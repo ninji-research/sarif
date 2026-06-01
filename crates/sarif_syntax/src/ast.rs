@@ -441,6 +441,7 @@ pub enum Expr {
     If(Box<IfExpr>),
     Match(Box<MatchExpr>),
     Repeat(Box<RepeatExpr>),
+    For(Box<ForExpr>),
     While(Box<WhileExpr>),
     Record(RecordExpr),
     Unary(UnaryExpr),
@@ -501,8 +502,9 @@ impl Expr {
             Self::Index(expr) => expr.span,
             Self::If(expr) => expr.span,
             Self::Match(expr) => expr.span,
-            Self::Repeat(expr) => expr.span,
-            Self::While(expr) => expr.span,
+        Self::Repeat(expr) => expr.span,
+        Self::For(expr) => expr.span,
+        Self::While(expr) => expr.span,
             Self::Record(expr) => expr.span,
             Self::Unary(expr) => expr.span,
             Self::Binary(expr) => expr.span,
@@ -564,14 +566,21 @@ impl Expr {
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
-            Self::Repeat(expr) => format!(
-                "{} {{ {} }}",
-                expr.binding.as_ref().map_or_else(
-                    || format!("repeat {}", expr.count.pretty()),
-                    |binding| format!("repeat {binding} in {}", expr.count.pretty()),
-                ),
-                expr.body.pretty(),
+        Self::Repeat(expr) => format!(
+            "{} {{ {} }}",
+            expr.binding.as_ref().map_or_else(
+                || format!("repeat {}", expr.count.pretty()),
+                |binding| format!("repeat {binding} in {}", expr.count.pretty()),
             ),
+            expr.body.pretty(),
+        ),
+        Self::For(expr) => format!(
+            "for {} in {}..{} {{ {} }}",
+            expr.binding,
+            expr.start.pretty(),
+            expr.end.pretty(),
+            expr.body.pretty(),
+        ),
             Self::While(expr) => {
                 format!(
                     "while {} {{ {} }}",
@@ -750,6 +759,15 @@ pub enum MatchPattern {
 pub struct RepeatExpr {
     pub binding: Option<String>,
     pub count: Box<Expr>,
+    pub body: Body,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForExpr {
+    pub binding: String,
+    pub start: Box<Expr>,
+    pub end: Box<Expr>,
     pub body: Body,
     pub span: Span,
 }
@@ -1631,9 +1649,10 @@ impl Lowerer {
             NodeKind::ExprMatch => self
                 .lower_match_expr(node)
                 .map(|expr| Expr::Match(Box::new(expr))),
-            NodeKind::ExprRepeat => self
-                .lower_repeat_expr(node)
-                .map(|expr| Expr::Repeat(Box::new(expr))),
+        NodeKind::ExprRepeat => self
+            .lower_repeat_expr(node)
+            .map(|expr| Expr::Repeat(Box::new(expr))),
+        NodeKind::ExprFor => Some(self.lower_for_expr(node)),
             NodeKind::ExprWhile => self
                 .lower_while_expr(node)
                 .map(|expr| Expr::While(Box::new(expr))),
@@ -2231,6 +2250,83 @@ impl Lowerer {
             body,
             span: node.span,
         })
+    }
+
+    fn lower_for_expr(&mut self, node: &Node) -> Expr {
+        let binding = node
+            .children
+            .iter()
+            .find_map(|child| match child {
+                Element::Token(token) if token.kind == TokenKind::Ident => {
+                    Some(token.lexeme.clone())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| "_i".to_owned());
+        let mut expr_nodes = node.children.iter().filter_map(|child| match child {
+            Element::Node(child) if child.kind != NodeKind::Body => self.lower_expr(child),
+            Element::Node(_) | Element::Token(_) => None,
+        });
+        let start = expr_nodes.next();
+        let end = expr_nodes.next();
+        let body = node.children.iter().find_map(|child| match child {
+            Element::Node(child) if child.kind == NodeKind::Body => Some(self.lower_body(child)),
+            Element::Node(_) | Element::Token(_) => None,
+        });
+        match (start, end, body) {
+            (Some(start), Some(end), Some(body)) => {
+                let span = node.span;
+                let count = Expr::Binary(BinaryExpr {
+                    left: Box::new(end.clone()),
+                    op: BinaryOp::Sub,
+                    right: Box::new(start.clone()),
+                    span,
+                });
+                let inner_binding = format!("__{binding}_idx");
+                let index_expr = Expr::Name(NameExpr {
+                    name: inner_binding.clone(),
+                    span,
+                });
+                let offset = Expr::Binary(BinaryExpr {
+                    left: Box::new(start),
+                    op: BinaryOp::Add,
+                    right: Box::new(index_expr),
+                    span,
+                });
+                let let_binding = Stmt::Let(LetBinding {
+                    mutable: false,
+                    name: binding,
+                    value: offset,
+                    span,
+                });
+                let desugared_body = Body {
+                    statements: std::iter::once(let_binding)
+                        .chain(body.statements)
+                        .collect(),
+                    tail: body.tail,
+                    span: body.span,
+                };
+                Expr::Repeat(Box::new(RepeatExpr {
+                    binding: Some(inner_binding),
+                    count: Box::new(count),
+                    body: desugared_body,
+                    span,
+                }))
+            }
+            _ => Expr::Repeat(Box::new(RepeatExpr {
+                binding: None,
+                count: Box::new(Expr::Integer(IntegerExpr {
+                    value: 0,
+                    span: node.span,
+                })),
+                body: Body {
+                    statements: Vec::new(),
+                    tail: None,
+                    span: node.span,
+                },
+                span: node.span,
+            })),
+        }
     }
 
     fn lower_while_expr(&mut self, node: &Node) -> Option<WhileExpr> {

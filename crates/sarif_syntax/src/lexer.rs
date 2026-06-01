@@ -50,6 +50,8 @@ enum RawTokenKind {
     KwFalse,
     #[token("fn")]
     KwFn,
+    #[token("for")]
+    KwFor,
     #[token("handle")]
     KwHandle,
     #[token("if")]
@@ -249,6 +251,7 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::KwElse => TokenKind::KwElse,
         RawTokenKind::KwFalse => TokenKind::KwFalse,
         RawTokenKind::KwFn => TokenKind::KwFn,
+        RawTokenKind::KwFor => TokenKind::KwFor,
         RawTokenKind::KwHandle => TokenKind::KwHandle,
         RawTokenKind::KwIf => TokenKind::KwIf,
         RawTokenKind::KwIn => TokenKind::KwIn,
