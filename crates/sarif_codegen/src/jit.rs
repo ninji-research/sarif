@@ -13,10 +13,9 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataId, FuncId, Linkage, Module, default_libcall_names};
 
 use crate::native::{
-    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, RuntimeHelperIds,
-    TrustedListAccesses, collect_native_enums, collect_native_records,
-    declare_runtime_helpers, encode_text_blob, infer_value_kinds, lower_insts,
-    native_type as shared_native_type,
+    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, RuntimeHelperIds, TrustedListAccesses,
+    collect_native_enums, collect_native_records, declare_runtime_helpers, encode_text_blob,
+    infer_value_kinds, lower_insts, native_type as shared_native_type,
 };
 use crate::{Function, Inst, Program, RuntimeError, RuntimeValue, ValueId};
 
@@ -1442,7 +1441,10 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
         ("sarif_bytes_slice", sarif_bytes_slice as *const u8),
         ("sarif_bytes_len", sarif_bytes_len as *const u8),
         ("sarif_bytes_byte", sarif_bytes_byte as *const u8),
-        ("sarif_bytes_materialize", sarif_bytes_materialize as *const u8),
+        (
+            "sarif_bytes_materialize",
+            sarif_bytes_materialize as *const u8,
+        ),
         ("sarif_text_eq_range", sarif_text_eq_range as *const u8),
         (
             "sarif_text_find_byte_range",
@@ -1576,12 +1578,12 @@ impl<'a> JitBackend<'a> {
 
         let mut module = JITModule::new(jit_builder);
         let records = collect_native_records(program)?;
-let native_enums = collect_native_enums(program);
+        let native_enums = collect_native_enums(program);
 
-    let helpers = declare_runtime_helpers(&mut module, "jit")
-        .map_err(|e| format!("failed to declare runtime helpers: {e}"))?;
+        let helpers = declare_runtime_helpers(&mut module, "jit")
+            .map_err(|e| format!("failed to declare runtime helpers: {e}"))?;
 
-    let mut function_ids = BTreeMap::new();
+        let mut function_ids = BTreeMap::new();
         for function in &program.functions {
             let mut signature = module.make_signature();
             signature.call_conv = CallConv::triple_default(module.isa().triple());

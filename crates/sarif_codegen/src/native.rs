@@ -412,7 +412,9 @@ fn infer_inst_kinds(
             Inst::BytesMaterialize { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
-            Inst::StdinBytes { dest } | Inst::FileReadToEnd { dest, .. } | Inst::FileMmap { dest, .. } => {
+            Inst::StdinBytes { dest }
+            | Inst::FileReadToEnd { dest, .. }
+            | Inst::FileMmap { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdoutWrite { .. } => {}
@@ -1249,14 +1251,19 @@ pub struct RuntimeHelperIds {
     pub text_cmp_id: FuncId,
 }
 
-pub fn declare_runtime_helpers<M: Module>(module: &mut M, backend: &str) -> Result<RuntimeHelperIds, String> {
+pub fn declare_runtime_helpers<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<RuntimeHelperIds, String> {
     Ok(RuntimeHelperIds {
         allocator_id: declare_record_allocator(module, backend)?,
         alloc_push_id: declare_alloc_push(module, backend)?,
         alloc_pop_id: declare_alloc_pop(module, backend)?,
         text_builder_new_id: Some(declare_text_builder_new(module, backend)?),
         text_builder_append_id: Some(declare_text_builder_append(module, backend)?),
-        text_builder_append_codepoint_id: Some(declare_text_builder_append_codepoint(module, backend)?),
+        text_builder_append_codepoint_id: Some(declare_text_builder_append_codepoint(
+            module, backend,
+        )?),
         text_builder_append_ascii_id: Some(declare_text_builder_append_ascii(module, backend)?),
         text_builder_append_slice_id: Some(declare_text_builder_append_slice(module, backend)?),
         text_builder_append_i32_id: Some(declare_text_builder_append_i32(module, backend)?),
@@ -1388,7 +1395,7 @@ pub fn lower_insts<M: Module>(
         text_cmp_id,
     } = *helpers;
     for inst in instructions {
-if !lower_inst(
+        if !lower_inst(
             function_ids,
             data_ids,
             text_data_func_id,
@@ -2673,7 +2680,8 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::BytesMaterialize { dest, bytes } => {
-            let bytes_val = native_value(values, *bytes, function, "bytes_materialize bytes", backend)?;
+            let bytes_val =
+                native_value(values, *bytes, function, "bytes_materialize bytes", backend)?;
             let helper = module.declare_func_in_func(bytes_materialize_id, builder.func);
             let ptr = call_helper(
                 builder,
@@ -2728,22 +2736,9 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::FileMmap { dest, path } => {
-            let path_val = native_value(
-                values,
-                *path,
-                function,
-                "file_mmap path",
-                backend,
-            )?;
+            let path_val = native_value(values, *path, function, "file_mmap path", backend)?;
             let helper = module.declare_func_in_func(file_mmap_id, builder.func);
-            let ptr = call_helper(
-                builder,
-                helper,
-                &[path_val],
-                "file mmap",
-                function,
-                backend,
-            )?;
+            let ptr = call_helper(builder, helper, &[path_val], "file mmap", function, backend)?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -3417,26 +3412,26 @@ pub fn lower_inst<M: Module>(
             let mut then_values = values.clone();
             let mut then_headers = list_headers.clone();
             builder.switch_to_block(then_block);
-let then_falls = lower_insts(
-    function_ids,
-    data_ids,
-    text_data_func_id,
-    text_data_index,
-    helpers,
-    records,
-    enums,
-    value_kinds,
-    module,
-    function,
-    builder,
-    block_params,
-    slot_vars,
-    slot_types,
-    &mut then_values,
-    &mut then_headers,
-    trusted_list_accesses,
-    then_insts,
-    backend,
+            let then_falls = lower_insts(
+                function_ids,
+                data_ids,
+                text_data_func_id,
+                text_data_index,
+                helpers,
+                records,
+                enums,
+                value_kinds,
+                module,
+                function,
+                builder,
+                block_params,
+                slot_vars,
+                slot_types,
+                &mut then_values,
+                &mut then_headers,
+                trusted_list_accesses,
+                then_insts,
+                backend,
             )?;
             if then_falls {
                 let then_args = branch_jump_args(
@@ -3453,26 +3448,26 @@ let then_falls = lower_insts(
             let mut else_values = values.clone();
             let mut else_headers = list_headers.clone();
             builder.switch_to_block(else_block);
-let else_falls = lower_insts(
-    function_ids,
-    data_ids,
-    text_data_func_id,
-    text_data_index,
-    helpers,
-    records,
-    enums,
-    value_kinds,
-    module,
-    function,
-    builder,
-    block_params,
-    slot_vars,
-    slot_types,
-    &mut else_values,
-    &mut else_headers,
-    trusted_list_accesses,
-    else_insts,
-    backend,
+            let else_falls = lower_insts(
+                function_ids,
+                data_ids,
+                text_data_func_id,
+                text_data_index,
+                helpers,
+                records,
+                enums,
+                value_kinds,
+                module,
+                function,
+                builder,
+                block_params,
+                slot_vars,
+                slot_types,
+                &mut else_values,
+                &mut else_headers,
+                trusted_list_accesses,
+                else_insts,
+                backend,
             )?;
             if else_falls {
                 let else_args = branch_jump_args(
@@ -3589,28 +3584,28 @@ let else_falls = lower_insts(
                 })?;
                 let current_index =
                     coerce_var_value(builder, current_index, expected, function, backend)?;
-        builder.def_var(var, current_index);
-        }
-let body_falls = lower_insts(
-    function_ids,
-    data_ids,
-    text_data_func_id,
-    text_data_index,
-    helpers,
-    records,
-    enums,
-    value_kinds,
-    module,
-    function,
-    builder,
-    block_params,
-    slot_vars,
-    slot_types,
-    &mut body_values,
-    &mut body_headers,
-    &loop_trusted_accesses,
-    body_insts,
-    backend,
+                builder.def_var(var, current_index);
+            }
+            let body_falls = lower_insts(
+                function_ids,
+                data_ids,
+                text_data_func_id,
+                text_data_index,
+                helpers,
+                records,
+                enums,
+                value_kinds,
+                module,
+                function,
+                builder,
+                block_params,
+                slot_vars,
+                slot_types,
+                &mut body_values,
+                &mut body_headers,
+                &loop_trusted_accesses,
+                body_insts,
+                backend,
             )?;
             if body_falls {
                 let one = builder.ins().iconst(types::I64, 1);
@@ -3637,31 +3632,31 @@ let body_falls = lower_insts(
             let condition_block = builder.create_block();
             let body_block = builder.create_block();
             let exit_block = builder.create_block();
-        builder.ins().jump(condition_block, &[]);
+            builder.ins().jump(condition_block, &[]);
 
-        builder.switch_to_block(condition_block);
-        let mut condition_values = values.clone();
-        let mut condition_headers = list_headers.clone();
-let condition_falls = lower_insts(
-    function_ids,
-    data_ids,
-    text_data_func_id,
-    text_data_index,
-    helpers,
-    records,
-    enums,
-    value_kinds,
-    module,
-    function,
-    builder,
-    block_params,
-    slot_vars,
-    slot_types,
-    &mut condition_values,
-    &mut condition_headers,
-    trusted_list_accesses,
-    condition_insts,
-    backend,
+            builder.switch_to_block(condition_block);
+            let mut condition_values = values.clone();
+            let mut condition_headers = list_headers.clone();
+            let condition_falls = lower_insts(
+                function_ids,
+                data_ids,
+                text_data_func_id,
+                text_data_index,
+                helpers,
+                records,
+                enums,
+                value_kinds,
+                module,
+                function,
+                builder,
+                block_params,
+                slot_vars,
+                slot_types,
+                &mut condition_values,
+                &mut condition_headers,
+                trusted_list_accesses,
+                condition_insts,
+                backend,
             )?;
             if !condition_falls {
                 builder.seal_block(condition_block);
@@ -3681,32 +3676,32 @@ let condition_falls = lower_insts(
             builder
                 .ins()
                 .brif(condition_bool, body_block, &[], exit_block, &[]);
-        builder.seal_block(body_block);
-        builder.seal_block(exit_block);
+            builder.seal_block(body_block);
+            builder.seal_block(exit_block);
 
-        let mut body_values = values.clone();
-        let mut body_headers = list_headers.clone();
-        builder.switch_to_block(body_block);
-let body_falls = lower_insts(
-    function_ids,
-    data_ids,
-    text_data_func_id,
-    text_data_index,
-    helpers,
-    records,
-    enums,
-    value_kinds,
-    module,
-    function,
-    builder,
-    block_params,
-    slot_vars,
-    slot_types,
-    &mut body_values,
-    &mut body_headers,
-    trusted_list_accesses,
-    body_insts,
-    backend,
+            let mut body_values = values.clone();
+            let mut body_headers = list_headers.clone();
+            builder.switch_to_block(body_block);
+            let body_falls = lower_insts(
+                function_ids,
+                data_ids,
+                text_data_func_id,
+                text_data_index,
+                helpers,
+                records,
+                enums,
+                value_kinds,
+                module,
+                function,
+                builder,
+                block_params,
+                slot_vars,
+                slot_types,
+                &mut body_values,
+                &mut body_headers,
+                trusted_list_accesses,
+                body_insts,
+                backend,
             )?;
             if body_falls {
                 builder.ins().jump(condition_block, &[]);
@@ -4390,50 +4385,50 @@ pub fn declare_text_slice<M: Module>(module: &mut M, backend: &str) -> Result<Fu
 }
 
 pub fn declare_bytes_slice<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
- declare_runtime_fn(
- module,
- "sarif_bytes_slice",
- backend,
- "bytes slice helper",
- &[types::I64, types::I64, types::I64],
- &[types::I64],
- )
+    declare_runtime_fn(
+        module,
+        "sarif_bytes_slice",
+        backend,
+        "bytes slice helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_bytes_len<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
- declare_runtime_fn(
- module,
- "sarif_bytes_len",
- backend,
- "bytes len helper",
- &[types::I64],
- &[types::I64],
- )
+    declare_runtime_fn(
+        module,
+        "sarif_bytes_len",
+        backend,
+        "bytes len helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_bytes_byte<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
- declare_runtime_fn(
- module,
- "sarif_bytes_byte",
- backend,
- "bytes byte helper",
- &[types::I64, types::I64],
- &[types::I64],
- )
+    declare_runtime_fn(
+        module,
+        "sarif_bytes_byte",
+        backend,
+        "bytes byte helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_bytes_materialize<M: Module>(
- module: &mut M,
- backend: &str,
+    module: &mut M,
+    backend: &str,
 ) -> Result<FuncId, String> {
- declare_runtime_fn(
- module,
- "sarif_bytes_materialize",
- backend,
- "bytes materialize helper",
- &[types::I64],
- &[types::I64],
- )
+    declare_runtime_fn(
+        module,
+        "sarif_bytes_materialize",
+        backend,
+        "bytes materialize helper",
+        &[types::I64],
+        &[types::I64],
+    )
 }
 
 pub fn declare_text_eq_range<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
@@ -4762,10 +4757,7 @@ pub fn declare_file_read_to_end<M: Module>(
     )
 }
 
-pub fn declare_file_mmap<M: Module>(
-    module: &mut M,
-    backend: &str,
-) -> Result<FuncId, String> {
+pub fn declare_file_mmap<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
     declare_runtime_fn(
         module,
         "sarif_file_mmap",

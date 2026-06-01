@@ -2902,6 +2902,111 @@ pub(super) fn infer_comptime_expr(
 }
 
 #[allow(clippy::too_many_arguments)]
+struct SystemEffectMethod {
+    name: &'static str,
+    params: &'static [(&'static str, Type)],
+    return_type: Type,
+}
+
+const SYSTEM_IO_METHODS: &[SystemEffectMethod] = &[
+    SystemEffectMethod {
+        name: "stdout_write",
+        params: &[("data", Type::Bytes)],
+        return_type: Type::Unit,
+    },
+    SystemEffectMethod {
+        name: "stdin_bytes",
+        params: &[],
+        return_type: Type::Bytes,
+    },
+    SystemEffectMethod {
+        name: "stdin_text",
+        params: &[],
+        return_type: Type::Text,
+    },
+];
+
+const SYSTEM_FILE_METHODS: &[SystemEffectMethod] = &[
+    SystemEffectMethod {
+        name: "open",
+        params: &[("path", Type::Text), ("mode", Type::Text)],
+        return_type: Type::File,
+    },
+    SystemEffectMethod {
+        name: "close",
+        params: &[("file", Type::File)],
+        return_type: Type::Unit,
+    },
+    SystemEffectMethod {
+        name: "read",
+        params: &[("file", Type::File), ("count", Type::I32)],
+        return_type: Type::Bytes,
+    },
+    SystemEffectMethod {
+        name: "read_to_end",
+        params: &[("file", Type::File)],
+        return_type: Type::Bytes,
+    },
+    SystemEffectMethod {
+        name: "write",
+        params: &[("file", Type::File), ("data", Type::Bytes)],
+        return_type: Type::I32,
+    },
+    SystemEffectMethod {
+        name: "seek",
+        params: &[
+            ("file", Type::File),
+            ("offset", Type::I32),
+            ("whence", Type::I32),
+        ],
+        return_type: Type::I32,
+    },
+    SystemEffectMethod {
+        name: "size",
+        params: &[("file", Type::File)],
+        return_type: Type::I32,
+    },
+    SystemEffectMethod {
+        name: "exists",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "remove",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "mmap",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bytes,
+    },
+    SystemEffectMethod {
+        name: "is_valid",
+        params: &[("file", Type::File)],
+        return_type: Type::Bool,
+    },
+];
+
+const SYSTEM_EFFECTS: &[(&str, &[SystemEffectMethod])] = &[
+    ("SystemIO", SYSTEM_IO_METHODS),
+    ("SystemFile", SYSTEM_FILE_METHODS),
+];
+
+fn find_system_effect_method(effect: &str, operation: &str) -> Option<&'static SystemEffectMethod> {
+    for (effect_name, methods) in SYSTEM_EFFECTS {
+        if *effect_name == effect {
+            for method in *methods {
+                if method.name == operation {
+                    return Some(method);
+                }
+            }
+        }
+    }
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(super) fn infer_perform_expr(
     expr: &crate::hir::PerformExpr,
     locals: &HashMap<String, Type>,
@@ -2914,25 +3019,101 @@ pub(super) fn infer_perform_expr(
     fn_name: &str,
     caller_effects: &HashSet<Effect>,
 ) -> ExprInfo {
+    let nested_context = nested_expr_context(&ExprContext::default());
     let mut calls = Vec::new();
-    for arg in &expr.args {
-        let info = super::infer_expr(
-            arg,
-            locals,
-            mutable_locals,
-            functions,
-            consts,
-            enum_variants,
-            struct_layouts,
-            diagnostics,
-            fn_name,
-            caller_effects,
-            &ExprContext::default(),
-        );
-        calls.extend(info.calls);
+    let args = expr
+        .args
+        .iter()
+        .map(|arg| {
+            let info = super::infer_expr(
+                arg,
+                locals,
+                mutable_locals,
+                functions,
+                consts,
+                enum_variants,
+                struct_layouts,
+                diagnostics,
+                fn_name,
+                caller_effects,
+                &nested_context,
+            );
+            calls.extend(info.calls.iter().cloned());
+            info
+        })
+        .collect::<Vec<_>>();
+
+    if let Some(method) = find_system_effect_method(&expr.effect, &expr.operation) {
+        if let Some(effect) = Effect::parse(&expr.effect) {
+            if !caller_effects.contains(&effect) {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.missing-effect",
+                    format!(
+                        "`perform {}.{}` requires `{}` effect in `{fn_name}`",
+                        expr.effect, expr.operation, expr.effect,
+                    ),
+                    expr.span,
+                    Some(format!(
+                        "Add `effects [{}]` to the function signature.",
+                        expr.effect
+                    )),
+                ));
+            }
+        }
+
+        if args.len() != method.params.len() {
+            let params_str = method
+                .params
+                .iter()
+                .map(|(name, ty)| format!("{name}: {}", ty.render()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            diagnostics.push(Diagnostic::new(
+                "semantic.perform-arity",
+                format!(
+                    "`perform {}.{}` expects {} arguments but got {}",
+                    expr.effect,
+                    expr.operation,
+                    method.params.len(),
+                    args.len()
+                ),
+                expr.span,
+                Some(format!(
+                    "Call `perform {}.{}({params_str})`.",
+                    expr.effect, expr.operation
+                )),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+
+        for (i, ((_name, expected_ty), arg)) in method.params.iter().zip(args.iter()).enumerate() {
+            if *expected_ty != arg.ty && arg.ty != Type::Error {
+                let position = ordinal_name(i);
+                diagnostics.push(Diagnostic::new(
+                    "semantic.perform-arg-type",
+                    format!(
+                        "`perform {}.{}` {position} argument must be `{}`, found `{}`",
+                        expr.effect,
+                        expr.operation,
+                        expected_ty.render(),
+                        arg.ty.render()
+                    ),
+                    expr.span,
+                    Some(format!("Pass a value of type `{}`.", expected_ty.render())),
+                ));
+            }
+        }
+
+        return ExprInfo {
+            ty: method.return_type.clone(),
+            calls,
+        };
     }
 
-    // For now, we'll return Unit for performs until we implement effect declarations.
+    // Unknown effect - return Unit for forward compat with user-defined effects
     ExprInfo {
         ty: Type::Unit,
         calls,

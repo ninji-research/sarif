@@ -422,15 +422,15 @@ pub enum Inst {
         dest: ValueId,
         bytes: ValueId,
     },
-        BytesToText {
-            dest: ValueId,
-            bytes: ValueId,
-        },
-        BytesMaterialize {
-            dest: ValueId,
-            bytes: ValueId,
-        },
-        TextConcat {
+    BytesToText {
+        dest: ValueId,
+        bytes: ValueId,
+    },
+    BytesMaterialize {
+        dest: ValueId,
+        bytes: ValueId,
+    },
+    TextConcat {
         dest: ValueId,
         left: ValueId,
         right: ValueId,
@@ -3473,9 +3473,9 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Perform { .. }
             | Inst::Handle { .. }
             | Inst::FileOpen { .. }
-| Inst::BytesToText { .. }
-| Inst::BytesMaterialize { .. }
-| Inst::FileIsValid { .. }
+            | Inst::BytesToText { .. }
+            | Inst::BytesMaterialize { .. }
+            | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }
             | Inst::FileReadToEnd { .. }
             | Inst::FileMmap { .. }
@@ -3952,6 +3952,108 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         Some(lowered)
     }
 
+    fn try_lower_system_effect_perform(
+        &mut self,
+        effect: &str,
+        operation: &str,
+        args: &[ValueId],
+    ) -> Option<ValueId> {
+        Some(match (effect, operation) {
+            ("SystemIO", "stdout_write") => {
+                let text = *args.first()?;
+                self.instructions.push(Inst::StdoutWrite { text });
+                self.emit_unit_value()
+            }
+            ("SystemIO", "stdin_bytes") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::StdinBytes { dest });
+                dest
+            }
+            ("SystemIO", "stdin_text") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::StdinText { dest });
+                dest
+            }
+            ("SystemFile", "open") => {
+                let path = *args.first()?;
+                let mode = *args.get(1)?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileOpen { dest, path, mode });
+                dest
+            }
+            ("SystemFile", "close") => {
+                let handle = *args.first()?;
+                self.instructions.push(Inst::FileClose { handle });
+                self.emit_unit_value()
+            }
+            ("SystemFile", "read") => {
+                let handle = *args.first()?;
+                let len = *args.get(1)?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileRead { dest, handle, len });
+                dest
+            }
+            ("SystemFile", "read_to_end") => {
+                let handle = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileReadToEnd { dest, handle });
+                dest
+            }
+            ("SystemFile", "write") => {
+                let handle = *args.first()?;
+                let data = *args.get(1)?;
+                let dest = self.fresh_value();
+                self.instructions
+                    .push(Inst::FileWrite { dest, handle, data });
+                dest
+            }
+            ("SystemFile", "seek") => {
+                let handle = *args.first()?;
+                let offset = *args.get(1)?;
+                let whence = *args.get(2)?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileSeek {
+                    dest,
+                    handle,
+                    offset,
+                    whence,
+                });
+                dest
+            }
+            ("SystemFile", "size") => {
+                let handle = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileSize { dest, handle });
+                dest
+            }
+            ("SystemFile", "exists") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileExists { dest, path });
+                dest
+            }
+            ("SystemFile", "remove") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileRemove { dest, path });
+                dest
+            }
+            ("SystemFile", "mmap") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileMmap { dest, path });
+                dest
+            }
+            ("SystemFile", "is_valid") => {
+                let handle = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::FileIsValid { dest, handle });
+                dest
+            }
+            _ => return None,
+        })
+    }
+
     fn builtin_call_lower_type(&self, expr: &sarif_frontend::hir::CallExpr) -> Option<LowerType> {
         let ty = match expr.callee.as_str() {
             "len" if self.builtin_is_available("len") => {
@@ -4056,7 +4158,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
             "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
             "bytes_to_text" if self.builtin_is_available("bytes_to_text") => LowerType::Text,
-                "bytes_materialize" if self.builtin_is_available("bytes_materialize") => LowerType::Bytes,
+            "bytes_materialize" if self.builtin_is_available("bytes_materialize") => {
+                LowerType::Bytes
+            }
             "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
                 LowerType::Text
             }
@@ -4361,6 +4465,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     .iter()
                     .map(|arg| self.lower_expr(arg))
                     .collect::<Vec<_>>();
+                if let Some(value) = self.try_lower_system_effect_perform(
+                    &expr.effect,
+                    &expr.operation,
+                    &args,
+                ) {
+                    return value;
+                }
                 let dest = self.fresh_value();
                 self.instructions.push(Inst::Perform {
                     dest,
@@ -7042,7 +7153,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         };
         let bytes = self.lower_expr(arg);
         let dest = self.fresh_value();
-        self.instructions.push(Inst::BytesMaterialize { dest, bytes });
+        self.instructions
+            .push(Inst::BytesMaterialize { dest, bytes });
         dest
     }
 
@@ -8991,23 +9103,23 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
-                let len = match text_val {
-                    RuntimeValue::Text(text) => text.len(),
-                    RuntimeValue::Bytes(bytes) => bytes.len(),
-                    RuntimeValue::BytesView { len, .. } => len,
-                    _ => return Err(RuntimeError::new("expected Text or Bytes")),
-                };
+                    let len = match text_val {
+                        RuntimeValue::Text(text) => text.len(),
+                        RuntimeValue::Bytes(bytes) => bytes.len(),
+                        RuntimeValue::BytesView { len, .. } => len,
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                    };
                     values[dest.0 as usize] = RuntimeValue::Int(len as i64);
                 }
-            Inst::BytesLen { dest, bytes } => {
-                let bytes_val = extract_value(values, *bytes)?;
-                let len = match &bytes_val {
-                    RuntimeValue::Bytes(b) => b.len(),
-                    RuntimeValue::BytesView { len, .. } => *len,
-                    _ => return Err(RuntimeError::new("expected Bytes")),
-                };
-                values[dest.0 as usize] = RuntimeValue::Int(len as i64);
-            }
+                Inst::BytesLen { dest, bytes } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let len = match &bytes_val {
+                        RuntimeValue::Bytes(b) => b.len(),
+                        RuntimeValue::BytesView { len, .. } => *len,
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Int(len as i64);
+                }
                 Inst::TextConcat { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
                     let right_val = extract_value(values, *right)?;
@@ -9068,50 +9180,50 @@ impl<'a> Interpreter<'a> {
                     };
                     values[dest.0 as usize] = RuntimeValue::Text(sliced);
                 }
-            Inst::BytesSlice {
-                dest,
-                bytes,
-                start,
-                end,
-            } => {
-                let bytes_val = extract_value(values, *bytes)?;
-                let start_val = extract_value(values, *start)?;
-                let end_val = extract_value(values, *end)?;
-                let RuntimeValue::Int(start) = start_val else {
-                    return Err(RuntimeError::new("expected Int"));
-                };
-                let RuntimeValue::Int(end) = end_val else {
-                    return Err(RuntimeError::new("expected Int"));
-                };
-                match &bytes_val {
-                    RuntimeValue::Bytes(owned) => {
-                        let len = owned.len();
-                        let s = usize::try_from(start).unwrap_or(0).min(len);
-                        let e = usize::try_from(end).unwrap_or(0).min(len);
-                        let (s, e) = if e < s { (s, s) } else { (s, e) };
-                        values[dest.0 as usize] = RuntimeValue::BytesView {
-                            data: std::sync::Arc::new(owned.clone()),
-                            offset: s,
-                            len: e - s,
-                        };
+                Inst::BytesSlice {
+                    dest,
+                    bytes,
+                    start,
+                    end,
+                } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    match &bytes_val {
+                        RuntimeValue::Bytes(owned) => {
+                            let len = owned.len();
+                            let s = usize::try_from(start).unwrap_or(0).min(len);
+                            let e = usize::try_from(end).unwrap_or(0).min(len);
+                            let (s, e) = if e < s { (s, s) } else { (s, e) };
+                            values[dest.0 as usize] = RuntimeValue::BytesView {
+                                data: std::sync::Arc::new(owned.clone()),
+                                offset: s,
+                                len: e - s,
+                            };
+                        }
+                        RuntimeValue::BytesView {
+                            data,
+                            offset,
+                            len: view_len,
+                        } => {
+                            let s = usize::try_from(start).unwrap_or(0).min(*view_len);
+                            let e = usize::try_from(end).unwrap_or(0).min(*view_len);
+                            let (s, e) = if e < s { (s, s) } else { (s, e) };
+                            values[dest.0 as usize] = RuntimeValue::BytesView {
+                                data: std::sync::Arc::clone(data),
+                                offset: *offset + s,
+                                len: e - s,
+                            };
+                        }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
                     }
-                    RuntimeValue::BytesView {
-                        data,
-                        offset,
-                        len: view_len,
-                    } => {
-                        let s = usize::try_from(start).unwrap_or(0).min(*view_len);
-                        let e = usize::try_from(end).unwrap_or(0).min(*view_len);
-                        let (s, e) = if e < s { (s, s) } else { (s, e) };
-                        values[dest.0 as usize] = RuntimeValue::BytesView {
-                            data: std::sync::Arc::clone(data),
-                            offset: *offset + s,
-                            len: e - s,
-                        };
-                    }
-                    _ => return Err(RuntimeError::new("expected Bytes")),
                 }
-            }
                 Inst::TextByte { dest, text, index } => {
                     let text_val = extract_value(values, *text)?;
                     let index_val = extract_value(values, *index)?;
@@ -9126,25 +9238,25 @@ impl<'a> Interpreter<'a> {
                     let byte = bytes.get(idx as usize).copied().unwrap_or(0);
                     values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
                 }
-            Inst::BytesByte { dest, bytes, index } => {
-                let bytes_val = extract_value(values, *bytes)?;
-                let index_val = extract_value(values, *index)?;
-                let RuntimeValue::Int(idx) = index_val else {
-                    return Err(RuntimeError::new("expected Int"));
-                };
-                let byte = match &bytes_val {
-                    RuntimeValue::Bytes(b) => b.get(idx as usize).copied().unwrap_or(0),
-                    RuntimeValue::BytesView { data, offset, len } => {
-                        if (idx as usize) < *len {
-                            data[*offset + idx as usize]
-                        } else {
-                            0
+                Inst::BytesByte { dest, bytes, index } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let index_val = extract_value(values, *index)?;
+                    let RuntimeValue::Int(idx) = index_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let byte = match &bytes_val {
+                        RuntimeValue::Bytes(b) => b.get(idx as usize).copied().unwrap_or(0),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            if (idx as usize) < *len {
+                                data[*offset + idx as usize]
+                            } else {
+                                0
+                            }
                         }
-                    }
-                    _ => return Err(RuntimeError::new("expected Bytes")),
-                };
-                values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
-            }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Int(byte as i64);
+                }
                 Inst::TextCmp { dest, left, right } => {
                     let left_val = extract_value(values, *left)?;
                     let right_val = extract_value(values, *right)?;
@@ -9235,49 +9347,47 @@ impl<'a> Interpreter<'a> {
                     }
                     values[dest.0 as usize] = RuntimeValue::Int(found);
                 }
-            Inst::BytesFindByteRange {
-                dest,
-                source,
-                start,
-                end,
-                byte,
-            } => {
-                let source_val = extract_value(values, *source)?;
-                let start_val = extract_value(values, *start)?;
-                let end_val = extract_value(values, *end)?;
-                let byte_val = extract_value(values, *byte)?;
-                let (data, data_offset, data_len) = match &source_val {
-                    RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
-                    RuntimeValue::BytesView {
-                        data,
-                        offset,
-                        len,
-                    } => (data.as_slice(), *offset, *len),
-                    _ => return Err(RuntimeError::new("expected Bytes")),
-                };
-                let RuntimeValue::Int(start) = start_val else {
-                    return Err(RuntimeError::new("expected Int"));
-                };
-                let RuntimeValue::Int(end) = end_val else {
-                    return Err(RuntimeError::new("expected Int"));
-                };
-                let RuntimeValue::Int(byte) = byte_val else {
-                    return Err(RuntimeError::new("expected Int"));
-                };
-                let start = usize::try_from(start).unwrap_or(0).min(data_len);
-                let end = usize::try_from(end).unwrap_or(0).min(data_len);
-                let end = end.max(start);
-                let mut found = end as i64;
-                let mut index = start;
-                while index < end {
-                    if data[data_offset + index] == byte as u8 {
-                        found = index as i64;
-                        break;
+                Inst::BytesFindByteRange {
+                    dest,
+                    source,
+                    start,
+                    end,
+                    byte,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let byte_val = extract_value(values, *byte)?;
+                    let (data, data_offset, data_len) = match &source_val {
+                        RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            (data.as_slice(), *offset, *len)
+                        }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let start = usize::try_from(start).unwrap_or(0).min(data_len);
+                    let end = usize::try_from(end).unwrap_or(0).min(data_len);
+                    let end = end.max(start);
+                    let mut found = end as i64;
+                    let mut index = start;
+                    while index < end {
+                        if data[data_offset + index] == byte as u8 {
+                            found = index as i64;
+                            break;
+                        }
+                        index += 1;
                     }
-                    index += 1;
+                    values[dest.0 as usize] = RuntimeValue::Int(found);
                 }
-                values[dest.0 as usize] = RuntimeValue::Int(found);
-            }
                 Inst::TextLineEnd {
                     dest,
                     source,
@@ -9414,28 +9524,28 @@ impl<'a> Interpreter<'a> {
                     }
                     values[dest.0 as usize] = RuntimeValue::Int(next as i64);
                 }
-            Inst::BytesToText { dest, bytes } => {
-                let bytes_val = extract_value(values, *bytes)?;
-                let text = match &bytes_val {
-                    RuntimeValue::Bytes(b) => String::from_utf8_lossy(b).into_owned(),
-                    RuntimeValue::BytesView { data, offset, len } => {
-                        String::from_utf8_lossy(&data[*offset..*offset + *len]).into_owned()
-                    }
-                    _ => return Err(RuntimeError::new("expected Bytes")),
-                };
-                values[dest.0 as usize] = RuntimeValue::Text(text);
-            }
-            Inst::BytesMaterialize { dest, bytes } => {
-                let bytes_val = extract_value(values, *bytes)?;
-                let materialized = match &bytes_val {
-                    RuntimeValue::Bytes(b) => b.clone(),
-                    RuntimeValue::BytesView { data, offset, len } => {
-                        data[*offset..*offset + *len].to_vec()
-                    }
-                    _ => return Err(RuntimeError::new("expected Bytes")),
-                };
-                values[dest.0 as usize] = RuntimeValue::Bytes(materialized);
-            }
+                Inst::BytesToText { dest, bytes } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let text = match &bytes_val {
+                        RuntimeValue::Bytes(b) => String::from_utf8_lossy(b).into_owned(),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            String::from_utf8_lossy(&data[*offset..*offset + *len]).into_owned()
+                        }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Text(text);
+                }
+                Inst::BytesMaterialize { dest, bytes } => {
+                    let bytes_val = extract_value(values, *bytes)?;
+                    let materialized = match &bytes_val {
+                        RuntimeValue::Bytes(b) => b.clone(),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            data[*offset..*offset + *len].to_vec()
+                        }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Bytes(materialized);
+                }
                 Inst::ParseI32 { dest, text } => {
                     let text_val = extract_value(values, *text)?;
                     let RuntimeValue::Text(text) = text_val else {
@@ -9612,14 +9722,14 @@ impl<'a> Interpreter<'a> {
                         .get_mut(id as usize)
                         .and_then(|f| f.as_mut())
                         .ok_or_else(|| RuntimeError::new("file handle is closed or unavailable"))?;
-                let bytes = match data_val {
-                    RuntimeValue::Text(t) => t.into_bytes(),
-                    RuntimeValue::Bytes(b) => b,
-                    RuntimeValue::BytesView { data, offset, len } => {
-                        data[offset..offset + len].to_vec()
-                    }
-                    _ => return Err(RuntimeError::new("expected Text or Bytes")),
-                };
+                    let bytes = match data_val {
+                        RuntimeValue::Text(t) => t.into_bytes(),
+                        RuntimeValue::Bytes(b) => b,
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            data[offset..offset + len].to_vec()
+                        }
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                    };
                     file.write_all(&bytes)
                         .map_err(|e| RuntimeError::new(format!("failed to write to file: {e}")))?;
                     values[dest.0 as usize] = RuntimeValue::Int(bytes.len() as i64);
@@ -9732,14 +9842,14 @@ impl<'a> Interpreter<'a> {
                 }
                 Inst::StdoutWrite { text } => {
                     let text_val = extract_value(values, *text)?;
-                let text = match text_val {
-                    RuntimeValue::Text(t) => t,
-                    RuntimeValue::Bytes(b) => String::from_utf8_lossy(&b).into_owned(),
-                    RuntimeValue::BytesView { data, offset, len } => {
-                        String::from_utf8_lossy(&data[offset..offset + len]).into_owned()
-                    }
-                    _ => return Err(RuntimeError::new("expected Text or Bytes")),
-                };
+                    let text = match text_val {
+                        RuntimeValue::Text(t) => t,
+                        RuntimeValue::Bytes(b) => String::from_utf8_lossy(&b).into_owned(),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            String::from_utf8_lossy(&data[offset..offset + len]).into_owned()
+                        }
+                        _ => return Err(RuntimeError::new("expected Text or Bytes")),
+                    };
                     self.stdout_text.push_str(&text);
                 }
                 Inst::StdoutWriteBuilder { dest, builder } => {
@@ -10171,7 +10281,7 @@ impl<'a> Interpreter<'a> {
             | ("Bool", RuntimeValue::Bool(_))
             | ("Text", RuntimeValue::Text(_))
             | ("Bytes", RuntimeValue::Bytes(_))
-        | ("Bytes", RuntimeValue::BytesView { .. })
+            | ("Bytes", RuntimeValue::BytesView { .. })
             | ("TextBuilder", RuntimeValue::TextBuilder(_))
             | ("List", RuntimeValue::List(_))
             | ("Unit", RuntimeValue::Unit) => Ok(()),
@@ -10564,9 +10674,7 @@ mod tests {
     use std::fs;
 
     use sarif_frontend::hir::lower as lower_hir;
-    use sarif_syntax::ast::lower as lower_ast;
-    use sarif_syntax::lexer::lex;
-    use sarif_syntax::parser::parse;
+    use sarif_syntax::{Diagnostic, ast::lower as lower_ast, lexer::lex, parser::parse};
 
     use crate::{
         ContractKind, Inst, RuntimeValue, for_each_inst_recursive, lower, run_main,
@@ -11208,5 +11316,393 @@ fn main() -> I32 {
         let result = crate::jit::run_function_native(&mir.program, "main", &[])
             .expect("JIT should execute main");
         assert_eq!(result, RuntimeValue::F64(3.14));
+    }
+
+    // --- Algebraic System Interface (ASI) tests ---
+
+    fn analyze_source(source: &str) -> Vec<Diagnostic> {
+        let lexed = sarif_syntax::lexer::lex(source);
+        let parsed = sarif_syntax::parser::parse(&lexed.tokens);
+        let ast = sarif_syntax::ast::lower(&parsed.root);
+        let hir = sarif_frontend::hir::lower(&ast.file);
+        let analysis =
+            sarif_frontend::semantic::analyze(&hir.module, sarif_frontend::semantic::Profile::Core);
+        analysis.diagnostics
+    }
+
+    #[test]
+    fn system_io_stdout_write_compiles() {
+        let mir = lower_source(
+            "fn main() -> Unit effects [SystemIO] {
+                 let buf = perform SystemIO.stdin_bytes();
+                 perform SystemIO.stdout_write(buf)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemIO.stdout_write should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_io_stdin_bytes_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bytes effects [SystemIO] {
+                 perform SystemIO.stdin_bytes()
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemIO.stdin_bytes should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_io_stdin_text_compiles() {
+        let mir = lower_source(
+            "fn main() -> Text effects [SystemIO] {
+                 perform SystemIO.stdin_text()
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemIO.stdin_text should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_open_compiles() {
+        let mir = lower_source(
+            "fn main() -> File effects [SystemIO, SystemFile] {
+                 let path = \"test.txt\";
+                 let mode = \"r\";
+                 perform SystemFile.open(path, mode)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.open should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_exists_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bool effects [SystemIO, SystemFile] {
+                 perform SystemFile.exists(\"/nonexistent\")
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.exists should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_read_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bytes effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.read(f, 1024)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.read should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_write_compiles() {
+        let mir = lower_source(
+            "fn main() -> I32 effects [SystemIO, SystemFile] {
+                 let data = perform SystemIO.stdin_bytes();
+                 let f = perform SystemFile.open(\"test.txt\", \"w\");
+                 perform SystemFile.write(f, data)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.write should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_read_to_end_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bytes effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.read_to_end(f)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.read_to_end should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_seek_compiles() {
+        let mir = lower_source(
+            "fn main() -> I32 effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.seek(f, 0, 0)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.seek should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_size_compiles() {
+        let mir = lower_source(
+            "fn main() -> I32 effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.size(f)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.size should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_close_compiles() {
+        let mir = lower_source(
+            "fn main() -> Unit effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.close(f)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.close should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_mmap_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bytes effects [SystemIO, SystemFile] {
+                 perform SystemFile.mmap(\"test.txt\")
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.mmap should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_remove_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bool effects [SystemIO, SystemFile] {
+                 perform SystemFile.remove(\"/nonexistent\")
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.remove should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_is_valid_compiles() {
+        let mir = lower_source(
+            "fn main() -> Bool effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.is_valid(f)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemFile.is_valid should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[test]
+    fn system_io_missing_effect_diagnostic() {
+        let diagnostics = analyze_source(
+            "fn main() -> Unit {
+                 perform SystemIO.stdin_bytes()
+             }",
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.missing-effect"),
+            "missing SystemIO effect should produce diagnostic: {:#?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn system_file_missing_effect_diagnostic() {
+        let diagnostics = analyze_source(
+            "fn main() -> Unit effects [SystemIO] {
+                 perform SystemFile.exists(\"/nonexistent\")
+             }",
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.missing-effect"),
+            "missing SystemFile effect should produce diagnostic: {:#?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn system_effect_wrong_arg_type_diagnostic() {
+        let diagnostics = analyze_source(
+            "fn main() -> Unit effects [SystemIO] {
+                 perform SystemIO.stdout_write(42)
+             }",
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.perform-arg-type"),
+            "wrong arg type should produce diagnostic: {:#?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn system_effect_wrong_arity_diagnostic() {
+        let diagnostics = analyze_source(
+            "fn main() -> Unit effects [SystemIO] {
+                 perform SystemIO.stdout_write()
+             }",
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.perform-arity"),
+            "wrong arity should produce diagnostic: {:#?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn system_io_stdout_write_captures_output() {
+        let mir = lower_source(
+            "fn main() -> Unit effects [SystemIO] {
+                 let buf = perform SystemIO.stdin_bytes();
+                 perform SystemIO.stdout_write(buf)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "SystemIO.stdout_write should compile: {:#?}",
+            mir.diagnostics
+        );
+        let (result, captured) = crate::run_main_with_io_capture(
+            &mir.program,
+            &[],
+            "ASI: hello from system effect!".to_string(),
+        )
+        .unwrap();
+        assert_eq!(result, RuntimeValue::Unit);
+        assert!(
+            captured.contains("ASI: hello from system effect!"),
+            "stdout should contain the expected output, got: {:?}",
+            captured
+        );
+    }
+
+    #[test]
+    fn system_effect_perform_returns_correct_type() {
+        let mir = lower_source(
+            "fn main() -> I32 effects [SystemIO, SystemFile] {
+                 let f = perform SystemFile.open(\"test.txt\", \"r\");
+                 perform SystemFile.size(f)
+             }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "chained system effects should compile: {:#?}",
+            mir.diagnostics
+        );
+    }
+
+    #[cfg(feature = "backend-wasm")]
+    #[test]
+    fn wasm_compiles_system_io_effects() {
+        run_with_large_stack("wasm_compiles_system_io_effects", || {
+            use crate::wasm::emit_wasm;
+
+            let mir = lower_source(
+                "fn main() -> Unit effects [SystemIO] {
+                     let buf = perform SystemIO.stdin_bytes();
+                     perform SystemIO.stdout_write(buf)
+                 }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+
+            let wasm_bytes = emit_wasm(&mir.program)
+                .expect("wasm compilation of SystemIO effects should succeed");
+            assert!(!wasm_bytes.is_empty(), "wasm output should not be empty");
+        });
+    }
+
+    #[cfg(feature = "backend-c")]
+    #[test]
+    fn c_compiles_system_io_effects() {
+        run_with_large_stack("c_compiles_system_io_effects", || {
+            let mir = lower_source(
+                "fn main() -> Unit effects [SystemIO] {
+                     let buf = perform SystemIO.stdin_bytes();
+                     perform SystemIO.stdout_write(buf)
+                 }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+
+            let c_code = crate::c::emit_c(&mir.program)
+                .expect("C compilation of SystemIO effects should succeed");
+            assert!(!c_code.is_empty(), "C output should not be empty");
+            assert!(
+                c_code.contains("sarif_stdin_text") || c_code.contains("sarif_perform_effect"),
+                "C output should contain stdio runtime calls, got: {c_code:.200}"
+            );
+        });
+    }
+
+    #[cfg(feature = "backend-c")]
+    #[test]
+    fn c_compiles_system_file_effects() {
+        run_with_large_stack("c_compiles_system_file_effects", || {
+            let mir = lower_source(
+                "fn main() -> Bool effects [SystemIO, SystemFile] {
+                     perform SystemFile.exists(\"/tmp/test.txt\")
+                 }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+
+            let c_code = crate::c::emit_c(&mir.program)
+                .expect("C compilation of SystemFile effects should succeed");
+            assert!(!c_code.is_empty(), "C output should not be empty");
+            assert!(
+                c_code.contains("sarif_file_exists"),
+                "C output should contain file runtime calls, got: {c_code:.200}"
+            );
+        });
     }
 }

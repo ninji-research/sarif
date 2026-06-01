@@ -37,6 +37,8 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         "File".to_owned(),
         "List".to_owned(),
         "Unit".to_owned(),
+        "SystemIO".to_owned(),
+        "SystemFile".to_owned(),
     ]);
 
     for item in &module.items {
@@ -181,19 +183,33 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                             effects.push(effect.clone());
                         }
                         EffectRef::Unknown { name, span } => {
-                            let suggestion = best_match(
-                                name,
-                                ["io", "alloc", "async", "parallel", "clock", "ffi", "nondet"]
+                            if name == "SystemIO" || name == "SystemFile" {
+                                effects.push(crate::hir::Effect::User(name.clone()));
+                            } else {
+                                let suggestion = best_match(
+                                    name,
+                                    [
+                                        "io",
+                                        "alloc",
+                                        "async",
+                                        "parallel",
+                                        "clock",
+                                        "ffi",
+                                        "nondet",
+                                        "SystemIO",
+                                        "SystemFile",
+                                    ]
                                     .into_iter(),
-                            );
-                            diagnostics.push(Diagnostic::new(
-                                "semantic.unknown-effect",
-                                format!("unknown effect `{name}`"),
-                                *span,
-                                Some(suggestion_help(suggestion, || {
-                                    "Use a builtin effect such as `io` or `alloc`.".to_owned()
-                                })),
-                            ));
+                                );
+                                diagnostics.push(Diagnostic::new(
+                                    "semantic.unknown-effect",
+                                    format!("unknown effect `{name}`"),
+                                    *span,
+                                    Some(suggestion_help(suggestion, || {
+                                        "Use a builtin effect such as `io` or `alloc`.".to_owned()
+                                    })),
+                                ));
+                            }
                         }
                     }
                 }

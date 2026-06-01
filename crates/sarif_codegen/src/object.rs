@@ -8,10 +8,10 @@ use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module, default
 use cranelift_object::{ObjectBuilder, ObjectModule};
 
 use crate::native::{
-    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, RuntimeHelperIds,
-    TrustedListAccesses, collect_native_enums, collect_native_records,
-    declare_runtime_helpers, declare_text_data_for_insts, encode_text_blob, infer_value_kinds,
-    lower_insts, native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
+    ListHeader, NativeEnum, NativeRecord, NativeValueRepr, RuntimeHelperIds, TrustedListAccesses,
+    collect_native_enums, collect_native_records, declare_runtime_helpers,
+    declare_text_data_for_insts, encode_text_blob, infer_value_kinds, lower_insts,
+    native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
 use crate::{Function, Program, ValueId};
 
@@ -87,19 +87,18 @@ impl<'a> ObjectBackend<'a> {
                 ))
             })?;
         let mut module = ObjectModule::new(builder);
-let helpers = declare_runtime_helpers(&mut module, "object")
-        .map_err(ObjectError::new)?;
+        let helpers = declare_runtime_helpers(&mut module, "object").map_err(ObjectError::new)?;
 
-    Ok(Self {
-        program,
-        module: Some(module),
-        function_ids: BTreeMap::new(),
-        data_ids: BTreeMap::new(),
-        helpers,
-        function_signatures: BTreeMap::new(),
-        records: collect_native_records(program).map_err(ObjectError::new)?,
-        native_enums: collect_native_enums(program),
-    })
+        Ok(Self {
+            program,
+            module: Some(module),
+            function_ids: BTreeMap::new(),
+            data_ids: BTreeMap::new(),
+            helpers,
+            function_signatures: BTreeMap::new(),
+            records: collect_native_records(program).map_err(ObjectError::new)?,
+            native_enums: collect_native_enums(program),
+        })
     }
 
     fn emit(&mut self) -> Result<Vec<u8>, ObjectError> {
@@ -331,8 +330,8 @@ impl<'a> ClifDumper<'a> {
                 })?,
         );
 
-        let helpers = declare_runtime_helpers(&mut dummy_module, "clif")
-        .map_err(ObjectError::new)?;
+        let helpers =
+            declare_runtime_helpers(&mut dummy_module, "clif").map_err(ObjectError::new)?;
 
         Ok(Self {
             program,
