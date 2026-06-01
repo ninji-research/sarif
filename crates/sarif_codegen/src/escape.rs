@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn no_alloc_effect_no_diagnostic() {
-        let mir = lower_source("fn main() -> Text { arg_text(0) }");
+        let mir = lower_source("fn main() -> Text { perform SystemIO.arg_text(0) }");
         let diags = super::analyze_escapes(&mir.program);
         assert!(
             mir.diagnostics.is_empty(),
@@ -449,7 +449,7 @@ fn main() -> I32 effects [alloc] { 42 }",
     fn text_created_inside_triggers_diagnostic() {
         let mir = lower_source(
             "\
-fn main() -> Text effects [alloc] { arg_text(0) }",
+fn main() -> Text effects [alloc] { perform SystemIO.arg_text(0) }",
         );
         assert!(
             mir.diagnostics.is_empty(),
@@ -488,7 +488,7 @@ fn main() -> I32 { 0 }",
         let mir = lower_source(
             "\
 fn choose(c: Bool) -> Text effects [alloc] {
-  if c { arg_text(0) } else { arg_text(1) }
+    if c { perform SystemIO.arg_text(0) } else { perform SystemIO.arg_text(1) }
 }
 fn main() -> Text effects [alloc] { choose(true) }",
         );
@@ -537,7 +537,7 @@ fn main() -> Text effects [alloc] { choose(true) }",
         let mir = lower_source(
             "\
 fn take(s: Text) -> Text effects [alloc] { s }
-fn main() -> Text effects [alloc] { take(arg_text(0)) }",
+fn main() -> Text effects [alloc] { take(perform SystemIO.arg_text(0)) }",
         );
         let diags = super::analyze_escapes(&mir.program);
         assert!(
@@ -574,7 +574,7 @@ fn main() -> I32 effects [alloc] { helper() }",
     fn alloc_callee_triggers_on_caller() {
         let mir = lower_source(
             "\
-fn inner() -> Text effects [alloc] { arg_text(0) }
+fn inner() -> Text effects [alloc] { perform SystemIO.arg_text(0) }
 fn outer() -> Text effects [alloc] { inner() }
 fn main() -> Text effects [alloc] { outer() }",
         );

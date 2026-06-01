@@ -250,6 +250,7 @@ pub fn infer_value_kinds(
     records: &BTreeMap<String, NativeRecord>,
     enums: &BTreeMap<String, NativeEnum>,
     functions: &[Function],
+    externs: &[crate::ExternFunction],
 ) -> Result<BTreeMap<ValueId, NativeValueKind>, String> {
     let mut kinds = BTreeMap::new();
     infer_inst_kinds(
@@ -258,6 +259,7 @@ pub fn infer_value_kinds(
         records,
         enums,
         functions,
+        externs,
         &mut kinds,
     )?;
     Ok(kinds)
@@ -270,6 +272,7 @@ fn infer_inst_kinds(
     records: &BTreeMap<String, NativeRecord>,
     enums: &BTreeMap<String, NativeEnum>,
     functions: &[Function],
+    externs: &[crate::ExternFunction],
     kinds: &mut BTreeMap<ValueId, NativeValueKind>,
 ) -> Result<(), String> {
     for inst in instructions {
@@ -509,11 +512,17 @@ fn infer_inst_kinds(
                 kinds.insert(*dest, field.kind.clone());
             }
             Inst::Call { dest, callee, .. } => {
-                let Some(return_type) = functions
+                let return_type = functions
                     .iter()
                     .find(|candidate| candidate.name == *callee)
                     .and_then(|callee| callee.return_type.as_deref())
-                else {
+                    .or_else(|| {
+                        externs
+                            .iter()
+                            .find(|e| e.name == *callee)
+                            .and_then(|e| e.return_type.as_deref())
+                    });
+                let Some(return_type) = return_type else {
                     continue;
                 };
                 if return_type != "Unit" {
@@ -528,8 +537,12 @@ fn infer_inst_kinds(
                 else_result,
                 ..
             } => {
-                infer_inst_kinds(function, then_insts, records, enums, functions, kinds)?;
-                infer_inst_kinds(function, else_insts, records, enums, functions, kinds)?;
+                infer_inst_kinds(
+                    function, then_insts, records, enums, functions, externs, kinds,
+                )?;
+                infer_inst_kinds(
+                    function, else_insts, records, enums, functions, externs, kinds,
+                )?;
                 let then_falls = insts_fall_through(then_insts);
                 let else_falls = insts_fall_through(else_insts);
                 let then_kind = branch_result_kind(kinds, *then_result, function, "then")?;
@@ -566,11 +579,23 @@ fn infer_inst_kinds(
                 body_insts,
                 ..
             } => {
-                infer_inst_kinds(function, condition_insts, records, enums, functions, kinds)?;
-                infer_inst_kinds(function, body_insts, records, enums, functions, kinds)?;
+                infer_inst_kinds(
+                    function,
+                    condition_insts,
+                    records,
+                    enums,
+                    functions,
+                    externs,
+                    kinds,
+                )?;
+                infer_inst_kinds(
+                    function, body_insts, records, enums, functions, externs, kinds,
+                )?;
             }
             Inst::Repeat { body_insts, .. } => {
-                infer_inst_kinds(function, body_insts, records, enums, functions, kinds)?;
+                infer_inst_kinds(
+                    function, body_insts, records, enums, functions, externs, kinds,
+                )?;
             }
             Inst::StoreLocal { .. } | Inst::Assert { .. } | Inst::FileClose { .. } => {}
             Inst::Perform { .. } | Inst::Handle { .. } => {}
@@ -1341,59 +1366,6 @@ pub fn lower_insts<M: Module>(
     instructions: &[Inst],
     backend: &str,
 ) -> Result<bool, String> {
-    let RuntimeHelperIds {
-        allocator_id,
-        alloc_push_id,
-        alloc_pop_id,
-        text_builder_new_id,
-        text_builder_append_id,
-        text_builder_append_codepoint_id,
-        text_builder_append_ascii_id,
-        text_builder_append_slice_id,
-        text_builder_append_i32_id,
-        text_builder_finish_id,
-        stdout_write_builder_id,
-        text_index_helpers,
-        list_new_id,
-        list_push_id,
-        list_sort_text_id,
-        list_sort_by_text_field_id,
-        text_concat_id,
-        text_intern_id,
-        text_slice_id,
-        bytes_slice_id,
-        bytes_len_id,
-        bytes_byte_id,
-        bytes_materialize_id,
-        text_eq_range_id,
-        text_find_byte_range_id,
-        text_line_end_id,
-        text_next_line_id,
-        text_field_end_id,
-        text_next_field_id,
-        text_from_f64_fixed_id,
-        parse_i32_id,
-        parse_i32_range_id,
-        parse_f64_id,
-        arg_count_id,
-        arg_text_id,
-        stdin_text_id,
-        stdout_write_id,
-        file_open_id,
-        file_close_id,
-        file_read_id,
-        file_read_to_end_id,
-        file_mmap_id,
-        file_write_id,
-        file_seek_id,
-        file_size_id,
-        file_exists_id,
-        file_remove_id,
-        file_is_valid_id,
-        bytes_to_text_id,
-        text_eq_id,
-        text_cmp_id,
-    } = *helpers;
     for inst in instructions {
         if !lower_inst(
             function_ids,

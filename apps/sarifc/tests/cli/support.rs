@@ -400,3 +400,17 @@ fn cli_temp_root() -> PathBuf {
     fs::create_dir_all(&root).expect("cli temp root should exist");
     root
 }
+
+#[cfg(feature = "c-backend")]
+pub fn run_c_build(path: &Path, output: &Path, profile: &str) -> Output {
+    run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "c",
+        "--profile",
+        profile,
+        "-o",
+        output.to_str().expect("utf-8 path"),
+    ])
+}

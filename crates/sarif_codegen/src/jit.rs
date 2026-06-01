@@ -1674,6 +1674,7 @@ impl<'a> JitBackend<'a> {
             &self.records,
             &self.native_enums,
             &self.program.functions,
+            &self.program.externs,
         )?;
         let mut list_headers = BTreeMap::<cranelift_codegen::ir::Value, ListHeader>::new();
 

@@ -36,6 +36,8 @@ enum RawTokenKind {
     KwComptime,
     #[token("ensures")]
     KwEnsures,
+    #[token("extern")]
+    KwExtern,
     #[token("effect")]
     KwEffect,
     #[token("enum")]
@@ -240,6 +242,7 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::KwConst => TokenKind::KwConst,
         RawTokenKind::KwComptime => TokenKind::KwComptime,
         RawTokenKind::KwEnsures => TokenKind::KwEnsures,
+        RawTokenKind::KwExtern => TokenKind::KwExtern,
         RawTokenKind::KwEffect => TokenKind::KwEffect,
         RawTokenKind::KwEnum => TokenKind::KwEnum,
         RawTokenKind::KwEffects => TokenKind::KwEffects,

@@ -45,6 +45,7 @@ pub struct Program {
     pub enums: Vec<EnumType>,
     pub structs: Vec<StructType>,
     pub functions: Vec<Function>,
+    pub externs: Vec<ExternFunction>,
 }
 
 impl Program {
@@ -133,6 +134,25 @@ impl Program {
             .expect("writing to a string cannot fail");
         }
 
+        for extern_fn in &self.externs {
+            writeln!(
+                &mut output,
+                "  extern fn {}({}){}",
+                extern_fn.name,
+                extern_fn
+                    .params
+                    .iter()
+                    .map(|p| format!("{}: {}", p.name, p.ty))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                extern_fn
+                    .return_type
+                    .as_ref()
+                    .map_or_else(String::new, |ty| format!(" -> {ty}")),
+            )
+            .expect("writing to a string cannot fail");
+        }
+
         output
     }
 }
@@ -174,6 +194,13 @@ pub struct Function {
     pub span: Span,
     pub value_count: u32,
     pub slot_count: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExternFunction {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<String>,
 }
 
 impl Function {
@@ -1619,6 +1646,7 @@ pub fn lower(module: &Module) -> MirLowering {
     let mut enums = Vec::new();
     let mut structs = Vec::new();
     let mut functions = Vec::new();
+    let mut externs = Vec::new();
     let mut generated_arrays = BTreeMap::<String, GeneratedArrayType>::new();
     let consts = module
         .items
@@ -1764,6 +1792,22 @@ pub fn lower(module: &Module) -> MirLowering {
                         .collect(),
                 });
             }
+            Item::ExternBlock(block) => {
+                for f in &block.functions {
+                    externs.push(ExternFunction {
+                        name: f.name.clone(),
+                        params: f
+                            .params
+                            .iter()
+                            .map(|p| Param {
+                                name: p.name.clone(),
+                                ty: p.ty.path.clone(),
+                            })
+                            .collect(),
+                        return_type: f.return_type.as_ref().map(|t| t.path.clone()),
+                    });
+                }
+            }
         }
     }
     for generated in shared.generated_arrays.values() {
@@ -1785,6 +1829,7 @@ pub fn lower(module: &Module) -> MirLowering {
             enums,
             structs,
             functions,
+            externs,
         },
         const_values: evaluated_consts,
         diagnostics,
@@ -3886,55 +3931,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "parse_f64" if self.builtin_is_available("parse_f64") => {
                 self.lower_parse_f64_expr(expr)
             }
-            "arg_count" if self.builtin_is_available("arg_count") => {
-                self.lower_arg_count_expr(expr)
-            }
-            "file_open" if self.builtin_is_available("file_open") => {
-                self.lower_file_open_expr(expr)
-            }
-            "file_is_valid" if self.builtin_is_available("file_is_valid") => {
-                self.lower_file_is_valid_expr(expr)
-            }
-            "file_read_to_end" if self.builtin_is_available("file_read_to_end") => {
-                self.lower_file_read_to_end_expr(expr)
-            }
-            "file_mmap" if self.builtin_is_available("file_mmap") => {
-                self.lower_file_mmap_expr(expr)
-            }
-            "file_read" if self.builtin_is_available("file_read") => {
-                self.lower_file_read_expr(expr)
-            }
-            "file_write" if self.builtin_is_available("file_write") => {
-                self.lower_file_write_expr(expr)
-            }
-            "file_close" if self.builtin_is_available("file_close") => {
-                self.lower_file_close_expr(expr)
-            }
-            "file_seek" if self.builtin_is_available("file_seek") => {
-                self.lower_file_seek_expr(expr)
-            }
-            "file_size" if self.builtin_is_available("file_size") => {
-                self.lower_file_size_expr(expr)
-            }
-            "file_exists" if self.builtin_is_available("file_exists") => {
-                self.lower_file_exists_expr(expr)
-            }
-            "file_remove" if self.builtin_is_available("file_remove") => {
-                self.lower_file_remove_expr(expr)
-            }
-            "arg_text" if self.builtin_is_available("arg_text") => self.lower_arg_text_expr(expr),
-            "stdin_text" if self.builtin_is_available("stdin_text") => {
-                self.lower_stdin_text_expr(expr)
-            }
-            "stdin_bytes" if self.builtin_is_available("stdin_bytes") => {
-                self.lower_stdin_bytes_expr(expr)
-            }
-            "stdout_write" if self.builtin_is_available("stdout_write") => {
-                self.lower_stdout_write_expr(expr)
-            }
-            "stdout_write_builder" if self.builtin_is_available("stdout_write_builder") => {
-                self.lower_stdout_write_builder_expr(expr)
-            }
             "enum_to_i32" if self.builtin_is_available("enum_to_i32") => {
                 self.lower_enum_to_i32_expr(expr)
             }
@@ -3959,9 +3955,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         args: &[ValueId],
     ) -> Option<ValueId> {
         Some(match (effect, operation) {
-            ("SystemIO", "stdout_write") => {
+            ("SystemIO", "stdout_write") | ("SystemIO", "stdout_write_bytes") => {
                 let text = *args.first()?;
                 self.instructions.push(Inst::StdoutWrite { text });
+                self.emit_unit_value()
+            }
+            ("SystemIO", "stdout_write_builder") => {
+                let builder = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions
+                    .push(Inst::StdoutWriteBuilder { dest, builder });
                 self.emit_unit_value()
             }
             ("SystemIO", "stdin_bytes") => {
@@ -3972,6 +3975,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             ("SystemIO", "stdin_text") => {
                 let dest = self.fresh_value();
                 self.instructions.push(Inst::StdinText { dest });
+                dest
+            }
+            ("SystemIO", "arg_count") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ArgCount { dest });
+                dest
+            }
+            ("SystemIO", "arg_text") => {
+                let index = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ArgText { dest, index });
                 dest
             }
             ("SystemFile", "open") => {
@@ -4164,19 +4178,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_from_f64_fixed" if self.builtin_is_available("text_from_f64_fixed") => {
                 LowerType::Text
             }
-            "file_is_valid" if self.builtin_is_available("file_is_valid") => LowerType::Bool,
-            "file_read_to_end" if self.builtin_is_available("file_read_to_end") => LowerType::Bytes,
-            "arg_text" if self.builtin_is_available("arg_text") => LowerType::Text,
-            "file_open" if self.builtin_is_available("file_open") => LowerType::File,
-            "file_read" if self.builtin_is_available("file_read") => LowerType::Bytes,
-            "file_write" if self.builtin_is_available("file_write") => LowerType::I32,
-            "file_close" if self.builtin_is_available("file_close") => LowerType::Unit,
-            "file_seek" if self.builtin_is_available("file_seek") => LowerType::I32,
-            "file_size" if self.builtin_is_available("file_size") => LowerType::I32,
-            "file_exists" if self.builtin_is_available("file_exists") => LowerType::Bool,
-            "file_remove" if self.builtin_is_available("file_remove") => LowerType::Bool,
-            "stdin_text" if self.builtin_is_available("stdin_text") => LowerType::Text,
-            "stdin_bytes" if self.builtin_is_available("stdin_bytes") => LowerType::Bytes,
             "sqrt" if self.builtin_is_available("sqrt") => LowerType::F64,
             "parse_i32" if self.builtin_is_available("parse_i32") => LowerType::I32,
             "parse_i32_range" if self.builtin_is_available("parse_i32_range") => LowerType::I32,
@@ -7752,99 +7753,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
-    fn lower_arg_count_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::ArgCount { dest });
-        dest
-    }
-
-    fn lower_file_open_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let path = self.lower_expr(&expr.args[0]);
-        let mode = self.lower_expr(&expr.args[1]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileOpen { dest, path, mode });
-        dest
-    }
-
-    fn lower_file_is_valid_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileIsValid { dest, handle });
-        dest
-    }
-
-    fn lower_file_read_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        let len = self.lower_expr(&expr.args[1]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileRead { dest, handle, len });
-        dest
-    }
-
-    fn lower_file_read_to_end_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileReadToEnd { dest, handle });
-        dest
-    }
-
-    fn lower_file_mmap_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let path = self.lower_expr(&expr.args[0]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileMmap { dest, path });
-        dest
-    }
-
-    fn lower_file_write_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        let data = self.lower_expr(&expr.args[1]);
-        let dest = self.fresh_value();
-        self.instructions
-            .push(Inst::FileWrite { dest, handle, data });
-        dest
-    }
-
-    fn lower_file_close_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        self.instructions.push(Inst::FileClose { handle });
-        self.emit_unit_value()
-    }
-
-    fn lower_file_seek_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        let offset = self.lower_expr(&expr.args[1]);
-        let whence = self.lower_expr(&expr.args[2]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileSeek {
-            dest,
-            handle,
-            offset,
-            whence,
-        });
-        dest
-    }
-
-    fn lower_file_size_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let handle = self.lower_expr(&expr.args[0]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileSize { dest, handle });
-        dest
-    }
-
-    fn lower_file_exists_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let path = self.lower_expr(&expr.args[0]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileExists { dest, path });
-        dest
-    }
-
-    fn lower_file_remove_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let path = self.lower_expr(&expr.args[0]);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::FileRemove { dest, path });
-        dest
-    }
-
     fn lower_const_assert_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             self.diagnostics.push(Diagnostic::new(
@@ -7883,48 +7791,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
         }
         self.emit_unit_value()
-    }
-
-    fn lower_arg_text_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let Some(arg) = expr.args.first() else {
-            return self.emit_unit_value();
-        };
-        let index = self.lower_expr(arg);
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::ArgText { dest, index });
-        dest
-    }
-
-    fn lower_stdin_text_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::StdinText { dest });
-        dest
-    }
-
-    fn lower_stdin_bytes_expr(&mut self, _expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let dest = self.fresh_value();
-        self.instructions.push(Inst::StdinBytes { dest });
-        dest
-    }
-
-    fn lower_stdout_write_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let Some(arg) = expr.args.first() else {
-            return self.emit_unit_value();
-        };
-        let text = self.lower_expr(arg);
-        self.instructions.push(Inst::StdoutWrite { text });
-        self.emit_unit_value()
-    }
-
-    fn lower_stdout_write_builder_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
-        let Some(arg) = expr.args.first() else {
-            return self.emit_unit_value();
-        };
-        let builder = self.lower_expr(arg);
-        let dest = self.fresh_value();
-        self.instructions
-            .push(Inst::StdoutWriteBuilder { dest, builder });
-        dest
     }
 
     fn lower_sqrt_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
@@ -10726,6 +10592,9 @@ mod tests {
                     sarif_syntax::ast::Item::Enum(e) => format!("enum {}", e.name),
                     sarif_syntax::ast::Item::Const(c) => format!("const {}", c.name),
                     sarif_syntax::ast::Item::Effect(e) => format!("effect {}", e.name),
+                    sarif_syntax::ast::Item::ExternBlock(b) => {
+                        format!("extern {{ {} fns }}", b.functions.len())
+                    }
                 })
                 .collect::<Vec<_>>()
         );
@@ -10740,6 +10609,9 @@ mod tests {
                 sarif_frontend::hir::Item::Enum(e) => eprintln!("  enum {}", e.name),
                 sarif_frontend::hir::Item::Const(c) => eprintln!("  const {}", c.name),
                 sarif_frontend::hir::Item::Effect(e) => eprintln!("  effect {}", e.name),
+                sarif_frontend::hir::Item::ExternBlock(b) => {
+                    eprintln!("  extern {{ {} fns }}", b.functions.len())
+                }
             }
         }
         eprintln!("=== END HIR ===");
@@ -11000,8 +10872,9 @@ fn main() -> I32 {
 
     #[test]
     fn runs_argument_builtins_with_runtime_args() {
-        let mir =
-            lower_source("fn main() -> Text { if arg_count() > 1 { arg_text(1) } else { \"\" } }");
+        let mir = lower_source(
+            "fn main() -> Text { if perform SystemIO.arg_count() > 1 { perform SystemIO.arg_text(1) } else { \"\" } }",
+        );
 
         assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
         let result = run_main_with_args(&mir.program, &["sarif".to_owned(), "stage0".to_owned()])
@@ -11641,6 +11514,228 @@ fn main() -> I32 {
             "chained system effects should compile: {:#?}",
             mir.diagnostics
         );
+    }
+
+    #[test]
+    fn extern_block_lowers_without_diagnostics() {
+        let mir = lower_source(
+            "extern {
+                 fn ffi_add(a: I32, b: I32) -> I32;
+             }
+             fn main() -> I32 { 0 }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "extern block should lower without diagnostics: {:#?}",
+            mir.diagnostics
+        );
+        assert_eq!(
+            mir.program.externs.len(),
+            1,
+            "should have one extern function"
+        );
+        assert_eq!(mir.program.externs[0].name, "ffi_add");
+        assert_eq!(mir.program.externs[0].params.len(), 2);
+        assert_eq!(mir.program.externs[0].return_type, Some("I32".to_string()));
+    }
+
+    #[test]
+    fn extern_function_can_be_called_from_sarif() {
+        let mir = lower_source(
+            "extern {
+                 fn ffi_answer() -> I32;
+             }
+             fn main() -> I32 { ffi_answer() }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "call to extern function should be accepted: {:#?}",
+            mir.diagnostics
+        );
+        let main_fn = mir
+            .program
+            .functions
+            .iter()
+            .find(|f| f.name == "main")
+            .expect("main should exist");
+        let has_call = main_fn
+            .instructions
+            .iter()
+            .any(|inst| matches!(inst, Inst::Call { callee, .. } if callee == "ffi_answer"));
+        assert!(has_call, "main should call ffi_answer");
+    }
+
+    #[test]
+    fn extern_void_function_lowers_correctly() {
+        let mir = lower_source(
+            "extern {
+                 fn ffi_log(msg: Text);
+             }
+             fn main() -> Unit { ffi_log(\"hello\") }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "void extern should lower cleanly: {:#?}",
+            mir.diagnostics
+        );
+        assert_eq!(mir.program.externs.len(), 1);
+        assert_eq!(mir.program.externs[0].name, "ffi_log");
+        assert_eq!(mir.program.externs[0].return_type, None);
+    }
+
+    #[test]
+    fn extern_block_registers_multiple_functions() {
+        let mir = lower_source(
+            "extern {
+                 fn ffi_a(x: I32) -> I32;
+                 fn ffi_b(y: Bool) -> Bool;
+                 fn ffi_c(z: Text);
+             }
+             fn main() -> I32 { ffi_a(1) }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "multiple extern fns should lower cleanly: {:#?}",
+            mir.diagnostics
+        );
+        assert_eq!(mir.program.externs.len(), 3);
+        assert_eq!(mir.program.externs[0].name, "ffi_a");
+        assert_eq!(mir.program.externs[1].name, "ffi_b");
+        assert_eq!(mir.program.externs[2].name, "ffi_c");
+    }
+
+    #[cfg(feature = "backend-c")]
+    #[test]
+    fn c_codegen_emits_extern_declaration() {
+        run_with_large_stack("c_codegen_emits_extern_declaration", || {
+            let mir = lower_source(
+                "extern {
+                     fn ffi_answer() -> I32;
+                 }
+                 fn main() -> I32 { ffi_answer() }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let c_code = crate::c::emit_c(&mir.program).expect("C emission should succeed");
+            assert!(
+                c_code.contains("extern uint64_t ffi_answer(void);")
+                    || c_code.contains("extern uint64_t ffi_answer();"),
+                "C output should declare extern ffi_answer, got:\n{c_code}"
+            );
+            assert!(
+                c_code.contains("ffi_answer()"),
+                "C output should call ffi_answer, got:\n{c_code}"
+            );
+        });
+    }
+
+    #[cfg(feature = "backend-c")]
+    #[test]
+    fn c_codegen_emits_extern_with_params() {
+        run_with_large_stack("c_codegen_emits_extern_with_params", || {
+            let mir = lower_source(
+                "extern {
+                     fn ffi_add(a: I32, b: I32) -> I32;
+                 }
+                 fn main() -> I32 { ffi_add(1, 2) }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let c_code = crate::c::emit_c(&mir.program).expect("C emission should succeed");
+            assert!(
+                c_code.contains("extern uint64_t ffi_add(uint64_t p0, uint64_t p1);"),
+                "C output should declare extern ffi_add with params, got:\n{c_code}"
+            );
+            assert!(
+                c_code.contains("ffi_add("),
+                "C output should call ffi_add, got:\n{c_code}"
+            );
+        });
+    }
+
+    #[cfg(feature = "backend-c")]
+    #[test]
+    fn c_codegen_emits_extern_f64_return() {
+        run_with_large_stack("c_codegen_emits_extern_f64_return", || {
+            let mir = lower_source(
+                "extern {
+                     fn ffi_sqrt(x: F64) -> F64;
+                 }
+                 fn main() -> F64 { ffi_sqrt(64.0) }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let c_code = crate::c::emit_c(&mir.program).expect("C emission should succeed");
+            assert!(
+                c_code.contains("extern double ffi_sqrt(double p0);"),
+                "C output should declare extern ffi_sqrt with double, got:\n{c_code}"
+            );
+        });
+    }
+
+    #[cfg(feature = "backend-wasm")]
+    #[test]
+    fn wasm_codegen_emits_extern_import() {
+        run_with_large_stack("wasm_codegen_emits_extern_import", || {
+            use crate::wasm::emit_wasm;
+
+            let mir = lower_source(
+                "extern {
+                     fn ffi_answer() -> I32;
+                 }
+                 fn main() -> I32 { ffi_answer() }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let wasm_bytes = emit_wasm(&mir.program).expect("wasm emission should succeed");
+            assert!(!wasm_bytes.is_empty(), "wasm output should not be empty");
+        });
+    }
+
+    #[cfg(feature = "backend-wasm")]
+    #[test]
+    fn wasm_wat_emits_extern_import() {
+        run_with_large_stack("wasm_wat_emits_extern_import", || {
+            use crate::wasm::emit_wat;
+
+            let mir = lower_source(
+                "extern {
+                     fn ffi_add(a: I32, b: I32) -> I32;
+                 }
+                 fn main() -> I32 { ffi_add(1, 2) }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let wat = emit_wat(&mir.program).expect("WAT emission should succeed");
+            assert!(
+                wat.contains("(import \"env\" \"ffi_add\""),
+                "WAT output should import ffi_add from env, got:\n{wat}"
+            );
+            assert!(
+                wat.contains("call $ffi_add"),
+                "WAT output should call $ffi_add, got:\n{wat}"
+            );
+        });
+    }
+
+    #[cfg(feature = "backend-wasm")]
+    #[test]
+    fn wasm_wat_emits_extern_import_f64() {
+        run_with_large_stack("wasm_wat_emits_extern_import_f64", || {
+            use crate::wasm::emit_wat;
+
+            let mir = lower_source(
+                "extern {
+                     fn ffi_sqrt(x: F64) -> F64;
+                 }
+                 fn main() -> F64 { ffi_sqrt(64.0) }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let wat = emit_wat(&mir.program).expect("WAT emission should succeed");
+            assert!(
+                wat.contains("(import \"env\" \"ffi_sqrt\""),
+                "WAT output should import ffi_sqrt from env, got:\n{wat}"
+            );
+            assert!(
+                wat.contains("(param f64) (result f64)"),
+                "WAT output should have f64 param and result, got:\n{wat}"
+            );
+        });
     }
 
     #[cfg(feature = "backend-wasm")]

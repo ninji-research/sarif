@@ -108,6 +108,11 @@ fn collect_package_names(loaded: &LoadedSource) -> String {
             Item::Enum(e) => names.push(&e.name),
             Item::Const(c) => names.push(&c.name),
             Item::Effect(e) => names.push(&e.name),
+            Item::ExternBlock(b) => {
+                for f in &b.functions {
+                    names.push(&f.name);
+                }
+            }
         }
     }
     names.join("\n")

@@ -637,7 +637,8 @@ mod tests {
 
     #[test]
     fn wasm_arg_count_with_args() {
-        let program = lower_program("fn main() -> I32 effects [alloc] { arg_count() }");
+        let program =
+            lower_program("fn main() -> I32 effects [alloc] { perform SystemIO.arg_count() }");
         let wasm = emit_wasm(&program).expect("wasm arg_count program should emit");
         let (mut store, instance) =
             instantiate_wasm_module_with_args(&wasm, &["hello".into(), "world".into()])
@@ -648,7 +649,8 @@ mod tests {
 
     #[test]
     fn wasm_arg_text_with_args() {
-        let program = lower_program("fn main() -> Text effects [alloc] { arg_text(1) }");
+        let program =
+            lower_program("fn main() -> Text effects [alloc] { perform SystemIO.arg_text(1) }");
         let wasm = emit_wasm(&program).expect("wasm arg_text program should emit");
         let (mut store, instance) =
             instantiate_wasm_module_with_args(&wasm, &["hello".into(), "world".into()])

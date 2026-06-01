@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::hir::{BinaryOp, Body, Expr, Module, Stmt};
 use crate::semantic::{
-    EnumVariantInfo, FunctionSignature, Type, field_type, split_enum_variant_path,
+    EnumVariantInfo, FunctionSignature, Type, field_type, find_system_effect_method,
+    split_enum_variant_path,
 };
 use sarif_syntax::{Diagnostic, Span};
 
@@ -45,16 +46,6 @@ fn is_borrow_only_builtin(callee: &str) -> bool {
             | "text_index_get_or_insert"
             | "list_len"
             | "list_get"
-            | "stdout_write"
-            | "stdout_write_builder"
-            | "file_open"
-            | "file_read"
-            | "file_read_to_end"
-            | "file_mmap"
-            | "file_write"
-            | "file_size"
-            | "file_seek"
-            | "file_tell"
     ) || is_text_scan_builtin(callee)
 }
 
@@ -1389,11 +1380,9 @@ fn expr_type_for_ownership(
             | "text_builder_append_codepoint"
             | "text_builder_append_ascii"
             | "text_builder_append_slice"
-            | "text_builder_append_i32"
-            | "stdout_write_builder" => Some(Type::TextBuilder),
+            | "text_builder_append_i32" => Some(Type::TextBuilder),
             "text_index_new" => Some(Type::TextIndex),
             "text_builder_finish" => Some(Type::Text),
-            "stdin_bytes" => Some(Type::Bytes),
             "bytes_slice" => Some(Type::Bytes),
             "list_new" => expr
                 .args
@@ -1434,7 +1423,9 @@ fn expr_type_for_ownership(
             _ => None,
         },
         Expr::Binary(_) => None,
-        Expr::Perform(_) => Some(Type::Unit), // Assume Unit for now
+        Expr::Perform(expr) => find_system_effect_method(&expr.effect, &expr.operation)
+            .map(|m| m.return_type.clone())
+            .or(Some(Type::Unit)),
     }
 }
 

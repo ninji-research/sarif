@@ -150,7 +150,40 @@ impl<'a> WasmEmitter<'a> {
 
     fn emit(&self) -> Result<String, WasmError> {
         let mut output = String::new();
-        output.push_str(include_str!("wasm/preamble.wat"));
+        output.push_str(include_str!("wasm/preamble_imports.wat"));
+
+        // User extern imports (must come before function definitions)
+        for extern_fn in &self.program.externs {
+            write!(
+                output,
+                "  (import \"env\" \"{}\" (func ${}",
+                extern_fn.name, extern_fn.name
+            )
+            .map_err(|e| WasmError::new(e.to_string()))?;
+            let mut first = true;
+            for param in &extern_fn.params {
+                if first {
+                    write!(output, " (param").map_err(|e| WasmError::new(e.to_string()))?;
+                    first = false;
+                }
+                let wasm_ty =
+                    wasm_type_for_extern(&param.ty, &self.program.structs, &self.program.enums)?;
+                write!(output, " {wasm_ty}").map_err(|e| WasmError::new(e.to_string()))?;
+            }
+            if !first {
+                output.push(')');
+            }
+            if let Some(return_type) = &extern_fn.return_type {
+                let wasm_ty =
+                    wasm_type_for_extern(return_type, &self.program.structs, &self.program.enums)?;
+                write!(output, " (result {wasm_ty})").map_err(|e| WasmError::new(e.to_string()))?;
+            }
+            writeln!(output, "))").map_err(|e| WasmError::new(e.to_string()))?;
+        }
+
+        output.push_str(include_str!("wasm/preamble_globals.wat"));
+
+        output.push_str(include_str!("wasm/preamble_funcs.wat"));
 
         self.emit_support_functions(&mut output)?;
 
@@ -370,8 +403,10 @@ impl<'a> WasmEmitter<'a> {
             &self.program.structs,
             &self.program.enums,
             &self.program.functions,
+            &self.program.externs,
             &mut kinds,
-        )?;
+        )
+        .map_err(|e| WasmError::new(e.message))?;
 
         let return_kind = if let Some(ty) = &function.return_type {
             wasm_value_kind_from_name(ty, &self.program.structs, &self.program.enums)?
@@ -379,7 +414,7 @@ impl<'a> WasmEmitter<'a> {
             WasmValueKind::Unit
         };
 
-        write!(output, "  (func ${}", function.name).expect("writing to a string cannot fail");
+        write!(output, " (func ${}", function.name).expect("writing to a string cannot fail");
         write!(output, " (export \"{}\")", function.name).expect("writing to a string cannot fail");
 
         for (i, param) in function.params.iter().enumerate() {
@@ -1822,6 +1857,29 @@ fn wasm_value_kind_from_name(
     }
 }
 
+fn wasm_type_for_extern(
+    name: &str,
+    structs: &[super::StructType],
+    enums: &[super::EnumType],
+) -> Result<&'static str, WasmError> {
+    match name {
+        "F64" => Ok("f64"),
+        "Unit" => Ok("i64"),
+        other => {
+            if enums.iter().any(|e| e.name == other) {
+                Ok("i64")
+            } else if structs.iter().any(|s| s.name == other) {
+                Ok("i64")
+            } else if other.starts_with("List[") || other == "List" {
+                Ok("i64")
+            } else {
+                // Default: all Sarif scalars are i64 at the Wasm level
+                Ok("i64")
+            }
+        }
+    }
+}
+
 fn wasm_type_from_kind(kind: &WasmValueKind) -> WasmType {
     match kind {
         WasmValueKind::F64 => WasmType::F64,
@@ -1843,6 +1901,7 @@ fn collect_inst_kinds(
     structs: &[super::StructType],
     enums: &[super::EnumType],
     all_functions: &[Function],
+    externs: &[crate::ExternFunction],
     kinds: &mut BTreeMap<ValueId, WasmValueKind>,
 ) -> Result<(), WasmError> {
     for inst in instructions {
@@ -2040,16 +2099,17 @@ fn collect_inst_kinds(
                 kinds.insert(*dest, WasmValueKind::Bool);
             }
             Inst::Call { dest, callee, .. } => {
-                let callee_fn = all_functions
+                let return_type = all_functions
                     .iter()
                     .find(|f| f.name == *callee)
-                    .ok_or_else(|| {
-                        WasmError::new(format!(
-                            "unknown function `{callee}` in `{}`",
-                            function.name
-                        ))
-                    })?;
-                let kind = if let Some(ty) = &callee_fn.return_type {
+                    .and_then(|f| f.return_type.as_deref())
+                    .or_else(|| {
+                        externs
+                            .iter()
+                            .find(|e| e.name == *callee)
+                            .and_then(|e| e.return_type.as_deref())
+                    });
+                let kind = if let Some(ty) = return_type {
                     wasm_value_kind_from_name(ty, structs, enums)?
                 } else {
                     WasmValueKind::Unit
@@ -2064,8 +2124,24 @@ fn collect_inst_kinds(
                 else_result,
                 ..
             } => {
-                collect_inst_kinds(function, then_insts, structs, enums, all_functions, kinds)?;
-                collect_inst_kinds(function, else_insts, structs, enums, all_functions, kinds)?;
+                collect_inst_kinds(
+                    function,
+                    then_insts,
+                    structs,
+                    enums,
+                    all_functions,
+                    externs,
+                    kinds,
+                )?;
+                collect_inst_kinds(
+                    function,
+                    else_insts,
+                    structs,
+                    enums,
+                    all_functions,
+                    externs,
+                    kinds,
+                )?;
                 let kind = if let Some(res) = then_result {
                     kinds[res].clone()
                 } else if let Some(res) = else_result {
@@ -2087,15 +2163,32 @@ fn collect_inst_kinds(
                     structs,
                     enums,
                     all_functions,
+                    externs,
                     kinds,
                 )?;
-                collect_inst_kinds(function, body_insts, structs, enums, all_functions, kinds)?;
+                collect_inst_kinds(
+                    function,
+                    body_insts,
+                    structs,
+                    enums,
+                    all_functions,
+                    externs,
+                    kinds,
+                )?;
                 kinds.insert(*dest, WasmValueKind::Unit);
             }
             Inst::Repeat {
                 dest, body_insts, ..
             } => {
-                collect_inst_kinds(function, body_insts, structs, enums, all_functions, kinds)?;
+                collect_inst_kinds(
+                    function,
+                    body_insts,
+                    structs,
+                    enums,
+                    all_functions,
+                    externs,
+                    kinds,
+                )?;
                 kinds.insert(*dest, WasmValueKind::Unit);
             }
             Inst::StoreLocal { .. }

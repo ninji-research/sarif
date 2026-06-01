@@ -6,6 +6,7 @@ use sarif_syntax::{Diagnostic, Span};
 use super::exprcore::CallSite;
 use super::{EnumVariantInfo, FunctionSignature, Profile, Type};
 
+#[allow(dead_code)]
 pub(super) fn check_recursion(
     functions: &BTreeMap<String, FunctionSignature>,
     call_graph: &BTreeMap<String, Vec<CallSite>>,

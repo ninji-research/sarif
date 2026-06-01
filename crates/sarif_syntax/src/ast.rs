@@ -106,6 +106,27 @@ impl AstFile {
                             .expect("writing to string cannot fail");
                     }
                 }
+                Item::ExternBlock(block) => {
+                    writeln!(output, "extern {{").expect("writing to string cannot fail");
+                    for function in &block.functions {
+                        write!(output, "  fn {}(", function.name)
+                            .expect("writing to string cannot fail");
+                        for (index, param) in function.params.iter().enumerate() {
+                            if index > 0 {
+                                output.push_str(", ");
+                            }
+                            write!(output, "{}: {}", param.name, param.ty)
+                                .expect("writing to string cannot fail");
+                        }
+                        output.push(')');
+                        if let Some(return_type) = &function.return_type {
+                            write!(output, " -> {return_type}")
+                                .expect("writing to string cannot fail");
+                        }
+                        writeln!(output, ";").expect("writing to string cannot fail");
+                    }
+                    writeln!(output, "}}").expect("writing to string cannot fail");
+                }
             }
         }
 
@@ -121,12 +142,27 @@ pub enum Item {
     Enum(Enum),
     Struct(Struct),
     Effect(Effect),
+    ExternBlock(ExternBlock),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Effect {
     pub name: String,
     pub methods: Vec<EffectMethod>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExternBlock {
+    pub functions: Vec<ExternFunction>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExternFunction {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypePath>,
     pub span: Span,
 }
 
@@ -879,6 +915,11 @@ impl Lowerer {
                         items.push(Item::Effect(item));
                     }
                 }
+                NodeKind::ExternBlock => {
+                    if let Some(item) = self.lower_extern_block(node) {
+                        items.push(Item::ExternBlock(item));
+                    }
+                }
                 _ => {}
             }
         }
@@ -941,6 +982,64 @@ impl Lowerer {
         Some(Effect {
             name,
             methods,
+            span: node.span,
+        })
+    }
+
+    fn lower_extern_block(&mut self, node: &Node) -> Option<ExternBlock> {
+        let functions = node
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                Element::Node(child) if child.kind == NodeKind::FnItem => {
+                    let name = self.ident_after(child, TokenKind::KwFn)?;
+                    let params = child
+                        .children
+                        .iter()
+                        .find_map(|child| match child {
+                            Element::Node(child) if child.kind == NodeKind::ParamList => Some(
+                                child
+                                    .children
+                                    .iter()
+                                    .filter_map(|element| match element {
+                                        Element::Node(param) if param.kind == NodeKind::Param => {
+                                            self.lower_param(param)
+                                        }
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>(),
+                            ),
+                            _ => None,
+                        })
+                        .unwrap_or_default();
+                    let return_type = child.children.iter().find_map(|child| match child {
+                        Element::Node(child) if child.kind == NodeKind::ReturnType => {
+                            child.children.iter().find_map(|element| match element {
+                                Element::Node(ty)
+                                    if matches!(
+                                        ty.kind,
+                                        NodeKind::TypePath | NodeKind::TypeArray
+                                    ) =>
+                                {
+                                    self.lower_type_path(ty)
+                                }
+                                _ => None,
+                            })
+                        }
+                        _ => None,
+                    });
+                    Some(ExternFunction {
+                        name,
+                        params,
+                        return_type,
+                        span: child.span,
+                    })
+                }
+                _ => None,
+            })
+            .collect();
+        Some(ExternBlock {
+            functions,
             span: node.span,
         })
     }

@@ -38,6 +38,8 @@ impl<'a> Parser<'a> {
                 children.push(Element::Node(self.parse_struct_item()));
             } else if self.at(TokenKind::KwEffect) {
                 children.push(Element::Node(self.parse_effect_item()));
+            } else if self.at(TokenKind::KwExtern) {
+                children.push(Element::Node(self.parse_extern_block()));
             } else if self.at(TokenKind::KwConst) {
                 children.push(Element::Node(self.parse_const_item()));
             } else if self.at(TokenKind::KwFn) {
@@ -52,7 +54,7 @@ impl<'a> Parser<'a> {
             let token = self.bump();
             self.diagnostics.push(Diagnostic::new(
                 "parse.out-of-order-item",
-                format!("unexpected token `{:?}`: expected a top-level item (enum, struct, effect, const, fn)", token.kind),
+                format!("unexpected token `{:?}`: expected a top-level item (enum, struct, effect, extern, const, fn)", token.kind),
                 token.span,
                 Some("Move this item to its canonical section.".to_owned()),
             ));
@@ -469,6 +471,41 @@ impl<'a> Parser<'a> {
         }
         children.push(Element::Token(self.expect(TokenKind::RBrace)));
         Node::new(NodeKind::EffectItem, children)
+    }
+
+    fn parse_extern_block(&mut self) -> Node {
+        let mut children = Vec::new();
+        children.push(Element::Token(self.expect(TokenKind::KwExtern)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::LBrace)));
+        self.collect_trivia(&mut children);
+        while self.at(TokenKind::KwFn) {
+            let mut fn_children = Vec::new();
+            fn_children.push(Element::Token(self.bump()));
+            self.collect_trivia(&mut fn_children);
+            fn_children.push(Element::Token(self.expect(TokenKind::Ident)));
+            self.collect_trivia(&mut fn_children);
+            fn_children.push(Element::Token(self.expect(TokenKind::LParen)));
+            fn_children.push(Element::Node(self.parse_param_list()));
+            fn_children.push(Element::Token(self.expect(TokenKind::RParen)));
+            self.collect_trivia(&mut fn_children);
+            if self.at(TokenKind::Arrow) {
+                let mut return_children = Vec::new();
+                return_children.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut return_children);
+                return_children.push(Element::Node(self.parse_type()));
+                fn_children.push(Element::Node(Node::new(
+                    NodeKind::ReturnType,
+                    return_children,
+                )));
+            }
+            self.collect_trivia(&mut fn_children);
+            fn_children.push(Element::Token(self.expect(TokenKind::Semicolon)));
+            children.push(Element::Node(Node::new(NodeKind::FnItem, fn_children)));
+            self.collect_trivia(&mut children);
+        }
+        children.push(Element::Token(self.expect(TokenKind::RBrace)));
+        Node::new(NodeKind::ExternBlock, children)
     }
 
     fn parse_handle_expr(&mut self) -> Node {

@@ -13,7 +13,7 @@ use crate::native::{
     declare_text_data_for_insts, encode_text_blob, infer_value_kinds, lower_insts,
     native_type as shared_native_type, native_value_kind, value_repr as shared_value_repr,
 };
-use crate::{Function, Program, ValueId};
+use crate::{ExternFunction, Function, Program, ValueId};
 
 pub const ENTRYPOINT_SYMBOL: &str = "sarif_user_main";
 
@@ -152,7 +152,7 @@ impl<'a> ObjectBackend<'a> {
             } else {
                 &function.name
             };
-            let signature = self.signature_for(function)?;
+            let signature = self.signature_for_function(function)?;
             let module = self.module.as_mut().expect("module available");
             let id = module
                 .declare_function(symbol_name, function_linkage(&function.name), &signature)
@@ -164,6 +164,19 @@ impl<'a> ObjectBackend<'a> {
             self.function_ids.insert(function.name.clone(), id);
             self.function_signatures
                 .insert(function.name.clone(), signature);
+        }
+        for extern_fn in &self.program.externs {
+            let signature = self.signature_for_extern(extern_fn)?;
+            let module = self.module.as_mut().expect("module available");
+            let id = module
+                .declare_function(&extern_fn.name, Linkage::Import, &signature)
+                .map_err(|error| {
+                    ObjectError::new(format!(
+                        "failed to declare extern `{}` for object emission: {error}",
+                        extern_fn.name,
+                    ))
+                })?;
+            self.function_ids.insert(extern_fn.name.clone(), id);
         }
         Ok(())
     }
@@ -195,7 +208,7 @@ impl<'a> ObjectBackend<'a> {
         Ok(())
     }
 
-    fn signature_for(&self, function: &Function) -> Result<Signature, ObjectError> {
+    fn signature_for_function(&self, function: &Function) -> Result<Signature, ObjectError> {
         let module = self.module.as_ref().expect("module available");
         let mut signature = module.make_signature();
         signature.call_conv = CallConv::triple_default(module.isa().triple());
@@ -209,6 +222,29 @@ impl<'a> ObjectBackend<'a> {
         }
 
         if let Some(return_type) = function.return_type.as_deref() {
+            let native = native_type(return_type, &self.records, &self.native_enums)?;
+            if native != types::INVALID {
+                signature.returns.push(AbiParam::new(native));
+            }
+        }
+
+        Ok(signature)
+    }
+
+    fn signature_for_extern(&self, extern_fn: &ExternFunction) -> Result<Signature, ObjectError> {
+        let module = self.module.as_ref().expect("module available");
+        let mut signature = module.make_signature();
+        signature.call_conv = CallConv::triple_default(module.isa().triple());
+
+        for param in &extern_fn.params {
+            signature.params.push(AbiParam::new(native_type(
+                &param.ty,
+                &self.records,
+                &self.native_enums,
+            )?));
+        }
+
+        if let Some(return_type) = extern_fn.return_type.as_deref() {
             let native = native_type(return_type, &self.records, &self.native_enums)?;
             if native != types::INVALID {
                 signature.returns.push(AbiParam::new(native));
@@ -239,6 +275,7 @@ impl<'a> ObjectBackend<'a> {
             &self.records,
             &self.native_enums,
             &self.program.functions,
+            &self.program.externs,
         )
         .map_err(ObjectError::new)?;
         for local in &function.mutable_locals {
@@ -343,7 +380,7 @@ impl<'a> ClifDumper<'a> {
         })
     }
 
-    fn signature_for(&self, function: &Function) -> Result<Signature, ObjectError> {
+    fn signature_for_function(&self, function: &Function) -> Result<Signature, ObjectError> {
         let call_conv = CallConv::triple_default(self.isa.triple());
         let mut signature = Signature::new(call_conv);
 
@@ -365,6 +402,28 @@ impl<'a> ClifDumper<'a> {
         Ok(signature)
     }
 
+    fn signature_for_extern(&self, extern_fn: &ExternFunction) -> Result<Signature, ObjectError> {
+        let call_conv = CallConv::triple_default(self.isa.triple());
+        let mut signature = Signature::new(call_conv);
+
+        for param in &extern_fn.params {
+            signature.params.push(AbiParam::new(native_type(
+                &param.ty,
+                &self.records,
+                &self.native_enums,
+            )?));
+        }
+
+        if let Some(return_type) = extern_fn.return_type.as_deref() {
+            let native = native_type(return_type, &self.records, &self.native_enums)?;
+            if native != types::INVALID {
+                signature.returns.push(AbiParam::new(native));
+            }
+        }
+
+        Ok(signature)
+    }
+
     fn emit(&mut self) -> Result<String, ObjectError> {
         let mut dummy_module = ObjectModule::new(
             ObjectBuilder::new(self.isa.clone(), "clif", Box::new(default_libcall_names()))
@@ -373,7 +432,7 @@ impl<'a> ClifDumper<'a> {
 
         let mut function_ids: BTreeMap<String, FuncId> = BTreeMap::new();
         for function in &self.program.functions {
-            let signature = self.signature_for(function)?;
+            let signature = self.signature_for_function(function)?;
             let id = dummy_module
                 .declare_function(&function.name, function_linkage(&function.name), &signature)
                 .map_err(|error| {
@@ -382,6 +441,18 @@ impl<'a> ClifDumper<'a> {
             function_ids.insert(function.name.clone(), id);
             self.function_signatures
                 .insert(function.name.clone(), signature);
+        }
+        for extern_fn in &self.program.externs {
+            let signature = self.signature_for_extern(extern_fn)?;
+            let id = dummy_module
+                .declare_function(&extern_fn.name, Linkage::Import, &signature)
+                .map_err(|error| {
+                    ObjectError::new(format!(
+                        "failed to declare extern `{}`: {error}",
+                        extern_fn.name
+                    ))
+                })?;
+            function_ids.insert(extern_fn.name.clone(), id);
         }
 
         let mut builder_context = FunctionBuilderContext::new();
@@ -441,6 +512,7 @@ impl<'a> ClifDumper<'a> {
             &self.records,
             &self.native_enums,
             &self.program.functions,
+            &self.program.externs,
         )?;
         for local in &function.mutable_locals {
             let kind = native_value_kind(&local.ty, &self.records, &self.native_enums)?;

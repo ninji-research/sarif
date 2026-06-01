@@ -54,6 +54,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
             crate::hir::Item::Effect(effect_item) => {
                 known_types.insert(effect_item.name.clone());
             }
+            crate::hir::Item::ExternBlock(_) => {}
         }
     }
 
@@ -294,6 +295,65 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                 struct_layouts.insert(struct_item.name.clone(), layout);
             }
             crate::hir::Item::Effect(_) => {}
+            crate::hir::Item::ExternBlock(block) => {
+                for f in &block.functions {
+                    if functions.contains_key(&f.name)
+                        || consts.contains_key(&f.name)
+                        || enum_variants.contains_key(&f.name)
+                        || struct_layouts.contains_key(&f.name)
+                    {
+                        diagnostics.push(Diagnostic::new(
+                            "semantic.duplicate-item",
+                            format!("item `{}` is already declared in this module", f.name),
+                            f.span,
+                            Some("Use a unique name for this extern function.".to_owned()),
+                        ));
+                        continue;
+                    }
+
+                    let mut params = Vec::new();
+                    for param in &f.params {
+                        check_type_exists(
+                            diagnostics,
+                            &known_types,
+                            &BTreeSet::new(),
+                            &param.ty.path,
+                            param.ty.span,
+                            "parameter type",
+                        );
+                        params.push((
+                            param.name.clone(),
+                            type_from_ref(&param.ty, &BTreeSet::new()),
+                            param.span,
+                        ));
+                    }
+
+                    if let Some(return_type) = &f.return_type {
+                        check_type_exists(
+                            diagnostics,
+                            &known_types,
+                            &BTreeSet::new(),
+                            &return_type.path,
+                            return_type.span,
+                            "return type",
+                        );
+                    }
+
+                    functions.insert(
+                        f.name.clone(),
+                        FunctionSignature {
+                            const_params: BTreeSet::new(),
+                            param_usages: vec![ParamUsage::borrow_only(); params.len()],
+                            params,
+                            return_type: f.return_type.as_ref().map_or(Type::Unit, |return_type| {
+                                type_from_ref(return_type, &BTreeSet::new())
+                            }),
+                            effects: Vec::new(),
+                            span: f.span,
+                        },
+                    );
+                }
+            }
         }
     }
 

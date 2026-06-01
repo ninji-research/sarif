@@ -21,11 +21,12 @@ use exprcore::{
     infer_handle_expr, infer_if_expr, infer_index_expr, infer_match_expr, infer_perform_expr,
     infer_record_expr, infer_repeat_expr, infer_unary_expr, infer_while_expr,
 };
+pub use exprcore::{SystemEffectMethod, find_system_effect_method};
 pub use profile::Profile;
 use profile::{body_contains_loop, type_is_rt_safe};
 use resolve::{ResolvedModule, resolve_module};
 use support::{
-    best_match, check_recursion, enum_variant_info, expect_type, matching_numeric_type,
+    best_match, enum_variant_info, expect_type, matching_numeric_type,
     mutable_local_allows_affine_values, suggestion_help, type_contains_affine_values,
 };
 pub(crate) use support::{field_type, split_enum_variant_path};
@@ -505,11 +506,8 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                 }));
             }
             crate::hir::Item::Effect(_) => {}
+            crate::hir::Item::ExternBlock(_) => {}
         }
-    }
-
-    if profile == Profile::Total || profile == Profile::Rt {
-        check_recursion(&functions, &call_graph, &mut diagnostics, profile);
     }
 
     for item in &module.items {
@@ -657,6 +655,7 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
             }
             crate::hir::Item::Const(_) => {}
             crate::hir::Item::Effect(_) => {}
+            crate::hir::Item::ExternBlock(_) => {}
         }
     }
 

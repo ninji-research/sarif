@@ -23,12 +23,27 @@ pub enum Item {
     Enum(Enum),
     Struct(Struct),
     Effect(EffectItem),
+    ExternBlock(ExternBlock),
 }
 
 #[derive(Clone, Debug)]
 pub struct EffectItem {
     pub name: String,
     pub methods: Vec<EffectMethod>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExternBlock {
+    pub functions: Vec<ExternFunction>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExternFunction {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeRef>,
     pub span: Span,
 }
 
@@ -746,6 +761,7 @@ pub fn lower(file: &ast::AstFile) -> HirLowering {
             ast::Item::Enum(item) => Item::Enum(lower_enum(item)),
             ast::Item::Struct(item) => Item::Struct(lower_struct(item)),
             ast::Item::Effect(item) => Item::Effect(lower_effect(item)),
+            ast::Item::ExternBlock(item) => Item::ExternBlock(lower_extern_block(item)),
         })
         .collect();
 
@@ -823,6 +839,27 @@ impl Module {
                 Item::Effect(effect) => {
                     writeln!(&mut output, "  effect {}", effect.name)
                         .expect("writing to a string cannot fail");
+                }
+                Item::ExternBlock(block) => {
+                    writeln!(&mut output, "  extern {{").expect("writing to a string cannot fail");
+                    for f in &block.functions {
+                        write!(&mut output, "    fn {}(", f.name)
+                            .expect("writing to a string cannot fail");
+                        for (i, p) in f.params.iter().enumerate() {
+                            if i > 0 {
+                                output.push_str(", ");
+                            }
+                            write!(&mut output, "{}: {}", p.name, p.ty.path)
+                                .expect("writing to a string cannot fail");
+                        }
+                        output.push(')');
+                        if let Some(ret) = &f.return_type {
+                            write!(&mut output, " -> {}", ret.path)
+                                .expect("writing to a string cannot fail");
+                        }
+                        writeln!(&mut output, ";").expect("writing to a string cannot fail");
+                    }
+                    writeln!(&mut output, "  }}").expect("writing to a string cannot fail");
                 }
             }
         }
@@ -1274,5 +1311,29 @@ fn lower_body(body: &ast::Body) -> Body {
             .collect(),
         tail: body.tail.as_ref().map(lower_expr),
         span: body.span,
+    }
+}
+
+fn lower_extern_block(item: &ast::ExternBlock) -> ExternBlock {
+    ExternBlock {
+        functions: item
+            .functions
+            .iter()
+            .map(|f| ExternFunction {
+                name: f.name.clone(),
+                params: f
+                    .params
+                    .iter()
+                    .map(|p| Param {
+                        name: p.name.clone(),
+                        ty: lower_type(&p.ty, p.span),
+                        span: p.span,
+                    })
+                    .collect(),
+                return_type: f.return_type.as_ref().map(|t| lower_type(t, f.span)),
+                span: f.span,
+            })
+            .collect(),
+        span: item.span,
     }
 }

@@ -135,6 +135,26 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("}")?;
     out.line("")?;
 
+    // User extern declarations
+    for extern_fn in &program.externs {
+        let ret_type = func_type_name(extern_fn.return_type.as_deref());
+        let mut sig = format!("extern {} {}", ret_type, extern_fn.name);
+        write!(sig, "(").map_err(to_string)?;
+        for (i, param) in extern_fn.params.iter().enumerate() {
+            if i > 0 {
+                write!(sig, ", ").map_err(to_string)?;
+            }
+            let tn = func_type_name(Some(&param.ty));
+            write!(sig, "{} p{}", tn, i).map_err(to_string)?;
+        }
+        if extern_fn.params.is_empty() {
+            sig.push_str("void");
+        }
+        writeln!(sig, ");").map_err(to_string)?;
+        out.line(&sig)?;
+    }
+    out.line("")?;
+
     // Forward declarations
     for func in &program.functions {
         if func.name == "main" {
@@ -1792,6 +1812,9 @@ fn infer_inst_kind_c(
             let callee_func = program.functions.iter().find(|f| f.name == *callee);
             if let Some(func) = callee_func {
                 let ty = func.return_type.as_deref().unwrap_or("Unit");
+                kinds.insert(*dest, str_to_kind(ty, program));
+            } else if let Some(extern_fn) = program.externs.iter().find(|f| f.name == *callee) {
+                let ty = extern_fn.return_type.as_deref().unwrap_or("Unit");
                 kinds.insert(*dest, str_to_kind(ty, program));
             } else {
                 kinds.insert(*dest, CodegenValueKind::I32);

@@ -18,9 +18,9 @@ fn is_prime(n: I32) -> Bool {
     }
 }
 
-fn main() -> I32 {
-    let n = if arg_count() > 1 {
-        parse_i32(arg_text(1))
+fn main() -> I32 effects [SystemIO] {
+  let n = if perform SystemIO.arg_count() > 1 {
+    parse_i32(perform SystemIO.arg_text(1))
     } else {
         50000
     };

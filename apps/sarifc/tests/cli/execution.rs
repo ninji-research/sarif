@@ -264,7 +264,7 @@ fn run_executes_text_eq_range_consistently() {
 #[test]
 fn run_executes_bytes_builtins_consistently() {
     let path = temp_source(
-        "fn main() -> I32 { let xs = stdin_bytes(); if bytes_len(xs) == 6 and bytes_byte(xs, 0) == 115 and bytes_find_byte_range(xs, 0, bytes_len(xs), 105) == 3 and bytes_len(bytes_slice(xs, 1, 4)) == 3 { 0 } else { 1 } }",
+        "fn main() -> I32 effects [SystemIO] { let xs = perform SystemIO.stdin_bytes(); if bytes_len(xs) == 6 and bytes_byte(xs, 0) == 115 and bytes_find_byte_range(xs, 0, bytes_len(xs), 105) == 3 and bytes_len(bytes_slice(xs, 1, 4)) == 3 { 0 } else { 1 } }",
     );
     let mut run = Command::new(std::env::var("CARGO_BIN_EXE_sarifc").expect("sarifc binary"));
     run.arg("run")
@@ -318,7 +318,7 @@ fn run_executes_text_index_set_consistently() {
 #[test]
 fn run_executes_stdout_write_builder_consistently() {
     let path = temp_source(
-        "fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }",
+        "fn main() effects [alloc, SystemIO] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); let u = perform SystemIO.stdout_write_builder(b); b = text_builder_append(b, \"ok\"); let v = perform SystemIO.stdout_write_builder(b); }",
     );
     let output = run_profiled("run", &path);
     assert!(
@@ -424,8 +424,9 @@ fn run_executes_float_sqrt_pipeline_consistently() {
 
 #[test]
 fn run_passes_runtime_arguments_to_argument_builtins() {
-    let path =
-        temp_source("fn main() -> Text { if arg_count() > 1 { arg_text(1) } else { \"\" } }");
+    let path = temp_source(
+        "fn main() -> Text effects [SystemIO] { if perform SystemIO.arg_count() > 1 { perform SystemIO.arg_text(1) } else { \"\" } }",
+    );
     let output = run_sarif(&["run", path.to_str().expect("utf-8 path"), "--", "sarif"]);
 
     assert!(
@@ -437,7 +438,8 @@ fn run_passes_runtime_arguments_to_argument_builtins() {
 
 #[test]
 fn run_executes_stdout_write_consistently() {
-    let path = temp_source("fn main() effects [io] { stdout_write(\"sarif\") }");
+    let path =
+        temp_source("fn main() effects [SystemIO] { perform SystemIO.stdout_write(\"sarif\") }");
     let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
 
     assert!(output.status.success(), "stdout_write run should succeed");
@@ -777,7 +779,7 @@ fn stable_build_prints_payload_enum_main_results() {
 #[test]
 fn stable_build_passes_process_arguments_to_argument_builtins() {
     let path = temp_source(
-        "fn main() -> Text effects [io] { if arg_count() > 1 { arg_text(1) } else { \"\" } }",
+        "fn main() -> Text effects [SystemIO] { if perform SystemIO.arg_count() > 1 { perform SystemIO.arg_text(1) } else { \"\" } }",
     );
     let binary_path = super::support::temp_artifact("arg_text_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
@@ -797,7 +799,8 @@ fn stable_build_passes_process_arguments_to_argument_builtins() {
 #[cfg(feature = "native-build")]
 #[test]
 fn stable_build_reads_stdin_text() {
-    let path = temp_source("fn main() -> Text { stdin_text() }");
+    let path =
+        temp_source("fn main() -> Text effects [SystemIO] { perform SystemIO.stdin_text() }");
     let binary_path = super::support::temp_artifact("stdin_text_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
 
@@ -828,7 +831,7 @@ fn stable_build_reads_stdin_text() {
 #[test]
 fn stable_build_executes_bytes_programs() {
     let path = temp_source(
-        "fn main() -> I32 { let xs = stdin_bytes(); if bytes_len(xs) == 6 and bytes_byte(xs, 0) == 115 and bytes_find_byte_range(xs, 0, bytes_len(xs), 105) == 3 and bytes_len(bytes_slice(xs, 1, 4)) == 3 { 0 } else { 1 } }",
+        "fn main() -> I32 effects [SystemIO] { let xs = perform SystemIO.stdin_bytes(); if bytes_len(xs) == 6 and bytes_byte(xs, 0) == 115 and bytes_find_byte_range(xs, 0, bytes_len(xs), 105) == 3 and bytes_len(bytes_slice(xs, 1, 4)) == 3 { 0 } else { 1 } }",
     );
     let binary_path = super::support::temp_artifact("stdin_bytes_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
@@ -855,7 +858,8 @@ fn stable_build_executes_bytes_programs() {
 #[cfg(feature = "native-build")]
 #[test]
 fn stable_build_streams_stdout_write() {
-    let path = temp_source("fn main() effects [io] { stdout_write(\"sarif\") }");
+    let path =
+        temp_source("fn main() effects [SystemIO] { perform SystemIO.stdout_write(\"sarif\") }");
     let binary_path = super::support::temp_artifact("stdout_write_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
 
@@ -874,7 +878,7 @@ fn stable_build_streams_stdout_write() {
 #[test]
 fn stable_build_streams_stdout_write_builder() {
     let path = temp_source(
-        "fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); b = stdout_write_builder(b); b = text_builder_append(b, \"ok\"); b = stdout_write_builder(b); }",
+        "fn main() effects [alloc, SystemIO] { let mut b = text_builder_new(); b = text_builder_append(b, \"sarif\"); let u = perform SystemIO.stdout_write_builder(b); b = text_builder_append(b, \"ok\"); let v = perform SystemIO.stdout_write_builder(b); }",
     );
     let binary_path = super::support::temp_artifact("stdout_write_builder_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
@@ -1278,7 +1282,7 @@ fn wasm_build_accepts_text_kernel_modules() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_accepts_runtime_argument_builtins() {
-    let path = temp_source("fn main() -> I32 { arg_count() }");
+    let path = temp_source("fn main() -> I32 effects [SystemIO] { perform SystemIO.arg_count() }");
     let wasm_path = temp_output("arg_text_build", "wasm");
     let build = run_sarif(&[
         "build",
@@ -1296,7 +1300,9 @@ fn wasm_build_accepts_runtime_argument_builtins() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_accepts_stdin_text_modules() {
-    let path = temp_source("fn main() -> I32 { stdin_text().len }");
+    let path = temp_source(
+        "fn main() -> I32 effects [SystemIO] { text_len(perform SystemIO.stdin_text()) }",
+    );
     let wasm_path = temp_output("stdin_text_build", "wasm");
     let build = run_sarif(&[
         "build",
@@ -1318,7 +1324,7 @@ fn wasm_build_accepts_stdin_text_modules() {
 #[test]
 fn wasm_build_accepts_stdin_bytes_modules() {
     let path = temp_source(
-        "fn main() -> Bool { let xs = stdin_bytes(); bytes_len(xs) == 5 and bytes_byte(xs, 0) == 115 and bytes_len(bytes_slice(xs, 1, 4)) == 3 }",
+        "fn main() -> Bool effects [SystemIO] { let xs = perform SystemIO.stdin_bytes(); bytes_len(xs) == 5 and bytes_byte(xs, 0) == 115 and bytes_len(bytes_slice(xs, 1, 4)) == 3 }",
     );
     let wasm_path = temp_output("stdin_bytes_build", "wasm");
     let build = run_sarif(&[
@@ -1340,7 +1346,8 @@ fn wasm_build_accepts_stdin_bytes_modules() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_accepts_stdout_write_modules() {
-    let path = temp_source("fn main() effects [io] { stdout_write(\"sarif\") }");
+    let path =
+        temp_source("fn main() effects [SystemIO] { perform SystemIO.stdout_write(\"sarif\") }");
     let wasm_path = temp_output("stdout_write_build", "wasm");
     let build = run_sarif(&[
         "build",
@@ -1362,7 +1369,7 @@ fn wasm_build_accepts_stdout_write_modules() {
 #[test]
 fn wasm_build_accepts_stdout_write_builder_modules() {
     let path = temp_source(
-        "fn main() effects [alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"a\"); b = stdout_write_builder(b); b = text_builder_append(b, \"b\"); b = stdout_write_builder(b); }",
+        "fn main() effects [alloc, SystemIO] { let mut b = text_builder_new(); b = text_builder_append(b, \"a\"); let u = perform SystemIO.stdout_write_builder(b); b = text_builder_append(b, \"b\"); let v = perform SystemIO.stdout_write_builder(b); }",
     );
     let wasm_path = temp_output("stdout_write_builder_build", "wasm");
     let build = run_sarif(&[
