@@ -1165,49 +1165,49 @@ impl Inst {
                 end.render(),
                 byte.render()
             ),
-Self::BytesFindByteRange {
-            dest,
-            source,
-            start,
-            end,
-            byte,
-        } => format!(
-            "{} = bytes-find-byte-range {}, {}, {}, {}",
-            dest.render(),
-            source.render(),
-            start.render(),
-            end.render(),
-            byte.render()
-        ),
-        Self::BytesFieldEnd {
-            dest,
-            source,
-            start,
-            end,
-            byte,
-        } => format!(
-            "{} = bytes-field-end {}, {}, {}, {}",
-            dest.render(),
-            source.render(),
-            start.render(),
-            end.render(),
-            byte.render()
-        ),
-        Self::BytesNextField {
-            dest,
-            source,
-            start,
-            end,
-            byte,
-        } => format!(
-            "{} = bytes-next-field {}, {}, {}, {}",
-            dest.render(),
-            source.render(),
-            start.render(),
-            end.render(),
-            byte.render()
-        ),
-        Self::TextLineEnd {
+            Self::BytesFindByteRange {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => format!(
+                "{} = bytes-find-byte-range {}, {}, {}, {}",
+                dest.render(),
+                source.render(),
+                start.render(),
+                end.render(),
+                byte.render()
+            ),
+            Self::BytesFieldEnd {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => format!(
+                "{} = bytes-field-end {}, {}, {}, {}",
+                dest.render(),
+                source.render(),
+                start.render(),
+                end.render(),
+                byte.render()
+            ),
+            Self::BytesNextField {
+                dest,
+                source,
+                start,
+                end,
+                byte,
+            } => format!(
+                "{} = bytes-next-field {}, {}, {}, {}",
+                dest.render(),
+                source.render(),
+                start.render(),
+                end.render(),
+                byte.render()
+            ),
+            Self::TextLineEnd {
                 dest,
                 source,
                 start,
@@ -4047,16 +4047,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_find_byte_range" if self.builtin_is_available("text_find_byte_range") => {
                 self.lower_text_find_byte_range_expr(expr)
             }
-"bytes_find_byte_range" if self.builtin_is_available("bytes_find_byte_range") => {
-            self.lower_bytes_find_byte_range_expr(expr)
-        }
-        "bytes_field_end" if self.builtin_is_available("bytes_field_end") => {
-            self.lower_bytes_field_end_expr(expr)
-        }
-        "bytes_next_field" if self.builtin_is_available("bytes_next_field") => {
-            self.lower_bytes_next_field_expr(expr)
-        }
-        "text_line_end" if self.builtin_is_available("text_line_end") => {
+            "bytes_find_byte_range" if self.builtin_is_available("bytes_find_byte_range") => {
+                self.lower_bytes_find_byte_range_expr(expr)
+            }
+            "bytes_field_end" if self.builtin_is_available("bytes_field_end") => {
+                self.lower_bytes_field_end_expr(expr)
+            }
+            "bytes_next_field" if self.builtin_is_available("bytes_next_field") => {
+                self.lower_bytes_next_field_expr(expr)
+            }
+            "text_line_end" if self.builtin_is_available("text_line_end") => {
                 self.lower_text_line_end_expr(expr)
             }
             "text_next_line" if self.builtin_is_available("text_next_line") => {
@@ -9505,91 +9505,91 @@ impl<'a> Interpreter<'a> {
                         }
                         index += 1;
                     }
-values[dest.0 as usize] = RuntimeValue::Int(found);
-    }
-    Inst::BytesFieldEnd {
-        dest,
-        source,
-        start,
-        end,
-        byte,
-    } => {
-        let source_val = extract_value(values, *source)?;
-        let start_val = extract_value(values, *start)?;
-        let end_val = extract_value(values, *end)?;
-        let byte_val = extract_value(values, *byte)?;
-        let (data, data_offset, data_len) = match &source_val {
-            RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
-            RuntimeValue::BytesView { data, offset, len } => {
-                (data.as_slice(), *offset, *len)
-            }
-            _ => return Err(RuntimeError::new("expected Bytes")),
-        };
-        let RuntimeValue::Int(start) = start_val else {
-            return Err(RuntimeError::new("expected Int"));
-        };
-        let RuntimeValue::Int(end) = end_val else {
-            return Err(RuntimeError::new("expected Int"));
-        };
-        let RuntimeValue::Int(byte) = byte_val else {
-            return Err(RuntimeError::new("expected Int"));
-        };
-        let start = usize::try_from(start).unwrap_or(0).min(data_len);
-        let end = usize::try_from(end).unwrap_or(0).min(data_len);
-        let end = end.max(start);
-        let mut found = end as i64;
-        let mut index = start;
-        while index < end {
-            if data[data_offset + index] == byte as u8 {
-                found = index as i64;
-                break;
-            }
-            index += 1;
-        }
-        values[dest.0 as usize] = RuntimeValue::Int(found);
-    }
-    Inst::BytesNextField {
-        dest,
-        source,
-        start,
-        end,
-        byte,
-    } => {
-        let source_val = extract_value(values, *source)?;
-        let start_val = extract_value(values, *start)?;
-        let end_val = extract_value(values, *end)?;
-        let byte_val = extract_value(values, *byte)?;
-        let (data, data_offset, data_len) = match &source_val {
-            RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
-            RuntimeValue::BytesView { data, offset, len } => {
-                (data.as_slice(), *offset, *len)
-            }
-            _ => return Err(RuntimeError::new("expected Bytes")),
-        };
-        let RuntimeValue::Int(start) = start_val else {
-            return Err(RuntimeError::new("expected Int"));
-        };
-        let RuntimeValue::Int(end) = end_val else {
-            return Err(RuntimeError::new("expected Int"));
-        };
-        let RuntimeValue::Int(byte) = byte_val else {
-            return Err(RuntimeError::new("expected Int"));
-        };
-        let start = usize::try_from(start).unwrap_or(0).min(data_len);
-        let end = usize::try_from(end).unwrap_or(0).min(data_len);
-        let end = end.max(start);
-        let mut next = end as i64;
-        let mut index = start;
-        while index < end {
-            if data[data_offset + index] == byte as u8 {
-                next = (index + 1) as i64;
-                break;
-            }
-            index += 1;
-        }
-        values[dest.0 as usize] = RuntimeValue::Int(next);
-    }
-    Inst::TextLineEnd {
+                    values[dest.0 as usize] = RuntimeValue::Int(found);
+                }
+                Inst::BytesFieldEnd {
+                    dest,
+                    source,
+                    start,
+                    end,
+                    byte,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let byte_val = extract_value(values, *byte)?;
+                    let (data, data_offset, data_len) = match &source_val {
+                        RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            (data.as_slice(), *offset, *len)
+                        }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let start = usize::try_from(start).unwrap_or(0).min(data_len);
+                    let end = usize::try_from(end).unwrap_or(0).min(data_len);
+                    let end = end.max(start);
+                    let mut found = end as i64;
+                    let mut index = start;
+                    while index < end {
+                        if data[data_offset + index] == byte as u8 {
+                            found = index as i64;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    values[dest.0 as usize] = RuntimeValue::Int(found);
+                }
+                Inst::BytesNextField {
+                    dest,
+                    source,
+                    start,
+                    end,
+                    byte,
+                } => {
+                    let source_val = extract_value(values, *source)?;
+                    let start_val = extract_value(values, *start)?;
+                    let end_val = extract_value(values, *end)?;
+                    let byte_val = extract_value(values, *byte)?;
+                    let (data, data_offset, data_len) = match &source_val {
+                        RuntimeValue::Bytes(b) => (b.as_slice(), 0, b.len()),
+                        RuntimeValue::BytesView { data, offset, len } => {
+                            (data.as_slice(), *offset, *len)
+                        }
+                        _ => return Err(RuntimeError::new("expected Bytes")),
+                    };
+                    let RuntimeValue::Int(start) = start_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(end) = end_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let RuntimeValue::Int(byte) = byte_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let start = usize::try_from(start).unwrap_or(0).min(data_len);
+                    let end = usize::try_from(end).unwrap_or(0).min(data_len);
+                    let end = end.max(start);
+                    let mut next = end as i64;
+                    let mut index = start;
+                    while index < end {
+                        if data[data_offset + index] == byte as u8 {
+                            next = (index + 1) as i64;
+                            break;
+                        }
+                        index += 1;
+                    }
+                    values[dest.0 as usize] = RuntimeValue::Int(next);
+                }
+                Inst::TextLineEnd {
                     dest,
                     source,
                     start,

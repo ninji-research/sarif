@@ -2508,70 +2508,73 @@ pub fn lower_inst<M: Module>(
                     ));
                 }
             };
-values.insert(*dest, NativeValueRepr::Native(value));
-        Ok(true)
-    }
-    Inst::BytesFieldEnd {
-        dest,
-        source,
-        start,
-        end,
-        byte,
-    } => {
-        let source_val =
-            native_value(values, *source, function, "bytes_field_end source", backend)?;
-        let start_val =
-            native_value(values, *start, function, "bytes_field_end start", backend)?;
-        let end_val = native_value(values, *end, function, "bytes_field_end end", backend)?;
-        let byte_val =
-            native_value(values, *byte, function, "bytes_field_end byte", backend)?;
-        let helper = module.declare_func_in_func(text_field_end_id, builder.func);
-        let call = builder
-            .ins()
-            .call(helper, &[source_val, start_val, end_val, byte_val]);
-        let value = match builder.inst_results(call) {
-            [value] => *value,
-            _ => {
-                return Err(format!(
-                    "{backend} bytes_field_end helper returned an unexpected result shape in `{}`",
-                    function.name
-                ));
-            }
-        };
-        values.insert(*dest, NativeValueRepr::Native(value));
-        Ok(true)
-    }
-    Inst::BytesNextField {
-        dest,
-        source,
-        start,
-        end,
-        byte,
-    } => {
-        let source_val =
-            native_value(values, *source, function, "bytes_next_field source", backend)?;
-        let start_val =
-            native_value(values, *start, function, "bytes_next_field start", backend)?;
-        let end_val = native_value(values, *end, function, "bytes_next_field end", backend)?;
-        let byte_val =
-            native_value(values, *byte, function, "bytes_next_field byte", backend)?;
-        let helper = module.declare_func_in_func(text_next_field_id, builder.func);
-        let call = builder
-            .ins()
-            .call(helper, &[source_val, start_val, end_val, byte_val]);
-        let value = match builder.inst_results(call) {
-            [value] => *value,
-            _ => {
-                return Err(format!(
-                    "{backend} bytes_next_field helper returned an unexpected result shape in `{}`",
-                    function.name
-                ));
-            }
-        };
-        values.insert(*dest, NativeValueRepr::Native(value));
-        Ok(true)
-    }
-    Inst::TextLineEnd {
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::BytesFieldEnd {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            let source_val =
+                native_value(values, *source, function, "bytes_field_end source", backend)?;
+            let start_val =
+                native_value(values, *start, function, "bytes_field_end start", backend)?;
+            let end_val = native_value(values, *end, function, "bytes_field_end end", backend)?;
+            let byte_val = native_value(values, *byte, function, "bytes_field_end byte", backend)?;
+            let helper = module.declare_func_in_func(text_field_end_id, builder.func);
+            let call = builder
+                .ins()
+                .call(helper, &[source_val, start_val, end_val, byte_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} bytes_field_end helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::BytesNextField {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            let source_val = native_value(
+                values,
+                *source,
+                function,
+                "bytes_next_field source",
+                backend,
+            )?;
+            let start_val =
+                native_value(values, *start, function, "bytes_next_field start", backend)?;
+            let end_val = native_value(values, *end, function, "bytes_next_field end", backend)?;
+            let byte_val = native_value(values, *byte, function, "bytes_next_field byte", backend)?;
+            let helper = module.declare_func_in_func(text_next_field_id, builder.func);
+            let call = builder
+                .ins()
+                .call(helper, &[source_val, start_val, end_val, byte_val]);
+            let value = match builder.inst_results(call) {
+                [value] => *value,
+                _ => {
+                    return Err(format!(
+                        "{backend} bytes_next_field helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::TextLineEnd {
             dest,
             source,
             start,

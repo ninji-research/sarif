@@ -733,9 +733,9 @@ impl<'a> Parser<'a> {
                 | TokenKind::LParen
                 | TokenKind::KwIf
                 | TokenKind::KwMatch
-        | TokenKind::KwRepeat
-        | TokenKind::KwFor
-        | TokenKind::KwWhile
+                | TokenKind::KwRepeat
+                | TokenKind::KwFor
+                | TokenKind::KwWhile
                 | TokenKind::KwComptime
                 | TokenKind::KwHandle
         )
@@ -931,9 +931,9 @@ impl<'a> Parser<'a> {
         match self.current_non_trivia_kind() {
             Some(TokenKind::KwIf) => self.parse_if_expr(),
             Some(TokenKind::KwMatch) => self.parse_match_expr(),
-        Some(TokenKind::KwRepeat) => self.parse_repeat_expr(),
-        Some(TokenKind::KwFor) => self.parse_for_expr(),
-        Some(TokenKind::KwWhile) => self.parse_while_expr(),
+            Some(TokenKind::KwRepeat) => self.parse_repeat_expr(),
+            Some(TokenKind::KwFor) => self.parse_for_expr(),
+            Some(TokenKind::KwWhile) => self.parse_while_expr(),
             Some(TokenKind::KwPerform) => self.parse_perform_expr(),
             Some(TokenKind::KwComptime) => self.parse_comptime_expr(),
             Some(TokenKind::KwHandle) => self.parse_handle_expr(),

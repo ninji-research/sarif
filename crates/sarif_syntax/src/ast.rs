@@ -502,9 +502,9 @@ impl Expr {
             Self::Index(expr) => expr.span,
             Self::If(expr) => expr.span,
             Self::Match(expr) => expr.span,
-        Self::Repeat(expr) => expr.span,
-        Self::For(expr) => expr.span,
-        Self::While(expr) => expr.span,
+            Self::Repeat(expr) => expr.span,
+            Self::For(expr) => expr.span,
+            Self::While(expr) => expr.span,
             Self::Record(expr) => expr.span,
             Self::Unary(expr) => expr.span,
             Self::Binary(expr) => expr.span,
@@ -566,21 +566,21 @@ impl Expr {
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
-        Self::Repeat(expr) => format!(
-            "{} {{ {} }}",
-            expr.binding.as_ref().map_or_else(
-                || format!("repeat {}", expr.count.pretty()),
-                |binding| format!("repeat {binding} in {}", expr.count.pretty()),
+            Self::Repeat(expr) => format!(
+                "{} {{ {} }}",
+                expr.binding.as_ref().map_or_else(
+                    || format!("repeat {}", expr.count.pretty()),
+                    |binding| format!("repeat {binding} in {}", expr.count.pretty()),
+                ),
+                expr.body.pretty(),
             ),
-            expr.body.pretty(),
-        ),
-        Self::For(expr) => format!(
-            "for {} in {}..{} {{ {} }}",
-            expr.binding,
-            expr.start.pretty(),
-            expr.end.pretty(),
-            expr.body.pretty(),
-        ),
+            Self::For(expr) => format!(
+                "for {} in {}..{} {{ {} }}",
+                expr.binding,
+                expr.start.pretty(),
+                expr.end.pretty(),
+                expr.body.pretty(),
+            ),
             Self::While(expr) => {
                 format!(
                     "while {} {{ {} }}",
@@ -1649,10 +1649,10 @@ impl Lowerer {
             NodeKind::ExprMatch => self
                 .lower_match_expr(node)
                 .map(|expr| Expr::Match(Box::new(expr))),
-        NodeKind::ExprRepeat => self
-            .lower_repeat_expr(node)
-            .map(|expr| Expr::Repeat(Box::new(expr))),
-        NodeKind::ExprFor => Some(self.lower_for_expr(node)),
+            NodeKind::ExprRepeat => self
+                .lower_repeat_expr(node)
+                .map(|expr| Expr::Repeat(Box::new(expr))),
+            NodeKind::ExprFor => Some(self.lower_for_expr(node)),
             NodeKind::ExprWhile => self
                 .lower_while_expr(node)
                 .map(|expr| Expr::While(Box::new(expr))),
@@ -2276,40 +2276,44 @@ impl Lowerer {
         match (start, end, body) {
             (Some(start), Some(end), Some(body)) => {
                 let span = node.span;
-                let count = Expr::Binary(BinaryExpr {
-                    left: Box::new(end.clone()),
-                    op: BinaryOp::Sub,
-                    right: Box::new(start.clone()),
+                let condition = Expr::Binary(BinaryExpr {
+                    left: Box::new(start.clone()),
+                    op: BinaryOp::Lt,
+                    right: Box::new(end.clone()),
                     span,
                 });
-                let inner_binding = format!("__{binding}_idx");
-                let index_expr = Expr::Name(NameExpr {
-                    name: inner_binding.clone(),
+                let ascending = self.desugar_for_direction(
+                    binding.clone(),
+                    body.clone(),
+                    end.clone(),
+                    start.clone(),
+                    start.clone(),
+                    BinaryOp::Sub,
+                    BinaryOp::Add,
                     span,
-                });
-                let offset = Expr::Binary(BinaryExpr {
-                    left: Box::new(start),
-                    op: BinaryOp::Add,
-                    right: Box::new(index_expr),
+                );
+                let descending = self.desugar_for_direction(
+                    binding,
+                    body,
+                    start.clone(),
+                    end.clone(),
+                    start.clone(),
+                    BinaryOp::Sub,
+                    BinaryOp::Sub,
                     span,
-                });
-                let let_binding = Stmt::Let(LetBinding {
-                    mutable: false,
-                    name: binding,
-                    value: offset,
-                    span,
-                });
-                let desugared_body = Body {
-                    statements: std::iter::once(let_binding)
-                        .chain(body.statements)
-                        .collect(),
-                    tail: body.tail,
-                    span: body.span,
-                };
-                Expr::Repeat(Box::new(RepeatExpr {
-                    binding: Some(inner_binding),
-                    count: Box::new(count),
-                    body: desugared_body,
+                );
+                Expr::If(Box::new(IfExpr {
+                    condition: Box::new(condition),
+                    then_body: Body {
+                        statements: Vec::new(),
+                        tail: Some(ascending),
+                        span,
+                    },
+                    else_body: Body {
+                        statements: Vec::new(),
+                        tail: Some(descending),
+                        span,
+                    },
                     span,
                 }))
             }
@@ -2327,6 +2331,55 @@ impl Lowerer {
                 span: node.span,
             })),
         }
+    }
+
+    fn desugar_for_direction(
+        &self,
+        binding: String,
+        body: Body,
+        count_left: Expr,
+        count_right: Expr,
+        value_base: Expr,
+        count_op: BinaryOp,
+        value_op: BinaryOp,
+        span: Span,
+    ) -> Expr {
+        let count = Expr::Binary(BinaryExpr {
+            left: Box::new(count_left),
+            op: count_op,
+            right: Box::new(count_right),
+            span,
+        });
+        let inner_binding = format!("__{binding}_idx");
+        let index_expr = Expr::Name(NameExpr {
+            name: inner_binding.clone(),
+            span,
+        });
+        let loop_value = Expr::Binary(BinaryExpr {
+            left: Box::new(value_base),
+            op: value_op,
+            right: Box::new(index_expr),
+            span,
+        });
+        let let_binding = Stmt::Let(LetBinding {
+            mutable: false,
+            name: binding,
+            value: loop_value,
+            span,
+        });
+        let desugared_body = Body {
+            statements: std::iter::once(let_binding)
+                .chain(body.statements)
+                .collect(),
+            tail: body.tail,
+            span: body.span,
+        };
+        Expr::Repeat(Box::new(RepeatExpr {
+            binding: Some(inner_binding),
+            count: Box::new(count),
+            body: desugared_body,
+            span,
+        }))
     }
 
     fn lower_while_expr(&mut self, node: &Node) -> Option<WhileExpr> {

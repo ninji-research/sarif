@@ -365,6 +365,15 @@ fn c_build_supports_for_loop() {
     assert_eq!(run_c_exit(&binary), 15);
 }
 
+#[test]
+fn c_build_supports_descending_for_loop() {
+    let binary = c_build(
+        "fn main() -> I32 { let mut sum = 0; for i in 5..1 { sum += i; }; sum }",
+        "c_build_descending_for_loop",
+    );
+    assert_eq!(run_c_exit(&binary), 14);
+}
+
 // ============================================================
 // Text builder and text index tests (alloc effect)
 // ============================================================
@@ -723,10 +732,7 @@ fn c_build_print_main_bool_stdout() {
 
 #[test]
 fn c_build_print_main_f64_stdout() {
-    let binary = c_build_print_main(
-        "fn main() -> F64 { 3.5 }",
-        "c_build_print_main_f64",
-    );
+    let binary = c_build_print_main("fn main() -> F64 { 3.5 }", "c_build_print_main_f64");
     assert_eq!(run_c_stdout(&binary), "3.5");
 }
 

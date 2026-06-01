@@ -333,6 +333,30 @@ fn run_executes_while_loops_consistently() {
 }
 
 #[test]
+fn run_executes_ascending_for_ranges_consistently() {
+    assert_run_parity(
+        "fn main() -> I32 { let mut total = 0; for x in 2..6 { total += x; }; total }",
+        "14",
+    );
+}
+
+#[test]
+fn run_executes_descending_for_ranges_consistently() {
+    assert_run_parity(
+        "fn main() -> I32 { let mut total = 0; for x in 5..1 { total += x; }; total }",
+        "14",
+    );
+}
+
+#[test]
+fn run_executes_empty_for_ranges_consistently() {
+    assert_run_parity(
+        "fn main() -> I32 { let mut total = 7; for x in 3..3 { total += x; }; total }",
+        "7",
+    );
+}
+
+#[test]
 fn run_executes_text_concat_consistently() {
     assert_run_parity(
         "fn main() -> Text { text_concat(\"\", text_concat(\"sa\", text_concat(\"rif\", \"\"))) }",

@@ -47,6 +47,7 @@ Sarif keeps one declaration order:
 - `while`
 - `repeat n`
 - `repeat i in n`
+- `for i in lo..hi` for half-open integer ranges. If `lo < hi`, iteration is ascending and excludes `hi`; if `lo > hi`, iteration is descending and excludes `hi`; if `lo == hi`, the body does not run.
 - `with_arena { ... }` for scoped memory allocation (automatic alloc push/pop)
 - implicit tail-expression returns
 
