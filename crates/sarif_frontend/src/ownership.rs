@@ -12,12 +12,14 @@ const MATCH_PAYLOAD_SEGMENT: &str = "$payload";
 fn is_text_scan_builtin(callee: &str) -> bool {
     matches!(
         callee,
-        "text_find_byte_range"
-            | "bytes_find_byte_range"
-            | "text_line_end"
-            | "text_next_line"
-            | "text_field_end"
-            | "text_next_field"
+"text_find_byte_range"
+    | "bytes_find_byte_range"
+    | "bytes_field_end"
+    | "bytes_next_field"
+    | "text_line_end"
+    | "text_next_line"
+    | "text_field_end"
+    | "text_next_field"
     )
 }
 

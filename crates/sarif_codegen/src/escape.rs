@@ -367,6 +367,8 @@ impl Env<'_> {
             | Inst::TextEqRange { .. }
             | Inst::TextFindByteRange { .. }
             | Inst::BytesFindByteRange { .. }
+            | Inst::BytesFieldEnd { .. }
+            | Inst::BytesNextField { .. }
             | Inst::TextByte { .. }
             | Inst::BytesByte { .. }
             | Inst::TextLineEnd { .. }

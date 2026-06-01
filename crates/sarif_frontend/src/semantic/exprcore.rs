@@ -122,8 +122,40 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
                 "Pass an I32 byte value to find.",
             ],
             dispatch_simple: false,
-        }),
-        "bytes_len" => Some(BuiltinEntry {
+}),
+    "bytes_field_end" => Some(BuiltinEntry {
+        name: "bytes_field_end",
+        runtime_code: None,
+        arity_error_code: "semantic.bytes_field_end-arity",
+        type_error_code: "semantic.bytes_field_end-type",
+        result_ty: Type::I32,
+        call_hint: "Call `bytes_field_end(bytes, start, end, separator)`.",
+        arg_types: &[Type::Bytes, Type::I32, Type::I32, Type::I32],
+        arg_helps: &[
+            "Pass a Bytes argument.",
+            "Pass an I32 start offset.",
+            "Pass an I32 end offset.",
+            "Pass an I32 separator byte value.",
+        ],
+        dispatch_simple: false,
+    }),
+    "bytes_next_field" => Some(BuiltinEntry {
+        name: "bytes_next_field",
+        runtime_code: None,
+        arity_error_code: "semantic.bytes_next_field-arity",
+        type_error_code: "semantic.bytes_next_field-type",
+        result_ty: Type::I32,
+        call_hint: "Call `bytes_next_field(bytes, start, end, separator)`.",
+        arg_types: &[Type::Bytes, Type::I32, Type::I32, Type::I32],
+        arg_helps: &[
+            "Pass a Bytes argument.",
+            "Pass an I32 start offset.",
+            "Pass an I32 end offset.",
+            "Pass an I32 separator byte value.",
+        ],
+        dispatch_simple: false,
+    }),
+    "bytes_len" => Some(BuiltinEntry {
             name: "bytes_len",
             runtime_code: None,
             arity_error_code: "semantic.bytes_len-arity",
@@ -1813,6 +1845,32 @@ must have type `Text`, found `{}`",
         );
     }
 
+    if expr.callee == "bytes_field_end" && !functions.contains_key("bytes_field_end") {
+        return infer_range_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            "bytes_field_end",
+            &Type::Bytes,
+            "semantic.bytes_field_end-arity",
+            "semantic.bytes_field_end-type",
+        );
+    }
+
+    if expr.callee == "bytes_next_field" && !functions.contains_key("bytes_next_field") {
+        return infer_range_scan_builtin_expr(
+            expr,
+            &args,
+            diagnostics,
+            calls,
+            "bytes_next_field",
+            &Type::Bytes,
+            "semantic.bytes_next_field-arity",
+            "semantic.bytes_next_field-type",
+        );
+    }
+
     if expr.callee == "text_line_end" && !functions.contains_key("text_line_end") {
         return infer_line_scan_builtin_expr(
             expr,
@@ -2917,8 +2975,11 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "text_index_keys"
                     | "text_line_end"
                     | "text_next_line"
-                    | "text_field_end"
-                    | "text_next_field"
+| "text_field_end"
+            | "text_next_field"
+            | "bytes_find_byte_range"
+            | "bytes_field_end"
+            | "bytes_next_field"
             ) || call.args.iter().any(contains_forbidden_comptime_effect)
         }
         Expr::Array(array) => array

@@ -356,8 +356,10 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TextCmp { dest, .. } => Some(*dest),
         Inst::TextEqRange { dest, .. } => Some(*dest),
         Inst::TextFindByteRange { dest, .. } => Some(*dest),
-        Inst::BytesFindByteRange { dest, .. } => Some(*dest),
-        Inst::TextLineEnd { dest, .. } => Some(*dest),
+Inst::BytesFindByteRange { dest, .. } => Some(*dest),
+            Inst::BytesFieldEnd { dest, .. } => Some(*dest),
+            Inst::BytesNextField { dest, .. } => Some(*dest),
+            Inst::TextLineEnd { dest, .. } => Some(*dest),
         Inst::TextNextLine { dest, .. } => Some(*dest),
         Inst::TextFieldEnd { dest, .. } => Some(*dest),
         Inst::TextNextField { dest, .. } => Some(*dest),
@@ -811,16 +813,34 @@ fn emit_inst(
         } => {
             out.line(&format!("v{} = (uint64_t)sarif_text_find_byte_range((const unsigned char*){}, (int64_t){}, (int64_t){}, (int64_t){});", dest.0, vref(source), vref(start), vref(end), vref(byte)))?;
         }
-        Inst::BytesFindByteRange {
-            dest,
-            source,
-            start,
-            end,
-            byte,
-        } => {
-            out.line(&format!("v{} = (uint64_t)sarif_text_find_byte_range((const unsigned char*){}, (int64_t){}, (int64_t){}, (int64_t){});", dest.0, vref(source), vref(start), vref(end), vref(byte)))?;
-        }
-        Inst::TextLineEnd {
+Inst::BytesFindByteRange {
+        dest,
+        source,
+        start,
+        end,
+        byte,
+    } => {
+        out.line(&format!("v{} = (uint64_t)sarif_text_find_byte_range((const unsigned char*){}, (int64_t){}, (int64_t){}, (int64_t){});", dest.0, vref(source), vref(start), vref(end), vref(byte)))?;
+    }
+    Inst::BytesFieldEnd {
+        dest,
+        source,
+        start,
+        end,
+        byte,
+    } => {
+        out.line(&format!("v{} = (uint64_t)sarif_text_find_byte_range((const unsigned char*){}, (int64_t){}, (int64_t){}, (int64_t){});", dest.0, vref(source), vref(start), vref(end), vref(byte)))?;
+    }
+    Inst::BytesNextField {
+        dest,
+        source,
+        start,
+        end,
+        byte,
+    } => {
+        out.line(&format!("v{} = (uint64_t)sarif_text_next_field((const unsigned char*){}, (int64_t){}, (int64_t){}, (int64_t){});", dest.0, vref(source), vref(start), vref(end), vref(byte)))?;
+    }
+    Inst::TextLineEnd {
             dest,
             source,
             start,
@@ -1829,8 +1849,10 @@ fn infer_inst_kind_c(
         | Inst::TextCmp { dest, .. }
         | Inst::TextEqRange { dest, .. }
         | Inst::TextFindByteRange { dest, .. }
-        | Inst::BytesFindByteRange { dest, .. }
-        | Inst::TextLineEnd { dest, .. }
+| Inst::BytesFindByteRange { dest, .. }
+            | Inst::BytesFieldEnd { dest, .. }
+            | Inst::BytesNextField { dest, .. }
+            | Inst::TextLineEnd { dest, .. }
         | Inst::TextNextLine { dest, .. }
         | Inst::TextFieldEnd { dest, .. }
         | Inst::TextNextField { dest, .. } => {

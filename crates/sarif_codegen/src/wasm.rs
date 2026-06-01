@@ -504,9 +504,11 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextCmp { dest, .. }
                 | Inst::TextEqRange { dest, .. }
                 | Inst::TextFindByteRange { dest, .. }
-                | Inst::BytesFindByteRange { dest, .. }
-                | Inst::TextLineEnd { dest, .. }
-                | Inst::TextNextLine { dest, .. }
+| Inst::BytesFindByteRange { dest, .. }
+            | Inst::BytesFieldEnd { dest, .. }
+            | Inst::BytesNextField { dest, .. }
+            | Inst::TextLineEnd { dest, .. }
+            | Inst::TextNextLine { dest, .. }
                 | Inst::TextFieldEnd { dest, .. }
                 | Inst::TextNextField { dest, .. }
                 | Inst::TextConcat { dest, .. }
@@ -742,21 +744,49 @@ impl<'a> WasmEmitter<'a> {
                     "$__sarif_bytes_slice",
                 );
             }
-            Inst::BytesFindByteRange {
-                dest,
-                source,
-                start,
-                end,
-                byte,
-            } => {
-                w_call(
-                    output,
-                    *dest,
-                    &[*source, *start, *end, *byte],
-                    "$__sarif_bytes_find_byte_range",
-                );
-            }
-            Inst::TextByte { dest, text, index } => {
+Inst::BytesFindByteRange {
+        dest,
+        source,
+        start,
+        end,
+        byte,
+    } => {
+        w_call(
+            output,
+            *dest,
+            &[*source, *start, *end, *byte],
+            "$__sarif_bytes_find_byte_range",
+        );
+    }
+    Inst::BytesFieldEnd {
+        dest,
+        source,
+        start,
+        end,
+        byte,
+    } => {
+        w_call(
+            output,
+            *dest,
+            &[*source, *start, *end, *byte],
+            "$__sarif_text_field_end",
+        );
+    }
+    Inst::BytesNextField {
+        dest,
+        source,
+        start,
+        end,
+        byte,
+    } => {
+        w_call(
+            output,
+            *dest,
+            &[*source, *start, *end, *byte],
+            "$__sarif_text_next_field",
+        );
+    }
+    Inst::TextByte { dest, text, index } => {
                 w_call(output, *dest, &[*text, *index], "$__sarif_text_byte");
             }
             Inst::TextConcat { dest, left, right } => {
@@ -2063,6 +2093,8 @@ fn collect_inst_kinds(
             | Inst::TextEqRange { dest, .. }
             | Inst::TextFindByteRange { dest, .. }
             | Inst::BytesFindByteRange { dest, .. }
+            | Inst::BytesFieldEnd { dest, .. }
+            | Inst::BytesNextField { dest, .. }
             | Inst::TextLineEnd { dest, .. }
             | Inst::TextNextLine { dest, .. }
             | Inst::TextFieldEnd { dest, .. }
