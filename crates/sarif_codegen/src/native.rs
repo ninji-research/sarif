@@ -313,15 +313,24 @@ fn infer_inst_kinds(
             | Inst::TextNextLine { dest, .. }
             | Inst::TextFieldEnd { dest, .. }
             | Inst::TextNextField { dest, .. }
-            | Inst::ArgCount { dest, .. }
-            | Inst::ListLen { dest, .. }
-            | Inst::FileWrite { dest, .. }
-            | Inst::FileSeek { dest, .. }
-            | Inst::FileSize { dest, .. }
             | Inst::FileExists { dest, .. }
             | Inst::FileRemove { dest, .. }
+            | Inst::EnvSet { dest, .. }
+            | Inst::EnvRemove { dest, .. }
+            | Inst::DirCreate { dest, .. }
+            | Inst::DirRemove { dest, .. }
+            | Inst::DirExists { dest, .. }
+            | Inst::DirChange { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::Bool);
+            }
+            Inst::FileWrite { dest, .. }
+            | Inst::FileSeek { dest, .. }
+            | Inst::FileSize { dest, .. }
             | Inst::ParseI32 { dest, .. }
-            | Inst::ParseI32Range { dest, .. } => {
+            | Inst::ParseI32Range { dest, .. }
+            | Inst::ArgCount { dest, .. }
+            | Inst::ListLen { dest, .. }
+            | Inst::ProcessId { dest } => {
                 kinds.insert(*dest, NativeValueKind::I32);
             }
             Inst::AllocPush | Inst::AllocPop => {}
@@ -409,7 +418,11 @@ fn infer_inst_kinds(
             | Inst::FileOpen { dest, .. }
             | Inst::BytesToText { dest, .. }
             | Inst::FileRead { dest, .. }
-            | Inst::StdinText { dest } => {
+            | Inst::StdinText { dest }
+            | Inst::EnvGet { dest, .. }
+            | Inst::EnvKeys { dest }
+            | Inst::DirList { dest, .. }
+            | Inst::DirCurrent { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
             }
             Inst::BytesMaterialize { dest, .. } => {
@@ -421,7 +434,7 @@ fn infer_inst_kinds(
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdoutWrite { .. } => {}
-            Inst::ConstF64 { dest, .. } | Inst::Sqrt { dest, .. } => {
+            Inst::ConstF64 { dest, .. } | Inst::Sqrt { dest, .. } | Inst::ClockNow { dest } => {
                 kinds.insert(*dest, NativeValueKind::F64);
             }
             Inst::Add { dest, left, .. }
@@ -437,7 +450,10 @@ fn infer_inst_kinds(
                     ));
                 };
                 match kind {
-                    NativeValueKind::I32 | NativeValueKind::F64 => {
+                    NativeValueKind::I32 | NativeValueKind::Bool => {
+                        kinds.insert(*dest, NativeValueKind::I32);
+                    }
+                    NativeValueKind::F64 => {
                         kinds.insert(*dest, kind);
                     }
                     other => {
@@ -547,10 +563,25 @@ fn infer_inst_kinds(
                 let else_falls = insts_fall_through(else_insts);
                 let then_kind = branch_result_kind(kinds, *then_result, function, "then")?;
                 let else_kind = branch_result_kind(kinds, *else_result, function, "else")?;
+                fn integer_kind(
+                    a: &NativeValueKind,
+                    b: &NativeValueKind,
+                ) -> Option<NativeValueKind> {
+                    match (a, b) {
+                        (
+                            NativeValueKind::I32 | NativeValueKind::Bool,
+                            NativeValueKind::I32 | NativeValueKind::Bool,
+                        ) => Some(NativeValueKind::I32),
+                        _ => None,
+                    }
+                }
                 if then_falls && else_falls {
                     match (then_kind, else_kind) {
                         (Some(left), Some(right)) if left == right => {
                             kinds.insert(*dest, left);
+                        }
+                        (Some(left), Some(right)) if integer_kind(&left, &right).is_some() => {
+                            kinds.insert(*dest, NativeValueKind::I32);
                         }
                         (Some(left), Some(right)) => {
                             return Err(format!(
@@ -597,7 +628,11 @@ fn infer_inst_kinds(
                     function, body_insts, records, enums, functions, externs, kinds,
                 )?;
             }
-            Inst::StoreLocal { .. } | Inst::Assert { .. } | Inst::FileClose { .. } => {}
+            Inst::StoreLocal { .. }
+            | Inst::Assert { .. }
+            | Inst::FileClose { .. }
+            | Inst::ProcessExit { .. }
+            | Inst::ClockSleep { .. } => {}
             Inst::Perform { .. } | Inst::Handle { .. } => {}
         }
     }
@@ -1274,6 +1309,20 @@ pub struct RuntimeHelperIds {
     pub bytes_to_text_id: FuncId,
     pub text_eq_id: FuncId,
     pub text_cmp_id: FuncId,
+    pub env_get_id: FuncId,
+    pub env_set_id: FuncId,
+    pub env_remove_id: FuncId,
+    pub env_keys_id: FuncId,
+    pub dir_create_id: FuncId,
+    pub dir_remove_id: FuncId,
+    pub dir_list_id: FuncId,
+    pub dir_exists_id: FuncId,
+    pub dir_current_id: FuncId,
+    pub dir_change_id: FuncId,
+    pub process_exit_id: FuncId,
+    pub process_id_id: FuncId,
+    pub clock_now_id: FuncId,
+    pub clock_sleep_id: FuncId,
 }
 
 pub fn declare_runtime_helpers<M: Module>(
@@ -1341,6 +1390,20 @@ pub fn declare_runtime_helpers<M: Module>(
         bytes_to_text_id: declare_bytes_to_text(module, backend)?,
         text_eq_id: declare_text_eq(module, backend)?,
         text_cmp_id: declare_text_cmp(module, backend)?,
+        env_get_id: declare_env_get(module, backend)?,
+        env_set_id: declare_env_set(module, backend)?,
+        env_remove_id: declare_env_remove(module, backend)?,
+        env_keys_id: declare_env_keys(module, backend)?,
+        dir_create_id: declare_dir_create(module, backend)?,
+        dir_remove_id: declare_dir_remove(module, backend)?,
+        dir_list_id: declare_dir_list(module, backend)?,
+        dir_exists_id: declare_dir_exists(module, backend)?,
+        dir_current_id: declare_dir_current(module, backend)?,
+        dir_change_id: declare_dir_change(module, backend)?,
+        process_exit_id: declare_process_exit(module, backend)?,
+        process_id_id: declare_process_id(module, backend)?,
+        clock_now_id: declare_clock_now(module, backend)?,
+        clock_sleep_id: declare_clock_sleep(module, backend)?,
     })
 }
 
@@ -1468,6 +1531,20 @@ pub fn lower_inst<M: Module>(
         bytes_to_text_id,
         text_eq_id,
         text_cmp_id,
+        env_get_id,
+        env_set_id,
+        env_remove_id,
+        env_keys_id,
+        dir_create_id,
+        dir_remove_id,
+        dir_list_id,
+        dir_exists_id,
+        dir_current_id,
+        dir_change_id,
+        process_exit_id,
+        process_id_id,
+        clock_now_id,
+        clock_sleep_id,
     } = *helpers;
     match inst {
         Inst::LoadParam { dest, index } => {
@@ -2873,6 +2950,171 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::EnvGet { dest, key } => {
+            let key_val = native_value(values, *key, function, "env_get key", backend)?;
+            let helper = module.declare_func_in_func(env_get_id, builder.func);
+            let ptr = call_helper(builder, helper, &[key_val], "env get", function, backend)?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::EnvSet { dest, key, value } => {
+            let key_val = native_value(values, *key, function, "env_set key", backend)?;
+            let value_val = native_value(values, *value, function, "env_set value", backend)?;
+            let helper = module.declare_func_in_func(env_set_id, builder.func);
+            let call = builder.ins().call(helper, &[key_val, value_val]);
+            let raw = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} env_set helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(raw));
+            Ok(true)
+        }
+        Inst::EnvRemove { dest, key } => {
+            let key_val = native_value(values, *key, function, "env_remove key", backend)?;
+            let helper = module.declare_func_in_func(env_remove_id, builder.func);
+            let call = builder.ins().call(helper, &[key_val]);
+            let raw = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} env_remove helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(raw));
+            Ok(true)
+        }
+        Inst::EnvKeys { dest } => {
+            let helper = module.declare_func_in_func(env_keys_id, builder.func);
+            let ptr = call_helper(builder, helper, &[], "env keys", function, backend)?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::DirCreate { dest, path } => {
+            let path_val = native_value(values, *path, function, "dir_create path", backend)?;
+            let helper = module.declare_func_in_func(dir_create_id, builder.func);
+            let call = builder.ins().call(helper, &[path_val]);
+            let raw = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} dir_create helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(raw));
+            Ok(true)
+        }
+        Inst::DirRemove { dest, path } => {
+            let path_val = native_value(values, *path, function, "dir_remove path", backend)?;
+            let helper = module.declare_func_in_func(dir_remove_id, builder.func);
+            let call = builder.ins().call(helper, &[path_val]);
+            let raw = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} dir_remove helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(raw));
+            Ok(true)
+        }
+        Inst::DirList { dest, path } => {
+            let path_val = native_value(values, *path, function, "dir_list path", backend)?;
+            let helper = module.declare_func_in_func(dir_list_id, builder.func);
+            let ptr = call_helper(builder, helper, &[path_val], "dir list", function, backend)?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::DirExists { dest, path } => {
+            let path_val = native_value(values, *path, function, "dir_exists path", backend)?;
+            let helper = module.declare_func_in_func(dir_exists_id, builder.func);
+            let call = builder.ins().call(helper, &[path_val]);
+            let raw = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} dir_exists helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(raw));
+            Ok(true)
+        }
+        Inst::DirCurrent { dest } => {
+            let helper = module.declare_func_in_func(dir_current_id, builder.func);
+            let ptr = call_helper(builder, helper, &[], "dir current", function, backend)?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::DirChange { dest, path } => {
+            let path_val = native_value(values, *path, function, "dir_change path", backend)?;
+            let helper = module.declare_func_in_func(dir_change_id, builder.func);
+            let call = builder.ins().call(helper, &[path_val]);
+            let raw = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} dir_change helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(raw));
+            Ok(true)
+        }
+        Inst::ProcessExit { code } => {
+            let code_val = native_value(values, *code, function, "process_exit code", backend)?;
+            let helper = module.declare_func_in_func(process_exit_id, builder.func);
+            builder.ins().call(helper, &[code_val]);
+            Ok(true)
+        }
+        Inst::ProcessId { dest } => {
+            let helper = module.declare_func_in_func(process_id_id, builder.func);
+            let call = builder.ins().call(helper, &[]);
+            let value = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} process_id helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::ClockNow { dest } => {
+            let helper = module.declare_func_in_func(clock_now_id, builder.func);
+            let call = builder.ins().call(helper, &[]);
+            let value = match builder.inst_results(call) {
+                [val] => *val,
+                _ => {
+                    return Err(format!(
+                        "{backend} clock_now helper returned an unexpected result shape in `{}`",
+                        function.name
+                    ));
+                }
+            };
+            values.insert(*dest, NativeValueRepr::Native(value));
+            Ok(true)
+        }
+        Inst::ClockSleep { ms } => {
+            let ms_val = native_value(values, *ms, function, "clock_sleep ms", backend)?;
+            let helper = module.declare_func_in_func(clock_sleep_id, builder.func);
+            builder.ins().call(helper, &[ms_val]);
+            Ok(true)
+        }
         Inst::MakeEnum {
             dest,
             name,
@@ -3797,6 +4039,18 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::FileSize { dest, .. }
             | Inst::FileExists { dest, .. }
             | Inst::FileRemove { dest, .. }
+            | Inst::EnvGet { dest, .. }
+            | Inst::EnvSet { dest, .. }
+            | Inst::EnvRemove { dest, .. }
+            | Inst::EnvKeys { dest }
+            | Inst::DirCreate { dest, .. }
+            | Inst::DirRemove { dest, .. }
+            | Inst::DirList { dest, .. }
+            | Inst::DirExists { dest, .. }
+            | Inst::DirCurrent { dest }
+            | Inst::DirChange { dest, .. }
+            | Inst::ProcessId { dest }
+            | Inst::ClockNow { dest }
             | Inst::Field { dest, .. }
             | Inst::EnumTagEq { dest, .. }
             | Inst::EnumPayload { dest, .. }
@@ -3849,6 +4103,8 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::StdoutWrite { .. }
             | Inst::Assert { .. }
             | Inst::FileClose { .. }
+            | Inst::ProcessExit { .. }
+            | Inst::ClockSleep { .. }
             | Inst::AllocPush
             | Inst::AllocPop => {}
         }
@@ -4825,5 +5081,159 @@ pub fn declare_bytes_to_text<M: Module>(module: &mut M, backend: &str) -> Result
         "bytes to text helper",
         &[types::I64],
         &[types::I64],
+    )
+}
+
+pub fn declare_env_get<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_env_get",
+        backend,
+        "env get helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_env_set<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_env_set",
+        backend,
+        "env set helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_env_remove<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_env_remove",
+        backend,
+        "env remove helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_env_keys<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_env_keys",
+        backend,
+        "env keys helper",
+        &[],
+        &[types::I64],
+    )
+}
+
+pub fn declare_dir_create<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_dir_create",
+        backend,
+        "dir create helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_dir_remove<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_dir_remove",
+        backend,
+        "dir remove helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_dir_list<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_dir_list",
+        backend,
+        "dir list helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_dir_exists<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_dir_exists",
+        backend,
+        "dir exists helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_dir_current<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_dir_current",
+        backend,
+        "dir current helper",
+        &[],
+        &[types::I64],
+    )
+}
+
+pub fn declare_dir_change<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_dir_change",
+        backend,
+        "dir change helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_process_exit<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_process_exit",
+        backend,
+        "process exit helper",
+        &[types::I64],
+        &[],
+    )
+}
+
+pub fn declare_process_id<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_process_id",
+        backend,
+        "process id helper",
+        &[],
+        &[types::I64],
+    )
+}
+
+pub fn declare_clock_now<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_clock_now",
+        backend,
+        "clock now helper",
+        &[],
+        &[types::F64],
+    )
+}
+
+pub fn declare_clock_sleep<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_clock_sleep",
+        backend,
+        "clock sleep helper",
+        &[types::I64],
+        &[],
     )
 }

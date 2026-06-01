@@ -136,6 +136,100 @@ fn link_env(linker: &mut Linker<()>, stdin: &[u8]) -> Result<(), String> {
             },
         )
         .map_err(|error| format!("failed to link env __host_stdin_read: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_get",
+            |_caller: Caller<'_, ()>, _key_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_env_get: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_set",
+            |_caller: Caller<'_, ()>, _key_ptr: i32, _value_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_env_set: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_remove",
+            |_caller: Caller<'_, ()>, _key_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_env_remove: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_keys",
+            |_caller: Caller<'_, ()>| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_env_keys: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_create",
+            |_caller: Caller<'_, ()>, _path_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_dir_create: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_remove",
+            |_caller: Caller<'_, ()>, _path_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_dir_remove: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_list",
+            |_caller: Caller<'_, ()>, _path_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_dir_list: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_exists",
+            |_caller: Caller<'_, ()>, _path_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_dir_exists: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_current",
+            |_caller: Caller<'_, ()>| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_dir_current: {error}"))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_change",
+            |_caller: Caller<'_, ()>, _path_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link env __sarif_dir_change: {error}"))?;
+    linker
+        .func_wrap("env", "__sarif_process_id", || -> i32 { 0 })
+        .map_err(|error| format!("failed to link env __sarif_process_id: {error}"))?;
+    linker
+        .func_wrap("env", "__sarif_clock_sleep", |_ms: i32| {})
+        .map_err(|error| format!("failed to link env __sarif_clock_sleep: {error}"))?;
+    Ok(())
+}
+
+#[cfg(feature = "wasm")]
+fn link_wasi(linker: &mut Linker<()>) -> Result<(), String> {
+    linker
+        .func_wrap("wasi_snapshot_preview1", "proc_exit", |code: i32| -> () {
+            std::process::exit(code);
+        })
+        .map_err(|error| format!("failed to link WASI proc_exit: {error}"))?;
+    linker
+        .func_wrap(
+            "wasi_snapshot_preview1",
+            "clock_time_get",
+            |_clock_id: i32, _precision: i64, _result_ptr: i32| -> i32 { 0 },
+        )
+        .map_err(|error| format!("failed to link WASI clock_time_get: {error}"))?;
     Ok(())
 }
 
@@ -149,6 +243,7 @@ fn run_wasm_main_with_stdin(path: &std::path::Path, stdin: &[u8]) -> Result<i64,
     let mut store = Store::new(&engine, ());
     let mut linker = Linker::new(&engine);
     link_fd_write(&mut linker).map_err(|e| format!("failed to link fd_write: {e}"))?;
+    link_wasi(&mut linker).map_err(|e| format!("failed to link WASI: {e}"))?;
     link_env(&mut linker, stdin).map_err(|e| format!("failed to link env: {e}"))?;
     let instance = linker
         .instantiate(&mut store, &module)
@@ -444,6 +539,109 @@ fn run_executes_stdout_write_consistently() {
 
     assert!(output.status.success(), "stdout_write run should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "sarif");
+}
+
+#[test]
+fn run_executes_env_get_set_remove() {
+    let path = temp_source(
+        "fn main() -> I32 effects [SystemEnv] {\n\
+         let ok = perform SystemEnv.set(\"SARIF_TEST_KEY\", \"hello\");\n\
+         let val = perform SystemEnv.get(\"SARIF_TEST_KEY\");\n\
+         if val == \"hello\" { 0 } else { 1 }\n\
+         }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "env get/set run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "0");
+
+    let path2 = temp_source(
+        "fn main() -> I32 effects [SystemEnv] {\n\
+         let ok = perform SystemEnv.set(\"SARIF_TEST_KEY2\", \"world\");\n\
+         let ok2 = perform SystemEnv.remove(\"SARIF_TEST_KEY2\");\n\
+         let val = perform SystemEnv.get(\"SARIF_TEST_KEY2\");\n\
+         if val == \"\" { 0 } else { 1 }\n\
+         }",
+    );
+    let output2 = run_sarif(&["run", path2.to_str().expect("utf-8 path")]);
+    assert!(output2.status.success(), "env remove run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output2.stdout).trim(), "0");
+}
+
+#[test]
+fn run_executes_env_keys() {
+    let path = temp_source(
+        "fn main() -> I32 effects [SystemEnv] {\n\
+         let ok = perform SystemEnv.set(\"SARIF_KEYS_A\", \"1\");\n\
+         let ok2 = perform SystemEnv.set(\"SARIF_KEYS_B\", \"2\");\n\
+         let keys = perform SystemEnv.keys();\n\
+         if keys != \"\" { 0 } else { 1 }\n\
+         }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "env keys run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "0");
+}
+
+#[test]
+fn run_executes_dir_create_exists_remove() {
+    let dir = std::env::temp_dir().join("sarif_test_dir_create");
+    let _ = std::fs::remove_dir(&dir);
+    let dir_str = dir.to_str().expect("utf-8 path");
+    let source = format!(
+        "fn main() -> I32 effects [SystemDir] {{\n\
+          let created = perform SystemDir.create(\"{dir_str}\");\n\
+          let exists = perform SystemDir.exists(\"{dir_str}\");\n\
+          let removed = perform SystemDir.remove(\"{dir_str}\");\n\
+          let exists2 = perform SystemDir.exists(\"{dir_str}\");\n\
+          if created == true {{ if exists == true {{ if removed == true {{ if exists2 == false {{ 0 }} else {{ 4 }} }} else {{ 3 }} }} else {{ 2 }} }} else {{ 1 }}\n\
+        }}",
+    );
+    let path = temp_source(&source);
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(
+        output.status.success(),
+        "dir create/exists/remove run should succeed"
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "0");
+}
+
+#[test]
+fn run_executes_dir_current() {
+    let path = temp_source(
+        "fn main() -> I32 effects [SystemDir] {\n\
+         let cwd = perform SystemDir.current();\n\
+         if cwd != \"\" { 0 } else { 1 }\n\
+         }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "dir current run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "0");
+}
+
+#[test]
+fn run_executes_process_id() {
+    let path = temp_source(
+        "fn main() -> I32 effects [SystemProcess] {\n\
+         let pid = perform SystemProcess.id();\n\
+         if pid > 0 { 0 } else { 1 }\n\
+         }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "process id run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "0");
+}
+
+#[test]
+fn run_executes_clock_now() {
+    let path = temp_source(
+        "fn main() -> I32 effects [SystemClock] {\n\
+         let t = perform SystemClock.now();\n\
+         if t > 0.0 { 0 } else { 1 }\n\
+         }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "clock now run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "0");
 }
 
 #[test]

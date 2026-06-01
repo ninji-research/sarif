@@ -1346,6 +1346,185 @@ pub unsafe extern "C" fn sarif_file_is_valid(handle: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_env_get(key: i64) -> i64 {
+    unsafe {
+        let Some(key_str) = text_to_str(key) else {
+            return EMPTY_TEXT.as_ptr() as i64;
+        };
+        match std::env::var(key_str.as_str()) {
+            Ok(val) => {
+                let val_bytes = val.as_bytes();
+                let result = alloc_text(val_bytes.len() as u64);
+                std::ptr::copy_nonoverlapping(
+                    val_bytes.as_ptr(),
+                    text_data_mut(result),
+                    val_bytes.len(),
+                );
+                result
+            }
+            Err(_) => EMPTY_TEXT.as_ptr() as i64,
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_env_set(key: i64, value: i64) -> i64 {
+    unsafe {
+        let Some(key_str) = text_to_str(key) else {
+            return 0;
+        };
+        let Some(val_str) = text_to_str(value) else {
+            return 0;
+        };
+        std::env::set_var(key_str.as_str(), val_str.as_str());
+        1
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_env_remove(key: i64) -> i64 {
+    unsafe {
+        let Some(key_str) = text_to_str(key) else {
+            return 0;
+        };
+        std::env::remove_var(key_str.as_str());
+        1
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_env_keys() -> i64 {
+    unsafe {
+        let keys: Vec<String> = std::env::vars().map(|(k, _)| k).collect();
+        let joined = keys.join("\n");
+        let bytes = joined.as_bytes();
+        let result = alloc_text(bytes.len() as u64);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), text_data_mut(result), bytes.len());
+        result
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_dir_create(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        if std::fs::create_dir_all(&path_str).is_ok() {
+            1
+        } else {
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_dir_remove(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        if std::fs::remove_dir_all(&path_str).is_ok() {
+            1
+        } else {
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_dir_list(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else {
+            return EMPTY_TEXT.as_ptr() as i64;
+        };
+        let entries = match std::fs::read_dir(&path_str) {
+            Ok(rd) => rd,
+            Err(_) => return EMPTY_TEXT.as_ptr() as i64,
+        };
+        let names: Vec<String> = entries
+            .filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().into_string().ok())
+            .collect();
+        let joined = names.join("\n");
+        let bytes = joined.as_bytes();
+        let result = alloc_text(bytes.len() as u64);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), text_data_mut(result), bytes.len());
+        result
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_dir_exists(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        if std::path::Path::new(&path_str).is_dir() {
+            1
+        } else {
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_dir_current() -> i64 {
+    unsafe {
+        match std::env::current_dir() {
+            Ok(cwd) => {
+                let Some(cwd_str) = cwd.to_str() else {
+                    return EMPTY_TEXT.as_ptr() as i64;
+                };
+                let bytes = cwd_str.as_bytes();
+                let result = alloc_text(bytes.len() as u64);
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), text_data_mut(result), bytes.len());
+                result
+            }
+            Err(_) => EMPTY_TEXT.as_ptr() as i64,
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_dir_change(path: i64) -> i64 {
+    unsafe {
+        let Some(path_str) = text_to_str(path) else {
+            return 0;
+        };
+        if std::env::set_current_dir(&path_str).is_ok() {
+            1
+        } else {
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_process_exit(code: i64) {
+    std::process::exit(code as i32);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_process_id() -> i64 {
+    std::process::id() as i64
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_clock_now() -> f64 {
+    use std::time::SystemTime;
+    let duration = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default();
+    duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 1e9
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_clock_sleep(ms: i64) {
+    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_bytes_to_text(bytes: i64) -> i64 {
     unsafe {
         if bytes == 0 {
@@ -1532,6 +1711,20 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
         ("sarif_file_exists", sarif_file_exists as *const u8),
         ("sarif_file_remove", sarif_file_remove as *const u8),
         ("sarif_file_is_valid", sarif_file_is_valid as *const u8),
+        ("sarif_env_get", sarif_env_get as *const u8),
+        ("sarif_env_set", sarif_env_set as *const u8),
+        ("sarif_env_remove", sarif_env_remove as *const u8),
+        ("sarif_env_keys", sarif_env_keys as *const u8),
+        ("sarif_dir_create", sarif_dir_create as *const u8),
+        ("sarif_dir_remove", sarif_dir_remove as *const u8),
+        ("sarif_dir_list", sarif_dir_list as *const u8),
+        ("sarif_dir_exists", sarif_dir_exists as *const u8),
+        ("sarif_dir_current", sarif_dir_current as *const u8),
+        ("sarif_dir_change", sarif_dir_change as *const u8),
+        ("sarif_process_exit", sarif_process_exit as *const u8),
+        ("sarif_process_id", sarif_process_id as *const u8),
+        ("sarif_clock_now", sarif_clock_now as *const u8),
+        ("sarif_clock_sleep", sarif_clock_sleep as *const u8),
         ("sarif_bytes_to_text", sarif_bytes_to_text as *const u8),
         (
             "sarif_text_data_for_insts",

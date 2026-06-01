@@ -89,6 +89,8 @@ pub fn run_function_wasm(
     let mut store = Store::new(&engine, ());
     let mut linker = Linker::new(&engine);
     link_fd_write(&mut linker)?;
+    link_proc_exit(&mut linker)?;
+    link_clock_time_get(&mut linker)?;
     link_env(&mut linker, &[])?;
     let instance = linker
         .instantiate(&mut store, &module)
@@ -140,6 +142,73 @@ pub fn run_function_wasm(
         &emitter.enums,
         &interpreter_result,
     )
+}
+
+fn read_cstring_from_memory(data: &[u8], offset: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    let mut i = offset;
+    while i < data.len() && data[i] != 0 {
+        bytes.push(data[i]);
+        i += 1;
+    }
+    bytes
+}
+
+fn allocate_in_memory<T: wasmtime::AsContextMut>(
+    memory: &Memory,
+    store: &mut T,
+    len: usize,
+) -> i32 {
+    let data_len = memory.data_size(&store);
+    let ptr = data_len as i32;
+    if len == 0 {
+        return ptr;
+    }
+    let grow = ((len as u64) + 65535) / 65536;
+    if memory.grow(store, grow).is_err() {
+        return -1;
+    }
+    ptr
+}
+
+fn link_proc_exit(linker: &mut Linker<()>) -> Result<(), WasmError> {
+    linker
+        .func_wrap("wasi_snapshot_preview1", "proc_exit", |_code: i32| -> () {
+            std::process::exit(_code);
+        })
+        .map_err(|error| WasmError::new(format!("failed to link WASI proc_exit: {error}")))?;
+    Ok(())
+}
+
+fn link_clock_time_get(linker: &mut Linker<()>) -> Result<(), WasmError> {
+    linker
+        .func_wrap(
+            "wasi_snapshot_preview1",
+            "clock_time_get",
+            |mut caller: Caller<'_, ()>, _clock_id: i32, _precision: i64, result_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return -1;
+                };
+                let nanos = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                {
+                    Ok(d) => d.as_nanos() as i64,
+                    Err(_) => 0,
+                };
+                if result_ptr < 0 {
+                    return -1;
+                }
+                let bytes = nanos.to_le_bytes();
+                if memory
+                    .write(&mut caller, result_ptr as usize, &bytes)
+                    .is_err()
+                {
+                    return -1;
+                }
+                0
+            },
+        )
+        .map_err(|error| WasmError::new(format!("failed to link WASI clock_time_get: {error}")))?;
+    Ok(())
 }
 
 fn link_fd_write(linker: &mut Linker<()>) -> Result<(), WasmError> {
@@ -259,6 +328,313 @@ fn link_env(linker: &mut Linker<()>, args: &[String]) -> Result<(), WasmError> {
         .map_err(|error| {
             WasmError::new(format!("failed to link env __host_stdin_read: {error}"))
         })?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_get",
+            |mut caller: Caller<'_, ()>, key_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if key_ptr < 0 {
+                    return 0;
+                }
+                let key_bytes = read_cstring_from_memory(data, key_ptr as usize);
+                let key = match String::from_utf8(key_bytes) {
+                    Ok(k) => k,
+                    Err(_) => return 0,
+                };
+                let value = match std::env::var(&key) {
+                    Ok(v) => v,
+                    Err(_) => return 0,
+                };
+                let value_bytes = value.as_bytes();
+                let buf_ptr = allocate_in_memory(&memory, &mut caller, value_bytes.len());
+                if buf_ptr < 0 {
+                    return 0;
+                }
+                if memory
+                    .write(&mut caller, buf_ptr as usize, value_bytes)
+                    .is_err()
+                {
+                    return 0;
+                }
+                buf_ptr
+            },
+        )
+        .map_err(|error| WasmError::new(format!("failed to link env __sarif_env_get: {error}")))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_set",
+            |mut caller: Caller<'_, ()>, key_ptr: i32, value_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if key_ptr < 0 || value_ptr < 0 {
+                    return 0;
+                }
+                let key_bytes = read_cstring_from_memory(data, key_ptr as usize);
+                let value_bytes = read_cstring_from_memory(data, value_ptr as usize);
+                let key = match String::from_utf8(key_bytes) {
+                    Ok(k) => k,
+                    Err(_) => return 0,
+                };
+                let value = match String::from_utf8(value_bytes) {
+                    Ok(v) => v,
+                    Err(_) => return 0,
+                };
+                unsafe {
+                    std::env::set_var(&key, &value);
+                }
+                1
+            },
+        )
+        .map_err(|error| WasmError::new(format!("failed to link env __sarif_env_set: {error}")))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_remove",
+            |mut caller: Caller<'_, ()>, key_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if key_ptr < 0 {
+                    return 0;
+                }
+                let key_bytes = read_cstring_from_memory(data, key_ptr as usize);
+                let key = match String::from_utf8(key_bytes) {
+                    Ok(k) => k,
+                    Err(_) => return 0,
+                };
+                unsafe {
+                    std::env::remove_var(&key);
+                }
+                1
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_env_remove: {error}"))
+        })?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_env_keys",
+            |mut caller: Caller<'_, ()>| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let keys: String = std::env::vars()
+                    .map(|(k, _)| k)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let bytes = keys.as_bytes();
+                let buf_ptr = allocate_in_memory(&memory, &mut caller, bytes.len());
+                if buf_ptr < 0 {
+                    return 0;
+                }
+                if memory.write(&mut caller, buf_ptr as usize, bytes).is_err() {
+                    return 0;
+                }
+                buf_ptr
+            },
+        )
+        .map_err(|error| WasmError::new(format!("failed to link env __sarif_env_keys: {error}")))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_create",
+            |mut caller: Caller<'_, ()>, path_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if path_ptr < 0 {
+                    return 0;
+                }
+                let path_bytes = read_cstring_from_memory(data, path_ptr as usize);
+                let path = match String::from_utf8(path_bytes) {
+                    Ok(p) => p,
+                    Err(_) => return 0,
+                };
+                if std::fs::create_dir(&path).is_err() {
+                    0
+                } else {
+                    1
+                }
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_dir_create: {error}"))
+        })?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_remove",
+            |mut caller: Caller<'_, ()>, path_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if path_ptr < 0 {
+                    return 0;
+                }
+                let path_bytes = read_cstring_from_memory(data, path_ptr as usize);
+                let path = match String::from_utf8(path_bytes) {
+                    Ok(p) => p,
+                    Err(_) => return 0,
+                };
+                if std::fs::remove_dir(&path).is_err() {
+                    0
+                } else {
+                    1
+                }
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_dir_remove: {error}"))
+        })?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_list",
+            |mut caller: Caller<'_, ()>, path_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if path_ptr < 0 {
+                    return 0;
+                }
+                let path_bytes = read_cstring_from_memory(data, path_ptr as usize);
+                let path = match String::from_utf8(path_bytes) {
+                    Ok(p) => p,
+                    Err(_) => return 0,
+                };
+                let entries = match std::fs::read_dir(&path) {
+                    Ok(rd) => rd,
+                    Err(_) => return 0,
+                };
+                let names: String = entries
+                    .filter_map(|e| e.ok())
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let bytes = names.as_bytes();
+                let buf_ptr = allocate_in_memory(&memory, &mut caller, bytes.len());
+                if buf_ptr < 0 {
+                    return 0;
+                }
+                if memory.write(&mut caller, buf_ptr as usize, bytes).is_err() {
+                    return 0;
+                }
+                buf_ptr
+            },
+        )
+        .map_err(|error| WasmError::new(format!("failed to link env __sarif_dir_list: {error}")))?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_exists",
+            |mut caller: Caller<'_, ()>, path_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if path_ptr < 0 {
+                    return 0;
+                }
+                let path_bytes = read_cstring_from_memory(data, path_ptr as usize);
+                let path = match String::from_utf8(path_bytes) {
+                    Ok(p) => p,
+                    Err(_) => return 0,
+                };
+                if std::path::Path::new(&path).is_dir() {
+                    1
+                } else {
+                    0
+                }
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_dir_exists: {error}"))
+        })?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_current",
+            |mut caller: Caller<'_, ()>| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let cwd = match std::env::current_dir() {
+                    Ok(d) => d,
+                    Err(_) => return 0,
+                };
+                let cwd_str = match cwd.to_str() {
+                    Some(s) => s.to_owned(),
+                    None => return 0,
+                };
+                let bytes = cwd_str.as_bytes();
+                let buf_ptr = allocate_in_memory(&memory, &mut caller, bytes.len());
+                if buf_ptr < 0 {
+                    return 0;
+                }
+                if memory.write(&mut caller, buf_ptr as usize, bytes).is_err() {
+                    return 0;
+                }
+                buf_ptr
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_dir_current: {error}"))
+        })?;
+    linker
+        .func_wrap(
+            "env",
+            "__sarif_dir_change",
+            |mut caller: Caller<'_, ()>, path_ptr: i32| -> i32 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let data = memory.data(&caller);
+                if path_ptr < 0 {
+                    return 0;
+                }
+                let path_bytes = read_cstring_from_memory(data, path_ptr as usize);
+                let path = match String::from_utf8(path_bytes) {
+                    Ok(p) => p,
+                    Err(_) => return 0,
+                };
+                if std::env::set_current_dir(&path).is_err() {
+                    0
+                } else {
+                    1
+                }
+            },
+        )
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_dir_change: {error}"))
+        })?;
+    linker
+        .func_wrap("env", "__sarif_process_id", || -> i32 {
+            std::process::id() as i32
+        })
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_process_id: {error}"))
+        })?;
+    linker
+        .func_wrap("env", "__sarif_clock_sleep", |ms: i32| {
+            if ms > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+            }
+        })
+        .map_err(|error| {
+            WasmError::new(format!("failed to link env __sarif_clock_sleep: {error}"))
+        })?;
     Ok(())
 }
 
@@ -269,6 +645,8 @@ fn instantiate_wasm_module(wasm: &[u8]) -> Result<(Store<()>, Instance), WasmErr
     let mut store = Store::new(&engine, ());
     let mut linker = Linker::new(&engine);
     link_fd_write(&mut linker)?;
+    link_proc_exit(&mut linker)?;
+    link_clock_time_get(&mut linker)?;
     link_env(&mut linker, &[])?;
     let instance = linker
         .instantiate(&mut store, &module)
@@ -287,6 +665,8 @@ fn instantiate_wasm_module_with_args(
     let mut store = Store::new(&engine, ());
     let mut linker = Linker::new(&engine);
     link_fd_write(&mut linker)?;
+    link_proc_exit(&mut linker)?;
+    link_clock_time_get(&mut linker)?;
     link_env(&mut linker, args)?;
     let instance = linker
         .instantiate(&mut store, &module)
@@ -486,8 +866,9 @@ mod tests {
 
     use super::super::memory::{read_text_from_memory, unpack_text_value};
     use super::{
-        call_main_i64, instantiate_wasm_module, instantiate_wasm_module_with_args, link_env,
-        link_fd_write, run_function_wasm, run_main_wasm,
+        call_main_i64, instantiate_wasm_module, instantiate_wasm_module_with_args,
+        link_clock_time_get, link_env, link_fd_write, link_proc_exit, run_function_wasm,
+        run_main_wasm,
     };
     use crate::{RuntimeValue, emit_wasm, lower};
     use wasmtime::{Engine, Linker, Module, Store};
@@ -676,6 +1057,8 @@ mod tests {
         let mut store = Store::new(&engine, ());
         let mut linker = Linker::new(&engine);
         link_fd_write(&mut linker).expect("fd_write should link");
+        link_proc_exit(&mut linker).expect("proc_exit should link");
+        link_clock_time_get(&mut linker).expect("clock_time_get should link");
         link_env(&mut linker, &[]).expect("env should link");
         let instance = linker
             .instantiate(&mut store, &module)

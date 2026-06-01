@@ -587,6 +587,57 @@ pub enum Inst {
         dest: ValueId,
         path: ValueId,
     },
+    EnvGet {
+        dest: ValueId,
+        key: ValueId,
+    },
+    EnvSet {
+        dest: ValueId,
+        key: ValueId,
+        value: ValueId,
+    },
+    EnvRemove {
+        dest: ValueId,
+        key: ValueId,
+    },
+    EnvKeys {
+        dest: ValueId,
+    },
+    DirCreate {
+        dest: ValueId,
+        path: ValueId,
+    },
+    DirRemove {
+        dest: ValueId,
+        path: ValueId,
+    },
+    DirList {
+        dest: ValueId,
+        path: ValueId,
+    },
+    DirExists {
+        dest: ValueId,
+        path: ValueId,
+    },
+    DirCurrent {
+        dest: ValueId,
+    },
+    DirChange {
+        dest: ValueId,
+        path: ValueId,
+    },
+    ProcessExit {
+        code: ValueId,
+    },
+    ProcessId {
+        dest: ValueId,
+    },
+    ClockNow {
+        dest: ValueId,
+    },
+    ClockSleep {
+        ms: ValueId,
+    },
     ArgCount {
         dest: ValueId,
     },
@@ -1221,6 +1272,41 @@ impl Inst {
             Self::FileRemove { dest, path } => {
                 format!("{} = file-remove {}", dest.render(), path.render())
             }
+            Self::EnvGet { dest, key } => {
+                format!("{} = env-get {}", dest.render(), key.render())
+            }
+            Self::EnvSet { dest, key, value } => {
+                format!(
+                    "{} = env-set {} {}",
+                    dest.render(),
+                    key.render(),
+                    value.render()
+                )
+            }
+            Self::EnvRemove { dest, key } => {
+                format!("{} = env-remove {}", dest.render(), key.render())
+            }
+            Self::EnvKeys { dest } => format!("{} = env-keys", dest.render()),
+            Self::DirCreate { dest, path } => {
+                format!("{} = dir-create {}", dest.render(), path.render())
+            }
+            Self::DirRemove { dest, path } => {
+                format!("{} = dir-remove {}", dest.render(), path.render())
+            }
+            Self::DirList { dest, path } => {
+                format!("{} = dir-list {}", dest.render(), path.render())
+            }
+            Self::DirExists { dest, path } => {
+                format!("{} = dir-exists {}", dest.render(), path.render())
+            }
+            Self::DirCurrent { dest } => format!("{} = dir-current", dest.render()),
+            Self::DirChange { dest, path } => {
+                format!("{} = dir-change {}", dest.render(), path.render())
+            }
+            Self::ProcessExit { code } => format!("process-exit {}", code.render()),
+            Self::ProcessId { dest } => format!("{} = process-id", dest.render()),
+            Self::ClockNow { dest } => format!("{} = clock-now", dest.render()),
+            Self::ClockSleep { ms } => format!("clock-sleep {}", ms.render()),
             Self::ArgCount { dest } => format!("{} = arg-count", dest.render()),
             Self::AllocPush => "alloc-push".to_owned(),
             Self::AllocPop => "alloc-pop".to_owned(),
@@ -3529,7 +3615,21 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::FileSeek { .. }
             | Inst::FileSize { .. }
             | Inst::FileExists { .. }
-            | Inst::FileRemove { .. } => {}
+            | Inst::FileRemove { .. }
+            | Inst::EnvGet { .. }
+            | Inst::EnvSet { .. }
+            | Inst::EnvRemove { .. }
+            | Inst::EnvKeys { .. }
+            | Inst::DirCreate { .. }
+            | Inst::DirRemove { .. }
+            | Inst::DirList { .. }
+            | Inst::DirExists { .. }
+            | Inst::DirCurrent { .. }
+            | Inst::DirChange { .. }
+            | Inst::ProcessExit { .. }
+            | Inst::ProcessId { .. }
+            | Inst::ClockNow { .. }
+            | Inst::ClockSleep { .. } => {}
         }
     }
     true
@@ -4063,6 +4163,85 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let dest = self.fresh_value();
                 self.instructions.push(Inst::FileIsValid { dest, handle });
                 dest
+            }
+            ("SystemEnv", "get") => {
+                let key = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::EnvGet { dest, key });
+                dest
+            }
+            ("SystemEnv", "set") => {
+                let key = *args.first()?;
+                let value = *args.get(1)?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::EnvSet { dest, key, value });
+                dest
+            }
+            ("SystemEnv", "remove") => {
+                let key = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::EnvRemove { dest, key });
+                dest
+            }
+            ("SystemEnv", "keys") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::EnvKeys { dest });
+                dest
+            }
+            ("SystemDir", "create") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::DirCreate { dest, path });
+                dest
+            }
+            ("SystemDir", "remove") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::DirRemove { dest, path });
+                dest
+            }
+            ("SystemDir", "list") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::DirList { dest, path });
+                dest
+            }
+            ("SystemDir", "exists") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::DirExists { dest, path });
+                dest
+            }
+            ("SystemDir", "current") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::DirCurrent { dest });
+                dest
+            }
+            ("SystemDir", "change") => {
+                let path = *args.first()?;
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::DirChange { dest, path });
+                dest
+            }
+            ("SystemProcess", "exit") => {
+                let code = *args.first()?;
+                self.instructions.push(Inst::ProcessExit { code });
+                self.emit_unit_value()
+            }
+            ("SystemProcess", "id") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ProcessId { dest });
+                dest
+            }
+            ("SystemClock", "now") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ClockNow { dest });
+                dest
+            }
+            ("SystemClock", "sleep") => {
+                let ms = *args.first()?;
+                self.instructions.push(Inst::ClockSleep { ms });
+                self.emit_unit_value()
             }
             _ => return None,
         })
@@ -9667,6 +9846,121 @@ impl<'a> Interpreter<'a> {
                     };
                     let success = std::fs::remove_file(&path).is_ok();
                     values[dest.0 as usize] = RuntimeValue::Bool(success);
+                }
+                Inst::EnvGet { dest, key } => {
+                    let key_val = extract_value(values, *key)?;
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let value = std::env::var(&key).unwrap_or_default();
+                    values[dest.0 as usize] = RuntimeValue::Text(value);
+                }
+                Inst::EnvSet { dest, key, value } => {
+                    let key_val = extract_value(values, *key)?;
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::Text(val) = value_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    unsafe {
+                        std::env::set_var(&key, &val);
+                    }
+                    values[dest.0 as usize] = RuntimeValue::Bool(true);
+                }
+                Inst::EnvRemove { dest, key } => {
+                    let key_val = extract_value(values, *key)?;
+                    let RuntimeValue::Text(key) = key_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    unsafe {
+                        std::env::remove_var(&key);
+                    }
+                    values[dest.0 as usize] = RuntimeValue::Bool(true);
+                }
+                Inst::EnvKeys { dest } => {
+                    let keys: String = std::env::vars()
+                        .map(|(k, _)| k)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    values[dest.0 as usize] = RuntimeValue::Text(keys);
+                }
+                Inst::DirCreate { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let success = std::fs::create_dir_all(&path).is_ok();
+                    values[dest.0 as usize] = RuntimeValue::Bool(success);
+                }
+                Inst::DirRemove { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let success = std::fs::remove_dir_all(&path).is_ok();
+                    values[dest.0 as usize] = RuntimeValue::Bool(success);
+                }
+                Inst::DirList { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let names: String = std::fs::read_dir(&path)
+                        .map(|dir| {
+                            dir.filter_map(|e| e.ok())
+                                .filter_map(|e| e.file_name().into_string().ok())
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        })
+                        .unwrap_or_default();
+                    values[dest.0 as usize] = RuntimeValue::Text(names);
+                }
+                Inst::DirExists { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Bool(Path::new(&path).is_dir());
+                }
+                Inst::DirCurrent { dest } => {
+                    let current = std::env::current_dir()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    values[dest.0 as usize] = RuntimeValue::Text(current);
+                }
+                Inst::DirChange { dest, path } => {
+                    let path_val = extract_value(values, *path)?;
+                    let RuntimeValue::Text(path) = path_val else {
+                        return Err(RuntimeError::new("expected Text"));
+                    };
+                    let success = std::env::set_current_dir(&path).is_ok();
+                    values[dest.0 as usize] = RuntimeValue::Bool(success);
+                }
+                Inst::ProcessExit { code } => {
+                    let code_val = extract_value(values, *code)?;
+                    let RuntimeValue::Int(code) = code_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    std::process::exit(code as i32);
+                }
+                Inst::ProcessId { dest } => {
+                    values[dest.0 as usize] = RuntimeValue::Int(std::process::id() as i64);
+                }
+                Inst::ClockNow { dest } => {
+                    let duration = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default();
+                    let secs = duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 1e9;
+                    values[dest.0 as usize] = RuntimeValue::F64(secs);
+                }
+                Inst::ClockSleep { ms } => {
+                    let ms_val = extract_value(values, *ms)?;
+                    let RuntimeValue::Int(ms) = ms_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
                 }
                 Inst::Sqrt { dest, value } => {
                     let value = extract_value(values, *value)?;

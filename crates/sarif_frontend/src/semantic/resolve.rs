@@ -39,6 +39,10 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
         "Unit".to_owned(),
         "SystemIO".to_owned(),
         "SystemFile".to_owned(),
+        "SystemEnv".to_owned(),
+        "SystemDir".to_owned(),
+        "SystemProcess".to_owned(),
+        "SystemClock".to_owned(),
     ]);
 
     for item in &module.items {
@@ -184,7 +188,13 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                             effects.push(effect.clone());
                         }
                         EffectRef::Unknown { name, span } => {
-                            if name == "SystemIO" || name == "SystemFile" {
+                            if name == "SystemIO"
+                                || name == "SystemFile"
+                                || name == "SystemEnv"
+                                || name == "SystemDir"
+                                || name == "SystemProcess"
+                                || name == "SystemClock"
+                            {
                                 effects.push(crate::hir::Effect::User(name.clone()));
                             } else {
                                 let suggestion = best_match(
@@ -199,6 +209,10 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                                         "nondet",
                                         "SystemIO",
                                         "SystemFile",
+                                        "SystemEnv",
+                                        "SystemDir",
+                                        "SystemProcess",
+                                        "SystemClock",
                                     ]
                                     .into_iter(),
                                 );

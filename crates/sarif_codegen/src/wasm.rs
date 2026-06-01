@@ -571,7 +571,19 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::F64FromI32 { dest, .. }
                 | Inst::Sqrt { dest, .. }
                 | Inst::Perform { dest, .. }
-                | Inst::Handle { dest, .. } => {
+                | Inst::Handle { dest, .. }
+                | Inst::EnvGet { dest, .. }
+                | Inst::EnvSet { dest, .. }
+                | Inst::EnvRemove { dest, .. }
+                | Inst::EnvKeys { dest }
+                | Inst::DirCreate { dest, .. }
+                | Inst::DirRemove { dest, .. }
+                | Inst::DirList { dest, .. }
+                | Inst::DirExists { dest, .. }
+                | Inst::DirCurrent { dest }
+                | Inst::DirChange { dest, .. }
+                | Inst::ProcessId { dest }
+                | Inst::ClockNow { dest } => {
                     locals.insert(*dest, kinds[dest].clone());
                 }
                 Inst::Call { dest, .. } => {
@@ -619,7 +631,9 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::FileSeek { .. }
                 | Inst::FileSize { .. }
                 | Inst::FileExists { .. }
-                | Inst::FileRemove { .. } => {}
+                | Inst::FileRemove { .. }
+                | Inst::ProcessExit { .. }
+                | Inst::ClockSleep { .. } => {}
             }
         }
         Ok(locals)
@@ -1565,6 +1579,130 @@ impl<'a> WasmEmitter<'a> {
                 writeln!(output, "    local.set ${}", wasm_id(*dest))
                     .expect("writing to a string cannot fail");
             }
+            Inst::EnvGet { dest, key } => {
+                writeln!(output, " local.get ${}", wasm_id(*key))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_env_get")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::EnvSet { dest, key, value } => {
+                writeln!(output, " local.get ${}", wasm_id(*key))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " local.get ${}", wasm_id(*value))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_env_set")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::EnvRemove { dest, key } => {
+                writeln!(output, " local.get ${}", wasm_id(*key))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_env_remove")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::EnvKeys { dest } => {
+                writeln!(output, " call $__sarif_env_keys")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::DirCreate { dest, path } => {
+                writeln!(output, " local.get ${}", wasm_id(*path))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_dir_create")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::DirRemove { dest, path } => {
+                writeln!(output, " local.get ${}", wasm_id(*path))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_dir_remove")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::DirList { dest, path } => {
+                writeln!(output, " local.get ${}", wasm_id(*path))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_dir_list")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::DirExists { dest, path } => {
+                writeln!(output, " local.get ${}", wasm_id(*path))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_dir_exists")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::DirCurrent { dest } => {
+                writeln!(output, " call $__sarif_dir_current")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::DirChange { dest, path } => {
+                writeln!(output, " local.get ${}", wasm_id(*path))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_dir_change")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ProcessExit { code } => {
+                writeln!(output, " local.get ${}", wasm_id(*code))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i32.wrap_i64").expect("writing to a string cannot fail");
+                writeln!(output, " call $proc_exit").expect("writing to a string cannot fail");
+                writeln!(output, " unreachable").expect("writing to a string cannot fail");
+            }
+            Inst::ProcessId { dest } => {
+                writeln!(output, " call $__sarif_process_id")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i64.extend_i32_u").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ClockNow { dest } => {
+                writeln!(output, " i32.const 0").expect("writing to a string cannot fail");
+                writeln!(output, " i64.const 0").expect("writing to a string cannot fail");
+                writeln!(output, " i32.const 0").expect("writing to a string cannot fail");
+                writeln!(output, " call $__wasi_clock_time_get")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " drop").expect("writing to a string cannot fail");
+                writeln!(output, " i64.const 0").expect("writing to a string cannot fail");
+                writeln!(output, " i64.load").expect("writing to a string cannot fail");
+                writeln!(output, " f64.convert_i64_s").expect("writing to a string cannot fail");
+                writeln!(output, " f64.const 1e-9").expect("writing to a string cannot fail");
+                writeln!(output, " f64.mul").expect("writing to a string cannot fail");
+                writeln!(output, " local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ClockSleep { ms } => {
+                writeln!(output, " local.get ${}", wasm_id(*ms))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, " i32.wrap_i64").expect("writing to a string cannot fail");
+                writeln!(output, " call $__sarif_clock_sleep")
+                    .expect("writing to a string cannot fail");
+            }
             Inst::FileOpen { .. } => {
                 return Err(WasmError::new("wasm backend does not support file open"));
             }
@@ -1932,13 +2070,21 @@ fn collect_inst_kinds(
             | Inst::ArgCount { dest, .. }
             | Inst::ListLen { dest, .. }
             | Inst::ParseI32 { dest, .. }
-            | Inst::ParseI32Range { dest, .. } => {
+            | Inst::ParseI32Range { dest, .. }
+            | Inst::EnvSet { dest, .. }
+            | Inst::EnvRemove { dest, .. }
+            | Inst::DirCreate { dest, .. }
+            | Inst::DirRemove { dest, .. }
+            | Inst::DirExists { dest, .. }
+            | Inst::DirChange { dest, .. }
+            | Inst::ProcessId { dest } => {
                 kinds.insert(*dest, WasmValueKind::I32);
             }
             Inst::ConstF64 { dest, .. }
             | Inst::ParseF64 { dest, .. }
             | Inst::F64FromI32 { dest, .. }
-            | Inst::Sqrt { dest, .. } => {
+            | Inst::Sqrt { dest, .. }
+            | Inst::ClockNow { dest } => {
                 kinds.insert(*dest, WasmValueKind::F64);
             }
             Inst::ListGet { dest, list, .. } => {
@@ -1961,7 +2107,11 @@ fn collect_inst_kinds(
             | Inst::TextSlice { dest, .. }
             | Inst::TextFromF64Fixed { dest, .. }
             | Inst::ArgText { dest, .. }
-            | Inst::StdinText { dest } => {
+            | Inst::StdinText { dest }
+            | Inst::EnvGet { dest, .. }
+            | Inst::EnvKeys { dest }
+            | Inst::DirList { dest, .. }
+            | Inst::DirCurrent { dest } => {
                 kinds.insert(*dest, WasmValueKind::Text);
             }
             Inst::BytesSlice { dest, .. } => {
@@ -2204,7 +2354,9 @@ fn collect_inst_kinds(
             | Inst::FileSeek { .. }
             | Inst::FileSize { .. }
             | Inst::FileExists { .. }
-            | Inst::FileRemove { .. } => {}
+            | Inst::FileRemove { .. }
+            | Inst::ProcessExit { .. }
+            | Inst::ClockSleep { .. } => {}
         }
     }
     Ok(())

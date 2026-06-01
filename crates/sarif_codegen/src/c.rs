@@ -415,6 +415,19 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::Assert { .. } => None,
         Inst::Handle { dest, .. } => Some(*dest),
         Inst::Perform { dest, .. } => Some(*dest),
+        Inst::EnvGet { dest, .. } => Some(*dest),
+        Inst::EnvSet { dest, .. } => Some(*dest),
+        Inst::EnvRemove { dest, .. } => Some(*dest),
+        Inst::EnvKeys { dest } => Some(*dest),
+        Inst::DirCreate { dest, .. } => Some(*dest),
+        Inst::DirRemove { dest, .. } => Some(*dest),
+        Inst::DirList { dest, .. } => Some(*dest),
+        Inst::DirExists { dest, .. } => Some(*dest),
+        Inst::DirCurrent { dest } => Some(*dest),
+        Inst::DirChange { dest, .. } => Some(*dest),
+        Inst::ProcessId { dest } => Some(*dest),
+        Inst::ClockNow { dest } => Some(*dest),
+        Inst::ProcessExit { .. } | Inst::ClockSleep { .. } => None,
     }
 }
 
@@ -1565,6 +1578,81 @@ fn emit_inst(
                 dest.0, effect, operation, a0, a1, a2, a3, nargs
             ))?;
         }
+        Inst::EnvGet { dest, key } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_env_get((const unsigned char*){});",
+                dest.0,
+                vref(key)
+            ))?;
+        }
+        Inst::EnvSet { dest, key, value } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_env_set((const unsigned char*){}, (const unsigned char*){});",
+                dest.0,
+                vref(key),
+                vref(value)
+            ))?;
+        }
+        Inst::EnvRemove { dest, key } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_env_remove((const unsigned char*){});",
+                dest.0,
+                vref(key)
+            ))?;
+        }
+        Inst::EnvKeys { dest } => {
+            out.line(&format!("v{} = (uint64_t)sarif_env_keys();", dest.0))?;
+        }
+        Inst::DirCreate { dest, path } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_dir_create((const unsigned char*){});",
+                dest.0,
+                vref(path)
+            ))?;
+        }
+        Inst::DirRemove { dest, path } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_dir_remove((const unsigned char*){});",
+                dest.0,
+                vref(path)
+            ))?;
+        }
+        Inst::DirList { dest, path } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_dir_list((const unsigned char*){});",
+                dest.0,
+                vref(path)
+            ))?;
+        }
+        Inst::DirExists { dest, path } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_dir_exists((const unsigned char*){});",
+                dest.0,
+                vref(path)
+            ))?;
+        }
+        Inst::DirCurrent { dest } => {
+            out.line(&format!("v{} = (uint64_t)sarif_dir_current();", dest.0))?;
+        }
+        Inst::DirChange { dest, path } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_dir_change((const unsigned char*){});",
+                dest.0,
+                vref(path)
+            ))?;
+        }
+        Inst::ProcessExit { code } => {
+            out.line(&format!("sarif_process_exit((int32_t){});", vref(code)))?;
+        }
+        Inst::ProcessId { dest } => {
+            out.line(&format!("v{} = (uint64_t)sarif_process_id();", dest.0))?;
+        }
+        Inst::ClockNow { dest } => {
+            out.line(&format!("v{} = sarif_clock_now();", dest.0))?;
+        }
+        Inst::ClockSleep { ms } => {
+            out.line(&format!("sarif_clock_sleep((int32_t){});", vref(ms)))?;
+        }
         Inst::Handle {
             dest,
             body_insts,
@@ -1884,6 +1972,26 @@ fn infer_inst_kind_c(
         Inst::FileExists { dest, .. } | Inst::FileRemove { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Bool);
         }
+        Inst::EnvGet { dest, .. }
+        | Inst::EnvKeys { dest }
+        | Inst::DirList { dest, .. }
+        | Inst::DirCurrent { dest } => {
+            kinds.insert(*dest, CodegenValueKind::Text);
+        }
+        Inst::EnvSet { dest, .. }
+        | Inst::EnvRemove { dest, .. }
+        | Inst::DirCreate { dest, .. }
+        | Inst::DirRemove { dest, .. }
+        | Inst::DirExists { dest, .. }
+        | Inst::DirChange { dest, .. } => {
+            kinds.insert(*dest, CodegenValueKind::I32);
+        }
+        Inst::ProcessId { dest } => {
+            kinds.insert(*dest, CodegenValueKind::I32);
+        }
+        Inst::ClockNow { dest } => {
+            kinds.insert(*dest, CodegenValueKind::F64);
+        }
         Inst::If {
             dest,
             then_insts,
@@ -1937,6 +2045,8 @@ fn infer_inst_kind_c(
         | Inst::AllocPush
         | Inst::AllocPop
         | Inst::FileClose { .. }
+        | Inst::ProcessExit { .. }
+        | Inst::ClockSleep { .. }
         | Inst::StoreLocal { .. } => {}
         _ => {}
     }

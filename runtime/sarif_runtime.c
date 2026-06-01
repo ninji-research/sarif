@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -6,6 +7,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <time.h>
 
 #ifndef SARIF_MAIN_KIND
 #define SARIF_MAIN_KIND 0
@@ -1990,6 +1994,187 @@ int64_t sarif_perform_effect(const char* effect, const char* operation,
         return handler(args, nargs);
     }
     return 0;
+}
+
+int64_t sarif_env_get(const unsigned char* key_handle) {
+    uint64_t key_len = sarif_load_u64(key_handle, 0);
+    const unsigned char* key_data = key_handle + 8;
+    char* key = (char*)malloc(key_len + 1);
+    memcpy(key, key_data, key_len);
+    key[key_len] = '\0';
+    const char* val = getenv(key);
+    free(key);
+    if (val == NULL) {
+        return (int64_t)sarif_empty_text;
+    }
+    uint64_t val_len = strlen(val);
+    unsigned char* result = sarif_text_alloc(val_len);
+    memcpy(result + 8, val, val_len);
+    return (int64_t)result;
+}
+
+int64_t sarif_env_set(const unsigned char* key_handle, const unsigned char* value_handle) {
+    uint64_t key_len = sarif_load_u64(key_handle, 0);
+    const unsigned char* key_data = key_handle + 8;
+    uint64_t val_len = sarif_load_u64(value_handle, 0);
+    const unsigned char* val_data = value_handle + 8;
+    char* key = (char*)malloc(key_len + 1);
+    memcpy(key, key_data, key_len);
+    key[key_len] = '\0';
+    char* val = (char*)malloc(val_len + 1);
+    memcpy(val, val_data, val_len);
+    val[val_len] = '\0';
+    setenv(key, val, 1);
+    free(key);
+    free(val);
+    return 1;
+}
+
+int64_t sarif_env_remove(const unsigned char* key_handle) {
+    uint64_t key_len = sarif_load_u64(key_handle, 0);
+    const unsigned char* key_data = key_handle + 8;
+    char* key = (char*)malloc(key_len + 1);
+    memcpy(key, key_data, key_len);
+    key[key_len] = '\0';
+    unsetenv(key);
+    free(key);
+    return 1;
+}
+
+int64_t sarif_env_keys(void) {
+    extern char** environ;
+    uint64_t total_len = 0;
+    for (int i = 0; environ[i] != NULL; i++) {
+        char* eq = strchr(environ[i], '=');
+        total_len += (eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]));
+        if (environ[i + 1] != NULL) total_len += 1;
+    }
+    unsigned char* result = sarif_text_alloc(total_len);
+    uint64_t offset = 0;
+    for (int i = 0; environ[i] != NULL; i++) {
+        char* eq = strchr(environ[i], '=');
+        uint64_t name_len = eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]);
+        memcpy(result + 8 + offset, environ[i], name_len);
+        offset += name_len;
+        if (environ[i + 1] != NULL) {
+            result[8 + offset] = '\n';
+            offset += 1;
+        }
+    }
+    return (int64_t)result;
+}
+
+int64_t sarif_dir_create(const unsigned char* path_handle) {
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    const unsigned char* path_data = path_handle + 8;
+    char* path = (char*)malloc(path_len + 1);
+    memcpy(path, path_data, path_len);
+    path[path_len] = '\0';
+    int result = mkdir(path, 0755);
+    free(path);
+    return (result == 0 || errno == EEXIST) ? 1 : 0;
+}
+
+int64_t sarif_dir_remove(const unsigned char* path_handle) {
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    const unsigned char* path_data = path_handle + 8;
+    char* path = (char*)malloc(path_len + 1);
+    memcpy(path, path_data, path_len);
+    path[path_len] = '\0';
+    int result = rmdir(path);
+    free(path);
+    return (result == 0 || errno == ENOENT) ? 1 : 0;
+}
+
+int64_t sarif_dir_list(const unsigned char* path_handle) {
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    const unsigned char* path_data = path_handle + 8;
+    char* path = (char*)malloc(path_len + 1);
+    memcpy(path, path_data, path_len);
+    path[path_len] = '\0';
+    DIR* dir = opendir(path);
+    free(path);
+    if (dir == NULL) return (int64_t)sarif_empty_text;
+    uint64_t total_len = 0;
+    struct dirent* entry;
+    int count = 0;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        total_len += strlen(entry->d_name);
+        count++;
+        if (count > 1) total_len += 1;
+    }
+    rewinddir(dir);
+    unsigned char* result = sarif_text_alloc(total_len);
+    uint64_t offset = 0;
+    count = 0;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        if (count > 0) {
+            result[8 + offset] = '\n';
+            offset += 1;
+        }
+        uint64_t name_len = strlen(entry->d_name);
+        memcpy(result + 8 + offset, entry->d_name, name_len);
+        offset += name_len;
+        count++;
+    }
+    closedir(dir);
+    return (int64_t)result;
+}
+
+int64_t sarif_dir_exists(const unsigned char* path_handle) {
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    const unsigned char* path_data = path_handle + 8;
+    char* path = (char*)malloc(path_len + 1);
+    memcpy(path, path_data, path_len);
+    path[path_len] = '\0';
+    struct stat st;
+    int result = stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+    free(path);
+    return result ? 1 : 0;
+}
+
+int64_t sarif_dir_current(void) {
+    char* cwd = getcwd(NULL, 0);
+    if (cwd == NULL) return (int64_t)sarif_empty_text;
+    uint64_t len = strlen(cwd);
+    unsigned char* result = sarif_text_alloc(len);
+    memcpy(result + 8, cwd, len);
+    free(cwd);
+    return (int64_t)result;
+}
+
+int64_t sarif_dir_change(const unsigned char* path_handle) {
+    uint64_t path_len = sarif_load_u64(path_handle, 0);
+    const unsigned char* path_data = path_handle + 8;
+    char* path = (char*)malloc(path_len + 1);
+    memcpy(path, path_data, path_len);
+    path[path_len] = '\0';
+    int result = chdir(path);
+    free(path);
+    return result == 0 ? 1 : 0;
+}
+
+void sarif_process_exit(int64_t code) {
+    exit((int)code);
+}
+
+int64_t sarif_process_id(void) {
+    return (int64_t)getpid();
+}
+
+double sarif_clock_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
+
+void sarif_clock_sleep(int64_t ms) {
+    struct timespec req;
+    req.tv_sec = (time_t)(ms / 1000);
+    req.tv_nsec = (long)((ms % 1000) * 1000000);
+    nanosleep(&req, NULL);
 }
 
 int main(int argc, char** argv) {

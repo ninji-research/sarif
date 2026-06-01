@@ -187,7 +187,19 @@ impl Env<'_> {
             | Inst::FileSeek { dest, .. }
             | Inst::FileSize { dest, .. }
             | Inst::FileExists { dest, .. }
-            | Inst::FileRemove { dest, .. } => {
+            | Inst::FileRemove { dest, .. }
+            | Inst::EnvGet { dest, .. }
+            | Inst::EnvSet { dest, .. }
+            | Inst::EnvRemove { dest, .. }
+            | Inst::EnvKeys { dest }
+            | Inst::DirCreate { dest, .. }
+            | Inst::DirRemove { dest, .. }
+            | Inst::DirList { dest, .. }
+            | Inst::DirExists { dest, .. }
+            | Inst::DirCurrent { dest }
+            | Inst::DirChange { dest, .. }
+            | Inst::ProcessId { dest }
+            | Inst::ClockNow { dest } => {
                 self.mark(*dest);
             }
 
@@ -341,6 +353,8 @@ impl Env<'_> {
             | Inst::AllocPop
             | Inst::StdoutWrite { .. }
             | Inst::FileClose { .. }
+            | Inst::ProcessExit { .. }
+            | Inst::ClockSleep { .. }
             | Inst::LoadParam { .. }
             | Inst::ArgCount { .. }
             | Inst::ParseI32 { .. }

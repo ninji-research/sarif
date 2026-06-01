@@ -2660,9 +2660,95 @@ const SYSTEM_FILE_METHODS: &[SystemEffectMethod] = &[
     },
 ];
 
+const SYSTEM_ENV_METHODS: &[SystemEffectMethod] = &[
+    SystemEffectMethod {
+        name: "get",
+        params: &[("key", Type::Text)],
+        return_type: Type::Text,
+    },
+    SystemEffectMethod {
+        name: "set",
+        params: &[("key", Type::Text), ("value", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "remove",
+        params: &[("key", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "keys",
+        params: &[],
+        return_type: Type::Text,
+    },
+];
+
+const SYSTEM_DIR_METHODS: &[SystemEffectMethod] = &[
+    SystemEffectMethod {
+        name: "create",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "remove",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "list",
+        params: &[("path", Type::Text)],
+        return_type: Type::Text,
+    },
+    SystemEffectMethod {
+        name: "exists",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bool,
+    },
+    SystemEffectMethod {
+        name: "current",
+        params: &[],
+        return_type: Type::Text,
+    },
+    SystemEffectMethod {
+        name: "change",
+        params: &[("path", Type::Text)],
+        return_type: Type::Bool,
+    },
+];
+
+const SYSTEM_PROCESS_METHODS: &[SystemEffectMethod] = &[
+    SystemEffectMethod {
+        name: "exit",
+        params: &[("code", Type::I32)],
+        return_type: Type::Unit,
+    },
+    SystemEffectMethod {
+        name: "id",
+        params: &[],
+        return_type: Type::I32,
+    },
+];
+
+const SYSTEM_CLOCK_METHODS: &[SystemEffectMethod] = &[
+    SystemEffectMethod {
+        name: "now",
+        params: &[],
+        return_type: Type::F64,
+    },
+    SystemEffectMethod {
+        name: "sleep",
+        params: &[("ms", Type::I32)],
+        return_type: Type::Unit,
+    },
+];
+
 const SYSTEM_EFFECTS: &[(&str, &[SystemEffectMethod])] = &[
     ("SystemIO", SYSTEM_IO_METHODS),
     ("SystemFile", SYSTEM_FILE_METHODS),
+    ("SystemEnv", SYSTEM_ENV_METHODS),
+    ("SystemDir", SYSTEM_DIR_METHODS),
+    ("SystemProcess", SYSTEM_PROCESS_METHODS),
+    ("SystemClock", SYSTEM_CLOCK_METHODS),
 ];
 
 pub fn find_system_effect_method(
