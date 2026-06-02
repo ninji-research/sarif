@@ -1908,21 +1908,13 @@ pub fn lower_inst<M: Module>(
                 builder.func,
             );
             let call = builder.ins().call(helper, &[index_val, key_val]);
-            let raw_value = match builder.inst_results(call) {
+            let value = match builder.inst_results(call) {
                 [value] => *value,
                 _ => {
                     return Err(format!(
                         "{backend} text index contains helper returned an unexpected result shape in `{}`",
                         function.name
                     ));
-                }
-            };
-            let value = {
-                let ty = builder.func.dfg.value_type(raw_value);
-                if ty == types::I32 {
-                    builder.ins().uextend(types::I64, raw_value)
-                } else {
-                    raw_value
                 }
             };
             values.insert(*dest, NativeValueRepr::Native(value));
@@ -4632,7 +4624,7 @@ pub fn declare_text_index_contains<M: Module>(
         backend,
         "text index contains helper",
         &[types::I64, types::I64],
-        &[types::I32],
+        &[types::I64],
     )
 }
 

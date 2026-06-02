@@ -562,7 +562,7 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             runtime_code: Some("semantic.text_index-runtime-context"),
             arity_error_code: "semantic.text_index_contains-arity",
             type_error_code: "semantic.text_index_contains-type",
-            result_ty: Type::I32,
+            result_ty: Type::Bool,
             call_hint: "Call `text_index_contains(index, key)`.",
             arg_types: &[Type::TextIndex, Type::Text],
             arg_helps: &["Pass a TextIndex.", "Pass a Text key."],
@@ -2053,7 +2053,7 @@ must have type `Text`, found `{}`",
             "text_index_contains",
             "semantic.text_index_contains-arity",
             "semantic.text_index_contains-type",
-            Type::I32,
+            Type::Bool,
             None,
         );
     }
@@ -2928,16 +2928,6 @@ const SYSTEM_IO_METHODS: &[SystemEffectMethod] = &[
         params: &[],
         return_type: Type::Text,
     },
-    SystemEffectMethod {
-        name: "arg_count",
-        params: &[],
-        return_type: Type::I32,
-    },
-    SystemEffectMethod {
-        name: "arg_text",
-        params: &[("index", Type::I32)],
-        return_type: Type::Text,
-    },
 ];
 
 const SYSTEM_FILE_METHODS: &[SystemEffectMethod] = &[
@@ -3021,6 +3011,16 @@ const SYSTEM_ENV_METHODS: &[SystemEffectMethod] = &[
     SystemEffectMethod {
         name: "keys",
         params: &[],
+        return_type: Type::Text,
+    },
+    SystemEffectMethod {
+        name: "arg_count",
+        params: &[],
+        return_type: Type::I32,
+    },
+    SystemEffectMethod {
+        name: "arg_text",
+        params: &[("index", Type::I32)],
         return_type: Type::Text,
     },
 ];

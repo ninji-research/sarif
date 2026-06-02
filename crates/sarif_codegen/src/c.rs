@@ -110,7 +110,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern void* sarif_text_intern(const unsigned char* text);")?;
     out.line("extern void* sarif_text_index_set(void* index, uint64_t key, int64_t value);")?;
     out.line("extern int64_t sarif_text_index_get(void* index, uint64_t key);")?;
-    out.line("extern int sarif_text_index_contains(void* index, uint64_t key);")?;
+    out.line("extern int64_t sarif_text_index_contains(void* index, uint64_t key);")?;
     out.line(
         "extern int64_t sarif_text_index_get_or_insert(void* index, uint64_t key, int64_t next);",
     )?;

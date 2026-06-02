@@ -1034,7 +1034,7 @@ int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
     return -1;
 }
 
-int sarif_text_index_contains(void* index_ptr, uint64_t key) {
+int64_t sarif_text_index_contains(void* index_ptr, uint64_t key) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
     int found = 0;
     if (index == NULL || index->entries == NULL) {

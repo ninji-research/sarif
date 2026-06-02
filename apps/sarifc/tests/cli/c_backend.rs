@@ -436,7 +436,7 @@ fn c_build_supports_parse_i32_range() {
 #[test]
 fn c_build_passes_process_arguments() {
     let binary = c_build(
-        "fn main() -> I32 effects [SystemIO] { perform SystemIO.arg_count() }",
+        "fn main() -> I32 effects [SystemEnv] { perform SystemEnv.arg_count() }",
         "c_build_arg_count",
     );
     // Running with no extra args: arg_count() should return 1 (program name)
@@ -745,4 +745,93 @@ fn c_build_print_main_text_stdout() {
         "c_build_print_main_text",
     );
     assert_eq!(run_c_stdout(&binary), "sarif");
+}
+
+#[test]
+fn c_build_wildcard_let_binding() {
+    let binary = c_build(
+        "fn main() -> I32 effects [SystemIO, alloc] { let _ = perform SystemIO.stdout_write(\"hi\"); 42 }",
+        "wildcard_let",
+    );
+    let output = Command::new(&binary).output().expect("binary should run");
+    assert_eq!(output.status.code(), Some(42));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hi");
+}
+
+#[test]
+fn c_build_wildcard_let_multiple() {
+    let binary = c_build(
+        "fn main() -> I32 effects [SystemIO, alloc] { let _ = perform SystemIO.stdout_write(\"a\"); let _ = perform SystemIO.stdout_write(\"b\"); 7 }",
+        "wildcard_let_multi",
+    );
+    let output = Command::new(&binary).output().expect("binary should run");
+    assert_eq!(output.status.code(), Some(7));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "ab");
+}
+
+#[test]
+fn c_build_non_mut_local_shadowing() {
+    let binary = c_build(
+        "fn main() -> I32 { let x = 10; let x = x + 5; let x = x * 2; x }",
+        "shadow_immut",
+    );
+    assert_eq!(run_c_exit(&binary), 30);
+}
+
+#[test]
+fn c_build_optional_const_semicolon() {
+    let binary = c_build(
+        "const A: I32 = 10\nconst B: I32 = 20;\nfn main() -> I32 { A + B }",
+        "optional_const_semi",
+    );
+    assert_eq!(run_c_exit(&binary), 30);
+}
+
+#[test]
+fn c_build_text_index_contains_returns_bool() {
+    let binary = c_build(
+        "fn main() -> I32 effects [alloc] { let mut idx = text_index_new(); idx = text_index_set(idx, \"a\", 1); if text_index_contains(idx, \"a\") { 1 } else { 0 } }",
+        "text_index_contains_bool",
+    );
+    assert_eq!(run_c_exit(&binary), 1);
+}
+
+#[test]
+fn c_build_write_shorthand() {
+    let binary = c_build(
+        "fn main() -> I32 effects [SystemIO, alloc] { write(\"hello\"); 0 }",
+        "write_shorthand",
+    );
+    let output = Command::new(&binary).output().expect("binary should run");
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hello");
+}
+
+#[test]
+fn c_build_forward_function_reference() {
+    let binary = c_build(
+        "fn main() -> I32 { helper() } fn helper() -> I32 { 42 }",
+        "forward_fn_ref",
+    );
+    assert_eq!(run_c_exit(&binary), 42);
+}
+
+#[test]
+fn c_build_import_syntax() {
+    let binary = c_build(
+        "from math import add\nfn main() -> I32 { 1 }",
+        "import_syntax",
+    );
+    assert_eq!(run_c_exit(&binary), 1);
+}
+
+#[test]
+fn c_build_write_builder_shorthand() {
+    let binary = c_build(
+        "fn main() -> I32 effects [SystemIO, alloc] { let mut b = text_builder_new(); b = text_builder_append(b, \"hi\"); write_builder(b); 0 }",
+        "write_builder_shorthand",
+    );
+    let output = Command::new(&binary).output().expect("binary should run");
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hi");
 }

@@ -42,9 +42,11 @@ impl<'a> Parser<'a> {
                 children.push(Element::Node(self.parse_extern_block()));
             } else if self.at(TokenKind::KwConst) {
                 children.push(Element::Node(self.parse_const_item()));
-            } else if self.at(TokenKind::KwFn) {
-                children.push(Element::Node(self.parse_fn_item()));
-            } else {
+        } else if self.at(TokenKind::KwFn) {
+            children.push(Element::Node(self.parse_fn_item()));
+        } else if self.at(TokenKind::KwFrom) {
+            children.push(Element::Node(self.parse_import_item()));
+        } else {
                 break;
             }
             self.collect_trivia(&mut children);
@@ -85,7 +87,9 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
         children.push(Element::Node(self.parse_expr_bp(0)));
         self.collect_trivia(&mut children);
-        children.push(Element::Token(self.expect(TokenKind::Semicolon)));
+        if self.at(TokenKind::Semicolon) {
+            children.push(Element::Token(self.bump()));
+        }
         Node::new(NodeKind::ConstItem, children)
     }
 
@@ -145,6 +149,28 @@ impl<'a> Parser<'a> {
         }
 
         Node::new(NodeKind::FnItem, children)
+    }
+
+    fn parse_import_item(&mut self) -> Node {
+        let mut children = Vec::new();
+        children.push(Element::Token(self.expect(TokenKind::KwFrom)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::Ident)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::KwImport)));
+        self.collect_trivia(&mut children);
+        children.push(Element::Token(self.expect(TokenKind::Ident)));
+        self.collect_trivia(&mut children);
+        while self.at(TokenKind::Comma) {
+            children.push(Element::Token(self.bump()));
+            self.collect_trivia(&mut children);
+            children.push(Element::Token(self.expect(TokenKind::Ident)));
+            self.collect_trivia(&mut children);
+        }
+        if self.at(TokenKind::Semicolon) {
+            children.push(Element::Token(self.bump()));
+        }
+        Node::new(NodeKind::ImportItem, children)
     }
 
     fn parse_enum_item(&mut self) -> Node {
@@ -751,6 +777,8 @@ impl<'a> Parser<'a> {
         }
         if self.at(TokenKind::LParen) {
             self.parse_tuple_destructure_pattern(&mut children);
+        } else if self.at(TokenKind::Ident) || self.at(TokenKind::Underscore) {
+            children.push(Element::Token(self.bump()));
         } else {
             children.push(Element::Token(self.expect(TokenKind::Ident)));
         }

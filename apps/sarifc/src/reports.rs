@@ -113,6 +113,7 @@ fn collect_package_names(loaded: &LoadedSource) -> String {
                     names.push(&f.name);
                 }
             }
+            Item::Import(_) => {}
         }
     }
     names.join("\n")

@@ -106,27 +106,38 @@ impl AstFile {
                             .expect("writing to string cannot fail");
                     }
                 }
-                Item::ExternBlock(block) => {
-                    writeln!(output, "extern {{").expect("writing to string cannot fail");
-                    for function in &block.functions {
-                        write!(output, "  fn {}(", function.name)
-                            .expect("writing to string cannot fail");
-                        for (index, param) in function.params.iter().enumerate() {
-                            if index > 0 {
-                                output.push_str(", ");
-                            }
-                            write!(output, "{}: {}", param.name, param.ty)
-                                .expect("writing to string cannot fail");
-                        }
-                        output.push(')');
-                        if let Some(return_type) = &function.return_type {
-                            write!(output, " -> {return_type}")
-                                .expect("writing to string cannot fail");
-                        }
-                        writeln!(output, ";").expect("writing to string cannot fail");
+        Item::ExternBlock(block) => {
+            writeln!(output, "extern {{").expect("writing to string cannot fail");
+            for function in &block.functions {
+                write!(output, " fn {}(", function.name)
+                    .expect("writing to string cannot fail");
+                for (index, param) in function.params.iter().enumerate() {
+                    if index > 0 {
+                        output.push_str(", ");
                     }
-                    writeln!(output, "}}").expect("writing to string cannot fail");
+                    write!(output, "{}: {}", param.name, param.ty)
+                        .expect("writing to string cannot fail");
                 }
+                output.push(')');
+                if let Some(return_type) = &function.return_type {
+                    write!(output, " -> {return_type}")
+                        .expect("writing to string cannot fail");
+                }
+                writeln!(output, ";").expect("writing to string cannot fail");
+            }
+            writeln!(output, "}}").expect("writing to string cannot fail");
+        }
+        Item::Import(import) => {
+            write!(output, "from {} import ", import.module)
+                .expect("writing to string cannot fail");
+            for (index, name) in import.names.iter().enumerate() {
+                if index > 0 {
+                    output.push_str(", ");
+                }
+                output.push_str(name);
+            }
+        output.push('\n');
+        }
             }
         }
 
@@ -143,6 +154,14 @@ pub enum Item {
     Struct(Struct),
     Effect(Effect),
     ExternBlock(ExternBlock),
+    Import(ImportItem),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImportItem {
+    pub module: String,
+    pub names: Vec<String>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -938,6 +957,11 @@ impl Lowerer {
                         items.push(Item::ExternBlock(item));
                     }
                 }
+                NodeKind::ImportItem => {
+                    if let Some(item) = self.lower_import(node) {
+                        items.push(Item::Import(item));
+                    }
+                }
                 _ => {}
             }
         }
@@ -1058,6 +1082,26 @@ impl Lowerer {
             .collect();
         Some(ExternBlock {
             functions,
+            span: node.span,
+        })
+    }
+
+    fn lower_import(&mut self, node: &Node) -> Option<ImportItem> {
+        let module = self.ident_after(node, TokenKind::KwFrom)?;
+        let mut names = Vec::new();
+        let mut past_import = false;
+        for child in &node.children {
+            if let Element::Token(token) = child {
+                if token.kind == TokenKind::KwImport {
+                    past_import = true;
+                } else if past_import && token.kind == TokenKind::Ident {
+                    names.push(token.lexeme.clone());
+                }
+            }
+        }
+        Some(ImportItem {
+            module,
+            names,
             span: node.span,
         })
     }
@@ -1524,8 +1568,9 @@ impl Lowerer {
         })
     }
 
-    fn lower_let_binding(&mut self, node: &Node) -> Option<LetBinding> {
-        let name = Self::first_ident(node)?;
+fn lower_let_binding(&mut self, node: &Node) -> Option<LetBinding> {
+    let name = Self::first_ident(node)
+        .or_else(|| Self::first_token(node, TokenKind::Underscore).map(|_| "_".to_owned()))?;
         let mutable = node.children.iter().any(|child| {
             matches!(
                 child,

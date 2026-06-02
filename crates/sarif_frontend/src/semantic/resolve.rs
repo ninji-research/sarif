@@ -59,6 +59,7 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                 known_types.insert(effect_item.name.clone());
             }
             crate::hir::Item::ExternBlock(_) => {}
+            crate::hir::Item::Import(_) => {}
         }
     }
 
@@ -308,8 +309,9 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                 struct_fields.insert(struct_item.name.clone(), fields);
                 struct_layouts.insert(struct_item.name.clone(), layout);
             }
-            crate::hir::Item::Effect(_) => {}
-            crate::hir::Item::ExternBlock(block) => {
+        crate::hir::Item::Effect(_) => {}
+        crate::hir::Item::Import(_) => {}
+        crate::hir::Item::ExternBlock(block) => {
                 for f in &block.functions {
                     if functions.contains_key(&f.name)
                         || consts.contains_key(&f.name)

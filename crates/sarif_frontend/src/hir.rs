@@ -24,6 +24,14 @@ pub enum Item {
     Struct(Struct),
     Effect(EffectItem),
     ExternBlock(ExternBlock),
+    Import(ImportDecl),
+}
+
+#[derive(Clone, Debug)]
+pub struct ImportDecl {
+    pub module: String,
+    pub names: Vec<String>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
@@ -762,6 +770,11 @@ pub fn lower(file: &ast::AstFile) -> HirLowering {
             ast::Item::Struct(item) => Item::Struct(lower_struct(item)),
             ast::Item::Effect(item) => Item::Effect(lower_effect(item)),
             ast::Item::ExternBlock(item) => Item::ExternBlock(lower_extern_block(item)),
+        ast::Item::Import(item) => Item::Import(ImportDecl {
+            module: item.module.clone(),
+            names: item.names.clone(),
+            span: item.span,
+        }),
         })
         .collect();
 
@@ -859,10 +872,14 @@ impl Module {
                         }
                         writeln!(&mut output, ";").expect("writing to a string cannot fail");
                     }
-                    writeln!(&mut output, "  }}").expect("writing to a string cannot fail");
-                }
+        writeln!(&mut output, " }}").expect("writing to a string cannot fail");
+            }
+            Item::Import(import) => {
+                writeln!(&mut output, " from {} import {}", import.module, import.names.join(", "))
+                    .expect("writing to a string cannot fail");
             }
         }
+    }
 
         output
     }
@@ -1028,11 +1045,36 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
         ast::Expr::ContractResult(expr) => {
             Expr::ContractResult(ContractResultExpr { span: expr.span })
         }
-        ast::Expr::Call(expr) => Expr::Call(CallExpr {
-            callee: expr.callee.clone(),
-            args: expr.args.iter().map(lower_expr).collect(),
-            span: expr.span,
-        }),
+        ast::Expr::Call(expr) => {
+            if expr.callee == "write" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemIO".to_owned(),
+                    operation: "stdout_write".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "write_builder" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemIO".to_owned(),
+                    operation: "stdout_write_builder".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "read" && expr.args.is_empty() {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemIO".to_owned(),
+                    operation: "stdin_text".to_owned(),
+                    args: vec![],
+                    span: expr.span,
+                })
+            } else {
+                Expr::Call(CallExpr {
+                    callee: expr.callee.clone(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            }
+        }
         ast::Expr::Array(expr) => Expr::Array(ArrayExpr {
             elements: expr.elements.iter().map(lower_expr).collect(),
             repeat_len: expr.repeat_len.as_ref().map(lower_array_len),

@@ -544,7 +544,7 @@ fn run_executes_float_sqrt_pipeline_consistently() {
 #[test]
 fn run_passes_runtime_arguments_to_argument_builtins() {
     let path = temp_source(
-        "fn main() -> Text effects [SystemIO] { if perform SystemIO.arg_count() > 1 { perform SystemIO.arg_text(1) } else { \"\" } }",
+        "fn main() -> Text effects [SystemEnv] { if perform SystemEnv.arg_count() > 1 { perform SystemEnv.arg_text(1) } else { \"\" } }",
     );
     let output = run_sarif(&["run", path.to_str().expect("utf-8 path"), "--", "sarif"]);
 
@@ -1001,7 +1001,7 @@ fn stable_build_prints_payload_enum_main_results() {
 #[test]
 fn stable_build_passes_process_arguments_to_argument_builtins() {
     let path = temp_source(
-        "fn main() -> Text effects [SystemIO] { if perform SystemIO.arg_count() > 1 { perform SystemIO.arg_text(1) } else { \"\" } }",
+        "fn main() -> Text effects [SystemEnv] { if perform SystemEnv.arg_count() > 1 { perform SystemEnv.arg_text(1) } else { \"\" } }",
     );
     let binary_path = super::support::temp_artifact("arg_text_build", "bin");
     let build = run_build_profiled(&path, &binary_path, "core");
@@ -1504,7 +1504,7 @@ fn wasm_build_accepts_text_kernel_modules() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_accepts_runtime_argument_builtins() {
-    let path = temp_source("fn main() -> I32 effects [SystemIO] { perform SystemIO.arg_count() }");
+    let path = temp_source("fn main() -> I32 effects [SystemEnv] { perform SystemEnv.arg_count() }");
     let wasm_path = temp_output("arg_text_build", "wasm");
     let build = run_sarif(&[
         "build",

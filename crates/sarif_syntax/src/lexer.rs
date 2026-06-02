@@ -52,10 +52,14 @@ enum RawTokenKind {
     KwFn,
     #[token("for")]
     KwFor,
+    #[token("from")]
+    KwFrom,
     #[token("handle")]
     KwHandle,
     #[token("if")]
     KwIf,
+    #[token("import")]
+    KwImport,
     #[token("in")]
     KwIn,
     #[token("let")]
@@ -252,8 +256,10 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::KwFalse => TokenKind::KwFalse,
         RawTokenKind::KwFn => TokenKind::KwFn,
         RawTokenKind::KwFor => TokenKind::KwFor,
+        RawTokenKind::KwFrom => TokenKind::KwFrom,
         RawTokenKind::KwHandle => TokenKind::KwHandle,
         RawTokenKind::KwIf => TokenKind::KwIf,
+        RawTokenKind::KwImport => TokenKind::KwImport,
         RawTokenKind::KwIn => TokenKind::KwIn,
         RawTokenKind::KwLet => TokenKind::KwLet,
         RawTokenKind::KwMatch => TokenKind::KwMatch,
