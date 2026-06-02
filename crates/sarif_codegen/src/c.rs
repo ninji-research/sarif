@@ -123,20 +123,20 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("")?;
 
     out.line(
-        "static inline uint64_t sarif_load_u64(const unsigned char* base, uint64_t offset) {",
-    )?;
+    "static inline __attribute__((unused)) uint64_t sarif_load_u64(const unsigned char* base, uint64_t offset) {",
+)?;
     out.indent += 1;
     out.line("uint64_t value;")?;
     out.line("memcpy(&value, base + offset, sizeof(uint64_t));")?;
     out.line("return value;")?;
     out.indent -= 1;
     out.line("}")?;
-    out.line("static inline void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {")?;
+    out.line("static inline __attribute__((unused)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {")?;
     out.indent += 1;
     out.line("memcpy(base + offset, &value, sizeof(uint64_t));")?;
     out.indent -= 1;
     out.line("}")?;
-    out.line("static inline double sarif_load_f64(const unsigned char* base, uint64_t offset) {")?;
+    out.line("static inline __attribute__((unused)) double sarif_load_f64(const unsigned char* base, uint64_t offset) {")?;
     out.indent += 1;
     out.line("double value;")?;
     out.line("memcpy(&value, base + offset, sizeof(double));")?;
@@ -144,7 +144,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.indent -= 1;
     out.line("}")?;
     out.line(
-        "static inline void sarif_store_f64(unsigned char* base, uint64_t offset, double value) {",
+        "static inline __attribute__((unused)) void sarif_store_f64(unsigned char* base, uint64_t offset, double value) {",
     )?;
     out.indent += 1;
     out.line("memcpy(base + offset, &value, sizeof(double));")?;
@@ -504,7 +504,7 @@ fn emit_function(
             CodegenValueKind::F64 => "F64",
             _ => "I32",
         }));
-        out.line(&format!("{} v{};", tn, i))?;
+        out.line(&format!("{} __attribute__((unused)) v{};", tn, i))?;
     }
     for local in &func.mutable_locals {
         let tn = func_type_name(Some(&local.ty));
@@ -513,7 +513,10 @@ fn emit_function(
             .chars()
             .map(|c| if c.is_alphanumeric() { c } else { '_' })
             .collect();
-        out.line(&format!("{} {}_local_{};", tn, safe_name, local.slot.0))?;
+        out.line(&format!(
+            "{} __attribute__((unused)) {}_local_{};",
+            tn, safe_name, local.slot.0
+        ))?;
     }
 
     emit_instructions(&func.instructions, func, value_kinds, structs, enums, out)?;
@@ -1843,12 +1846,12 @@ fn emit_main_wrapper(
             CodegenValueKind::F64 => "F64",
             _ => "I32",
         }));
-        out.line(&format!("{} v{};", tn, i))?;
+        out.line(&format!("{} __attribute__((unused)) v{};", tn, i))?;
     }
     for local in &main.mutable_locals {
         let tn = func_type_name(Some(&local.ty));
         out.line(&format!(
-            "{} {}_local_{};",
+            "{} __attribute__((unused)) {}_local_{};",
             tn,
             safe_local_name(&local.ty),
             local.slot.0

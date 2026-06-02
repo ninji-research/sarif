@@ -93,6 +93,7 @@ fn link_fd_write(linker: &mut Linker<()>) -> Result<(), String> {
 }
 
 #[cfg(feature = "wasm")]
+#[allow(clippy::too_many_lines)]
 fn link_env(linker: &mut Linker<()>, stdin: &[u8]) -> Result<(), String> {
     let stdin = stdin.to_vec();
     linker

@@ -167,6 +167,7 @@ impl ItemReport {
 }
 
 #[must_use]
+#[allow(clippy::collection_is_never_read)]
 pub fn analyze(module: &Module, profile: Profile) -> Analysis {
     let mut diagnostics = Vec::new();
     let ResolvedModule {

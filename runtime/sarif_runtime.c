@@ -32,7 +32,7 @@ static unsigned char sarif_empty_text[8] = {0};
 #define SARIF_BYTES_VIEW_TAG (1ULL << 63)
 
 static int sarif_write_text_blob(const unsigned char* text, int newline);
-static int sarif_write_i64(int64_t value, int newline);
+static int __attribute__((unused)) sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
 uint64_t sarif_text_len(const unsigned char* text);
@@ -280,11 +280,11 @@ void sarif_alloc_pop(void) {
     sarif_record_current->used = scope.used;
 }
 
-static inline __attribute__((always_inline)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {
+static inline __attribute__((always_inline)) __attribute__((unused)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {
     memcpy(base + offset, &value, sizeof(uint64_t));
 }
 
-static inline __attribute__((always_inline)) uint64_t sarif_load_u64(const unsigned char* base, uint64_t offset) {
+static inline __attribute__((always_inline)) __attribute__((unused)) uint64_t sarif_load_u64(const unsigned char* base, uint64_t offset) {
     uint64_t value;
     memcpy(&value, base + offset, sizeof(uint64_t));
     return value;
@@ -1306,19 +1306,16 @@ void* sarif_text_slice(const unsigned char* text, uint64_t start, uint64_t end) 
 void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end) {
     if (bytes == NULL) return NULL;
     uint64_t src_len = 0;
-    const unsigned char* src_data = NULL;
     uint64_t src_offset = 0;
     const unsigned char* src_parent = NULL;
     if (sarif_bytes_is_view(bytes)) {
         src_len = sarif_bytes_view_len(bytes);
         src_parent = (const unsigned char*)(uintptr_t)sarif_load_u64(bytes, 8);
         src_offset = sarif_load_u64(bytes, 16);
-        src_data = src_parent + 8 + src_offset;
     } else {
         src_len = sarif_load_u64(bytes, 0);
         src_parent = bytes;
         src_offset = 0;
-        src_data = bytes + 8;
     }
     uint64_t cs = start < src_len ? start : src_len;
     uint64_t ce = end < src_len ? end : src_len;
@@ -1414,7 +1411,6 @@ static int64_t sarif_parse_i32_core(const unsigned char* bytes, uint64_t index, 
 
 int64_t sarif_parse_i32(const unsigned char* text) {
     uint64_t len;
-    const unsigned char* bytes;
     if (text == NULL) return 0;
     len = sarif_load_u64(text, 0);
     if (len == 0) return 0;
@@ -1587,7 +1583,7 @@ static int sarif_write_value(
 );
 #endif
 
-static int sarif_write_i64(int64_t value, int newline) {
+static int __attribute__((unused)) sarif_write_i64(int64_t value, int newline) {
     char scratch[21];
     int len = sarif_format_i64(scratch, value);
     if (sarif_write_all((const unsigned char*)(scratch + (20 - len)), (uint64_t)len) != 0) {

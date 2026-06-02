@@ -11,6 +11,7 @@ pub struct AstFile {
 
 impl AstFile {
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn pretty(&self) -> String {
         let mut output = String::new();
 
@@ -953,9 +954,7 @@ impl Lowerer {
                     }
                 }
                 NodeKind::ExternBlock => {
-                    if let Some(item) = self.lower_extern_block(node) {
-                        items.push(Item::ExternBlock(item));
-                    }
+                    items.push(Item::ExternBlock(self.lower_extern_block(node)));
                 }
                 NodeKind::ImportItem => {
                     if let Some(item) = self.lower_import(node) {
@@ -1028,7 +1027,7 @@ impl Lowerer {
         })
     }
 
-    fn lower_extern_block(&mut self, node: &Node) -> Option<ExternBlock> {
+    fn lower_extern_block(&mut self, node: &Node) -> ExternBlock {
         let functions = node
             .children
             .iter()
@@ -1080,10 +1079,10 @@ impl Lowerer {
                 _ => None,
             })
             .collect();
-        Some(ExternBlock {
+        ExternBlock {
             functions,
             span: node.span,
-        })
+        }
     }
 
     fn lower_import(&mut self, node: &Node) -> Option<ImportItem> {
@@ -2378,6 +2377,7 @@ impl Lowerer {
         }
     }
 
+    #[allow(clippy::too_many_arguments, clippy::unused_self)]
     fn desugar_for_direction(
         &self,
         binding: String,

@@ -2027,24 +2027,13 @@ fn wasm_value_kind_from_name(
 
 fn wasm_type_for_extern(
     name: &str,
-    structs: &[super::StructType],
-    enums: &[super::EnumType],
+    _structs: &[super::StructType],
+    _enums: &[super::EnumType],
 ) -> Result<&'static str, WasmError> {
     match name {
         "F64" => Ok("f64"),
         "Unit" => Ok("i64"),
-        other => {
-            if enums.iter().any(|e| e.name == other) {
-                Ok("i64")
-            } else if structs.iter().any(|s| s.name == other) {
-                Ok("i64")
-            } else if other.starts_with("List[") || other == "List" {
-                Ok("i64")
-            } else {
-                // Default: all Sarif scalars are i64 at the Wasm level
-                Ok("i64")
-            }
-        }
+        _ => Ok("i64"),
     }
 }
 

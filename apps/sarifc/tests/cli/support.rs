@@ -402,6 +402,7 @@ fn cli_temp_root() -> PathBuf {
 }
 
 #[cfg(feature = "c-backend")]
+#[allow(dead_code)]
 pub fn run_c_build(path: &Path, output: &Path, profile: &str) -> Output {
     run_sarif(&[
         "build",

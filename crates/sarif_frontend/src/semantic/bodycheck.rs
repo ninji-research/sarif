@@ -182,10 +182,9 @@ fn handle_let_statement(
                 ),
             ));
             return;
-        } else {
-            state.locals.remove(&binding.name);
-            state.mutable_locals.remove(&binding.name);
         }
+        state.locals.remove(&binding.name);
+        state.mutable_locals.remove(&binding.name);
     }
 
     if binding.mutable
