@@ -565,25 +565,29 @@ fn infer_inst_kinds(
                 let else_falls = insts_fall_through(else_insts);
                 let then_kind = branch_result_kind(kinds, *then_result, function, "then")?;
                 let else_kind = branch_result_kind(kinds, *else_result, function, "else")?;
-                fn integer_kind(
-                    a: &NativeValueKind,
-                    b: &NativeValueKind,
-                ) -> Option<NativeValueKind> {
-                    match (a, b) {
-                        (
-                            NativeValueKind::I32 | NativeValueKind::Bool,
-                            NativeValueKind::I32 | NativeValueKind::Bool,
-                        ) => Some(NativeValueKind::I32),
-                        _ => None,
+            fn compatible_kind(
+                a: &NativeValueKind,
+                b: &NativeValueKind,
+            ) -> Option<NativeValueKind> {
+                match (a, b) {
+                    (
+                        NativeValueKind::I32 | NativeValueKind::Bool,
+                        NativeValueKind::I32 | NativeValueKind::Bool,
+                    ) => Some(NativeValueKind::I32),
+                    (NativeValueKind::List(la), NativeValueKind::List(lb)) => {
+                        compatible_kind(la, lb).map(|k| NativeValueKind::List(Box::new(k)))
                     }
+                    _ if a == b => Some(a.clone()),
+                    _ => None,
                 }
+            }
                 if then_falls && else_falls {
                     match (then_kind, else_kind) {
                         (Some(left), Some(right)) if left == right => {
                             kinds.insert(*dest, left);
                         }
-                        (Some(left), Some(right)) if integer_kind(&left, &right).is_some() => {
-                            kinds.insert(*dest, NativeValueKind::I32);
+                    (Some(left), Some(right)) if let Some(merged) = compatible_kind(&left, &right) => {
+                        kinds.insert(*dest, merged);
                         }
                         (Some(left), Some(right)) => {
                             return Err(format!(
