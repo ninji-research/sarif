@@ -1378,7 +1378,7 @@ pub(super) fn infer_call_expr(
         if !caller_effects.contains(&Effect::Io) {
             diagnostics.push(Diagnostic::new(
                 "semantic.io-effect",
-                format!("builtin `stdout_write` requires `io` effect"),
+                "builtin `stdout_write` requires `io` effect".to_string(),
                 expr.span,
                 Some("Add `effect io` to the function signature.".to_owned()),
             ));
@@ -1430,7 +1430,7 @@ pub(super) fn infer_call_expr(
         if !caller_effects.contains(&Effect::Io) {
             diagnostics.push(Diagnostic::new(
                 "semantic.io-effect",
-                format!("builtin `file_write` requires `io` effect"),
+                "builtin `file_write` requires `io` effect".to_string(),
                 expr.span,
                 Some("Add `effect io` to the function signature.".to_owned()),
             ));
@@ -3093,6 +3093,7 @@ const SYSTEM_EFFECTS: &[(&str, &[SystemEffectMethod])] = &[
     ("SystemClock", SYSTEM_CLOCK_METHODS),
 ];
 
+#[must_use]
 pub fn find_system_effect_method(
     effect: &str,
     operation: &str,
@@ -3147,21 +3148,21 @@ pub(super) fn infer_perform_expr(
         .collect::<Vec<_>>();
 
     if let Some(method) = find_system_effect_method(&expr.effect, &expr.operation) {
-        if let Some(effect) = Effect::parse(&expr.effect) {
-            if !caller_effects.contains(&effect) {
-                diagnostics.push(Diagnostic::new(
-                    "semantic.missing-effect",
-                    format!(
-                        "`perform {}.{}` requires `{}` effect in `{fn_name}`",
-                        expr.effect, expr.operation, expr.effect,
-                    ),
-                    expr.span,
-                    Some(format!(
-                        "Add `effects [{}]` to the function signature.",
-                        expr.effect
-                    )),
-                ));
-            }
+        if let Some(effect) = Effect::parse(&expr.effect)
+            && !caller_effects.contains(&effect)
+        {
+            diagnostics.push(Diagnostic::new(
+                "semantic.missing-effect",
+                format!(
+                    "`perform {}.{}` requires `{}` effect in `{fn_name}`",
+                    expr.effect, expr.operation, expr.effect,
+                ),
+                expr.span,
+                Some(format!(
+                    "Add `effects [{}]` to the function signature.",
+                    expr.effect
+                )),
+            ));
         }
 
         if args.len() != method.params.len() {

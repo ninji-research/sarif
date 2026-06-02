@@ -1905,26 +1905,26 @@ impl<'a> JitBackend<'a> {
         )
         .map_err(|e| format!("failed to lower insts for `{}`: {e}", function.name))?;
 
-    if falls_through {
-        if let Some(result_val) = function.result {
-            match values.get(&result_val) {
-                Some(NativeValueRepr::Native(val)) if !signature.returns.is_empty() => {
-                    builder.ins().return_(&[*val]);
+        if falls_through {
+            if let Some(result_val) = function.result {
+                match values.get(&result_val) {
+                    Some(NativeValueRepr::Native(val)) if !signature.returns.is_empty() => {
+                        builder.ins().return_(&[*val]);
+                    }
+                    _ if !signature.returns.is_empty() => {
+                        return Err(format!(
+                            "function `{}` has return value in signature but no computed value for result",
+                            function.name
+                        ));
+                    }
+                    _ => {
+                        builder.ins().return_(&[]);
+                    }
                 }
-                _ if !signature.returns.is_empty() => {
-                    return Err(format!(
-                        "function `{}` has return value in signature but no computed value for result",
-                        function.name
-                    ));
-                }
-                _ => {
-                    builder.ins().return_(&[]);
-                }
+            } else {
+                builder.ins().return_(&[]);
             }
-        } else {
-            builder.ins().return_(&[]);
         }
-    }
 
         builder.finalize();
         self.module
@@ -2167,35 +2167,43 @@ unsafe fn call_native_fn(
                 let a1 = &args[1];
                 match (a0, a1, has_f64_return) {
                     (NativeArg::I64(v0), NativeArg::I64(v1), false) => {
-                        let f: unsafe extern "C" fn(i64, i64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, i64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1))
                     }
                     (NativeArg::I64(v0), NativeArg::I64(v1), true) => {
-                        let f: unsafe extern "C" fn(i64, i64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, i64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1))
                     }
                     (NativeArg::F64(v0), NativeArg::I64(v1), false) => {
-                        let f: unsafe extern "C" fn(f64, i64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, i64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1))
                     }
                     (NativeArg::F64(v0), NativeArg::I64(v1), true) => {
-                        let f: unsafe extern "C" fn(f64, i64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, i64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1))
                     }
                     (NativeArg::I64(v0), NativeArg::F64(v1), false) => {
-                        let f: unsafe extern "C" fn(i64, f64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, f64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1))
                     }
                     (NativeArg::I64(v0), NativeArg::F64(v1), true) => {
-                        let f: unsafe extern "C" fn(i64, f64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, f64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1))
                     }
                     (NativeArg::F64(v0), NativeArg::F64(v1), false) => {
-                        let f: unsafe extern "C" fn(f64, f64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, f64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1))
                     }
                     (NativeArg::F64(v0), NativeArg::F64(v1), true) => {
-                        let f: unsafe extern "C" fn(f64, f64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, f64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1))
                     }
                     (NativeArg::Void, _, _) | (_, NativeArg::Void, _) => NativeResult::Void,
@@ -2207,70 +2215,88 @@ unsafe fn call_native_fn(
                 let a2 = &args[2];
                 match (a0, a1, a2, has_f64_return) {
                     (NativeArg::I64(v0), NativeArg::I64(v1), NativeArg::I64(v2), false) => {
-                        let f: unsafe extern "C" fn(i64, i64, i64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, i64, i64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::I64(v1), NativeArg::I64(v2), true) => {
-                        let f: unsafe extern "C" fn(i64, i64, i64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, i64, i64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::I64(v1), NativeArg::I64(v2), false) => {
-                        let f: unsafe extern "C" fn(f64, i64, i64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, i64, i64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::I64(v1), NativeArg::I64(v2), true) => {
-                        let f: unsafe extern "C" fn(f64, i64, i64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, i64, i64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::F64(v1), NativeArg::I64(v2), false) => {
-                        let f: unsafe extern "C" fn(i64, f64, i64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, f64, i64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::F64(v1), NativeArg::I64(v2), true) => {
-                        let f: unsafe extern "C" fn(i64, f64, i64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, f64, i64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::I64(v1), NativeArg::F64(v2), false) => {
-                        let f: unsafe extern "C" fn(i64, i64, f64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, i64, f64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::I64(v1), NativeArg::F64(v2), true) => {
-                        let f: unsafe extern "C" fn(i64, i64, f64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, i64, f64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::F64(v1), NativeArg::I64(v2), false) => {
-                        let f: unsafe extern "C" fn(f64, f64, i64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, f64, i64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::F64(v1), NativeArg::I64(v2), true) => {
-                        let f: unsafe extern "C" fn(f64, f64, i64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, f64, i64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::I64(v1), NativeArg::F64(v2), false) => {
-                        let f: unsafe extern "C" fn(f64, i64, f64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, i64, f64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::I64(v1), NativeArg::F64(v2), true) => {
-                        let f: unsafe extern "C" fn(f64, i64, f64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, i64, f64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::F64(v1), NativeArg::F64(v2), false) => {
-                        let f: unsafe extern "C" fn(i64, f64, f64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, f64, f64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::I64(v0), NativeArg::F64(v1), NativeArg::F64(v2), true) => {
-                        let f: unsafe extern "C" fn(i64, f64, f64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(i64, f64, f64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::F64(v1), NativeArg::F64(v2), false) => {
-                        let f: unsafe extern "C" fn(f64, f64, f64) -> i64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, f64, f64) -> i64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::I64(f(*v0, *v1, *v2))
                     }
                     (NativeArg::F64(v0), NativeArg::F64(v1), NativeArg::F64(v2), true) => {
-                        let f: unsafe extern "C" fn(f64, f64, f64) -> f64 = std::mem::transmute(code_ptr);
+                        let f: unsafe extern "C" fn(f64, f64, f64) -> f64 =
+                            std::mem::transmute(code_ptr);
                         NativeResult::F64(f(*v0, *v1, *v2))
                     }
-                    (NativeArg::Void, _, _, _) | (_, NativeArg::Void, _, _) | (_, _, NativeArg::Void, _) => NativeResult::Void,
+                    (NativeArg::Void, _, _, _)
+                    | (_, NativeArg::Void, _, _)
+                    | (_, _, NativeArg::Void, _) => NativeResult::Void,
                 }
             }
             _ => NativeResult::I64(0),

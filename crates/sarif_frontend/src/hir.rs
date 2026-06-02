@@ -770,11 +770,11 @@ pub fn lower(file: &ast::AstFile) -> HirLowering {
             ast::Item::Struct(item) => Item::Struct(lower_struct(item)),
             ast::Item::Effect(item) => Item::Effect(lower_effect(item)),
             ast::Item::ExternBlock(item) => Item::ExternBlock(lower_extern_block(item)),
-        ast::Item::Import(item) => Item::Import(ImportDecl {
-            module: item.module.clone(),
-            names: item.names.clone(),
-            span: item.span,
-        }),
+            ast::Item::Import(item) => Item::Import(ImportDecl {
+                module: item.module.clone(),
+                names: item.names.clone(),
+                span: item.span,
+            }),
         })
         .collect();
 
@@ -872,14 +872,19 @@ impl Module {
                         }
                         writeln!(&mut output, ";").expect("writing to a string cannot fail");
                     }
-        writeln!(&mut output, " }}").expect("writing to a string cannot fail");
-            }
-            Item::Import(import) => {
-                writeln!(&mut output, " from {} import {}", import.module, import.names.join(", "))
+                    writeln!(&mut output, " }}").expect("writing to a string cannot fail");
+                }
+                Item::Import(import) => {
+                    writeln!(
+                        &mut output,
+                        " from {} import {}",
+                        import.module,
+                        import.names.join(", ")
+                    )
                     .expect("writing to a string cannot fail");
+                }
             }
         }
-    }
 
         output
     }

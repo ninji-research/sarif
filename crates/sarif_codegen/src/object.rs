@@ -320,26 +320,26 @@ impl<'a> ObjectBackend<'a> {
         )
         .map_err(ObjectError::new)?;
 
-    if falls_through {
-        let result = match function.result {
-            Some(value) => value_repr(&values, value, function, "return")?,
-            None => ValueRepr::Unit,
-        };
-        match result {
-            ValueRepr::Native(value) => {
-                builder.ins().return_(&[value]);
-            }
-            ValueRepr::Unit => {
-                if function.return_type.is_some() {
-                    return Err(ObjectError::new(format!(
-                        "function `{}` has return type but no computed value for result",
-                        function.name
-                    )));
+        if falls_through {
+            let result = match function.result {
+                Some(value) => value_repr(&values, value, function, "return")?,
+                None => ValueRepr::Unit,
+            };
+            match result {
+                ValueRepr::Native(value) => {
+                    builder.ins().return_(&[value]);
                 }
-                builder.ins().return_(&[]);
+                ValueRepr::Unit => {
+                    if function.return_type.is_some() {
+                        return Err(ObjectError::new(format!(
+                            "function `{}` has return type but no computed value for result",
+                            function.name
+                        )));
+                    }
+                    builder.ins().return_(&[]);
+                }
             }
         }
-    }
         builder.finalize();
         Ok(())
     }

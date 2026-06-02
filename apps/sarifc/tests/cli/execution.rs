@@ -1504,7 +1504,8 @@ fn wasm_build_accepts_text_kernel_modules() {
 #[cfg(feature = "wasm")]
 #[test]
 fn wasm_build_accepts_runtime_argument_builtins() {
-    let path = temp_source("fn main() -> I32 effects [SystemEnv] { perform SystemEnv.arg_count() }");
+    let path =
+        temp_source("fn main() -> I32 effects [SystemEnv] { perform SystemEnv.arg_count() }");
     let wasm_path = temp_output("arg_text_build", "wasm");
     let build = run_sarif(&[
         "build",

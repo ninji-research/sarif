@@ -163,30 +163,30 @@ fn handle_let_statement(
         context.caller_effects,
         &ExprContext::Statement,
     );
-        state.calls.extend(info.calls);
-        if binding.name == "_" {
+    state.calls.extend(info.calls);
+    if binding.name == "_" {
+        return;
+    }
+    if state.locals.contains_key(&binding.name) {
+        if binding.mutable {
+            context.diagnostics.push(Diagnostic::new(
+                "semantic.duplicate-local",
+                format!(
+                    "local binding `{}` is already declared in `{}`",
+                    binding.name, context.fn_name
+                ),
+                binding.span,
+                Some(
+                    "Use a fresh local name instead of shadowing parameters or earlier locals."
+                        .to_owned(),
+                ),
+            ));
             return;
+        } else {
+            state.locals.remove(&binding.name);
+            state.mutable_locals.remove(&binding.name);
         }
-        if state.locals.contains_key(&binding.name) {
-            if !binding.mutable {
-                state.locals.remove(&binding.name);
-                state.mutable_locals.remove(&binding.name);
-            } else {
-                context.diagnostics.push(Diagnostic::new(
-                    "semantic.duplicate-local",
-                    format!(
-                        "local binding `{}` is already declared in `{}`",
-                        binding.name, context.fn_name
-                    ),
-                    binding.span,
-                    Some(
-                        "Use a fresh local name instead of shadowing parameters or earlier locals."
-                            .to_owned(),
-                    ),
-                ));
-                return;
-            }
-        }
+    }
 
     if binding.mutable
         && type_contains_affine_values(&info.ty, context.struct_layouts, context.enum_variants)

@@ -164,7 +164,7 @@ fn allocate_in_memory<T: wasmtime::AsContextMut>(
     if len == 0 {
         return ptr;
     }
-    let grow = ((len as u64) + 65535) / 65536;
+    let grow = (len as u64).div_ceil(65536);
     if memory.grow(store, grow).is_err() {
         return -1;
     }

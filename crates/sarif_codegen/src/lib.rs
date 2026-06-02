@@ -2299,12 +2299,12 @@ impl ConstEvaluator<'_, '_> {
     ) -> Result<ConstFlow, ConstEvalError> {
         for stmt in &body.statements {
             match stmt {
-            Stmt::Let(binding) => {
-                let value = self.eval_expr_value(&binding.value, env)?;
-                if binding.name == "_" {
-                    continue;
-                }
-                if binding.mutable {
+                Stmt::Let(binding) => {
+                    let value = self.eval_expr_value(&binding.value, env)?;
+                    if binding.name == "_" {
+                        continue;
+                    }
+                    if binding.mutable {
                         let slot = self.fresh_const_slot();
                         env.bind_slot(binding.name.clone(), slot, value);
                     } else {
@@ -4125,7 +4125,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 };
                 let builder = self.lower_expr(arg);
                 let dest = self.fresh_value();
-                self.instructions.push(Inst::StdoutWriteBuilder { dest, builder });
+                self.instructions
+                    .push(Inst::StdoutWriteBuilder { dest, builder });
                 self.emit_unit_value()
             }
             "stdin_text" if self.builtin_is_available("stdin_text") => {
@@ -4191,7 +4192,8 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let handle = self.lower_expr(arg0);
                 let data = self.lower_expr(arg1);
                 let dest = self.fresh_value();
-                self.instructions.push(Inst::FileWrite { dest, handle, data });
+                self.instructions
+                    .push(Inst::FileWrite { dest, handle, data });
                 dest
             }
             "file_seek" if self.builtin_is_available("file_seek") => {
@@ -4208,7 +4210,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let offset = self.lower_expr(arg1);
                 let whence = self.lower_expr(arg2);
                 let dest = self.fresh_value();
-                self.instructions.push(Inst::FileSeek { dest, handle, offset, whence });
+                self.instructions.push(Inst::FileSeek {
+                    dest,
+                    handle,
+                    offset,
+                    whence,
+                });
                 dest
             }
             "file_size" if self.builtin_is_available("file_size") => {
@@ -4285,17 +4292,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.instructions.push(Inst::StdinBytes { dest });
                 dest
             }
-        ("SystemIO", "stdin_text") => {
-            let dest = self.fresh_value();
-            self.instructions.push(Inst::StdinText { dest });
-            dest
-        }
-        ("SystemEnv", "arg_count") | ("SystemIO", "arg_count") => {
-            let dest = self.fresh_value();
-            self.instructions.push(Inst::ArgCount { dest });
-            dest
-        }
-        ("SystemEnv", "arg_text") | ("SystemIO", "arg_text") => {
+            ("SystemIO", "stdin_text") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::StdinText { dest });
+                dest
+            }
+            ("SystemEnv", "arg_count") | ("SystemIO", "arg_count") => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ArgCount { dest });
+                dest
+            }
+            ("SystemEnv", "arg_text") | ("SystemIO", "arg_text") => {
                 let index = *args.first()?;
                 let dest = self.fresh_value();
                 self.instructions.push(Inst::ArgText { dest, index });
@@ -4588,13 +4595,13 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
     fn lower_body(&mut self, body: &sarif_frontend::hir::Body, _top_level: bool) -> BodyLowering {
         for statement in &body.statements {
             match statement {
-            Stmt::Let(binding) => {
-                let value = self.lower_expr(&binding.value);
-                let ty = self.infer_expr_type(&binding.value);
-                if binding.name == "_" {
-                    continue;
-                }
-                if !self.bind_local(
+                Stmt::Let(binding) => {
+                    let value = self.lower_expr(&binding.value);
+                    let ty = self.infer_expr_type(&binding.value);
+                    if binding.name == "_" {
+                        continue;
+                    }
+                    if !self.bind_local(
                         &binding.name,
                         ty.clone(),
                         value,
@@ -11208,12 +11215,12 @@ mod tests {
                     sarif_syntax::ast::Item::Enum(e) => format!("enum {}", e.name),
                     sarif_syntax::ast::Item::Const(c) => format!("const {}", c.name),
                     sarif_syntax::ast::Item::Effect(e) => format!("effect {}", e.name),
-        sarif_syntax::ast::Item::ExternBlock(b) => {
-                format!("extern {{ {} fns }}", b.functions.len())
-            }
-            sarif_syntax::ast::Item::Import(i) => {
-                format!("from {} import {}", i.module, i.names.join(", "))
-            }
+                    sarif_syntax::ast::Item::ExternBlock(b) => {
+                        format!("extern {{ {} fns }}", b.functions.len())
+                    }
+                    sarif_syntax::ast::Item::Import(i) => {
+                        format!("from {} import {}", i.module, i.names.join(", "))
+                    }
                 })
                 .collect::<Vec<_>>()
         );
@@ -11228,12 +11235,12 @@ mod tests {
                 sarif_frontend::hir::Item::Enum(e) => eprintln!("  enum {}", e.name),
                 sarif_frontend::hir::Item::Const(c) => eprintln!("  const {}", c.name),
                 sarif_frontend::hir::Item::Effect(e) => eprintln!("  effect {}", e.name),
-        sarif_frontend::hir::Item::ExternBlock(b) => {
-                eprintln!(" extern {{ {} fns }}", b.functions.len())
-            }
-            sarif_frontend::hir::Item::Import(i) => {
-                eprintln!(" from {} import {}", i.module, i.names.join(", "))
-            }
+                sarif_frontend::hir::Item::ExternBlock(b) => {
+                    eprintln!(" extern {{ {} fns }}", b.functions.len())
+                }
+                sarif_frontend::hir::Item::Import(i) => {
+                    eprintln!(" from {} import {}", i.module, i.names.join(", "))
+                }
             }
         }
         eprintln!("=== END HIR ===");

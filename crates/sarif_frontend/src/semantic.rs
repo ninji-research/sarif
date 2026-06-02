@@ -505,13 +505,13 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
                     span: struct_item.span,
                 }));
             }
-        crate::hir::Item::Effect(_) => {}
-        crate::hir::Item::ExternBlock(_) => {}
-        crate::hir::Item::Import(_) => {}
+            crate::hir::Item::Effect(_) => {}
+            crate::hir::Item::ExternBlock(_) => {}
+            crate::hir::Item::Import(_) => {}
+        }
     }
-}
 
-for item in &module.items {
+    for item in &module.items {
         match item {
             crate::hir::Item::Function(function) => {
                 let signature = functions.get(&function.name).expect("function signature");
@@ -654,10 +654,10 @@ for item in &module.items {
                     }
                 }
             }
-        crate::hir::Item::Const(_) => {}
-        crate::hir::Item::Effect(_) => {}
-        crate::hir::Item::ExternBlock(_) => {}
-        crate::hir::Item::Import(_) => {}
+            crate::hir::Item::Const(_) => {}
+            crate::hir::Item::Effect(_) => {}
+            crate::hir::Item::ExternBlock(_) => {}
+            crate::hir::Item::Import(_) => {}
         }
     }
 

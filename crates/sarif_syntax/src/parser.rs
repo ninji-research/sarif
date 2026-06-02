@@ -42,11 +42,11 @@ impl<'a> Parser<'a> {
                 children.push(Element::Node(self.parse_extern_block()));
             } else if self.at(TokenKind::KwConst) {
                 children.push(Element::Node(self.parse_const_item()));
-        } else if self.at(TokenKind::KwFn) {
-            children.push(Element::Node(self.parse_fn_item()));
-        } else if self.at(TokenKind::KwFrom) {
-            children.push(Element::Node(self.parse_import_item()));
-        } else {
+            } else if self.at(TokenKind::KwFn) {
+                children.push(Element::Node(self.parse_fn_item()));
+            } else if self.at(TokenKind::KwFrom) {
+                children.push(Element::Node(self.parse_import_item()));
+            } else {
                 break;
             }
             self.collect_trivia(&mut children);

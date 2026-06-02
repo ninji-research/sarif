@@ -579,7 +579,7 @@ fn c_build_links_extern_ffi_function() {
 
     // Write the generated C code
     let gen_path = temp_output("generated", "c");
-    std::fs::write(&gen_path, &c_code).expect("write generated C code");
+    std::fs::write(&gen_path, c_code).expect("write generated C code");
 
     // Compile everything together
     let binary_path = temp_output("ffi_test", "bin");
@@ -676,7 +676,7 @@ fn c_build_links_extern_ffi_void_function() {
     .expect("write impl file");
 
     let gen_path = temp_output("ffi_void_gen", "c");
-    std::fs::write(&gen_path, &c_code).expect("write generated C code");
+    std::fs::write(&gen_path, c_code).expect("write generated C code");
 
     let binary_path = temp_output("ffi_void_test", "bin");
     let compile = Command::new("cc")
