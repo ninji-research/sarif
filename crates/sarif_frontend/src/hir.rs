@@ -303,6 +303,7 @@ pub enum Expr {
     Repeat(Box<RepeatExpr>),
     While(Box<WhileExpr>),
     Record(RecordExpr),
+    RecordUpdate(RecordUpdateExpr),
     Unary(UnaryExpr),
     Binary(BinaryExpr),
     Group(GroupExpr),
@@ -344,6 +345,7 @@ impl Expr {
             Self::Repeat(expr) => expr.span,
             Self::While(expr) => expr.span,
             Self::Record(expr) => expr.span,
+            Self::RecordUpdate(expr) => expr.span,
             Self::Unary(expr) => expr.span,
             Self::Binary(expr) => expr.span,
             Self::Group(expr) => expr.span,
@@ -417,6 +419,15 @@ impl Expr {
                 expr.fields
                     .iter()
                     .map(|field| format!("{}: {}", field.name, field.value.pretty()))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
+            Self::RecordUpdate(expr) => format!(
+                "{} with {{ {} }}",
+                expr.base.pretty(),
+                expr.updates
+                    .iter()
+                    .map(|update| format!(".{} = {}", update.name, update.value.pretty()))
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
@@ -592,6 +603,20 @@ pub struct RecordExpr {
 
 #[derive(Clone, Debug)]
 pub struct FieldInit {
+    pub name: String,
+    pub value: Expr,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct RecordUpdateExpr {
+    pub base: Box<Expr>,
+    pub updates: Vec<FieldUpdate>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct FieldUpdate {
     pub name: String,
     pub value: Expr,
     pub span: Span,
@@ -1147,6 +1172,7 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
             span: expr.span,
         })),
         ast::Expr::Record(expr) => Expr::Record(lower_record_expr(expr)),
+        ast::Expr::RecordUpdate(expr) => Expr::RecordUpdate(lower_record_update_expr(expr)),
         ast::Expr::Unary(expr) => Expr::Unary(lower_unary_expr(expr)),
         ast::Expr::Binary(expr) => Expr::Binary(BinaryExpr {
             op: lower_binary_op(expr.op),
@@ -1298,6 +1324,22 @@ fn lower_record_expr(expr: &ast::RecordExpr) -> RecordExpr {
                 name: field.name.clone(),
                 value: lower_expr(&field.value),
                 span: field.span,
+            })
+            .collect(),
+        span: expr.span,
+    }
+}
+
+fn lower_record_update_expr(expr: &ast::RecordUpdateExpr) -> RecordUpdateExpr {
+    RecordUpdateExpr {
+        base: Box::new(lower_expr(&expr.base)),
+        updates: expr
+            .updates
+            .iter()
+            .map(|update| FieldUpdate {
+                name: update.name.clone(),
+                value: lower_expr(&update.value),
+                span: update.span,
             })
             .collect(),
         span: expr.span,

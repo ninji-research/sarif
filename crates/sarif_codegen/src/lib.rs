@@ -2570,6 +2570,28 @@ impl ConstEvaluator<'_, '_> {
             Expr::While(expr) => self.eval_while_expr(expr, env),
             Expr::Repeat(expr) => self.eval_repeat_expr(expr, env),
             Expr::Record(expr) => self.eval_record_expr(expr, env),
+            Expr::RecordUpdate(expr) => {
+                let base = self.eval_expr_value(&expr.base, env)?;
+                let RuntimeValue::Record(RuntimeRecord { name, fields }) = base else {
+                    return Err(ConstEvalError::new(
+                        expr.span,
+                        "record update base must be a record value",
+                    ));
+                };
+                let mut new_fields = fields.clone();
+                for update in &expr.updates {
+                    let value = self.eval_expr_value(&update.value, env)?;
+                    if let Some(pos) = new_fields.iter().position(|(n, _)| n == &update.name) {
+                        new_fields[pos].1 = value;
+                    } else {
+                        new_fields.push((update.name.clone(), value));
+                    }
+                }
+                Ok(ConstFlow::Value(RuntimeValue::Record(RuntimeRecord {
+                    name,
+                    fields: new_fields,
+                })))
+            }
             Expr::Unary(expr) => self.eval_unary_expr(expr, env),
             Expr::Binary(expr) => self.eval_binary_expr(expr, env),
             Expr::Group(expr) => self.eval_expr_flow(&expr.inner, env),
@@ -5068,6 +5090,53 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 });
                 dest
             }
+            Expr::RecordUpdate(expr) => {
+                let base = self.lower_expr(&expr.base);
+                let struct_name = match self.infer_expr_type(&expr.base) {
+                    LowerType::Named(name) => name,
+                    _ => {
+                        self.diagnostics.push(Diagnostic::new(
+                            "codegen.record-update-base",
+                            "record update base is not a struct type",
+                            expr.span,
+                            None,
+                        ));
+                        return self.emit_unit_value();
+                    }
+                };
+                let Some(layout) = self.struct_layouts.get(&struct_name) else {
+                    self.diagnostics.push(Diagnostic::new(
+                        "codegen.record-layout",
+                        format!("struct `{struct_name}` has no known layout"),
+                        expr.span,
+                        None,
+                    ));
+                    return self.emit_unit_value();
+                };
+                let dest = self.fresh_value();
+                let fields: Vec<(String, ValueId)> = layout
+                    .iter()
+                    .map(|(field_name, _)| {
+                        if let Some(update) = expr.updates.iter().find(|u| &u.name == field_name) {
+                            (field_name.clone(), self.lower_expr(&update.value))
+                        } else {
+                            let field_value = self.fresh_value();
+                            self.instructions.push(Inst::Field {
+                                dest: field_value,
+                                base,
+                                name: field_name.clone(),
+                            });
+                            (field_name.clone(), field_value)
+                        }
+                    })
+                    .collect();
+                self.instructions.push(Inst::MakeRecord {
+                    dest,
+                    name: struct_name.clone(),
+                    fields,
+                });
+                dest
+            }
             Expr::Binary(expr) => {
                 // Constant folding: if both operands are integer constants, compute at compile time
                 if let (Expr::Integer(left_int), Expr::Integer(right_int)) = (expr.left.as_ref(), expr.right.as_ref()) {
@@ -5892,6 +5961,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 .map_or(LowerType::Unit, |arm| self.infer_body_type(&arm.body)),
             Expr::Repeat(_) | Expr::While(_) => LowerType::Unit,
             Expr::Record(expr) => LowerType::Named(expr.name.clone()),
+            Expr::RecordUpdate(expr) => self.infer_expr_type(&expr.base),
             Expr::Unary(expr) => match expr.op {
                 sarif_frontend::hir::UnaryOp::Not => LowerType::Bool,
             },

@@ -183,6 +183,8 @@ pub enum NodeKind {
     ArgList,
     FieldInitList,
     FieldInit,
+    FieldUpdateList,
+    FieldUpdate,
     ExprBinary,
     ExprBool,
     ExprCall,
@@ -200,6 +202,7 @@ pub enum NodeKind {
     ExprFloat,
     ExprName,
     ExprRecord,
+    ExprRecordUpdate,
     ExprUnary,
     ExprString,
     ExprComptime,
@@ -233,6 +236,7 @@ impl NodeKind {
                 | Self::ExprFloat
                 | Self::ExprName
                 | Self::ExprRecord
+                | Self::ExprRecordUpdate
                 | Self::ExprUnary
                 | Self::ExprString
                 | Self::ExprComptime

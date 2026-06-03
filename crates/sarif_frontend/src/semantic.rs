@@ -19,7 +19,8 @@ use exprcore::{
     CallSite, ExprContext, ExprInfo, infer_array_expr, infer_binary_expr, infer_call_expr,
     infer_comptime_expr, infer_contract_result_expr, infer_field_expr, infer_group_expr,
     infer_handle_expr, infer_if_expr, infer_index_expr, infer_match_expr, infer_perform_expr,
-    infer_record_expr, infer_repeat_expr, infer_unary_expr, infer_while_expr,
+    infer_record_expr, infer_record_update_expr, infer_repeat_expr, infer_unary_expr,
+    infer_while_expr,
 };
 pub use exprcore::{SystemEffectMethod, find_system_effect_method};
 pub use profile::Profile;
@@ -877,6 +878,19 @@ pub(super) fn infer_expr(
             context,
         ),
         Expr::Record(expr) => infer_record_expr(
+            expr,
+            locals,
+            mutable_locals,
+            functions,
+            consts,
+            enum_variants,
+            struct_layouts,
+            diagnostics,
+            fn_name,
+            caller_effects,
+            context,
+        ),
+        Expr::RecordUpdate(expr) => infer_record_update_expr(
             expr,
             locals,
             mutable_locals,

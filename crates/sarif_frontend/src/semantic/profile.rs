@@ -106,6 +106,10 @@ fn expr_contains_loop(expr: &Expr) -> bool {
         Expr::Call(expr) => expr.args.iter().any(expr_contains_loop),
         Expr::Array(expr) => expr.elements.iter().any(expr_contains_loop),
         Expr::Record(expr) => expr.fields.iter().any(|f| expr_contains_loop(&f.value)),
+        Expr::RecordUpdate(expr) => {
+            expr_contains_loop(&expr.base)
+                || expr.updates.iter().any(|u| expr_contains_loop(&u.value))
+        }
         Expr::Unary(expr) => expr_contains_loop(&expr.inner),
         Expr::Binary(expr) => expr_contains_loop(&expr.left) || expr_contains_loop(&expr.right),
         Expr::Index(expr) => expr_contains_loop(&expr.base) || expr_contains_loop(&expr.index),

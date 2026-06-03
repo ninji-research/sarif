@@ -936,6 +936,20 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            if self.peek_trivia_then(TokenKind::KwWith) {
+                let mut children = vec![Element::Node(expr)];
+                self.collect_trivia(&mut children);
+                children.push(Element::Token(self.expect(TokenKind::KwWith)));
+                self.collect_trivia(&mut children);
+                children.push(Element::Token(self.expect(TokenKind::LBrace)));
+                self.collect_trivia(&mut children);
+                children.push(Element::Node(self.parse_field_update_list()));
+                self.collect_trivia(&mut children);
+                children.push(Element::Token(self.expect(TokenKind::RBrace)));
+                expr = Node::new(NodeKind::ExprRecordUpdate, children);
+                continue;
+            }
+
             break;
         }
 
@@ -1339,6 +1353,46 @@ impl<'a> Parser<'a> {
             Node::empty(NodeKind::FieldInitList, offset)
         } else {
             Node::new(NodeKind::FieldInitList, children)
+        }
+    }
+
+    fn parse_field_update_list(&mut self) -> Node {
+        let mut children = Vec::new();
+        let offset = self.current().span.start;
+
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            self.collect_trivia(&mut children);
+
+            if self.at(TokenKind::RBrace) || self.at(TokenKind::Eof) {
+                break;
+            }
+
+            let mut update_children = Vec::new();
+            self.collect_trivia(&mut update_children);
+            update_children.push(Element::Token(self.expect(TokenKind::Dot)));
+            self.collect_trivia(&mut update_children);
+            update_children.push(Element::Token(self.expect(TokenKind::Ident)));
+            self.collect_trivia(&mut update_children);
+            update_children.push(Element::Token(self.expect(TokenKind::Eq)));
+            self.collect_trivia(&mut update_children);
+            update_children.push(Element::Node(self.parse_expr_bp(0)));
+            children.push(Element::Node(Node::new(
+                NodeKind::FieldUpdate,
+                update_children,
+            )));
+            self.collect_trivia(&mut children);
+
+            if self.at(TokenKind::Comma) {
+                children.push(Element::Token(self.bump()));
+            } else {
+                break;
+            }
+        }
+
+        if children.is_empty() {
+            Node::empty(NodeKind::FieldUpdateList, offset)
+        } else {
+            Node::new(NodeKind::FieldUpdateList, children)
         }
     }
 

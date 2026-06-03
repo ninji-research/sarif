@@ -2848,6 +2848,142 @@ pub(super) fn infer_record_expr(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub(super) fn infer_record_update_expr(
+    expr: &crate::hir::RecordUpdateExpr,
+    locals: &HashMap<String, Type>,
+    mutable_locals: &HashSet<String>,
+    functions: &BTreeMap<String, FunctionSignature>,
+    consts: &BTreeMap<String, ConstSignature>,
+    enum_variants: &BTreeMap<String, Vec<EnumVariantInfo>>,
+    struct_layouts: &BTreeMap<String, Vec<(String, Type)>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    fn_name: &str,
+    caller_effects: &HashSet<Effect>,
+    context: &ExprContext,
+) -> ExprInfo {
+    let nested_context = nested_expr_context(context);
+    let base_info = infer_expr(
+        &expr.base,
+        locals,
+        mutable_locals,
+        functions,
+        consts,
+        enum_variants,
+        struct_layouts,
+        diagnostics,
+        fn_name,
+        caller_effects,
+        &nested_context,
+    );
+    let mut calls = base_info.calls.clone();
+    let struct_name = match &base_info.ty {
+        Type::Named(name) => name.clone(),
+        Type::Error => {
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        other => {
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-update-base",
+                format!(
+                    "record update base has type `{}`, expected a struct type",
+                    other.render()
+                ),
+                expr.base.span(),
+                Some("Use a struct-typed expression as the base.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+    };
+    let Some(layout) = struct_layouts.get(&struct_name) else {
+        diagnostics.push(Diagnostic::new(
+            "semantic.record-type",
+            format!("record update uses unknown struct `{struct_name}`"),
+            expr.span,
+            None,
+        ));
+        return ExprInfo {
+            ty: Type::Error,
+            calls,
+        };
+    };
+    let mut ok = !matches!(base_info.ty, Type::Error);
+    let mut seen = HashSet::<String>::new();
+    for update in &expr.updates {
+        let info = infer_expr(
+            &update.value,
+            locals,
+            mutable_locals,
+            functions,
+            consts,
+            enum_variants,
+            struct_layouts,
+            diagnostics,
+            fn_name,
+            caller_effects,
+            &nested_context,
+        );
+        calls.extend(info.calls);
+        if !seen.insert(update.name.clone()) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field",
+                format!(
+                    "record update for `{}` sets field `{}` more than once",
+                    struct_name, update.name
+                ),
+                update.span,
+                Some("Set each field at most once.".to_owned()),
+            ));
+            ok = false;
+        }
+        let Some(expected) = layout
+            .iter()
+            .find_map(|(name, ty)| (name == &update.name).then_some(ty))
+        else {
+            let suggestion = best_match(&update.name, layout.iter().map(|(name, _)| name.as_str()));
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field",
+                format!("struct `{}` has no field `{}`", struct_name, update.name),
+                update.span,
+                Some(suggestion_help(suggestion, || {
+                    "Use one of the declared struct fields.".to_owned()
+                })),
+            ));
+            ok = false;
+            continue;
+        };
+        if info.ty != *expected && info.ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.record-field-type",
+                format!(
+                    "field `{}` of `{}` expects `{}`, found `{}`",
+                    update.name,
+                    struct_name,
+                    expected.render(),
+                    info.ty.render()
+                ),
+                update.span,
+                Some("Make the field value match the declared field type.".to_owned()),
+            ));
+            ok = false;
+        }
+    }
+    ExprInfo {
+        ty: if ok {
+            Type::Named(struct_name)
+        } else {
+            Type::Error
+        },
+        calls,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(super) fn infer_comptime_expr(
     body: &crate::hir::Body,
     locals: &HashMap<String, Type>,
@@ -3275,6 +3411,13 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
             .fields
             .iter()
             .any(|f| contains_forbidden_comptime_effect(&f.value)),
+        Expr::RecordUpdate(update) => {
+            contains_forbidden_comptime_effect(&update.base)
+                || update
+                    .updates
+                    .iter()
+                    .any(|u| contains_forbidden_comptime_effect(&u.value))
+        }
         Expr::Group(group) => contains_forbidden_comptime_effect(&group.inner),
         Expr::Unary(unary) => contains_forbidden_comptime_effect(&unary.inner),
         Expr::Binary(binary) => {

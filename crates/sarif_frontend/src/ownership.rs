@@ -313,6 +313,12 @@ impl AffineUseChecker<'_> {
                     self.collect(&field.value, borrow_only);
                 }
             }
+            Expr::RecordUpdate(expr) => {
+                self.collect(&expr.base, borrow_only);
+                for update in &expr.updates {
+                    self.collect(&update.value, borrow_only);
+                }
+            }
             Expr::Array(expr) => {
                 for element in &expr.elements {
                     self.collect(element, true);
@@ -1163,6 +1169,32 @@ fn collect_param_modes(
                 );
             }
         }
+        Expr::RecordUpdate(expr) => {
+            collect_param_modes(
+                &expr.base,
+                default_mode.clone(),
+                locals,
+                functions,
+                enum_variants,
+                struct_fields,
+                struct_layouts,
+                aliases,
+                usages,
+            );
+            for update in &expr.updates {
+                collect_param_modes(
+                    &update.value,
+                    default_mode.project_record_field(&update.name),
+                    locals,
+                    functions,
+                    enum_variants,
+                    struct_fields,
+                    struct_layouts,
+                    aliases,
+                    usages,
+                );
+            }
+        }
         Expr::Array(expr) => {
             for element in &expr.elements {
                 collect_param_modes(
@@ -1376,6 +1408,9 @@ fn expr_type_for_ownership(
             }
         }
         Expr::Record(expr) => Some(Type::Named(expr.name.clone())),
+        Expr::RecordUpdate(expr) => {
+            expr_type_for_ownership(&expr.base, locals, struct_layouts, result_type)
+        }
         Expr::Call(expr) => match expr.callee.as_str() {
             "text_builder_new"
             | "text_builder_append"
@@ -1459,6 +1494,7 @@ fn access_path_for_ownership_with_aliases(
         | Expr::Array(_)
         | Expr::Index(_)
         | Expr::Record(_)
+        | Expr::RecordUpdate(_)
         | Expr::Call(_)
         | Expr::Binary(_)
         | Expr::Comptime(_)
@@ -1930,6 +1966,7 @@ fn expr_falls_through(expr: &Expr) -> bool {
         | Expr::Array(_)
         | Expr::Index(_)
         | Expr::Record(_)
+        | Expr::RecordUpdate(_)
         | Expr::ContractResult(_)
         | Expr::Repeat(_)
         | Expr::While(_)

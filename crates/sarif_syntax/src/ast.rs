@@ -464,6 +464,7 @@ pub enum Expr {
     For(Box<ForExpr>),
     While(Box<WhileExpr>),
     Record(RecordExpr),
+    RecordUpdate(RecordUpdateExpr),
     Unary(UnaryExpr),
     Binary(BinaryExpr),
     Group(GroupExpr),
@@ -533,6 +534,7 @@ impl Expr {
             Self::Perform(expr) => expr.span,
             Self::Handle(expr) => expr.span,
             Self::Template(expr) => expr.span,
+            Self::RecordUpdate(expr) => expr.span,
         }
     }
 
@@ -614,6 +616,15 @@ impl Expr {
                 expr.fields
                     .iter()
                     .map(|field| format!("{}: {}", field.name, field.value.pretty()))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
+            Self::RecordUpdate(expr) => format!(
+                "{} with {{ {} }}",
+                expr.base.pretty(),
+                expr.updates
+                    .iter()
+                    .map(|update| format!(".{} = {}", update.name, update.value.pretty()))
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
@@ -808,6 +819,20 @@ pub struct RecordExpr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldInit {
+    pub name: String,
+    pub value: Expr,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecordUpdateExpr {
+    pub base: Box<Expr>,
+    pub updates: Vec<FieldUpdate>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldUpdate {
     pub name: String,
     pub value: Expr,
     pub span: Span,
@@ -1127,6 +1152,7 @@ impl Lowerer {
                         | NodeKind::ExprRepeat
                         | NodeKind::ExprWhile
                         | NodeKind::ExprRecord
+                        | NodeKind::ExprRecordUpdate
                         | NodeKind::ExprUnary
                         | NodeKind::ExprBinary
                         | NodeKind::ExprGroup
@@ -1701,6 +1727,9 @@ impl Lowerer {
                 .lower_while_expr(node)
                 .map(|expr| Expr::While(Box::new(expr))),
             NodeKind::ExprRecord => self.lower_record_expr(node).map(Expr::Record),
+            NodeKind::ExprRecordUpdate => {
+                self.lower_record_update_expr(node).map(Expr::RecordUpdate)
+            }
             NodeKind::ExprUnary => self.lower_unary_expr(node).map(Expr::Unary),
             NodeKind::ExprBinary => self.lower_binary_expr(node).map(Expr::Binary),
             NodeKind::ExprGroup => self.lower_group_expr(node).map(Expr::Group),
@@ -2113,6 +2142,54 @@ impl Lowerer {
         Some(RecordExpr {
             name,
             fields,
+            span: node.span,
+        })
+    }
+
+    fn lower_record_update_expr(&mut self, node: &Node) -> Option<RecordUpdateExpr> {
+        let base = node.children.iter().find_map(|child| match child {
+            Element::Node(child) if child.kind != NodeKind::FieldUpdateList => {
+                self.lower_expr(child)
+            }
+            Element::Node(_) | Element::Token(_) => None,
+        })?;
+        let updates = node
+            .children
+            .iter()
+            .find_map(|child| match child {
+                Element::Node(child) if child.kind == NodeKind::FieldUpdateList => Some(
+                    child
+                        .children
+                        .iter()
+                        .filter_map(|element| match element {
+                            Element::Node(update) if update.kind == NodeKind::FieldUpdate => {
+                                self.lower_field_update(update)
+                            }
+                            Element::Node(_) | Element::Token(_) => None,
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                Element::Node(_) | Element::Token(_) => None,
+            })
+            .unwrap_or_default();
+
+        Some(RecordUpdateExpr {
+            base: Box::new(base),
+            updates,
+            span: node.span,
+        })
+    }
+
+    fn lower_field_update(&mut self, node: &Node) -> Option<FieldUpdate> {
+        let name = Self::first_ident(node)?;
+        let value = node.children.iter().find_map(|child| match child {
+            Element::Node(expr) => self.lower_expr(expr),
+            Element::Token(_) => None,
+        })?;
+
+        Some(FieldUpdate {
+            name,
+            value,
             span: node.span,
         })
     }
