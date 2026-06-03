@@ -328,6 +328,7 @@ fn infer_inst_kinds(
             Inst::FileWrite { dest, .. }
             | Inst::FileSeek { dest, .. }
             | Inst::FileSize { dest, .. }
+            | Inst::TcpSend { dest, .. }
             | Inst::ParseI32 { dest, .. }
             | Inst::ParseI32Range { dest, .. }
             | Inst::ArgCount { dest, .. }
@@ -419,6 +420,9 @@ fn infer_inst_kinds(
             | Inst::ArgText { dest, .. }
             | Inst::FileOpen { dest, .. }
             | Inst::BytesToText { dest, .. }
+            | Inst::TcpListen { dest, .. }
+            | Inst::TcpAccept { dest, .. }
+            | Inst::TcpRecv { dest, .. }
             | Inst::FileRead { dest, .. }
             | Inst::StdinText { dest }
             | Inst::EnvGet { dest, .. }
@@ -639,6 +643,7 @@ fn infer_inst_kinds(
             Inst::StoreLocal { .. }
             | Inst::Assert { .. }
             | Inst::FileClose { .. }
+            | Inst::TcpClose { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. } => {}
             Inst::Perform { .. } | Inst::Handle { .. } => {}
@@ -1314,6 +1319,11 @@ pub struct RuntimeHelperIds {
     pub file_exists_id: FuncId,
     pub file_remove_id: FuncId,
     pub file_is_valid_id: FuncId,
+    pub tcp_listen_id: FuncId,
+    pub tcp_accept_id: FuncId,
+    pub tcp_recv_id: FuncId,
+    pub tcp_send_id: FuncId,
+    pub tcp_close_id: FuncId,
     pub bytes_to_text_id: FuncId,
     pub text_eq_id: FuncId,
     pub text_cmp_id: FuncId,
@@ -1395,6 +1405,11 @@ pub fn declare_runtime_helpers<M: Module>(
         file_exists_id: declare_file_exists(module, backend)?,
         file_remove_id: declare_file_remove(module, backend)?,
         file_is_valid_id: declare_file_is_valid(module, backend)?,
+        tcp_listen_id: declare_tcp_listen(module, backend)?,
+        tcp_accept_id: declare_tcp_accept(module, backend)?,
+        tcp_recv_id: declare_tcp_recv(module, backend)?,
+        tcp_send_id: declare_tcp_send(module, backend)?,
+        tcp_close_id: declare_tcp_close(module, backend)?,
         bytes_to_text_id: declare_bytes_to_text(module, backend)?,
         text_eq_id: declare_text_eq(module, backend)?,
         text_cmp_id: declare_text_cmp(module, backend)?,
@@ -1536,6 +1551,11 @@ pub fn lower_inst<M: Module>(
         file_exists_id,
         file_remove_id,
         file_is_valid_id,
+        tcp_listen_id,
+        tcp_accept_id,
+        tcp_recv_id,
+        tcp_send_id,
+        tcp_close_id,
         bytes_to_text_id,
         text_eq_id,
         text_cmp_id,
@@ -2933,6 +2953,70 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+
+        Inst::TcpListen { dest, port } => {
+            let port_val = native_value(values, *port, function, "tcp_listen port", backend)?;
+            let helper = module.declare_func_in_func(tcp_listen_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[port_val],
+                "tcp listen",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TcpAccept { dest, server_fd } => {
+            let fd_val = native_value(
+                values,
+                *server_fd,
+                function,
+                "tcp_accept server_fd",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(tcp_accept_id, builder.func);
+            let ptr = call_helper(builder, helper, &[fd_val], "tcp accept", function, backend)?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TcpRecv { dest, fd, max_len } => {
+            let fd_val = native_value(values, *fd, function, "tcp_recv fd", backend)?;
+            let len_val = native_value(values, *max_len, function, "tcp_recv max_len", backend)?;
+            let helper = module.declare_func_in_func(tcp_recv_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[fd_val, len_val],
+                "tcp recv",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TcpSend { dest, fd, data } => {
+            let fd_val = native_value(values, *fd, function, "tcp_send fd", backend)?;
+            let data_val = native_value(values, *data, function, "tcp_send data", backend)?;
+            let helper = module.declare_func_in_func(tcp_send_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[fd_val, data_val],
+                "tcp send",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::TcpClose { fd } => {
+            let fd_val = native_value(values, *fd, function, "tcp_close fd", backend)?;
+            let helper = module.declare_func_in_func(tcp_close_id, builder.func);
+            call_helper(builder, helper, &[fd_val], "tcp close", function, backend)?;
+            Ok(true)
+        }
         Inst::FileRemove { dest, path } => {
             let path_val = native_value(values, *path, function, "file_remove path", backend)?;
             let helper = module.declare_func_in_func(file_remove_id, builder.func);
@@ -4099,6 +4183,10 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::FileRead { dest, .. }
             | Inst::FileReadToEnd { dest, .. }
             | Inst::FileMmap { dest, .. }
+            | Inst::TcpListen { dest, .. }
+            | Inst::TcpAccept { dest, .. }
+            | Inst::TcpRecv { dest, .. }
+            | Inst::TcpSend { dest, .. }
             | Inst::FileWrite { dest, .. }
             | Inst::FileSeek { dest, .. }
             | Inst::FileSize { dest, .. }
@@ -4168,6 +4256,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::StdoutWrite { .. }
             | Inst::Assert { .. }
             | Inst::FileClose { .. }
+            | Inst::TcpClose { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. }
             | Inst::AllocPush
@@ -5127,6 +5216,60 @@ pub fn declare_arg_count<M: Module>(module: &mut M, backend: &str) -> Result<Fun
     )
 }
 
+pub fn declare_tcp_listen<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_tcp_listen",
+        backend,
+        "tcp listen helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_tcp_accept<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_tcp_accept",
+        backend,
+        "tcp accept helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_tcp_recv<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_tcp_recv",
+        backend,
+        "tcp recv helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_tcp_send<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_tcp_send",
+        backend,
+        "tcp send helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_tcp_close<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_tcp_close",
+        backend,
+        "tcp close helper",
+        &[types::I64],
+        &[],
+    )
+}
 pub fn declare_file_is_valid<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
     declare_runtime_fn(
         module,

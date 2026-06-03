@@ -1853,6 +1853,14 @@ int64_t sarif_file_is_valid(uint64_t handle) {
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <signal.h>
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 
 uint64_t sarif_file_mmap(const unsigned char* path_handle) {
     if (path_handle == NULL) {
@@ -1891,6 +1899,52 @@ uint64_t sarif_file_mmap(const unsigned char* path_handle) {
         return (uint64_t)NULL;
     }
     return (uint64_t)(uintptr_t)addr;
+}
+
+uint64_t sarif_tcp_listen(int64_t port) {
+  int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) return 0;
+  int opt = 1;
+  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_port = htons((uint16_t)port);
+  if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) { close(fd); return 0; }
+  if (listen(fd, 64) < 0) { close(fd); return 0; }
+  return (uint64_t)fd;
+}
+
+uint64_t sarif_tcp_accept(uint64_t server_fd) {
+  struct sockaddr_in client_addr;
+  socklen_t client_len = sizeof(client_addr);
+  int client_fd = accept((int)server_fd, (struct sockaddr*)&client_addr, &client_len);
+  if (client_fd < 0) return 0;
+  return (uint64_t)client_fd;
+}
+
+uint64_t sarif_tcp_recv(uint64_t fd, int64_t max_len) {
+  if (fd == 0 || max_len <= 0) return (uint64_t)NULL;
+  unsigned char* bytes = sarif_bytes_alloc((uint64_t)max_len);
+  if (bytes == NULL) return (uint64_t)NULL;
+  ssize_t n = recv((int)fd, bytes + 8, (size_t)max_len, 0);
+  if (n < 0) return (uint64_t)NULL;
+  sarif_store_u64(bytes, 0, (uint64_t)n);
+  return (uint64_t)(uintptr_t)bytes;
+}
+
+int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
+  if (fd == 0 || data_handle == NULL) return -1;
+  uint64_t len = sarif_load_u64(data_handle, 0);
+  if (len == 0) return 0;
+  ssize_t n = send((int)fd, data_handle + 8, (size_t)len, MSG_NOSIGNAL);
+  if (n < 0) return -1;
+  return (int64_t)n;
+}
+
+void sarif_tcp_close(uint64_t fd) {
+  if (fd != 0) close((int)fd);
 }
 
 uint64_t sarif_bytes_len(const unsigned char* bytes) {

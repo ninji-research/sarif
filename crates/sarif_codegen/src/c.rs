@@ -427,6 +427,11 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::FileSize { dest, .. } => Some(*dest),
         Inst::FileExists { dest, .. } => Some(*dest),
         Inst::FileRemove { dest, .. } => Some(*dest),
+        Inst::TcpListen { dest, .. } => Some(*dest),
+        Inst::TcpAccept { dest, .. } => Some(*dest),
+        Inst::TcpRecv { dest, .. } => Some(*dest),
+        Inst::TcpSend { dest, .. } => Some(*dest),
+        Inst::TcpClose { .. } => None,
         Inst::FileClose { .. } => None,
         Inst::If { dest, .. } => Some(*dest),
         Inst::While { dest, .. } => Some(*dest),
@@ -1627,6 +1632,40 @@ fn emit_inst(
                 vref(path)
             ))?;
         }
+
+        Inst::TcpListen { dest, port } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_tcp_listen({});",
+                dest.0,
+                vref(port)
+            ))?;
+        }
+        Inst::TcpAccept { dest, server_fd } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_tcp_accept({});",
+                dest.0,
+                vref(server_fd)
+            ))?;
+        }
+        Inst::TcpRecv { dest, fd, max_len } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_tcp_recv({}, {});",
+                dest.0,
+                vref(fd),
+                vref(max_len)
+            ))?;
+        }
+        Inst::TcpSend { dest, fd, data } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_tcp_send({}, (const unsigned char*){});",
+                dest.0,
+                vref(fd),
+                vref(data)
+            ))?;
+        }
+        Inst::TcpClose { fd } => {
+            out.line(&format!("sarif_tcp_close({});", vref(fd)))?;
+        }
         Inst::FileRemove { dest, path } => {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_file_remove((const unsigned char*){});",
@@ -2095,7 +2134,10 @@ fn infer_inst_kind_c(
         Inst::StdinBytes { dest } => {
             kinds.insert(*dest, CodegenValueKind::Bytes);
         }
-        Inst::FileOpen { dest, .. } | Inst::FileIsValid { dest, .. } => {
+        Inst::FileOpen { dest, .. }
+        | Inst::FileIsValid { dest, .. }
+        | Inst::TcpListen { dest, .. }
+        | Inst::TcpAccept { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::File);
         }
         Inst::FileRead { dest, .. }
@@ -2103,9 +2145,13 @@ fn infer_inst_kind_c(
         | Inst::FileMmap { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Bytes);
         }
+        Inst::TcpRecv { dest, .. } => {
+            kinds.insert(*dest, CodegenValueKind::Bytes);
+        }
         Inst::FileWrite { dest, .. }
         | Inst::FileSeek { dest, .. }
-        | Inst::FileSize { dest, .. } => {
+        | Inst::FileSize { dest, .. }
+        | Inst::TcpSend { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::I32);
         }
         Inst::FileExists { dest, .. } | Inst::FileRemove { dest, .. } => {

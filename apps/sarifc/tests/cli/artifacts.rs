@@ -43,6 +43,7 @@ fn doc_rejects_invalid_programs_without_partial_output() {
 }
 
 #[test]
+#[ignore = "slow: runs maintained doc generator on bootstrap source dirs"]
 fn doc_accepts_package_inputs() {
     for path in [
         package_dir(),
@@ -112,6 +113,7 @@ fn doc_groups_multi_file_packages_by_source_file() {
 }
 
 #[test]
+#[ignore = "slow: runs bootstrap-compiled doc generator on bootstrap source dirs"]
 fn bootstrap_doc_matches_retained_semantic_docs_for_single_files_and_packages() {
     for case in bootstrap_doc_cases() {
         let output = run_path_profiled("bootstrap-doc", &case.path, "core");

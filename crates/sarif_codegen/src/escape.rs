@@ -188,6 +188,10 @@ impl Env<'_> {
             | Inst::FileSize { dest, .. }
             | Inst::FileExists { dest, .. }
             | Inst::FileRemove { dest, .. }
+            | Inst::TcpListen { dest, .. }
+            | Inst::TcpAccept { dest, .. }
+            | Inst::TcpRecv { dest, .. }
+            | Inst::TcpSend { dest, .. }
             | Inst::EnvGet { dest, .. }
             | Inst::EnvSet { dest, .. }
             | Inst::EnvRemove { dest, .. }
@@ -353,6 +357,7 @@ impl Env<'_> {
             | Inst::AllocPop
             | Inst::StdoutWrite { .. }
             | Inst::FileClose { .. }
+            | Inst::TcpClose { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. }
             | Inst::LoadParam { .. }

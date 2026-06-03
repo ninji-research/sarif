@@ -632,6 +632,11 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::FileClose { .. }
                 | Inst::FileSeek { .. }
                 | Inst::FileSize { .. }
+                | Inst::TcpListen { .. }
+                | Inst::TcpAccept { .. }
+                | Inst::TcpRecv { .. }
+                | Inst::TcpSend { .. }
+                | Inst::TcpClose { .. }
                 | Inst::FileExists { .. }
                 | Inst::FileRemove { .. }
                 | Inst::ProcessExit { .. }
@@ -1772,6 +1777,21 @@ impl<'a> WasmEmitter<'a> {
             Inst::FileRemove { .. } => {
                 return Err(WasmError::new("wasm backend does not support file remove"));
             }
+            Inst::TcpListen { .. } => {
+                return Err(WasmError::new("wasm backend does not support tcp listen"));
+            }
+            Inst::TcpAccept { .. } => {
+                return Err(WasmError::new("wasm backend does not support tcp accept"));
+            }
+            Inst::TcpRecv { .. } => {
+                return Err(WasmError::new("wasm backend does not support tcp recv"));
+            }
+            Inst::TcpSend { .. } => {
+                return Err(WasmError::new("wasm backend does not support tcp send"));
+            }
+            Inst::TcpClose { .. } => {
+                return Err(WasmError::new("wasm backend does not support tcp close"));
+            }
         }
         Ok(())
     }
@@ -2375,6 +2395,11 @@ fn collect_inst_kinds(
             | Inst::FileSeek { .. }
             | Inst::FileSize { .. }
             | Inst::FileExists { .. }
+            | Inst::TcpListen { .. }
+            | Inst::TcpAccept { .. }
+            | Inst::TcpRecv { .. }
+            | Inst::TcpSend { .. }
+            | Inst::TcpClose { .. }
             | Inst::FileRemove { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. } => {}

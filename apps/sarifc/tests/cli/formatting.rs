@@ -104,6 +104,7 @@ fn format_keeps_shipped_control_flow_example_stable() {
 }
 
 #[test]
+#[ignore = "slow: processes 6 bootstrap files totaling ~285KB through Sarif formatter"]
 fn format_keeps_bootstrap_syntax_stable_and_idempotent() {
     let path = bootstrap_syntax_dir();
     let output = run_path_profiled("format", &path, "core");

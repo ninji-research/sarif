@@ -601,6 +601,27 @@ pub enum Inst {
         dest: ValueId,
         path: ValueId,
     },
+    TcpListen {
+        dest: ValueId,
+        port: ValueId,
+    },
+    TcpAccept {
+        dest: ValueId,
+        server_fd: ValueId,
+    },
+    TcpRecv {
+        dest: ValueId,
+        fd: ValueId,
+        max_len: ValueId,
+    },
+    TcpSend {
+        dest: ValueId,
+        fd: ValueId,
+        data: ValueId,
+    },
+    TcpClose {
+        fd: ValueId,
+    },
     EnvGet {
         dest: ValueId,
         key: ValueId,
@@ -1293,6 +1314,25 @@ impl Inst {
                 data.render()
             ),
             Self::FileClose { handle } => format!("file-close {}", handle.render()),
+            Self::TcpListen { dest, port } => {
+                format!("{} = tcp-listen {}", dest.render(), port.render())
+            }
+            Self::TcpAccept { dest, server_fd } => {
+                format!("{} = tcp-accept {}", dest.render(), server_fd.render())
+            }
+            Self::TcpRecv { dest, fd, max_len } => format!(
+                "{} = tcp-recv {}, {}",
+                dest.render(),
+                fd.render(),
+                max_len.render()
+            ),
+            Self::TcpSend { dest, fd, data } => format!(
+                "{} = tcp-send {}, {}",
+                dest.render(),
+                fd.render(),
+                data.render()
+            ),
+            Self::TcpClose { fd } => format!("tcp-close {}", fd.render()),
             Self::FileSeek {
                 dest,
                 handle,
@@ -3682,6 +3722,11 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::FileMmap { .. }
             | Inst::FileWrite { .. }
             | Inst::FileClose { .. }
+            | Inst::TcpListen { .. }
+            | Inst::TcpAccept { .. }
+            | Inst::TcpRecv { .. }
+            | Inst::TcpSend { .. }
+            | Inst::TcpClose { .. }
             | Inst::FileSeek { .. }
             | Inst::FileSize { .. }
             | Inst::FileExists { .. }
@@ -4239,6 +4284,45 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let dest = self.fresh_value();
                 self.instructions.push(Inst::FileMmap { dest, path });
                 dest
+            }
+
+            "tcp_listen" if self.builtin_is_available("tcp_listen") => {
+                let arg = expr.args.first()?;
+                let port = self.lower_expr(arg);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::TcpListen { dest, port });
+                dest
+            }
+            "tcp_accept" if self.builtin_is_available("tcp_accept") => {
+                let arg = expr.args.first()?;
+                let server_fd = self.lower_expr(arg);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::TcpAccept { dest, server_fd });
+                dest
+            }
+            "tcp_recv" if self.builtin_is_available("tcp_recv") => {
+                let arg0 = expr.args.first()?;
+                let arg1 = expr.args.get(1)?;
+                let fd = self.lower_expr(arg0);
+                let max_len = self.lower_expr(arg1);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::TcpRecv { dest, fd, max_len });
+                dest
+            }
+            "tcp_send" if self.builtin_is_available("tcp_send") => {
+                let arg0 = expr.args.first()?;
+                let arg1 = expr.args.get(1)?;
+                let fd = self.lower_expr(arg0);
+                let data = self.lower_expr(arg1);
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::TcpSend { dest, fd, data });
+                dest
+            }
+            "tcp_close" if self.builtin_is_available("tcp_close") => {
+                let arg = expr.args.first()?;
+                let fd = self.lower_expr(arg);
+                self.instructions.push(Inst::TcpClose { fd });
+                self.emit_unit_value()
             }
             "file_is_valid" if self.builtin_is_available("file_is_valid") => {
                 let arg = expr.args.first()?;
@@ -10069,6 +10153,31 @@ impl<'a> Interpreter<'a> {
                     if let Some(file) = self.files.get_mut(id as usize) {
                         *file = None;
                     }
+                }
+                Inst::TcpListen { .. } => {
+                    return Err(RuntimeError::new(
+                        "interpreter does not support tcp_listen; use native or C backend",
+                    ));
+                }
+                Inst::TcpAccept { .. } => {
+                    return Err(RuntimeError::new(
+                        "interpreter does not support tcp_accept; use native or C backend",
+                    ));
+                }
+                Inst::TcpRecv { .. } => {
+                    return Err(RuntimeError::new(
+                        "interpreter does not support tcp_recv; use native or C backend",
+                    ));
+                }
+                Inst::TcpSend { .. } => {
+                    return Err(RuntimeError::new(
+                        "interpreter does not support tcp_send; use native or C backend",
+                    ));
+                }
+                Inst::TcpClose { .. } => {
+                    return Err(RuntimeError::new(
+                        "interpreter does not support tcp_close; use native or C backend",
+                    ));
                 }
                 Inst::FileRead { dest, handle, len } => {
                     let handle_val = extract_value(values, *handle)?;
