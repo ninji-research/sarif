@@ -3175,7 +3175,12 @@ pub(super) fn infer_perform_expr(
         }
 
         for (i, ((_name, expected_ty), arg)) in method.params.iter().zip(args.iter()).enumerate() {
-            if *expected_ty != arg.ty && arg.ty != Type::Error {
+            let ty_compatible = *expected_ty == arg.ty
+                || (expr.effect == "SystemFile"
+                    && expr.operation == "write"
+                    && i == 1
+                    && (*expected_ty == Type::Bytes && arg.ty == Type::Text));
+            if !ty_compatible && arg.ty != Type::Error {
                 let position = ordinal_name(i);
                 diagnostics.push(Diagnostic::new(
                     "semantic.perform-arg-type",

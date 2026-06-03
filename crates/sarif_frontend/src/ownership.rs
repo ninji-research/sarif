@@ -27,28 +27,49 @@ fn is_borrow_only_builtin(callee: &str) -> bool {
     matches!(
         callee,
         "len"
-            | "text_len"
-            | "bytes_len"
-            | "text_slice"
-            | "bytes_slice"
-            | "bytes_materialize"
-            | "text_byte"
-            | "bytes_byte"
-            | "text_cmp"
-            | "text_eq_range"
-            | "text_intern"
-            | "text_builder_append_i32"
-            | "parse_i32_range"
-            | "text_builder_append_codepoint"
-            | "text_builder_append_ascii"
-            | "text_builder_append_slice"
-            | "text_index_get"
-            | "text_index_contains"
-            | "text_index_set"
-            | "text_index_get_or_insert"
-            | "list_len"
-            | "list_get"
+        | "text_len"
+        | "bytes_len"
+        | "text_slice"
+        | "bytes_slice"
+        | "bytes_materialize"
+        | "text_byte"
+        | "bytes_byte"
+        | "text_cmp"
+        | "text_eq_range"
+        | "text_intern"
+        | "text_builder_append_i32"
+        | "parse_i32_range"
+        | "text_builder_append_codepoint"
+        | "text_builder_append_ascii"
+        | "text_builder_append_slice"
+        | "text_index_get"
+        | "text_index_contains"
+        | "text_index_set"
+        | "text_index_get_or_insert"
+        | "list_len"
+        | "list_get"
     ) || is_text_scan_builtin(callee)
+}
+
+fn is_borrow_only_effect_method(effect: &str, operation: &str) -> bool {
+    matches!(
+        (effect, operation),
+        ("SystemFile", "is_valid")
+        | ("SystemFile", "read")
+        | ("SystemFile", "read_to_end")
+        | ("SystemFile", "size")
+        | ("SystemFile", "seek")
+        | ("SystemFile", "exists")
+        | ("SystemFile", "remove")
+        | ("SystemFile", "mmap")
+        | ("SystemFile", "write")
+        | ("SystemEnv", "get")
+        | ("SystemEnv", "arg_count")
+        | ("SystemEnv", "arg_text")
+        | ("SystemEnv", "keys")
+        | ("SystemIO", "stdin_text")
+        | ("SystemIO", "stdin_bytes")
+    )
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -548,11 +569,13 @@ impl AffineUseChecker<'_> {
                 self.collect(&expr.left, operand_borrow_only);
                 self.collect(&expr.right, operand_borrow_only);
             }
-            Expr::Perform(expr) => {
-                for arg in &expr.args {
-                    self.collect(arg, borrow_only);
-                }
+Expr::Perform(expr) => {
+            let method_borrow_only =
+                is_borrow_only_effect_method(&expr.effect, &expr.operation);
+            for arg in &expr.args {
+                self.collect(arg, borrow_only || method_borrow_only);
             }
+        }
         }
     }
 

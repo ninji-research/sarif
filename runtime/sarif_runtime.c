@@ -673,31 +673,34 @@ void* sarif_text_builder_finish(void* raw_builder) {
 }
 
 
+static SarifList sarif_empty_list = { 0, NULL };
+
 void* sarif_list_new(int64_t len, uint64_t fill) {
-    SarifList* vec = NULL;
-    uint64_t index = 0;
-    if (len < 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
-        return NULL;
+  SarifList* vec = NULL;
+  uint64_t index = 0;
+  if (len < 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
+    return NULL;
+  }
+  if ((size_t)len == 0) {
+    return &sarif_empty_list;
+  }
+  vec = malloc(sizeof(SarifList));
+  if (vec == NULL) {
+    return NULL;
+  }
+  vec->len = (uint64_t)len;
+  if (fill == 0) {
+    vec->values = calloc((size_t)len, sizeof(uint64_t));
+    if (vec->values == NULL) {
+      free(vec);
+      return NULL;
     }
-    vec = malloc(sizeof(SarifList));
-    if (vec == NULL) {
-        return NULL;
+  } else {
+    vec->values = malloc((size_t)len * sizeof(uint64_t));
+    if (vec->values == NULL) {
+      free(vec);
+      return NULL;
     }
-    vec->len = (uint64_t)len;
-    if ((size_t)len == 0) {
-        vec->values = NULL;
-    } else if (fill == 0) {
-        vec->values = calloc((size_t)len, sizeof(uint64_t));
-        if (vec->values == NULL) {
-            free(vec);
-            return NULL;
-        }
-    } else {
-        vec->values = malloc((size_t)len * sizeof(uint64_t));
-        if (vec->values == NULL) {
-            free(vec);
-            return NULL;
-        }
         for (index = 0; index < vec->len; index += 1) {
             vec->values[index] = fill;
         }
@@ -710,9 +713,19 @@ void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
     uint64_t used = 0;
     uint64_t next_cap = 0;
     uint64_t* grown = NULL;
-    if (list == NULL || (list->values == NULL && list->len > 0) || len < 0) {
-        return NULL;
+    if (list == NULL || len < 0) { return NULL; }
+    if (list->values == NULL && list->len == 0) {
+        next_cap = 8u;
+        grown = malloc((size_t)next_cap * sizeof(uint64_t));
+        if (grown == NULL) { return NULL; }
+        grown[0] = value;
+        SarifList* vec = malloc(sizeof(SarifList));
+        if (vec == NULL) { free(grown); return NULL; }
+        vec->values = grown;
+        vec->len = next_cap;
+        return vec;
     }
+    if (list->values == NULL && list->len > 0) { return NULL; }
     used = (uint64_t)len;
     if (used < list->len) {
         list->values[used] = value;
