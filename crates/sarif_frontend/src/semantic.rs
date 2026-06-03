@@ -25,7 +25,8 @@ use exprcore::{
 pub use exprcore::{SystemEffectMethod, find_system_effect_method};
 pub use profile::Profile;
 use profile::{body_contains_loop, type_is_rt_safe};
-use resolve::{ResolvedModule, resolve_module};
+pub use resolve::ResolvedModule;
+pub(crate) use resolve::resolve_module;
 use support::{
     best_match, enum_variant_info, expect_type, matching_numeric_type,
     mutable_local_allows_affine_values, suggestion_help, type_contains_affine_values,
@@ -169,7 +170,11 @@ impl ItemReport {
 
 #[must_use]
 #[allow(clippy::collection_is_never_read)]
-pub fn analyze(module: &Module, profile: Profile) -> Analysis {
+pub fn analyze(
+    module: &Module,
+    profile: Profile,
+    imported_modules: &BTreeMap<String, resolve::ResolvedModule>,
+) -> Analysis {
     let mut diagnostics = Vec::new();
     let ResolvedModule {
         mut functions,
@@ -178,7 +183,7 @@ pub fn analyze(module: &Module, profile: Profile) -> Analysis {
         struct_fields,
         struct_layouts,
         known_types: _known_types,
-    } = resolve_module(module, &mut diagnostics);
+    } = resolve_module(module, &mut diagnostics, imported_modules);
 
     infer_param_modes(
         module,
@@ -970,6 +975,8 @@ pub(super) fn infer_expr(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::hir;
     use crate::semantic::{Profile, analyze};
 
@@ -978,7 +985,7 @@ mod tests {
         let parsed = sarif_syntax::parser::parse(&lexed.tokens);
         let ast = sarif_syntax::ast::lower(&parsed.root);
         let hir = hir::lower(&ast.file);
-        analyze(&hir.module, Profile::Core)
+        analyze(&hir.module, Profile::Core, &BTreeMap::new())
     }
 
     #[test]
@@ -1025,7 +1032,7 @@ fn creates_list() -> List[F64] {
         let parsed = sarif_syntax::parser::parse(&lexed.tokens);
         let ast = sarif_syntax::ast::lower(&parsed.root);
         let hir = hir::lower(&ast.file);
-        let analysis = analyze(&hir.module, Profile::Total);
+        let analysis = analyze(&hir.module, Profile::Total, &BTreeMap::new());
 
         assert!(
             analysis

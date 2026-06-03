@@ -16,7 +16,7 @@ fuzz_target!(|data: &[u8]| {
     let parse_output = parser::parse(&lex_output.tokens);
     let ast_output = ast::lower(&parse_output.root);
     let hir_output = hir::lower(&ast_output.file);
-    let _semantic = semantic::analyze(&hir_output.module, Profile::Core);
+    let _semantic = semantic::analyze(&hir_output.module, Profile::Core, &std::collections::BTreeMap::new());
     let _mir = lower(&hir_output.module);
     let _escape = analyze_escapes(&_mir.program);
 });

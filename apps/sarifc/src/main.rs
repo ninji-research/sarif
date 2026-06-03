@@ -152,6 +152,11 @@ impl LoadedSource {
         diagnostics
             .iter()
             .filter(|d| {
+                if d.code == "semantic.import-not-found"
+                    || d.code == "semantic.import-name-not-found"
+                {
+                    return false;
+                }
                 if profile == Profile::Rt {
                     d.code != "semantic.alloc-escape"
                 } else {

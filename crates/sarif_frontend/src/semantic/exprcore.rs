@@ -728,165 +728,6 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &["Pass an I32 index."],
             dispatch_simple: true,
         }),
-        "stdout_write" => Some(BuiltinEntry {
-            name: "stdout_write",
-            runtime_code: None,
-            arity_error_code: "semantic.stdout_write-arity",
-            type_error_code: "semantic.stdout_write-type",
-            result_ty: Type::Unit,
-            call_hint: "Call `stdout_write(data)` with one Text or Bytes argument.",
-            arg_types: &[],
-            arg_helps: &[],
-            dispatch_simple: false,
-        }),
-        "stdout_write_builder" => Some(BuiltinEntry {
-            name: "stdout_write_builder",
-            runtime_code: None,
-            arity_error_code: "semantic.stdout_write_builder-arity",
-            type_error_code: "semantic.stdout_write_builder-type",
-            result_ty: Type::TextBuilder,
-            call_hint: "Call `stdout_write_builder(builder)` with one TextBuilder.",
-            arg_types: &[Type::TextBuilder],
-            arg_helps: &["Pass a TextBuilder."],
-            dispatch_simple: true,
-        }),
-        "stdin_text" => Some(BuiltinEntry {
-            name: "stdin_text",
-            runtime_code: None,
-            arity_error_code: "semantic.stdin_text-arity",
-            type_error_code: "",
-            result_ty: Type::Text,
-            call_hint: "Call `stdin_text()`.",
-            arg_types: &[],
-            arg_helps: &[],
-            dispatch_simple: true,
-        }),
-        "stdin_bytes" => Some(BuiltinEntry {
-            name: "stdin_bytes",
-            runtime_code: None,
-            arity_error_code: "semantic.stdin_bytes-arity",
-            type_error_code: "",
-            result_ty: Type::Bytes,
-            call_hint: "Call `stdin_bytes()`.",
-            arg_types: &[],
-            arg_helps: &[],
-            dispatch_simple: true,
-        }),
-        "file_open" => Some(BuiltinEntry {
-            name: "file_open",
-            runtime_code: None,
-            arity_error_code: "semantic.file_open-arity",
-            type_error_code: "semantic.file_open-type",
-            result_ty: Type::File,
-            call_hint: "Call `file_open(path, mode)` with two Text arguments.",
-            arg_types: &[Type::Text, Type::Text],
-            arg_helps: &["Pass a Text path.", "Pass a Text mode string."],
-            dispatch_simple: true,
-        }),
-        "file_is_valid" => Some(BuiltinEntry {
-            name: "file_is_valid",
-            runtime_code: None,
-            arity_error_code: "semantic.file_is_valid-arity",
-            type_error_code: "semantic.file_is_valid-type",
-            result_ty: Type::Bool,
-            call_hint: "Call `file_is_valid(file)` with one File argument.",
-            arg_types: &[Type::File],
-            arg_helps: &["Pass a File argument."],
-            dispatch_simple: true,
-        }),
-        "file_read" => Some(BuiltinEntry {
-            name: "file_read",
-            runtime_code: None,
-            arity_error_code: "semantic.file_read-arity",
-            type_error_code: "semantic.file_read-type",
-            result_ty: Type::Bytes,
-            call_hint: "Call `file_read(file, count)`.",
-            arg_types: &[Type::File, Type::I32],
-            arg_helps: &["Pass a File argument.", "Pass an I32 byte count."],
-            dispatch_simple: true,
-        }),
-        "file_read_to_end" => Some(BuiltinEntry {
-            name: "file_read_to_end",
-            runtime_code: None,
-            arity_error_code: "semantic.file_read_to_end-arity",
-            type_error_code: "semantic.file_read_to_end-type",
-            result_ty: Type::Bytes,
-            call_hint: "Call `file_read_to_end(file)` with one File argument.",
-            arg_types: &[Type::File],
-            arg_helps: &["Pass a File argument."],
-            dispatch_simple: true,
-        }),
-        "file_write" => Some(BuiltinEntry {
-            name: "file_write",
-            runtime_code: None,
-            arity_error_code: "semantic.file_write-arity",
-            type_error_code: "semantic.file_write-type",
-            result_ty: Type::I32,
-            call_hint: "Call `file_write(file, data)` with File and Text/Bytes.",
-            arg_types: &[Type::File],
-            arg_helps: &["Pass a File argument.", "Pass Text or Bytes data."],
-            dispatch_simple: false,
-        }),
-        "file_close" => Some(BuiltinEntry {
-            name: "file_close",
-            runtime_code: None,
-            arity_error_code: "semantic.file_close-arity",
-            type_error_code: "semantic.file_close-type",
-            result_ty: Type::Unit,
-            call_hint: "Call `file_close(file)` with one File argument.",
-            arg_types: &[Type::File],
-            arg_helps: &["Pass a File argument."],
-            dispatch_simple: true,
-        }),
-        "file_seek" => Some(BuiltinEntry {
-            name: "file_seek",
-            runtime_code: None,
-            arity_error_code: "semantic.file_seek-arity",
-            type_error_code: "semantic.file_seek-type",
-            result_ty: Type::I32,
-            call_hint: "Call `file_seek(file, offset, whence)`.",
-            arg_types: &[Type::File, Type::I32, Type::I32],
-            arg_helps: &[
-                "Pass a File argument.",
-                "Pass an I32 offset.",
-                "Pass an I32 whence (0=start, 1=current, 2=end).",
-            ],
-            dispatch_simple: true,
-        }),
-        "file_size" => Some(BuiltinEntry {
-            name: "file_size",
-            runtime_code: None,
-            arity_error_code: "semantic.file_size-arity",
-            type_error_code: "semantic.file_size-type",
-            result_ty: Type::I32,
-            call_hint: "Call `file_size(file)` with one File argument.",
-            arg_types: &[Type::File],
-            arg_helps: &["Pass a File argument."],
-            dispatch_simple: true,
-        }),
-        "file_exists" => Some(BuiltinEntry {
-            name: "file_exists",
-            runtime_code: None,
-            arity_error_code: "semantic.file_exists-arity",
-            type_error_code: "semantic.file_exists-type",
-            result_ty: Type::Bool,
-            call_hint: "Call `file_exists(path)` with one Text argument.",
-            arg_types: &[Type::Text],
-            arg_helps: &["Pass a Text path."],
-            dispatch_simple: true,
-        }),
-        "file_remove" => Some(BuiltinEntry {
-            name: "file_remove",
-            runtime_code: None,
-            arity_error_code: "semantic.file_remove-arity",
-            type_error_code: "semantic.file_remove-type",
-            result_ty: Type::Bool,
-            call_hint: "Call `file_remove(path)` with one Text argument.",
-            arg_types: &[Type::Text],
-            arg_helps: &["Pass a Text path."],
-            dispatch_simple: true,
-        }),
-
         "tcp_listen" => Some(BuiltinEntry {
             name: "tcp_listen",
             runtime_code: None,
@@ -927,7 +768,7 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             type_error_code: "semantic.tcp_send-type",
             result_ty: Type::I32,
             call_hint: "Call `tcp_send(fd, data)` with File and Text/Bytes arguments.",
-            arg_types: &[Type::File],
+            arg_types: &[Type::File, Type::Text],
             arg_helps: &["Pass a File socket.", "Pass Text or Bytes data."],
             dispatch_simple: false,
         }),
@@ -940,17 +781,6 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             call_hint: "Call `tcp_close(fd)` with one File argument.",
             arg_types: &[Type::File],
             arg_helps: &["Pass a File socket."],
-            dispatch_simple: true,
-        }),
-        "file_mmap" => Some(BuiltinEntry {
-            name: "file_mmap",
-            runtime_code: None,
-            arity_error_code: "semantic.file_mmap-arity",
-            type_error_code: "semantic.file_mmap-type",
-            result_ty: Type::Bytes,
-            call_hint: "Call `file_mmap(path)` with one Text argument.",
-            arg_types: &[Type::Text],
-            arg_helps: &["Pass a Text path."],
             dispatch_simple: true,
         }),
         _ => None,
@@ -1404,57 +1234,16 @@ pub(super) fn infer_call_expr(
         );
     }
 
-    if expr.callee == "stdout_write" && !functions.contains_key("stdout_write") {
-        if args.len() != 1 {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdout_write-arity",
-                format!(
-                    "builtin `stdout_write` expects 1 argument but got {}",
-                    args.len()
-                ),
-                expr.span,
-                Some("Call `stdout_write(text)`.".to_owned()),
-            ));
-            return ExprInfo {
-                ty: Type::Error,
-                calls,
-            };
-        }
-        if args[0].ty != Type::Text && args[0].ty != Type::Bytes && args[0].ty != Type::Error {
-            diagnostics.push(Diagnostic::new(
-                "semantic.stdout_write-type",
-                format!(
-                    "builtin `stdout_write` expects Text or Bytes, found `{}`",
-                    args[0].ty.render(),
-                ),
-                expr.span,
-                Some("Pass a Text or Bytes value.".to_owned()),
-            ));
-        }
-        if !caller_effects.contains(&Effect::Io) {
-            diagnostics.push(Diagnostic::new(
-                "semantic.io-effect",
-                "builtin `stdout_write` requires `io` effect".to_string(),
-                expr.span,
-                Some("Add `effect io` to the function signature.".to_owned()),
-            ));
-        }
-        return ExprInfo {
-            ty: Type::Unit,
-            calls,
-        };
-    }
-
-    if expr.callee == "file_write" && !functions.contains_key("file_write") {
+    if expr.callee == "tcp_send" && !functions.contains_key("tcp_send") {
         if args.len() != 2 {
             diagnostics.push(Diagnostic::new(
-                "semantic.file_write-arity",
+                "semantic.tcp_send-arity",
                 format!(
-                    "builtin `file_write` expects 2 arguments but got {}",
+                    "builtin `tcp_send` expects 2 arguments but got {}",
                     args.len()
                 ),
                 expr.span,
-                Some("Call `file_write(file, data)`.".to_owned()),
+                Some("Call `tcp_send(fd, data)`.".to_owned()),
             ));
             return ExprInfo {
                 ty: Type::Error,
@@ -1463,9 +1252,9 @@ pub(super) fn infer_call_expr(
         }
         if args[0].ty != Type::File && args[0].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.file_write-type",
+                "semantic.tcp_send-type",
                 format!(
-                    "builtin `file_write` first arg expects File, found `{}`",
+                    "builtin `tcp_send` first arg expects File, found `{}`",
                     args[0].ty.render(),
                 ),
                 expr.span,
@@ -1474,9 +1263,9 @@ pub(super) fn infer_call_expr(
         }
         if args[1].ty != Type::Text && args[1].ty != Type::Bytes && args[1].ty != Type::Error {
             diagnostics.push(Diagnostic::new(
-                "semantic.file_write-type",
+                "semantic.tcp_send-type",
                 format!(
-                    "builtin `file_write` data expects Text or Bytes, found `{}`",
+                    "builtin `tcp_send` data expects Text or Bytes, found `{}`",
                     args[1].ty.render(),
                 ),
                 expr.span,
@@ -1486,7 +1275,7 @@ pub(super) fn infer_call_expr(
         if !caller_effects.contains(&Effect::Io) {
             diagnostics.push(Diagnostic::new(
                 "semantic.io-effect",
-                "builtin `file_write` requires `io` effect".to_string(),
+                "builtin `tcp_send` requires `io` effect".to_string(),
                 expr.span,
                 Some("Add `effect io` to the function signature.".to_owned()),
             ));

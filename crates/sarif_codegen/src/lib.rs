@@ -4176,116 +4176,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.instructions.push(Inst::ArgText { dest, index });
                 dest
             }
-            "stdout_write" if self.builtin_is_available("stdout_write") => {
-                let arg = expr.args.first()?;
-                let text = self.lower_expr(arg);
-                self.instructions.push(Inst::StdoutWrite { text });
-                self.emit_unit_value()
-            }
-            "stdout_write_builder" if self.builtin_is_available("stdout_write_builder") => {
-                let arg = expr.args.first()?;
-                let builder = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions
-                    .push(Inst::StdoutWriteBuilder { dest, builder });
-                self.emit_unit_value()
-            }
-            "stdin_text" if self.builtin_is_available("stdin_text") => {
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::StdinText { dest });
-                dest
-            }
-            "stdin_bytes" if self.builtin_is_available("stdin_bytes") => {
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::StdinBytes { dest });
-                dest
-            }
-            "file_open" if self.builtin_is_available("file_open") => {
-                let arg0 = expr.args.first()?;
-                let arg1 = expr.args.get(1)?;
-                let path = self.lower_expr(arg0);
-                let mode = self.lower_expr(arg1);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileOpen { dest, path, mode });
-                dest
-            }
-            "file_close" if self.builtin_is_available("file_close") => {
-                let arg = expr.args.first()?;
-                let handle = self.lower_expr(arg);
-                self.instructions.push(Inst::FileClose { handle });
-                self.emit_unit_value()
-            }
-            "file_read" if self.builtin_is_available("file_read") => {
-                let arg0 = expr.args.first()?;
-                let arg1 = expr.args.get(1)?;
-                let handle = self.lower_expr(arg0);
-                let len = self.lower_expr(arg1);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileRead { dest, handle, len });
-                dest
-            }
-            "file_read_to_end" if self.builtin_is_available("file_read_to_end") => {
-                let arg = expr.args.first()?;
-                let handle = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileReadToEnd { dest, handle });
-                dest
-            }
-            "file_write" if self.builtin_is_available("file_write") => {
-                let arg0 = expr.args.first()?;
-                let arg1 = expr.args.get(1)?;
-                let handle = self.lower_expr(arg0);
-                let data = self.lower_expr(arg1);
-                let dest = self.fresh_value();
-                self.instructions
-                    .push(Inst::FileWrite { dest, handle, data });
-                dest
-            }
-            "file_seek" if self.builtin_is_available("file_seek") => {
-                let arg0 = expr.args.first()?;
-                let arg1 = expr.args.get(1)?;
-                let arg2 = expr.args.get(2)?;
-                let handle = self.lower_expr(arg0);
-                let offset = self.lower_expr(arg1);
-                let whence = self.lower_expr(arg2);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileSeek {
-                    dest,
-                    handle,
-                    offset,
-                    whence,
-                });
-                dest
-            }
-            "file_size" if self.builtin_is_available("file_size") => {
-                let arg = expr.args.first()?;
-                let handle = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileSize { dest, handle });
-                dest
-            }
-            "file_exists" if self.builtin_is_available("file_exists") => {
-                let arg = expr.args.first()?;
-                let path = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileExists { dest, path });
-                dest
-            }
-            "file_remove" if self.builtin_is_available("file_remove") => {
-                let arg = expr.args.first()?;
-                let path = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileRemove { dest, path });
-                dest
-            }
-            "file_mmap" if self.builtin_is_available("file_mmap") => {
-                let arg = expr.args.first()?;
-                let path = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileMmap { dest, path });
-                dest
-            }
-
             "tcp_listen" if self.builtin_is_available("tcp_listen") => {
                 let arg = expr.args.first()?;
                 let port = self.lower_expr(arg);
@@ -4323,13 +4213,6 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 let fd = self.lower_expr(arg);
                 self.instructions.push(Inst::TcpClose { fd });
                 self.emit_unit_value()
-            }
-            "file_is_valid" if self.builtin_is_available("file_is_valid") => {
-                let arg = expr.args.first()?;
-                let handle = self.lower_expr(arg);
-                let dest = self.fresh_value();
-                self.instructions.push(Inst::FileIsValid { dest, handle });
-                dest
             }
             _ => return None,
         };
@@ -11968,8 +11851,11 @@ fn main() -> I32 {
         let parsed = sarif_syntax::parser::parse(&lexed.tokens);
         let ast = sarif_syntax::ast::lower(&parsed.root);
         let hir = sarif_frontend::hir::lower(&ast.file);
-        let analysis =
-            sarif_frontend::semantic::analyze(&hir.module, sarif_frontend::semantic::Profile::Core);
+        let analysis = sarif_frontend::semantic::analyze(
+            &hir.module,
+            sarif_frontend::semantic::Profile::Core,
+            &std::collections::BTreeMap::new(),
+        );
         analysis.diagnostics
     }
 

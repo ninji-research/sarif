@@ -3014,7 +3014,7 @@ pub fn lower_inst<M: Module>(
         Inst::TcpClose { fd } => {
             let fd_val = native_value(values, *fd, function, "tcp_close fd", backend)?;
             let helper = module.declare_func_in_func(tcp_close_id, builder.func);
-            call_helper(builder, helper, &[fd_val], "tcp close", function, backend)?;
+            builder.ins().call(helper, &[fd_val]);
             Ok(true)
         }
         Inst::FileRemove { dest, path } => {

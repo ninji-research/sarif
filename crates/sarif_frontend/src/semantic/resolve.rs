@@ -10,7 +10,7 @@ use super::{
 };
 
 #[derive(Clone, Debug)]
-pub(super) struct ResolvedModule {
+pub struct ResolvedModule {
     pub functions: BTreeMap<String, FunctionSignature>,
     pub consts: BTreeMap<String, ConstSignature>,
     pub enum_variants: BTreeMap<String, Vec<EnumVariantInfo>>,
@@ -20,7 +20,11 @@ pub(super) struct ResolvedModule {
 }
 
 #[must_use]
-pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>) -> ResolvedModule {
+pub fn resolve_module(
+    module: &Module,
+    diagnostics: &mut Vec<Diagnostic>,
+    imported_modules: &BTreeMap<String, ResolvedModule>,
+) -> ResolvedModule {
     let mut functions = BTreeMap::<String, FunctionSignature>::new();
     let mut consts = BTreeMap::<String, ConstSignature>::new();
     let mut enum_variants = BTreeMap::<String, Vec<EnumVariantInfo>>::new();
@@ -59,7 +63,11 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                 known_types.insert(effect_item.name.clone());
             }
             crate::hir::Item::ExternBlock(_) => {}
-            crate::hir::Item::Import(_) => {}
+            crate::hir::Item::Import(import) => {
+                if let Some(resolved) = imported_modules.get(&import.module) {
+                    known_types.extend(resolved.known_types.iter().cloned());
+                }
+            }
         }
     }
 
@@ -310,7 +318,157 @@ pub(super) fn resolve_module(module: &Module, diagnostics: &mut Vec<Diagnostic>)
                 struct_layouts.insert(struct_item.name.clone(), layout);
             }
             crate::hir::Item::Effect(_) => {}
-            crate::hir::Item::Import(_) => {}
+            crate::hir::Item::Import(import) => {
+                let Some(resolved) = imported_modules.get(&import.module) else {
+                    diagnostics.push(Diagnostic::new(
+                    "semantic.import-not-found",
+                    format!("import module `{}` not found", import.module),
+                    import.span,
+                    Some("Make sure the module path is correct and the source file is available.".to_owned()),
+                ));
+                    continue;
+                };
+                if import.names.is_empty() {
+                    for (name, sig) in &resolved.functions {
+                        if functions.contains_key(name)
+                            || consts.contains_key(name)
+                            || enum_variants.contains_key(name)
+                            || struct_layouts.contains_key(name)
+                        {
+                            diagnostics.push(Diagnostic::new(
+                            "semantic.import-conflict",
+                            format!("imported function `{name}` conflicts with an existing item"),
+                            import.span,
+                            Some(format!("Use selective import: `from {} import ...` excluding `{name}`.", import.module)),
+                        ));
+                        } else {
+                            functions.insert(name.clone(), sig.clone());
+                        }
+                    }
+                    for (name, sig) in &resolved.consts {
+                        if functions.contains_key(name)
+                            || consts.contains_key(name)
+                            || enum_variants.contains_key(name)
+                            || struct_layouts.contains_key(name)
+                        {
+                            diagnostics.push(Diagnostic::new(
+                            "semantic.import-conflict",
+                            format!("imported constant `{name}` conflicts with an existing item"),
+                            import.span,
+                            Some(format!("Use selective import: `from {} import ...` excluding `{name}`.", import.module)),
+                        ));
+                        } else {
+                            consts.insert(name.clone(), sig.clone());
+                        }
+                    }
+                    for (name, variants) in &resolved.enum_variants {
+                        if enum_variants.contains_key(name) {
+                            diagnostics.push(Diagnostic::new(
+                            "semantic.import-conflict",
+                            format!("imported enum `{name}` conflicts with an existing item"),
+                            import.span,
+                            Some(format!("Use selective import: `from {} import ...` excluding `{name}`.", import.module)),
+                        ));
+                        } else {
+                            enum_variants.insert(name.clone(), variants.clone());
+                        }
+                    }
+                    for (name, fields) in &resolved.struct_fields {
+                        struct_fields.insert(name.clone(), fields.clone());
+                    }
+                    for (name, layout) in &resolved.struct_layouts {
+                        if struct_layouts.contains_key(name) {
+                            diagnostics.push(Diagnostic::new(
+                            "semantic.import-conflict",
+                            format!("imported struct `{name}` conflicts with an existing item"),
+                            import.span,
+                            Some(format!("Use selective import: `from {} import ...` excluding `{name}`.", import.module)),
+                        ));
+                        } else {
+                            struct_layouts.insert(name.clone(), layout.clone());
+                        }
+                    }
+                } else {
+                    for import_name in &import.names {
+                        if let Some(sig) = resolved.functions.get(import_name) {
+                            if functions.contains_key(import_name)
+                                || consts.contains_key(import_name)
+                                || enum_variants.contains_key(import_name)
+                                || struct_layouts.contains_key(import_name)
+                            {
+                                diagnostics.push(Diagnostic::new(
+                                "semantic.import-conflict",
+                                format!("imported function `{import_name}` conflicts with an existing item"),
+                                import.span,
+                                Some(format!("Rename the local item or use a different import name for `{import_name}`.")),
+                            ));
+                            } else {
+                                functions.insert(import_name.clone(), sig.clone());
+                            }
+                        } else if let Some(sig) = resolved.consts.get(import_name) {
+                            if functions.contains_key(import_name)
+                                || consts.contains_key(import_name)
+                                || enum_variants.contains_key(import_name)
+                                || struct_layouts.contains_key(import_name)
+                            {
+                                diagnostics.push(Diagnostic::new(
+                                "semantic.import-conflict",
+                                format!("imported constant `{import_name}` conflicts with an existing item"),
+                                import.span,
+                                Some(format!("Rename the local item or use a different import name for `{import_name}`.")),
+                            ));
+                            } else {
+                                consts.insert(import_name.clone(), sig.clone());
+                            }
+                        } else if let Some(variants) = resolved.enum_variants.get(import_name) {
+                            if enum_variants.contains_key(import_name)
+                                || struct_layouts.contains_key(import_name)
+                            {
+                                diagnostics.push(Diagnostic::new(
+                                "semantic.import-conflict",
+                                format!("imported enum `{import_name}` conflicts with an existing item"),
+                                import.span,
+                                Some(format!("Rename the local item or use a different import name for `{import_name}`.")),
+                            ));
+                            } else {
+                                enum_variants.insert(import_name.clone(), variants.clone());
+                                if let Some(fields) = resolved.struct_fields.get(import_name) {
+                                    struct_fields.insert(import_name.clone(), fields.clone());
+                                }
+                            }
+                        } else if let Some(layout) = resolved.struct_layouts.get(import_name) {
+                            if struct_layouts.contains_key(import_name)
+                                || enum_variants.contains_key(import_name)
+                            {
+                                diagnostics.push(Diagnostic::new(
+                                "semantic.import-conflict",
+                                format!("imported struct `{import_name}` conflicts with an existing item"),
+                                import.span,
+                                Some(format!("Rename the local item or use a different import name for `{import_name}`.")),
+                            ));
+                            } else {
+                                if let Some(fields) = resolved.struct_fields.get(import_name) {
+                                    struct_fields.insert(import_name.clone(), fields.clone());
+                                }
+                                struct_layouts.insert(import_name.clone(), layout.clone());
+                            }
+                        } else {
+                            diagnostics.push(Diagnostic::new(
+                                "semantic.import-name-not-found",
+                                format!(
+                                    "name `{import_name}` not found in module `{}`",
+                                    import.module
+                                ),
+                                import.span,
+                                Some(format!(
+                                    "Check that `{import_name}` is exported from `{}`.",
+                                    import.module
+                                )),
+                            ));
+                        }
+                    }
+                }
+            }
             crate::hir::Item::ExternBlock(block) => {
                 for f in &block.functions {
                     if functions.contains_key(&f.name)
