@@ -5,6 +5,7 @@ use std::io::{Read, Seek, SeekFrom, Write as _};
 use std::path::Path;
 
 use sarif_frontend::hir::{BinaryOp, ConstExpr, Expr, Item, Module, Stmt};
+use sarif_frontend::semantic::ResolvedModule;
 use sarif_syntax::{Diagnostic, Span};
 
 #[cfg(feature = "backend-c")]
@@ -1813,7 +1814,63 @@ impl RuntimeValue {
 
 #[allow(clippy::too_many_lines)]
 #[must_use]
+/// Pre-computed information about imported modules, needed by `lower` to resolve
+/// references to imported functions, structs, and enums during codegen.
+pub struct ImportedInfo {
+    pub function_returns: BTreeMap<String, String>,
+    pub struct_fields: BTreeMap<String, Vec<String>>,
+    pub struct_layouts: BTreeMap<String, Vec<(String, String)>>,
+    pub enum_variants: BTreeMap<String, Vec<EnumVariantType>>,
+}
+
+impl Default for ImportedInfo {
+    fn default() -> Self {
+        Self {
+            function_returns: BTreeMap::new(),
+            struct_fields: BTreeMap::new(),
+            struct_layouts: BTreeMap::new(),
+            enum_variants: BTreeMap::new(),
+        }
+    }
+}
+
+impl ImportedInfo {
+    /// Build `ImportedInfo` from the frontend's resolved module map.
+    pub fn from_resolved_modules(modules: &BTreeMap<String, ResolvedModule>) -> Self {
+        let mut function_returns = BTreeMap::new();
+        let mut struct_fields = BTreeMap::new();
+        let mut struct_layouts = BTreeMap::new();
+        let mut enum_variants = BTreeMap::new();
+
+        for (_mod_name, resolved) in modules {
+            for (name, sig) in &resolved.functions {
+                function_returns.entry(name.clone()).or_insert_with(|| sig.return_type.render());
+            }
+            for (name, layout) in &resolved.struct_layouts {
+                let field_names: Vec<String> = layout.iter().map(|(n, _)| n.clone()).collect();
+                struct_fields.entry(name.clone()).or_insert(field_names);
+                let type_strs: Vec<(String, String)> = layout.iter().map(|(n, t)| (n.clone(), t.render())).collect();
+                struct_layouts.entry(name.clone()).or_insert(type_strs);
+            }
+            for (name, variants) in &resolved.enum_variants {
+                let converted: Vec<EnumVariantType> = variants.iter().map(|v| EnumVariantType {
+                    name: v.name.clone(),
+                    payload_type: v.payload.as_ref().map(|t| t.render()),
+                    discriminant: v.discriminant.clone(),
+                }).collect();
+                enum_variants.entry(name.clone()).or_insert(converted);
+            }
+        }
+
+        Self { function_returns, struct_fields, struct_layouts, enum_variants }
+    }
+}
+
 pub fn lower(module: &Module) -> MirLowering {
+    lower_with_imports(module, &ImportedInfo::default())
+}
+
+pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirLowering {
     let mut diagnostics = Vec::new();
     let mut enums = Vec::new();
     let mut structs = Vec::new();
@@ -1828,7 +1885,7 @@ pub fn lower(module: &Module) -> MirLowering {
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let enum_variants = module
+    let mut enum_variants = module
         .items
         .iter()
         .filter_map(|item| match item {
@@ -1847,7 +1904,8 @@ pub fn lower(module: &Module) -> MirLowering {
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let struct_fields = module
+    enum_variants.extend(imported_info.enum_variants.clone());
+    let mut struct_fields = module
         .items
         .iter()
         .filter_map(|item| match item {
@@ -1862,7 +1920,8 @@ pub fn lower(module: &Module) -> MirLowering {
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let struct_layouts = module
+    struct_fields.extend(imported_info.struct_fields.clone());
+    let mut struct_layouts = module
         .items
         .iter()
         .filter_map(|item| match item {
@@ -1877,6 +1936,7 @@ pub fn lower(module: &Module) -> MirLowering {
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
+    struct_layouts.extend(imported_info.struct_layouts.clone());
     let function_items = module
         .items
         .iter()
@@ -1885,7 +1945,7 @@ pub fn lower(module: &Module) -> MirLowering {
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let function_returns = function_items
+    let mut function_returns = function_items
         .iter()
         .map(|(name, function)| {
             (
@@ -1897,6 +1957,7 @@ pub fn lower(module: &Module) -> MirLowering {
             )
         })
         .collect::<BTreeMap<_, _>>();
+    function_returns.extend(imported_info.function_returns.clone());
     let evaluated_consts = evaluate_const_values(
         &consts,
         &function_items,

@@ -125,7 +125,7 @@ impl FrontendDatabase {
         result
     }
 
-    fn resolve_imports(
+    pub fn resolve_imports(
         &self,
         module: &crate::hir::Module,
         resolving: &mut Vec<String>,

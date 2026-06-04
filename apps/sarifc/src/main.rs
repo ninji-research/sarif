@@ -26,7 +26,7 @@ use sarif_codegen::emit_clif;
 #[cfg(feature = "native-build")]
 use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
-use sarif_codegen::{RuntimeError, RuntimeValue, analyze_escapes, lower as lower_mir};
+use sarif_codegen::{ImportedInfo, RuntimeError, RuntimeValue, analyze_escapes, lower_with_imports};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
 use sarif_frontend::hir::{ImportDecl, Item};
@@ -141,7 +141,13 @@ impl LoadedSource {
     #[cfg(feature = "codegen")]
     fn mir(&self) -> &sarif_codegen::MirLowering {
         self.mir_cache
-            .get_or_init(|| lower_mir(&self.database.hir(self.source_id).module))
+            .get_or_init(|| {
+                let module = self.database.hir(self.source_id).module;
+                let imported_modules =
+                    self.database.resolve_imports(&module, &mut Vec::new(), &mut Vec::new());
+                let imported_info = ImportedInfo::from_resolved_modules(&imported_modules);
+                lower_with_imports(&module, &imported_info)
+            })
     }
 
     #[cfg(feature = "codegen")]
