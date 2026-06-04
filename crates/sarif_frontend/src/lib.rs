@@ -125,6 +125,10 @@ impl FrontendDatabase {
         result
     }
 
+    pub fn import_sources(&self) -> &HashMap<String, SourceId> {
+        &self.import_sources
+    }
+
     pub fn resolve_imports(
         &self,
         module: &crate::hir::Module,

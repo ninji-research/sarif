@@ -142,11 +142,25 @@ impl LoadedSource {
     fn mir(&self) -> &sarif_codegen::MirLowering {
         self.mir_cache
             .get_or_init(|| {
-                let module = self.database.hir(self.source_id).module;
+                let root_module = self.database.hir(self.source_id).module.clone();
                 let imported_modules =
-                    self.database.resolve_imports(&module, &mut Vec::new(), &mut Vec::new());
+                    self.database.resolve_imports(&root_module, &mut Vec::new(), &mut Vec::new());
                 let imported_info = ImportedInfo::from_resolved_modules(&imported_modules);
-                lower_with_imports(&module, &imported_info)
+                
+                // Merge all modules into one synthetic module for lowering
+                let mut merged_module = root_module;
+                
+                // Collect HIRs from all imported modules
+                let mut seen_modules: HashSet<String> = HashSet::new();
+                let imported_hirs = collect_imported_hirs(&self.database, &merged_module, &mut seen_modules);
+                
+                // Remove Import items and merge all non-import items
+                merged_module.items.retain(|item| !matches!(item, Item::Import(_)));
+                for (_, imported_hir) in imported_hirs {
+                    merged_module.items.extend(imported_hir.items);
+                }
+                
+                lower_with_imports(&merged_module, &imported_info)
             })
     }
 
@@ -772,6 +786,48 @@ fn find_import_source(name: &str, search_dirs: &[PathBuf]) -> Option<(String, St
         }
     }
     None
+}
+
+/// Collect all imported HIR modules recursively, avoiding cycles.
+fn collect_imported_hirs(
+    database: &FrontendDatabase,
+    module: &sarif_frontend::hir::Module,
+    seen_modules: &mut HashSet<String>,
+) -> Vec<(String, sarif_frontend::hir::Module)> {
+    let mut result = Vec::new();
+    let mut queue = Vec::new();
+    let mut processed = seen_modules.clone();
+
+    // First, collect all module names we need to process (including nested imports)
+    for item in &module.items {
+        if let Item::Import(import) = item {
+            if processed.insert(import.module.clone()) {
+                if let Some(&source_id) = database.import_sources().get(&import.module) {
+                    queue.push((import.module.clone(), source_id));
+                }
+            }
+        }
+    }
+
+    // Process each module, collecting its HIR and any nested imports
+    while let Some((mod_name, source_id)) = queue.pop() {
+        let imported_hir = database.hir(source_id).module.clone();
+        result.push((mod_name.clone(), imported_hir.clone()));
+        
+        // Check for nested imports
+        for item in &imported_hir.items {
+            if let Item::Import(import) = item {
+                if processed.insert(import.module.clone()) {
+                    if let Some(&nested_id) = database.import_sources().get(&import.module) {
+                        queue.push((import.module.clone(), nested_id));
+                    }
+                }
+            }
+        }
+    }
+    
+    *seen_modules = processed;
+    result
 }
 
 #[cfg(all(test, feature = "codegen"))]
