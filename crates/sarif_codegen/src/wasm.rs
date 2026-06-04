@@ -630,6 +630,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::FileMmap { .. }
                 | Inst::FileWrite { .. }
                 | Inst::FileClose { .. }
+                | Inst::FileSync { .. }
                 | Inst::FileSeek { .. }
                 | Inst::FileSize { .. }
                 | Inst::TcpListen { .. }
@@ -1763,6 +1764,9 @@ impl<'a> WasmEmitter<'a> {
             Inst::FileClose { .. } => {
                 return Err(WasmError::new("wasm backend does not support file close"));
             }
+            Inst::FileSync { .. } => {
+                return Err(WasmError::new("wasm backend does not support file sync"));
+            }
             Inst::FileSeek { .. } => {
                 return Err(WasmError::new("wasm backend does not support file seek"));
             }
@@ -2392,6 +2396,7 @@ fn collect_inst_kinds(
             | Inst::FileMmap { .. }
             | Inst::FileWrite { .. }
             | Inst::FileClose { .. }
+            | Inst::FileSync { .. }
             | Inst::FileSeek { .. }
             | Inst::FileSize { .. }
             | Inst::FileExists { .. }

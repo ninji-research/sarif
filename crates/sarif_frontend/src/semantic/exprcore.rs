@@ -2954,6 +2954,11 @@ const SYSTEM_FILE_METHODS: &[SystemEffectMethod] = &[
         return_type: Type::I32,
     },
     SystemEffectMethod {
+        name: "sync",
+        params: &[("file", Type::File)],
+        return_type: Type::Unit,
+    },
+    SystemEffectMethod {
         name: "seek",
         params: &[
             ("file", Type::File),

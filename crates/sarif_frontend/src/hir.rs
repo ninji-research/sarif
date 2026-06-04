@@ -1133,6 +1133,13 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
                     args: expr.args.iter().map(lower_expr).collect(),
                     span: expr.span,
                 })
+            } else if expr.callee == "file_sync" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "sync".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
             } else if expr.callee == "file_seek" && expr.args.len() == 3 {
                 Expr::Perform(PerformExpr {
                     effect: "SystemFile".to_owned(),

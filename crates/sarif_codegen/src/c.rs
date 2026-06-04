@@ -82,6 +82,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
         "extern uint64_t sarif_file_open(const unsigned char* path, const unsigned char* mode);",
     )?;
     out.line("extern void sarif_file_close(uint64_t handle);")?;
+    out.line("extern void sarif_file_sync(uint64_t handle);")?;
     out.line("extern uint64_t sarif_file_read(uint64_t handle, int64_t len);")?;
     out.line("extern uint64_t sarif_file_read_to_end(uint64_t handle);")?;
     out.line("extern int64_t sarif_file_write(uint64_t handle, const unsigned char* data);")?;
@@ -433,6 +434,7 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TcpSend { dest, .. } => Some(*dest),
         Inst::TcpClose { .. } => None,
         Inst::FileClose { .. } => None,
+        Inst::FileSync { .. } => None,
         Inst::If { dest, .. } => Some(*dest),
         Inst::While { dest, .. } => Some(*dest),
         Inst::Repeat { dest, .. } => Some(*dest),
@@ -1675,6 +1677,9 @@ fn emit_inst(
         }
         Inst::FileClose { handle } => {
             out.line(&format!("sarif_file_close({});", vref(handle)))?;
+        }
+        Inst::FileSync { handle } => {
+            out.line(&format!("sarif_file_sync({});", vref(handle)))?;
         }
         Inst::If {
             dest,

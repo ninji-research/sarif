@@ -1749,6 +1749,14 @@ void sarif_file_close(uint64_t handle) {
     }
 }
 
+void sarif_file_sync(uint64_t handle) {
+    FILE* f = (FILE*)(uintptr_t)handle;
+    if (f != NULL) {
+        fflush(f);
+        fsync(fileno(f));
+    }
+}
+
 uint64_t sarif_file_read(uint64_t handle, int64_t len) {
     FILE* f = (FILE*)(uintptr_t)handle;
     if (f == NULL || len < 0) {

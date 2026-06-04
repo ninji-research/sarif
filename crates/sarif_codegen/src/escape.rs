@@ -357,6 +357,7 @@ impl Env<'_> {
             | Inst::AllocPop
             | Inst::StdoutWrite { .. }
             | Inst::FileClose { .. }
+            | Inst::FileSync { .. }
             | Inst::TcpClose { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. }

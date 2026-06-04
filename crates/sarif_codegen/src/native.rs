@@ -643,6 +643,7 @@ fn infer_inst_kinds(
             Inst::StoreLocal { .. }
             | Inst::Assert { .. }
             | Inst::FileClose { .. }
+            | Inst::FileSync { .. }
             | Inst::TcpClose { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. } => {}
@@ -1319,6 +1320,7 @@ pub struct RuntimeHelperIds {
     pub file_exists_id: FuncId,
     pub file_remove_id: FuncId,
     pub file_is_valid_id: FuncId,
+    pub file_sync_id: FuncId,
     pub tcp_listen_id: FuncId,
     pub tcp_accept_id: FuncId,
     pub tcp_recv_id: FuncId,
@@ -1405,6 +1407,7 @@ pub fn declare_runtime_helpers<M: Module>(
         file_exists_id: declare_file_exists(module, backend)?,
         file_remove_id: declare_file_remove(module, backend)?,
         file_is_valid_id: declare_file_is_valid(module, backend)?,
+        file_sync_id: declare_file_sync(module, backend)?,
         tcp_listen_id: declare_tcp_listen(module, backend)?,
         tcp_accept_id: declare_tcp_accept(module, backend)?,
         tcp_recv_id: declare_tcp_recv(module, backend)?,
@@ -1542,6 +1545,7 @@ pub fn lower_inst<M: Module>(
         stdout_write_id,
         file_open_id,
         file_close_id,
+        file_sync_id,
         file_read_id,
         file_read_to_end_id,
         file_mmap_id,
@@ -2829,6 +2833,12 @@ pub fn lower_inst<M: Module>(
         Inst::FileClose { handle } => {
             let handle_val = native_value(values, *handle, function, "file_close handle", backend)?;
             let helper = module.declare_func_in_func(file_close_id, builder.func);
+            builder.ins().call(helper, &[handle_val]);
+            Ok(true)
+        }
+        Inst::FileSync { handle } => {
+            let handle_val = native_value(values, *handle, function, "file_sync handle", backend)?;
+            let helper = module.declare_func_in_func(file_sync_id, builder.func);
             builder.ins().call(helper, &[handle_val]);
             Ok(true)
         }
@@ -4256,6 +4266,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::StdoutWrite { .. }
             | Inst::Assert { .. }
             | Inst::FileClose { .. }
+            | Inst::FileSync { .. }
             | Inst::TcpClose { .. }
             | Inst::ProcessExit { .. }
             | Inst::ClockSleep { .. }
@@ -5109,6 +5120,17 @@ pub fn declare_file_close<M: Module>(module: &mut M, backend: &str) -> Result<Fu
         "sarif_file_close",
         backend,
         "file close helper",
+        &[types::I64],
+        &[],
+    )
+}
+
+pub fn declare_file_sync<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_file_sync",
+        backend,
+        "file sync helper",
         &[types::I64],
         &[],
     )

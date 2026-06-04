@@ -583,6 +583,9 @@ pub enum Inst {
     FileClose {
         handle: ValueId,
     },
+    FileSync {
+        handle: ValueId,
+    },
     FileSeek {
         dest: ValueId,
         handle: ValueId,
@@ -1333,6 +1336,7 @@ impl Inst {
                 data.render()
             ),
             Self::TcpClose { fd } => format!("tcp-close {}", fd.render()),
+            Self::FileSync { handle } => format!("file-sync {}", handle.render()),
             Self::FileSeek {
                 dest,
                 handle,
@@ -3722,6 +3726,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::FileMmap { .. }
             | Inst::FileWrite { .. }
             | Inst::FileClose { .. }
+            | Inst::FileSync { .. }
             | Inst::TcpListen { .. }
             | Inst::TcpAccept { .. }
             | Inst::TcpRecv { .. }
@@ -4275,6 +4280,11 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             ("SystemFile", "close") => {
                 let handle = *args.first()?;
                 self.instructions.push(Inst::FileClose { handle });
+                self.emit_unit_value()
+            }
+            ("SystemFile", "sync") => {
+                let handle = *args.first()?;
+                self.instructions.push(Inst::FileSync { handle });
                 self.emit_unit_value()
             }
             ("SystemFile", "read") => {
@@ -10041,6 +10051,15 @@ impl<'a> Interpreter<'a> {
                     };
                     if let Some(file) = self.files.get_mut(id as usize) {
                         *file = None;
+                    }
+                }
+                Inst::FileSync { handle } => {
+                    let handle_val = extract_value(values, *handle)?;
+                    let RuntimeValue::File(id) = handle_val else {
+                        return Err(RuntimeError::new("expected File"));
+                    };
+                    if let Some(Some(f)) = self.files.get_mut(id as usize) {
+                        let _ = f.flush();
                     }
                 }
                 Inst::TcpListen { .. } => {
