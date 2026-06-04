@@ -1090,7 +1090,8 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
                     args: expr.args.iter().map(lower_expr).collect(),
                     span: expr.span,
                 })
-            } else if (expr.callee == "read" || expr.callee == "stdin_text") && expr.args.is_empty() {
+            } else if (expr.callee == "read" || expr.callee == "stdin_text") && expr.args.is_empty()
+            {
                 Expr::Perform(PerformExpr {
                     effect: "SystemIO".to_owned(),
                     operation: "stdin_text".to_owned(),
