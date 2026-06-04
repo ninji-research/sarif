@@ -1076,7 +1076,7 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
             Expr::ContractResult(ContractResultExpr { span: expr.span })
         }
         ast::Expr::Call(expr) => {
-            if expr.callee == "write" && expr.args.len() == 1 {
+            if (expr.callee == "write" || expr.callee == "stdout_write") && expr.args.len() == 1 {
                 Expr::Perform(PerformExpr {
                     effect: "SystemIO".to_owned(),
                     operation: "stdout_write".to_owned(),
@@ -1090,11 +1090,88 @@ fn lower_expr(expr: &ast::Expr) -> Expr {
                     args: expr.args.iter().map(lower_expr).collect(),
                     span: expr.span,
                 })
-            } else if expr.callee == "read" && expr.args.is_empty() {
+            } else if (expr.callee == "read" || expr.callee == "stdin_text") && expr.args.is_empty() {
                 Expr::Perform(PerformExpr {
                     effect: "SystemIO".to_owned(),
                     operation: "stdin_text".to_owned(),
                     args: vec![],
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_open" && expr.args.len() == 2 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "open".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_close" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "close".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_read" && expr.args.len() == 2 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "read".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_read_to_end" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "read_to_end".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_write" && expr.args.len() == 2 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "write".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_seek" && expr.args.len() == 3 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "seek".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_size" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "size".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_exists" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "exists".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_remove" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "remove".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_mmap" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "mmap".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
+                    span: expr.span,
+                })
+            } else if expr.callee == "file_is_valid" && expr.args.len() == 1 {
+                Expr::Perform(PerformExpr {
+                    effect: "SystemFile".to_owned(),
+                    operation: "is_valid".to_owned(),
+                    args: expr.args.iter().map(lower_expr).collect(),
                     span: expr.span,
                 })
             } else {

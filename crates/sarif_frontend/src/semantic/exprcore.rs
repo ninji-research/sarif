@@ -2210,6 +2210,10 @@ must have type `Text`, found `{}`",
     for effect in &callee.effects {
         if matches!(context, ExprContext::Body | ExprContext::BodyTail)
             && !caller_effects.contains(effect)
+            && !(caller_effects.contains(&Effect::Io) && match effect {
+                Effect::User(name) => name == "SystemIO" || name == "SystemFile",
+                _ => false,
+            })
         {
             diagnostics.push(Diagnostic::new(
                 "semantic.missing-effect",
@@ -3131,6 +3135,7 @@ pub(super) fn infer_perform_expr(
     if let Some(method) = find_system_effect_method(&expr.effect, &expr.operation) {
         if let Some(effect) = Effect::parse(&expr.effect)
             && !caller_effects.contains(&effect)
+            && !(caller_effects.contains(&Effect::Io) && (expr.effect == "SystemIO" || expr.effect == "SystemFile"))
         {
             diagnostics.push(Diagnostic::new(
                 "semantic.missing-effect",
