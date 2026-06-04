@@ -65,6 +65,7 @@ fn is_borrow_only_effect_method(effect: &str, operation: &str) -> bool {
                 | "remove"
                 | "mmap"
                 | "write"
+                | "sync"
         ) | ("SystemEnv", "get" | "arg_count" | "arg_text" | "keys")
             | ("SystemIO", "stdin_text" | "stdin_bytes")
     )
