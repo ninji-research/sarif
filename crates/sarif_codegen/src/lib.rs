@@ -4214,6 +4214,12 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.instructions.push(Inst::TcpClose { fd });
                 self.emit_unit_value()
             }
+            "print" if self.builtin_is_available("print") => {
+                let arg = expr.args.first()?;
+                let text = self.lower_expr(arg);
+                self.instructions.push(Inst::StdoutWrite { text });
+                self.emit_unit_value()
+            }
             _ => return None,
         };
         Some(lowered)

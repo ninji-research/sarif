@@ -1,4 +1,10 @@
-use std::{env, fs, io::Read, process::ExitCode};
+use std::{
+    collections::HashSet,
+    env, fs,
+    io::Read,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 #[cfg(feature = "native-build")]
 mod artifact;
@@ -23,6 +29,7 @@ use sarif_codegen::emit_object;
 use sarif_codegen::{RuntimeError, RuntimeValue, analyze_escapes, lower as lower_mir};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
+use sarif_frontend::hir::{ImportDecl, Item};
 use sarif_frontend::semantic::Profile;
 use sarif_frontend::{FrontendDatabase, SourceId};
 use sarif_syntax::Diagnostic;
@@ -50,6 +57,10 @@ struct LoadedSource {
 
 impl LoadedSource {
     fn load(path: &str) -> Result<Self, String> {
+        Self::load_with_import_paths(path, &[])
+    }
+
+    fn load_with_import_paths(path: &str, import_paths: &[String]) -> Result<Self, String> {
         let resolved = resolve_input(path)?;
         let mut segments = Vec::new();
         let mut combined_source = String::new();
@@ -71,6 +82,21 @@ impl LoadedSource {
 
         let mut database = FrontendDatabase::default();
         let source_id = database.add_source(resolved.display_path.clone(), combined_source.clone());
+
+        // Resolve imports from the filesystem
+        let input_dir = Path::new(path).parent().and_then(|p| {
+            if p.as_os_str().is_empty() {
+                None
+            } else {
+                Some(p.to_path_buf())
+            }
+        });
+        let mut search_dirs: Vec<PathBuf> = import_paths.iter().map(PathBuf::from).collect();
+        if let Some(dir) = &input_dir {
+            search_dirs.push(dir.clone());
+        }
+        resolve_import_sources(&mut database, source_id, &search_dirs)?;
+
         Ok(Self {
             path: resolved.display_path,
             source: combined_source,
@@ -213,7 +239,7 @@ fn run_command(command: command::Command) -> ExitCode {
 }
 
 fn run_check(command: &command::Command) -> Result<(), String> {
-    let loaded = LoadedSource::load(&command.path)?;
+    let loaded = LoadedSource::load_with_import_paths(&command.path, &command.import_paths)?;
     emit_requested_dump(&loaded, command)?;
     let all_diagnostics = loaded.mir_diagnostics(command.profile);
     if command.format.as_deref() == Some("sarif") {
@@ -242,7 +268,7 @@ fn run_doc(command: &command::Command) -> Result<(), String> {
 }
 
 fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
-    let loaded = LoadedSource::load(&command.path)?;
+    let loaded = LoadedSource::load_with_import_paths(&command.path, &command.import_paths)?;
     emit_requested_dump(&loaded, command)?;
     #[cfg(feature = "codegen")]
     {
@@ -268,7 +294,7 @@ fn run_bootstrap_format(command: &command::Command) -> Result<(), String> {
 }
 
 fn run_bootstrap_check(command: &command::Command) -> Result<(), String> {
-    let loaded = LoadedSource::load(&command.path)?;
+    let loaded = LoadedSource::load_with_import_paths(&command.path, &command.import_paths)?;
     emit_requested_dump(&loaded, command)?;
     #[cfg(feature = "codegen")]
     {
@@ -304,7 +330,7 @@ fn run_bootstrap_doc(command: &command::Command) -> Result<(), String> {
 fn run_program(command: command::Command) -> ExitCode {
     #[cfg(feature = "native-build")]
     sarif_codegen::native_set_debug(command.debug);
-    let loaded = match LoadedSource::load(&command.path) {
+    let loaded = match LoadedSource::load_with_import_paths(&command.path, &command.import_paths) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("{e}");
@@ -587,7 +613,7 @@ fn print_loaded_render<F>(command: &command::Command, renderer: F) -> Result<(),
 where
     F: FnOnce(&LoadedSource) -> Result<String, String>,
 {
-    let loaded = LoadedSource::load(&command.path)?;
+    let loaded = LoadedSource::load_with_import_paths(&command.path, &command.import_paths)?;
     let output = renderer(&loaded)?;
     print!("{output}");
     Ok(())
@@ -687,6 +713,59 @@ fn render_codegen_dump(
     _command: &command::Command,
 ) -> Result<String, String> {
     Err("codegen IR dumps require the `codegen` feature".to_owned())
+}
+
+/// Resolve `from X import Y` declarations in the given source and register
+/// imported modules in the database by searching `search_dirs`.
+fn resolve_import_sources(
+    database: &mut FrontendDatabase,
+    source_id: SourceId,
+    search_dirs: &[PathBuf],
+) -> Result<(), String> {
+    let mut seen_modules = HashSet::new();
+    let mut pending = vec![source_id];
+    while let Some(id) = pending.pop() {
+        let hir = database.hir(id);
+        for item in &hir.module.items {
+            if let Item::Import(ImportDecl { module, .. }) = item {
+                if !seen_modules.insert(module.clone()) {
+                    continue;
+                }
+                // Already registered in the database?
+                // FrontendDatabase doesn't expose import_sources directly,
+                // so we check by seeing if we can find the file.
+                let found = find_import_source(module, search_dirs);
+                if let Some((found_path, found_source)) = found {
+                    let new_id =
+                        database.add_import_source(module.clone(), found_path, found_source);
+                    pending.push(new_id);
+                }
+                // If not found, the semantic checker will report it.
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Search `search_dirs` for `{name}.sarif` or `{name}/main.sarif`.
+fn find_import_source(name: &str, search_dirs: &[PathBuf]) -> Option<(String, String)> {
+    for dir in search_dirs {
+        // Try `{name}.sarif`
+        let file_path = dir.join(format!("{name}.sarif"));
+        if file_path.is_file() {
+            if let Ok(source) = fs::read_to_string(&file_path) {
+                return Some((file_path.display().to_string(), source));
+            }
+        }
+        // Try `{name}/main.sarif`
+        let dir_path = dir.join(name).join("main.sarif");
+        if dir_path.is_file() {
+            if let Ok(source) = fs::read_to_string(&dir_path) {
+                return Some((dir_path.display().to_string(), source));
+            }
+        }
+    }
+    None
 }
 
 #[cfg(all(test, feature = "codegen"))]

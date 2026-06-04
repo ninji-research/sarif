@@ -13,6 +13,7 @@ pub struct Command {
     pub inspect: Option<String>,
     pub debug: bool,
     pub format: Option<String>,
+    pub import_paths: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,6 +65,7 @@ pub fn usage() -> String {
     usage += "  -o <path>         output path for build\n";
     usage +=
         "  --print-main      print native `main` results instead of using exit-code semantics\n";
+    usage += "  --import-path <dir>  search directory for imported modules (may be repeated)\n";
     usage += "  --dump-ir=<pass>  dump IR after a compiler pass (hir, semantic, mir, cranelift, wasm, c)\n";
     usage += "                    wasm/c dumps require `--target wasm` or `--target c`\n";
     usage += "  --inspect=<tool>  inspect build output (wasmprinter; only for `build`)\n";
@@ -132,6 +134,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut inspect = None;
     let mut debug = false;
     let mut format = None;
+    let mut import_paths = Vec::new();
 
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -150,6 +153,11 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             "bootstrap-format" => kind = Some(CommandKind::BootstrapFormat),
             "run" => kind = Some(CommandKind::Run),
             "build" => kind = Some(CommandKind::Build),
+            "--import-path" => {
+                if let Some(dir) = iter.next() {
+                    import_paths.push(dir.clone());
+                }
+            }
             "--profile" => {
                 if let Some(p) = iter.next() {
                     profile = match p.as_str() {
@@ -236,6 +244,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             inspect,
             debug,
             format: None,
+            import_paths,
         });
     }
 
@@ -266,6 +275,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         inspect,
         debug,
         format,
+        import_paths,
     })
 }
 

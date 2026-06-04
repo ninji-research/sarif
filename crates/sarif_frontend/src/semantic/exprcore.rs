@@ -783,6 +783,17 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &["Pass a File socket."],
             dispatch_simple: true,
         }),
+        "print" => Some(BuiltinEntry {
+            name: "print",
+            runtime_code: None,
+            arity_error_code: "semantic.print-arity",
+            type_error_code: "semantic.print-type",
+            result_ty: Type::Unit,
+            call_hint: "Call `print(text)` with one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass Text to print to stdout."],
+            dispatch_simple: true,
+        }),
         _ => None,
     }
 }
