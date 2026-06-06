@@ -22,7 +22,7 @@ impl WasmError {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum WasmType {
+pub(crate) enum WasmType {
     I64,
     F64,
 }
@@ -65,6 +65,7 @@ pub(crate) fn enum_is_payload_free(enum_ty: &WasmEnum) -> bool {
     enum_ty.variants.iter().all(|v| v.payload.is_none())
 }
 
+mod binary;
 mod memory;
 mod runtime;
 mod runtime_gen;
@@ -79,18 +80,22 @@ pub fn emit_wat(program: &Program) -> Result<String, WasmError> {
 pub fn emit_wasm(program: &Program) -> Result<Vec<u8>, WasmError> {
     let emitter = WasmEmitter::new(program)?;
 
-    if std::env::var("SARIF_DEBUG_RUNTIME").is_ok() {
-        let runtime_binary =
-            runtime_gen::emit_runtime_module(program, &emitter.records, &emitter.enums)?;
-        eprintln!("[runtime_gen produced {} bytes]", runtime_binary.len());
-    }
+    if std::env::var("SARIF_USE_WAT").is_ok() {
+        if std::env::var("SARIF_DEBUG_RUNTIME").is_ok() {
+            let runtime_binary =
+                runtime_gen::emit_runtime_module(program, &emitter.records, &emitter.enums)?;
+            eprintln!("[runtime_gen produced {} bytes]", runtime_binary.len());
+        }
 
-    let wat = emitter.emit()?;
+        let wat = emitter.emit()?;
 
-    if std::env::var("SARIF_DEBUG_WASM").is_ok() {
-        eprintln!("{wat}");
+        if std::env::var("SARIF_DEBUG_WASM").is_ok() {
+            eprintln!("{wat}");
+        }
+        wat::parse_str(&wat).map_err(|error| WasmError::new(error.to_string()))
+    } else {
+        binary::emit_wasm_binary(program, &emitter.records, &emitter.enums)
     }
-    wat::parse_str(&wat).map_err(|error| WasmError::new(error.to_string()))
 }
 
 struct WasmEmitter<'a> {
@@ -1972,7 +1977,7 @@ impl<'a> WasmEmitter<'a> {
     }
 }
 
-fn wasm_id(id: ValueId) -> String {
+pub(crate) fn wasm_id(id: ValueId) -> String {
     id.render().replace('%', "")
 }
 
@@ -2005,15 +2010,15 @@ fn wasm_helper_suffix(name: &str) -> String {
         .collect()
 }
 
-fn record_eq_helper_name(name: &str) -> String {
+pub(crate) fn record_eq_helper_name(name: &str) -> String {
     format!("$eq_record_{}", wasm_helper_suffix(name))
 }
 
-fn enum_eq_helper_name(name: &str) -> String {
+pub(crate) fn enum_eq_helper_name(name: &str) -> String {
     format!("$eq_enum_{}", wasm_helper_suffix(name))
 }
 
-fn wasm_value_kind_from_name(
+pub(crate) fn wasm_value_kind_from_name(
     name: &str,
     structs: &[super::StructType],
     enums: &[super::EnumType],
@@ -2061,14 +2066,14 @@ fn wasm_type_for_extern(
     }
 }
 
-fn wasm_type_from_kind(kind: &WasmValueKind) -> WasmType {
+pub(crate) fn wasm_type_from_kind(kind: &WasmValueKind) -> WasmType {
     match kind {
         WasmValueKind::F64 => WasmType::F64,
         _ => WasmType::I64,
     }
 }
 
-fn wasm_type_from_kind_result(kind: &WasmValueKind) -> Option<WasmType> {
+pub(crate) fn wasm_type_from_kind_result(kind: &WasmValueKind) -> Option<WasmType> {
     match kind {
         WasmValueKind::F64 => Some(WasmType::F64),
         WasmValueKind::Unit => None,
@@ -2076,7 +2081,7 @@ fn wasm_type_from_kind_result(kind: &WasmValueKind) -> Option<WasmType> {
     }
 }
 
-fn collect_inst_kinds(
+pub(crate) fn collect_inst_kinds(
     function: &Function,
     instructions: &[Inst],
     structs: &[super::StructType],

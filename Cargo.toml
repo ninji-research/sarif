@@ -28,6 +28,7 @@ strsim = "0.11.1"
 target-lexicon = "0.13.5"
 toml = "1.1.2"
 wasm-encoder = "0.249.0"
+wasmparser = "0.249.0"
 wat = "1.248.0"
 wasmtime = { version = "44.0.0", default-features = false, features = ["cranelift", "runtime", "std", "wat"] }
 

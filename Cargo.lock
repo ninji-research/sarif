@@ -441,6 +441,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
  "foldhash",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -709,6 +711,7 @@ dependencies = [
  "sarif_syntax",
  "target-lexicon",
  "wasm-encoder 0.249.0",
+ "wasmparser 0.249.0",
  "wasmtime",
  "wat",
 ]
@@ -991,8 +994,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30538cae9a794215f490b532df01c557e2e2bfac92569482554acd0992a102ea"
 dependencies = [
  "bitflags 2.11.1",
+ "hashbrown 0.17.1",
  "indexmap",
  "semver",
+ "serde",
 ]
 
 [[package]]

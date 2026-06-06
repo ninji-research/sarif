@@ -1048,11 +1048,28 @@ mod tests {
         assert_eq!(text, "world");
     }
 
-    #[test]
-    fn wasm_binary_roundtrip_validate() {
-        let program = lower_program("fn main() -> I32 { 42 }");
-        let wasm = emit_wasm(&program).expect("wasm should emit");
-        let engine = Engine::default();
+#[test]
+fn wasm_binary_roundtrip_validate() {
+    let program = lower_program("fn main() -> I32 { 42 }");
+    let wasm = emit_wasm(&program).expect("wasm should emit");
+    std::fs::write("/tmp/test_binary.wasm", &wasm).expect("write wasm");
+
+    use wasmparser::{Parser, Validator, WasmFeatures};
+    let mut validator = Validator::new_with_features(WasmFeatures::default() | WasmFeatures::REFERENCE_TYPES);
+    for payload in Parser::new(0).parse_all(&wasm) {
+        match payload {
+            Ok(p) => {
+                if let Err(e) = validator.payload(&p) {
+                    panic!("wasmparser validation error: {e:?}");
+                }
+            }
+            Err(e) => {
+                panic!("wasmparser parse error: {e:?}");
+            }
+        }
+    }
+
+    let engine = Engine::default();
         let module = Module::new(&engine, wasm).expect("emitted wasm should be valid");
         let mut store = Store::new(&engine, ());
         let mut linker = Linker::new(&engine);

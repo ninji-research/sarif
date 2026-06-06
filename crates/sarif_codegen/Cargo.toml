@@ -8,7 +8,7 @@ version.workspace = true
 [features]
 default = []
 backend-native = ["dep:cranelift-codegen", "dep:cranelift-frontend", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native", "dep:cranelift-object", "dep:target-lexicon"]
-backend-wasm = ["dep:wasm-encoder", "dep:wasmtime", "dep:wat"]
+backend-wasm = ["dep:wasm-encoder", "dep:wasmparser", "dep:wasmtime", "dep:wat"]
 backend-c = []
 
 [dependencies]
@@ -22,5 +22,6 @@ sarif_frontend = { path = "../sarif_frontend" }
 sarif_syntax = { path = "../sarif_syntax" }
 target-lexicon = { workspace = true, optional = true }
 wasm-encoder = { workspace = true, optional = true }
+wasmparser = { workspace = true, optional = true }
 wasmtime = { workspace = true, optional = true }
 wat = { workspace = true, optional = true }
