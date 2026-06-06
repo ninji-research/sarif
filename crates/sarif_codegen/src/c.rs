@@ -994,6 +994,8 @@ fn emit_inst(
             let dest_kind = value_kinds.get(dest);
             if dest_kind == Some(&CodegenValueKind::Unit) {
                 out.line(&format!("{};", c))?;
+            } else if dest_kind == Some(&CodegenValueKind::F64) {
+                out.line(&format!("v{} = {};", dest.0, c))?;
             } else {
                 out.line(&format!("v{} = (uint64_t){};", dest.0, c))?;
             }
