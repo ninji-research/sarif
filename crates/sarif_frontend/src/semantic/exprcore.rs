@@ -81,7 +81,6 @@ struct BuiltinArgSpec<'a> {
     help: &'a str,
 }
 
-#[allow(dead_code)]
 struct BuiltinEntry {
     name: &'static str,
     runtime_code: Option<&'static str>,

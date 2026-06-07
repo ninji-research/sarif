@@ -23,10 +23,6 @@ pub(crate) struct RuntimeSections {
     pub(crate) globals: GlobalSection,
     pub(crate) exports: ExportSection,
     pub(crate) code_bodies: Vec<Function>,
-    #[expect(dead_code)]
-    pub(crate) num_imported_funcs: u32,
-    #[expect(dead_code)]
-    pub(crate) num_runtime_funcs: u32,
 }
 
 pub(crate) fn emit_runtime_sections(
@@ -3421,12 +3417,9 @@ pub(crate) fn emit_runtime_sections(
         globals,
         exports,
         code_bodies,
-        num_imported_funcs: 1,
-        num_runtime_funcs: 52,
     })
 }
 
-#[allow(dead_code)]
 pub fn emit_runtime_module(
     program: &Program,
     records: &BTreeMap<String, WasmRecord>,

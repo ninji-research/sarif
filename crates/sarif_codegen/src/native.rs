@@ -1263,7 +1263,6 @@ pub fn lower_enum_tag_eq(
 }
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub struct TextIndexHelperIds {
     pub new_id: Option<FuncId>,
     pub get_id: Option<FuncId>,

@@ -654,7 +654,7 @@ fn instantiate_wasm_module(wasm: &[u8]) -> Result<(Store<()>, Instance), WasmErr
     Ok((store, instance))
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 fn instantiate_wasm_module_with_args(
     wasm: &[u8],
     args: &[String],
