@@ -131,6 +131,20 @@ fn cli_reports_option_errors_directly() {
     ]);
     assert!(!bad_dump.status.success());
     assert!(String::from_utf8_lossy(&bad_dump.stderr).contains("unknown IR dump pass `bogus`"));
+
+    let missing_file = run_sarif(&["check", "/nonexistent/path/to/file.sarif"]);
+    assert!(!missing_file.status.success());
+    let missing_stderr = String::from_utf8_lossy(&missing_file.stderr);
+    assert!(missing_stderr.contains("No such file") || missing_stderr.contains("missing input file") || missing_stderr.contains("does not exist"));
+
+    let bad_format = run_sarif(&[
+        "check",
+        example().to_str().expect("utf-8 path"),
+        "--format",
+        "bogus",
+    ]);
+    assert!(!bad_format.status.success());
+    assert!(String::from_utf8_lossy(&bad_format.stderr).contains("unknown format `bogus`"));
 }
 
 #[test]

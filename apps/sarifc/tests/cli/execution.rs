@@ -1956,3 +1956,37 @@ fn run_executes_null_and_carriage_return_escapes() {
     assert!(stdout.contains('b'), "should contain 'b'");
     assert!(stdout.contains('c'), "should contain 'c'");
 }
+
+#[test]
+fn text_len_returns_correct_length() {
+    assert_run_parity("fn main() -> I32 { text_len(\"sarif\") }", "5");
+}
+
+#[test]
+fn text_len_returns_zero_for_empty_string() {
+    assert_run_parity("fn main() -> I32 { text_len(\"\") }", "0");
+}
+
+#[test]
+fn template_pure_text_at_runtime() {
+    assert_run_parity(
+        r#"fn main() -> Text { "hello world" }"#,
+        "hello world",
+    );
+}
+
+#[test]
+fn template_with_newline_escape_in_text() {
+    assert_run_parity(
+        r#"fn main() -> Text { "line1\nline2" }"#,
+        "line1\nline2",
+    );
+}
+
+#[test]
+fn template_with_tab_escape_in_text() {
+    assert_run_parity(
+        r#"fn main() -> Text { "col1\tcol2" }"#,
+        "col1\tcol2",
+    );
+}
