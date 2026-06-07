@@ -2049,8 +2049,7 @@ fn infer_inst_kind_c(
         Inst::TextIndexNew { dest } | Inst::TextIndexSet { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::TextIndex);
         }
-        Inst::TextIndexGet { dest, .. }
-        | Inst::TextIndexGetOrInsert { dest, .. } => {
+        Inst::TextIndexGet { dest, .. } | Inst::TextIndexGetOrInsert { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::I32);
         }
         Inst::TextIndexContains { dest, .. } => {

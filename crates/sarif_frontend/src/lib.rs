@@ -125,7 +125,7 @@ impl FrontendDatabase {
         result
     }
 
-    pub fn import_sources(&self) -> &HashMap<String, SourceId> {
+    pub const fn import_sources(&self) -> &HashMap<String, SourceId> {
         &self.import_sources
     }
 

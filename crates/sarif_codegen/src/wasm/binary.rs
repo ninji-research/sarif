@@ -1,25 +1,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use wasm_encoder::{
-    BlockType, ConstExpr, EntityType, ExportKind, Function as WasmFunction, GlobalSection,
-    GlobalType, Ieee64, ImportSection, Instruction, MemArg, MemorySection, MemoryType, Module,
-    ValType, CodeSection, TypeSection, ExportSection, FunctionSection, NameSection, NameMap,
+    BlockType, CodeSection, ConstExpr, EntityType, ExportKind, ExportSection,
+    Function as WasmFunction, FunctionSection, GlobalSection, GlobalType, Ieee64, ImportSection,
+    Instruction, MemArg, MemorySection, MemoryType, Module, NameMap, NameSection, TypeSection,
+    ValType,
 };
 
-use super::{
-    WasmError, WasmEnum, WasmRecord, WasmType,
+use super::{WasmEnum, WasmError, WasmRecord, WasmType};
+use crate::wasm::runtime_gen::emit_runtime_sections;
+use crate::wasm::{
+    collect_inst_kinds, enum_eq_helper_name, enum_is_payload_free, record_eq_helper_name, wasm_id,
+    wasm_type_from_kind, wasm_type_from_kind_result, wasm_value_kind_from_name,
 };
 use crate::{
-    CodegenValueKind as WasmValueKind, Function, Inst, LocalSlotId, Program, ValueId,
-    EnumType, StructType, ExternFunction,
-    for_each_inst_recursive,
+    CodegenValueKind as WasmValueKind, EnumType, ExternFunction, Function, Inst, LocalSlotId,
+    Program, StructType, ValueId, for_each_inst_recursive,
 };
-use crate::wasm::{
-    collect_inst_kinds, enum_eq_helper_name, enum_is_payload_free,
-    record_eq_helper_name, wasm_id, wasm_type_from_kind, wasm_type_from_kind_result,
-    wasm_value_kind_from_name,
-};
-use crate::wasm::runtime_gen::emit_runtime_sections;
 
 const PAYLOAD_ENUM_SIZE: u32 = 16;
 
@@ -319,7 +316,10 @@ pub(crate) fn emit_wasm_binary(
     let mut num_imported_funcs = 0u32;
     for imp in PREAMBLE_IMPORTS {
         let type_idx = next_type_idx;
-        types.ty().function(imp.type_params.iter().copied(), imp.type_results.iter().copied());
+        types.ty().function(
+            imp.type_params.iter().copied(),
+            imp.type_results.iter().copied(),
+        );
         next_type_idx += 1;
         imports.import(imp.module, imp.name, EntityType::Function(type_idx));
         func_indices.insert(imp.name, num_imported_funcs);
@@ -352,8 +352,8 @@ pub(crate) fn emit_wasm_binary(
 
     // --- Phase 2: Runtime functions (from runtime_gen) ---
     let call_offset = num_imported_funcs - 1;
-    let runtime_sections =
-        emit_runtime_sections(program, records, enums, call_offset).map_err(|e| WasmError::new(e.message))?;
+    let runtime_sections = emit_runtime_sections(program, records, enums, call_offset)
+        .map_err(|e| WasmError::new(e.message))?;
 
     // We need the runtime type signatures (they're already emitted by runtime_gen).
     // But we already have types from preamble imports. We must NOT duplicate the runtime
@@ -424,16 +424,17 @@ pub(crate) fn emit_wasm_binary(
     );
 
     // --- Phase 3: Support functions (record_eq, enum_eq, arg_count, arg_text, stdin_text, stdin_bytes, text_index_keys) ---
-    let support_start_func = runtime_func_start
-        + u32::try_from(RUNTIME_FUNC_NAMES.len()).unwrap();
+    let support_start_func = runtime_func_start + u32::try_from(RUNTIME_FUNC_NAMES.len()).unwrap();
 
     let eq_helper_type_idx = next_type_idx;
-    types.ty().function([ValType::I64, ValType::I64], [ValType::I64]);
+    types
+        .ty()
+        .function([ValType::I64, ValType::I64], [ValType::I64]);
     next_type_idx += 1;
 
     let mut support_func_names: Vec<String> = Vec::new();
 
-    for (name, _record) in records {
+    for name in records.keys() {
         let helper_name = record_eq_helper_name(name);
         functions.function(eq_helper_type_idx);
         let func_idx = support_start_func
@@ -513,8 +514,8 @@ pub(crate) fn emit_wasm_binary(
         support_func_names.push(func_name);
     }
 
-    let support_func_count = u32::try_from(support_func_names.len())
-        .expect("too many support functions");
+    let support_func_count =
+        u32::try_from(support_func_names.len()).expect("too many support functions");
     let user_start_func = support_start_func + support_func_count;
 
     // --- Phase 5: User function types and indices ---
@@ -609,7 +610,8 @@ pub(crate) fn emit_wasm_binary(
     exports.export("alloc", ExportKind::Func, func_indices.runtime("alloc"));
 
     for function in &program.functions {
-        let func_idx = func_indices.get(&format!("${}", function.name))
+        let func_idx = func_indices
+            .get(&format!("${}", function.name))
             .expect("user function should have an index");
         exports.export(&function.name, ExportKind::Func, func_idx);
     }
@@ -703,10 +705,9 @@ fn emit_runtime_type_signatures(types: &mut TypeSection, next_idx: &mut u32) {
     types.ty().function([ValType::I64], []);
     *next_idx += 1;
     // Type 14: (i32, i64, i32) -> i32
-    types.ty().function(
-        [ValType::I32, ValType::I64, ValType::I32],
-        [ValType::I32],
-    );
+    types
+        .ty()
+        .function([ValType::I32, ValType::I64, ValType::I32], [ValType::I32]);
     *next_idx += 1;
 }
 
@@ -777,7 +778,7 @@ fn get_or_create_user_func_type(
     let mut params: Vec<ValType> = Vec::new();
     for param in &function.params {
         let kind = wasm_value_kind_from_name(&param.ty, program_structs, program_enums)
-            .unwrap_or_else(|_| WasmValueKind::I32);
+            .unwrap_or(WasmValueKind::I32);
         params.push(kind_to_valtype(&kind));
     }
     let results: Vec<ValType> = if let Some(ty) = wasm_type_from_kind_result(return_kind) {
@@ -960,7 +961,7 @@ fn emit_enum_eq_helper_binary(
         f.instruction(&Instruction::I64Xor);
         emit_memory_kind_equality_binary(
             &mut f,
-            &_payload_kind,
+            _payload_kind,
             left_idx,
             right_idx,
             8,
@@ -997,16 +998,15 @@ fn emit_memory_kind_equality_binary(
         WasmValueKind::Text | WasmValueKind::Bytes => {
             emit_memory_load_binary(f, left_base, offset, WasmType::I64);
             emit_memory_load_binary(f, right_base, offset, WasmType::I64);
-            f.instruction(&Instruction::Call(
-                func_indices.runtime("__sarif_text_eq"),
-            ));
+            f.instruction(&Instruction::Call(func_indices.runtime("__sarif_text_eq")));
         }
         WasmValueKind::Record(name) => {
             emit_memory_load_binary(f, left_base, offset, WasmType::I64);
             emit_memory_load_binary(f, right_base, offset, WasmType::I64);
             let helper = record_eq_helper_name(name);
             f.instruction(&Instruction::Call(
-                func_indices.get(&helper)
+                func_indices
+                    .get(&helper)
                     .expect("record eq helper should have an index"),
             ));
         }
@@ -1035,12 +1035,7 @@ fn emit_memory_kind_equality_binary(
     }
 }
 
-fn emit_memory_load_binary(
-    f: &mut WasmFunction,
-    base: u32,
-    offset: u32,
-    ty: WasmType,
-) {
+fn emit_memory_load_binary(f: &mut WasmFunction, base: u32, offset: u32, ty: WasmType) {
     f.instruction(&Instruction::LocalGet(base));
     f.instruction(&Instruction::I32WrapI64);
     if offset > 0 {
@@ -1048,8 +1043,12 @@ fn emit_memory_load_binary(
         f.instruction(&Instruction::I32Add);
     }
     match ty {
-        WasmType::I64 => { f.instruction(&Instruction::I64Load(memarg(0))); }
-        WasmType::F64 => { f.instruction(&Instruction::F64Load(memarg(0))); }
+        WasmType::I64 => {
+            f.instruction(&Instruction::I64Load(memarg(0)));
+        }
+        WasmType::F64 => {
+            f.instruction(&Instruction::F64Load(memarg(0)));
+        }
     }
 }
 
@@ -1066,9 +1065,7 @@ fn emit_arg_text_helper(func_indices: &FuncIndexMap) -> WasmFunction {
     let mut f = WasmFunction::new([(1, ValType::I32), (1, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32Const(4096));
-    f.instruction(&Instruction::Call(
-        func_indices.runtime("alloc"),
-    ));
+    f.instruction(&Instruction::Call(func_indices.runtime("alloc")));
     f.instruction(&Instruction::LocalTee(1));
     f.instruction(&Instruction::I32Const(4096));
     f.instruction(&Instruction::Call(
@@ -1093,9 +1090,7 @@ fn emit_arg_text_helper(func_indices: &FuncIndexMap) -> WasmFunction {
 fn emit_stdin_text_helper(func_indices: &FuncIndexMap) -> WasmFunction {
     let mut f = WasmFunction::new([(1, ValType::I32), (1, ValType::I32)]);
     f.instruction(&Instruction::I32Const(8192));
-    f.instruction(&Instruction::Call(
-        func_indices.runtime("alloc"),
-    ));
+    f.instruction(&Instruction::Call(func_indices.runtime("alloc")));
     f.instruction(&Instruction::LocalTee(0));
     f.instruction(&Instruction::I32Const(8192));
     f.instruction(&Instruction::Call(
@@ -1139,7 +1134,9 @@ fn emit_stdin_bytes_helper(func_indices: &FuncIndexMap) -> WasmFunction {
     f.instruction(&Instruction::End);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::LocalGet(1));
-    f.instruction(&Instruction::Call(func_indices.runtime("__sarif_pack_text")));
+    f.instruction(&Instruction::Call(
+        func_indices.runtime("__sarif_pack_text"),
+    ));
     f.instruction(&Instruction::End);
     f
 }
@@ -1241,6 +1238,7 @@ fn emit_user_function_binary(
     Ok(f)
 }
 
+#[allow(clippy::only_used_in_recursion)]
 fn collect_locals_binary(
     function: &Function,
     instructions: &[Inst],
@@ -1370,9 +1368,7 @@ fn collect_locals_binary(
                 locals.extend(collect_locals_binary(function, body_insts, kinds));
             }
             Inst::Repeat {
-                dest,
-                body_insts,
-                ..
+                dest, body_insts, ..
             } => {
                 locals.insert(*dest, kinds[dest].clone());
                 locals.extend(collect_locals_binary(function, body_insts, kinds));
@@ -1407,7 +1403,7 @@ fn collect_locals_binary(
     locals
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::only_used_in_recursion)]
 fn emit_inst_binary(
     f: &mut WasmFunction,
     env: &mut LocalEnv,
@@ -1472,7 +1468,9 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalGet(dest_idx));
             f.instruction(&Instruction::I32WrapI64);
             f.instruction(&Instruction::I32Const(i32::try_from(bytes.len()).unwrap()));
-            f.instruction(&Instruction::Call(func_indices.runtime("__sarif_pack_text")));
+            f.instruction(&Instruction::Call(
+                func_indices.runtime("__sarif_pack_text"),
+            ));
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::StdinBytes { dest } => {
@@ -1494,29 +1492,93 @@ fn emit_inst_binary(
             f.instruction(&Instruction::I64ExtendI32U);
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        Inst::TextByte { dest, text, index } | Inst::BytesByte { dest, bytes: text, index } => {
-            emit_runtime_call_binary(f, env, *dest, &[*text, *index], func_indices.runtime("__sarif_text_byte"));
+        Inst::TextByte { dest, text, index }
+        | Inst::BytesByte {
+            dest,
+            bytes: text,
+            index,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*text, *index],
+                func_indices.runtime("__sarif_text_byte"),
+            );
         }
-    Inst::BytesSlice { dest, bytes, start, end } => {
-        emit_runtime_call_binary(f, env, *dest, &[*bytes, *start, *end], func_indices.runtime("__sarif_bytes_slice"));
-    }
-    Inst::BytesMaterialize { dest, bytes } => {
-        let bytes_idx = env.get_value(*bytes);
-        let dest_idx = env.get_or_alloc_value(*dest);
-        f.instruction(&Instruction::LocalGet(bytes_idx));
-        f.instruction(&Instruction::LocalSet(dest_idx));
-    }
-        Inst::BytesFindByteRange { dest, source, start, end, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *byte], func_indices.runtime("__sarif_bytes_find_byte_range"));
+        Inst::BytesSlice {
+            dest,
+            bytes,
+            start,
+            end,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*bytes, *start, *end],
+                func_indices.runtime("__sarif_bytes_slice"),
+            );
         }
-        Inst::BytesFieldEnd { dest, source, start, end, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *byte], func_indices.runtime("__sarif_text_field_end"));
+        Inst::BytesMaterialize { dest, bytes } => {
+            let bytes_idx = env.get_value(*bytes);
+            let dest_idx = env.get_or_alloc_value(*dest);
+            f.instruction(&Instruction::LocalGet(bytes_idx));
+            f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        Inst::BytesNextField { dest, source, start, end, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *byte], func_indices.runtime("__sarif_text_next_field"));
+        Inst::BytesFindByteRange {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *byte],
+                func_indices.runtime("__sarif_bytes_find_byte_range"),
+            );
+        }
+        Inst::BytesFieldEnd {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *byte],
+                func_indices.runtime("__sarif_text_field_end"),
+            );
+        }
+        Inst::BytesNextField {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *byte],
+                func_indices.runtime("__sarif_text_next_field"),
+            );
         }
         Inst::TextConcat { dest, left, right } => {
-            emit_runtime_call_binary(f, env, *dest, &[*left, *right], func_indices.runtime("__sarif_text_concat"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*left, *right],
+                func_indices.runtime("__sarif_text_concat"),
+            );
         }
         Inst::TextIntern { dest, text } => {
             let text_idx = env.get_value(*text);
@@ -1524,68 +1586,263 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalGet(text_idx));
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        Inst::TextSlice { dest, text, start, end } => {
-            emit_runtime_call_binary(f, env, *dest, &[*text, *start, *end], func_indices.runtime("__sarif_text_slice"));
+        Inst::TextSlice {
+            dest,
+            text,
+            start,
+            end,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*text, *start, *end],
+                func_indices.runtime("__sarif_text_slice"),
+            );
         }
         Inst::TextCmp { dest, left, right } => {
-            emit_runtime_call_binary(f, env, *dest, &[*left, *right], func_indices.runtime("__sarif_text_cmp"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*left, *right],
+                func_indices.runtime("__sarif_text_cmp"),
+            );
         }
-        Inst::TextEqRange { dest, source, start, end, expected } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *expected], func_indices.runtime("__sarif_text_eq_range"));
+        Inst::TextEqRange {
+            dest,
+            source,
+            start,
+            end,
+            expected,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *expected],
+                func_indices.runtime("__sarif_text_eq_range"),
+            );
         }
-        Inst::TextFindByteRange { dest, source, start, end, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *byte], func_indices.runtime("__sarif_text_find_byte_range"));
+        Inst::TextFindByteRange {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *byte],
+                func_indices.runtime("__sarif_text_find_byte_range"),
+            );
         }
-        Inst::TextLineEnd { dest, source, start } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start], func_indices.runtime("__sarif_text_line_end"));
+        Inst::TextLineEnd {
+            dest,
+            source,
+            start,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start],
+                func_indices.runtime("__sarif_text_line_end"),
+            );
         }
-        Inst::TextNextLine { dest, source, start } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start], func_indices.runtime("__sarif_text_next_line"));
+        Inst::TextNextLine {
+            dest,
+            source,
+            start,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start],
+                func_indices.runtime("__sarif_text_next_line"),
+            );
         }
-        Inst::TextFieldEnd { dest, source, start, end, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *byte], func_indices.runtime("__sarif_text_field_end"));
+        Inst::TextFieldEnd {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *byte],
+                func_indices.runtime("__sarif_text_field_end"),
+            );
         }
-        Inst::TextNextField { dest, source, start, end, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*source, *start, *end, *byte], func_indices.runtime("__sarif_text_next_field"));
+        Inst::TextNextField {
+            dest,
+            source,
+            start,
+            end,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*source, *start, *end, *byte],
+                func_indices.runtime("__sarif_text_next_field"),
+            );
         }
         Inst::TextBuilderNew { dest } => {
-            emit_runtime_call_binary(f, env, *dest, &[], func_indices.runtime("__sarif_text_builder_new"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[],
+                func_indices.runtime("__sarif_text_builder_new"),
+            );
         }
         Inst::TextIndexNew { dest } => {
-            emit_runtime_call_binary(f, env, *dest, &[], func_indices.runtime("__sarif_text_index_new"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[],
+                func_indices.runtime("__sarif_text_index_new"),
+            );
         }
-        Inst::TextBuilderAppend { dest, builder, text } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder, *text], func_indices.runtime("__sarif_text_builder_append"));
+        Inst::TextBuilderAppend {
+            dest,
+            builder,
+            text,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder, *text],
+                func_indices.runtime("__sarif_text_builder_append"),
+            );
         }
-        Inst::TextBuilderAppendCodepoint { dest, builder, codepoint } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder, *codepoint], func_indices.runtime("__sarif_text_builder_append_codepoint"));
+        Inst::TextBuilderAppendCodepoint {
+            dest,
+            builder,
+            codepoint,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder, *codepoint],
+                func_indices.runtime("__sarif_text_builder_append_codepoint"),
+            );
         }
-        Inst::TextBuilderAppendAscii { dest, builder, byte } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder, *byte], func_indices.runtime("__sarif_text_builder_append_ascii"));
+        Inst::TextBuilderAppendAscii {
+            dest,
+            builder,
+            byte,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder, *byte],
+                func_indices.runtime("__sarif_text_builder_append_ascii"),
+            );
         }
-        Inst::TextBuilderAppendSlice { dest, builder, text, start, end } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder, *text, *start, *end], func_indices.runtime("__sarif_text_builder_append_slice"));
+        Inst::TextBuilderAppendSlice {
+            dest,
+            builder,
+            text,
+            start,
+            end,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder, *text, *start, *end],
+                func_indices.runtime("__sarif_text_builder_append_slice"),
+            );
         }
-        Inst::TextBuilderAppendI32 { dest, builder, value } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder, *value], func_indices.runtime("__sarif_text_builder_append_i32"));
+        Inst::TextBuilderAppendI32 {
+            dest,
+            builder,
+            value,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder, *value],
+                func_indices.runtime("__sarif_text_builder_append_i32"),
+            );
         }
         Inst::TextBuilderFinish { dest, builder } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder], func_indices.runtime("__sarif_text_builder_finish"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder],
+                func_indices.runtime("__sarif_text_builder_finish"),
+            );
         }
         Inst::StdoutWriteBuilder { dest, builder } => {
-            emit_runtime_call_binary(f, env, *dest, &[*builder], func_indices.runtime("__sarif_stdout_write_builder"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder],
+                func_indices.runtime("__sarif_stdout_write_builder"),
+            );
         }
         Inst::TextIndexGet { dest, index, key } => {
-            emit_runtime_call_binary(f, env, *dest, &[*index, *key], func_indices.runtime("__sarif_text_index_get"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*index, *key],
+                func_indices.runtime("__sarif_text_index_get"),
+            );
         }
         Inst::TextIndexContains { dest, index, key } => {
-            emit_runtime_call_binary(f, env, *dest, &[*index, *key], func_indices.runtime("__sarif_text_index_contains"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*index, *key],
+                func_indices.runtime("__sarif_text_index_contains"),
+            );
         }
-        Inst::TextIndexGetOrInsert { dest, index, key, next } => {
-            emit_runtime_call_binary(f, env, *dest, &[*index, *key, *next], func_indices.runtime("__sarif_text_index_get_or_insert"));
+        Inst::TextIndexGetOrInsert {
+            dest,
+            index,
+            key,
+            next,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*index, *key, *next],
+                func_indices.runtime("__sarif_text_index_get_or_insert"),
+            );
         }
-        Inst::TextIndexSet { dest, index, key, value } => {
-            emit_runtime_call_binary(f, env, *dest, &[*index, *key, *value], func_indices.runtime("__sarif_text_index_set"));
+        Inst::TextIndexSet {
+            dest,
+            index,
+            key,
+            value,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*index, *key, *value],
+                func_indices.runtime("__sarif_text_index_set"),
+            );
         }
         Inst::TextIndexKeys { dest, index } => {
             let index_idx = env.get_value(*index);
@@ -1598,7 +1855,11 @@ fn emit_inst_binary(
             ));
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        Inst::TextFromF64Fixed { dest, value, digits } => {
+        Inst::TextFromF64Fixed {
+            dest,
+            value,
+            digits,
+        } => {
             let value_idx = env.get_value(*value);
             let digits_idx = env.get_value(*digits);
             let dest_idx = env.get_or_alloc_value(*dest);
@@ -1639,21 +1900,49 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::ParseI32 { dest, text } => {
-            emit_runtime_call_binary(f, env, *dest, &[*text], func_indices.runtime("__sarif_parse_i32"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*text],
+                func_indices.runtime("__sarif_parse_i32"),
+            );
         }
-        Inst::ParseI32Range { dest, text, start, end } => {
-            emit_runtime_call_binary(f, env, *dest, &[*text, *start, *end], func_indices.runtime("__sarif_parse_i32_range"));
+        Inst::ParseI32Range {
+            dest,
+            text,
+            start,
+            end,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*text, *start, *end],
+                func_indices.runtime("__sarif_parse_i32_range"),
+            );
         }
         Inst::ParseF64 { dest, text } => {
-            emit_runtime_call_binary(f, env, *dest, &[*text], func_indices.runtime("__sarif_parse_f64"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*text],
+                func_indices.runtime("__sarif_parse_f64"),
+            );
         }
-        Inst::MakeEnum { dest, name, variant, payload } => {
+        Inst::MakeEnum {
+            dest,
+            name,
+            variant,
+            payload,
+        } => {
             emit_make_enum_binary(f, env, *dest, name, variant, *payload, enums, func_indices)?;
         }
         Inst::MakeRecord { dest, name, fields } => {
-            let record = records.get(name).ok_or_else(|| {
-                WasmError::new(format!("unknown record `{name}`"))
-            })?;
+            let record = records
+                .get(name)
+                .ok_or_else(|| WasmError::new(format!("unknown record `{name}`")))?;
             let dest_idx = env.get_or_alloc_value(*dest);
             f.instruction(&Instruction::I32Const(i32::try_from(record.size).unwrap()));
             f.instruction(&Instruction::Call(func_indices.runtime("alloc")));
@@ -1670,11 +1959,15 @@ fn emit_inst_binary(
                 f.instruction(&Instruction::I32Const(i32::try_from(field.offset).unwrap()));
                 f.instruction(&Instruction::I32Add);
                 f.instruction(&Instruction::LocalGet(env.get_value(*source)));
-        match wasm_type_from_kind_result(&field.kind) {
-            Some(WasmType::I64) | None => { f.instruction(&Instruction::I64Store(memarg(0))); }
-            Some(WasmType::F64) => { f.instruction(&Instruction::F64Store(memarg(0))); }
-        }
-    }
+                match wasm_type_from_kind_result(&field.kind) {
+                    Some(WasmType::I64) | None => {
+                        f.instruction(&Instruction::I64Store(memarg(0)));
+                    }
+                    Some(WasmType::F64) => {
+                        f.instruction(&Instruction::F64Store(memarg(0)));
+                    }
+                }
+            }
         }
         Inst::Field { dest, base, name } => {
             let WasmValueKind::Record(record_name) = &kinds[base] else {
@@ -1697,13 +1990,19 @@ fn emit_inst_binary(
             f.instruction(&Instruction::I32WrapI64);
             f.instruction(&Instruction::I32Const(i32::try_from(field.offset).unwrap()));
             f.instruction(&Instruction::I32Add);
-        match wasm_type_from_kind_result(&field.kind) {
-            Some(WasmType::I64) | None => { f.instruction(&Instruction::I64Load(memarg(0))); }
-            Some(WasmType::F64) => { f.instruction(&Instruction::F64Load(memarg(0))); }
+            match wasm_type_from_kind_result(&field.kind) {
+                Some(WasmType::I64) | None => {
+                    f.instruction(&Instruction::I64Load(memarg(0)));
+                }
+                Some(WasmType::F64) => {
+                    f.instruction(&Instruction::F64Load(memarg(0)));
+                }
+            }
+            f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        f.instruction(&Instruction::LocalSet(dest_idx));
-        }
-        Inst::EnumTagEq { dest, value, tag, .. } => {
+        Inst::EnumTagEq {
+            dest, value, tag, ..
+        } => {
             let WasmValueKind::Enum(enum_name) = &kinds[value] else {
                 return Err(WasmError::new("expected enum kind for enum tag comparison"));
             };
@@ -1726,13 +2025,21 @@ fn emit_inst_binary(
             f.instruction(&Instruction::I32WrapI64);
             f.instruction(&Instruction::I32Const(8));
             f.instruction(&Instruction::I32Add);
-        match wasm_type_from_kind_result(&kinds[dest]) {
-            Some(WasmType::I64) | None => { f.instruction(&Instruction::I64Load(memarg(0))); }
-            Some(WasmType::F64) => { f.instruction(&Instruction::F64Load(memarg(0))); }
+            match wasm_type_from_kind_result(&kinds[dest]) {
+                Some(WasmType::I64) | None => {
+                    f.instruction(&Instruction::I64Load(memarg(0)));
+                }
+                Some(WasmType::F64) => {
+                    f.instruction(&Instruction::F64Load(memarg(0)));
+                }
+            }
+            f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        f.instruction(&Instruction::LocalSet(dest_idx));
-        }
-        Inst::EnumToI32 { dest, value, discriminants } => {
+        Inst::EnumToI32 {
+            dest,
+            value,
+            discriminants,
+        } => {
             let value_idx = env.get_value(*value);
             let dest_idx = env.get_or_alloc_value(*dest);
             let tag_idx = env.alloc_local();
@@ -1764,7 +2071,11 @@ fn emit_inst_binary(
             f.instruction(&Instruction::I64ExtendI32U);
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
-        Inst::EnumToText { dest, value, variant_names } => {
+        Inst::EnumToText {
+            dest,
+            value,
+            variant_names,
+        } => {
             let value_idx = env.get_value(*value);
             let dest_idx = env.get_or_alloc_value(*dest);
             let WasmValueKind::Enum(enum_name) = &kinds[value] else {
@@ -1806,24 +2117,75 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::ListNew { dest, len, value } => {
-            emit_runtime_call_binary(f, env, *dest, &[*len, *value], func_indices.runtime("__sarif_list_new"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*len, *value],
+                func_indices.runtime("__sarif_list_new"),
+            );
         }
         Inst::ListLen { dest, list } => {
-            emit_runtime_call_binary(f, env, *dest, &[*list], func_indices.runtime("__sarif_list_len"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*list],
+                func_indices.runtime("__sarif_list_len"),
+            );
         }
         Inst::ListGet { dest, list, index } => {
-            emit_runtime_call_binary(f, env, *dest, &[*list, *index], func_indices.runtime("__sarif_list_get"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*list, *index],
+                func_indices.runtime("__sarif_list_get"),
+            );
         }
-        Inst::ListSet { dest, list, index, value } => {
-            emit_runtime_call_binary(f, env, *dest, &[*list, *index, *value], func_indices.runtime("__sarif_list_set"));
+        Inst::ListSet {
+            dest,
+            list,
+            index,
+            value,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*list, *index, *value],
+                func_indices.runtime("__sarif_list_set"),
+            );
         }
-        Inst::ListPush { dest, list, len, value } => {
-            emit_runtime_call_binary(f, env, *dest, &[*list, *len, *value], func_indices.runtime("__sarif_list_push"));
+        Inst::ListPush {
+            dest,
+            list,
+            len,
+            value,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*list, *len, *value],
+                func_indices.runtime("__sarif_list_push"),
+            );
         }
         Inst::ListSortText { dest, list, len } => {
-            emit_runtime_call_binary(f, env, *dest, &[*list, *len], func_indices.runtime("__sarif_list_sort_text"));
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*list, *len],
+                func_indices.runtime("__sarif_list_sort_text"),
+            );
         }
-        Inst::ListSortRecordTextField { dest, list, len, field } => {
+        Inst::ListSortRecordTextField {
+            dest,
+            list,
+            len,
+            field,
+        } => {
             let Some(WasmValueKind::List(element)) = kinds.get(list) else {
                 return Err(WasmError::new(format!(
                     "wasm list_sort_record_text_field input {} is not a list in `{}`",
@@ -1863,7 +2225,9 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalGet(list_idx));
             f.instruction(&Instruction::LocalGet(len_idx));
             f.instruction(&Instruction::I64Const(offset));
-            f.instruction(&Instruction::Call(func_indices.runtime("__sarif_list_sort_record_text_field")));
+            f.instruction(&Instruction::Call(
+                func_indices.runtime("__sarif_list_sort_record_text_field"),
+            ));
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::Add { dest, left, right } => {
@@ -1897,22 +2261,82 @@ fn emit_inst_binary(
             emit_binary_binary(f, env, "shr_s", *dest, *left, *right, kinds)?;
         }
         Inst::Eq { dest, left, right } => {
-            emit_comparison_binary(f, env, "eq", *dest, *left, *right, kinds, enums, func_indices)?;
+            emit_comparison_binary(
+                f,
+                env,
+                "eq",
+                *dest,
+                *left,
+                *right,
+                kinds,
+                enums,
+                func_indices,
+            )?;
         }
         Inst::Ne { dest, left, right } => {
-            emit_comparison_binary(f, env, "ne", *dest, *left, *right, kinds, enums, func_indices)?;
+            emit_comparison_binary(
+                f,
+                env,
+                "ne",
+                *dest,
+                *left,
+                *right,
+                kinds,
+                enums,
+                func_indices,
+            )?;
         }
         Inst::Lt { dest, left, right } => {
-            emit_comparison_binary(f, env, "lt", *dest, *left, *right, kinds, enums, func_indices)?;
+            emit_comparison_binary(
+                f,
+                env,
+                "lt",
+                *dest,
+                *left,
+                *right,
+                kinds,
+                enums,
+                func_indices,
+            )?;
         }
         Inst::Le { dest, left, right } => {
-            emit_comparison_binary(f, env, "le", *dest, *left, *right, kinds, enums, func_indices)?;
+            emit_comparison_binary(
+                f,
+                env,
+                "le",
+                *dest,
+                *left,
+                *right,
+                kinds,
+                enums,
+                func_indices,
+            )?;
         }
         Inst::Gt { dest, left, right } => {
-            emit_comparison_binary(f, env, "gt", *dest, *left, *right, kinds, enums, func_indices)?;
+            emit_comparison_binary(
+                f,
+                env,
+                "gt",
+                *dest,
+                *left,
+                *right,
+                kinds,
+                enums,
+                func_indices,
+            )?;
         }
         Inst::Ge { dest, left, right } => {
-            emit_comparison_binary(f, env, "ge", *dest, *left, *right, kinds, enums, func_indices)?;
+            emit_comparison_binary(
+                f,
+                env,
+                "ge",
+                *dest,
+                *left,
+                *right,
+                kinds,
+                enums,
+                func_indices,
+            )?;
         }
         Inst::And { dest, left, right } => {
             emit_binary_binary(f, env, "and", *dest, *left, *right, kinds)?;
@@ -1967,7 +2391,18 @@ fn emit_inst_binary(
             };
             f.instruction(&Instruction::If(block_type));
             for inst in then_insts {
-                emit_inst_binary(f, env, function, inst, kinds, func_indices, records, enums, program_structs, program_enums)?;
+                emit_inst_binary(
+                    f,
+                    env,
+                    function,
+                    inst,
+                    kinds,
+                    func_indices,
+                    records,
+                    enums,
+                    program_structs,
+                    program_enums,
+                )?;
             }
             if let Some(res) = then_result {
                 f.instruction(&Instruction::LocalGet(env.get_value(*res)));
@@ -1976,7 +2411,18 @@ fn emit_inst_binary(
             }
             f.instruction(&Instruction::Else);
             for inst in else_insts {
-                emit_inst_binary(f, env, function, inst, kinds, func_indices, records, enums, program_structs, program_enums)?;
+                emit_inst_binary(
+                    f,
+                    env,
+                    function,
+                    inst,
+                    kinds,
+                    func_indices,
+                    records,
+                    enums,
+                    program_structs,
+                    program_enums,
+                )?;
             }
             if let Some(res) = else_result {
                 f.instruction(&Instruction::LocalGet(env.get_value(*res)));
@@ -1998,14 +2444,36 @@ fn emit_inst_binary(
             f.instruction(&Instruction::Block(BlockType::Empty));
             f.instruction(&Instruction::Loop(BlockType::Empty));
             for inst in condition_insts {
-                emit_inst_binary(f, env, function, inst, kinds, func_indices, records, enums, program_structs, program_enums)?;
+                emit_inst_binary(
+                    f,
+                    env,
+                    function,
+                    inst,
+                    kinds,
+                    func_indices,
+                    records,
+                    enums,
+                    program_structs,
+                    program_enums,
+                )?;
             }
             f.instruction(&Instruction::LocalGet(env.get_value(*condition)));
             f.instruction(&Instruction::I32WrapI64);
             f.instruction(&Instruction::I32Eqz);
             f.instruction(&Instruction::BrIf(1));
             for inst in body_insts {
-                emit_inst_binary(f, env, function, inst, kinds, func_indices, records, enums, program_structs, program_enums)?;
+                emit_inst_binary(
+                    f,
+                    env,
+                    function,
+                    inst,
+                    kinds,
+                    func_indices,
+                    records,
+                    enums,
+                    program_structs,
+                    program_enums,
+                )?;
             }
             f.instruction(&Instruction::Br(0));
             f.instruction(&Instruction::End);
@@ -2033,7 +2501,18 @@ fn emit_inst_binary(
             f.instruction(&Instruction::I64GeS);
             f.instruction(&Instruction::BrIf(1));
             for inst in body_insts {
-                emit_inst_binary(f, env, function, inst, kinds, func_indices, records, enums, program_structs, program_enums)?;
+                emit_inst_binary(
+                    f,
+                    env,
+                    function,
+                    inst,
+                    kinds,
+                    func_indices,
+                    records,
+                    enums,
+                    program_structs,
+                    program_enums,
+                )?;
             }
             f.instruction(&Instruction::LocalGet(counter_idx));
             f.instruction(&Instruction::I64Const(1));
@@ -2058,16 +2537,12 @@ fn emit_inst_binary(
         }
         Inst::AllocPush => {
             f.instruction(&Instruction::Call(
-                func_indices
-                    .get("__sarif_alloc_push")
-                    .expect("alloc_push"),
+                func_indices.get("__sarif_alloc_push").expect("alloc_push"),
             ));
         }
         Inst::AllocPop => {
             f.instruction(&Instruction::Call(
-                func_indices
-                    .get("__sarif_alloc_pop")
-                    .expect("alloc_pop"),
+                func_indices.get("__sarif_alloc_pop").expect("alloc_pop"),
             ));
         }
         Inst::StdoutWrite { text } => {
@@ -2129,16 +2604,48 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::DirCreate { dest, path } => {
-            emit_env_call_binary(f, env, *dest, &[*path], func_indices.get("__sarif_dir_create").expect("__sarif_dir_create import"));
+            emit_env_call_binary(
+                f,
+                env,
+                *dest,
+                &[*path],
+                func_indices
+                    .get("__sarif_dir_create")
+                    .expect("__sarif_dir_create import"),
+            );
         }
         Inst::DirRemove { dest, path } => {
-            emit_env_call_binary(f, env, *dest, &[*path], func_indices.get("__sarif_dir_remove").expect("__sarif_dir_remove import"));
+            emit_env_call_binary(
+                f,
+                env,
+                *dest,
+                &[*path],
+                func_indices
+                    .get("__sarif_dir_remove")
+                    .expect("__sarif_dir_remove import"),
+            );
         }
         Inst::DirList { dest, path } => {
-            emit_env_call_binary(f, env, *dest, &[*path], func_indices.get("__sarif_dir_list").expect("__sarif_dir_list import"));
+            emit_env_call_binary(
+                f,
+                env,
+                *dest,
+                &[*path],
+                func_indices
+                    .get("__sarif_dir_list")
+                    .expect("__sarif_dir_list import"),
+            );
         }
         Inst::DirExists { dest, path } => {
-            emit_env_call_binary(f, env, *dest, &[*path], func_indices.get("__sarif_dir_exists").expect("__sarif_dir_exists import"));
+            emit_env_call_binary(
+                f,
+                env,
+                *dest,
+                &[*path],
+                func_indices
+                    .get("__sarif_dir_exists")
+                    .expect("__sarif_dir_exists import"),
+            );
         }
         Inst::DirCurrent { dest } => {
             let dest_idx = env.get_or_alloc_value(*dest);
@@ -2151,15 +2658,21 @@ fn emit_inst_binary(
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::DirChange { dest, path } => {
-            emit_env_call_binary(f, env, *dest, &[*path], func_indices.get("__sarif_dir_change").expect("__sarif_dir_change import"));
+            emit_env_call_binary(
+                f,
+                env,
+                *dest,
+                &[*path],
+                func_indices
+                    .get("__sarif_dir_change")
+                    .expect("__sarif_dir_change import"),
+            );
         }
         Inst::ProcessExit { code } => {
             f.instruction(&Instruction::LocalGet(env.get_value(*code)));
             f.instruction(&Instruction::I32WrapI64);
             f.instruction(&Instruction::Call(
-                func_indices
-                    .get("proc_exit")
-                    .expect("proc_exit import"),
+                func_indices.get("proc_exit").expect("proc_exit import"),
             ));
             f.instruction(&Instruction::Unreachable);
         }
@@ -2289,7 +2802,11 @@ fn emit_binary_binary(
     let instr = if op == "and" || op == "or" {
         match wasm_type {
             WasmType::I64 => {
-                if op == "and" { Instruction::I64And } else { Instruction::I64Or }
+                if op == "and" {
+                    Instruction::I64And
+                } else {
+                    Instruction::I64Or
+                }
             }
             WasmType::F64 => unreachable!("f64.and/f64.or not valid"),
         }
@@ -2345,9 +2862,7 @@ fn emit_comparison_binary(
             WasmValueKind::Text => {
                 f.instruction(&Instruction::LocalGet(left_idx));
                 f.instruction(&Instruction::LocalGet(right_idx));
-                f.instruction(&Instruction::Call(
-                    func_indices.runtime("__sarif_text_eq"),
-                ));
+                f.instruction(&Instruction::Call(func_indices.runtime("__sarif_text_eq")));
             }
             WasmValueKind::Record(name) => {
                 f.instruction(&Instruction::LocalGet(left_idx));
@@ -2367,10 +2882,8 @@ fn emit_comparison_binary(
             }
             _ => {}
         }
-        let uses_structural_helper = matches!(
-            kind,
-            WasmValueKind::Text | WasmValueKind::Record(_)
-        ) || matches!(kind, WasmValueKind::Enum(name) if !enum_is_payload_free(&enums[name]));
+        let uses_structural_helper = matches!(kind, WasmValueKind::Text | WasmValueKind::Record(_))
+            || matches!(kind, WasmValueKind::Enum(name) if !enum_is_payload_free(&enums[name]));
         if uses_structural_helper {
             if op == "ne" {
                 f.instruction(&Instruction::I64Eqz);
@@ -2416,6 +2929,7 @@ fn emit_comparison_binary(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_make_enum_binary(
     f: &mut WasmFunction,
     env: &mut LocalEnv,
@@ -2437,19 +2951,25 @@ fn emit_make_enum_binary(
     let dest_idx = env.get_or_alloc_value(dest);
 
     if enum_is_payload_free(enum_ty) {
-        f.instruction(&Instruction::I64Const(i64::try_from(variant_index).unwrap()));
+        f.instruction(&Instruction::I64Const(
+            i64::try_from(variant_index).unwrap(),
+        ));
         f.instruction(&Instruction::LocalSet(dest_idx));
         return Ok(());
     }
 
-    f.instruction(&Instruction::I32Const(i32::try_from(PAYLOAD_ENUM_SIZE).unwrap()));
+    f.instruction(&Instruction::I32Const(
+        i32::try_from(PAYLOAD_ENUM_SIZE).unwrap(),
+    ));
     f.instruction(&Instruction::Call(func_indices.runtime("alloc")));
     f.instruction(&Instruction::I64ExtendI32U);
     f.instruction(&Instruction::LocalSet(dest_idx));
 
     f.instruction(&Instruction::LocalGet(dest_idx));
     f.instruction(&Instruction::I32WrapI64);
-    f.instruction(&Instruction::I64Const(i64::try_from(variant_index).unwrap()));
+    f.instruction(&Instruction::I64Const(
+        i64::try_from(variant_index).unwrap(),
+    ));
     f.instruction(&Instruction::I64Store(memarg(0)));
 
     if let Some(source) = payload {
@@ -2468,8 +2988,12 @@ fn emit_make_enum_binary(
                 ))
             })?;
         match wasm_type_from_kind_result(payload_kind) {
-            Some(WasmType::I64) | None => { f.instruction(&Instruction::I64Store(memarg(0))); }
-            Some(WasmType::F64) => { f.instruction(&Instruction::F64Store(memarg(0))); }
+            Some(WasmType::I64) | None => {
+                f.instruction(&Instruction::I64Store(memarg(0)));
+            }
+            Some(WasmType::F64) => {
+                f.instruction(&Instruction::F64Store(memarg(0)));
+            }
         }
     }
 

@@ -26,7 +26,9 @@ use sarif_codegen::emit_clif;
 #[cfg(feature = "native-build")]
 use sarif_codegen::emit_object;
 #[cfg(feature = "codegen")]
-use sarif_codegen::{ImportedInfo, RuntimeError, RuntimeValue, analyze_escapes, lower_with_imports};
+use sarif_codegen::{
+    ImportedInfo, RuntimeError, RuntimeValue, analyze_escapes, lower_with_imports,
+};
 #[cfg(feature = "wasm")]
 use sarif_codegen::{emit_wasm, emit_wat};
 use sarif_frontend::hir::{ImportDecl, Item};
@@ -95,7 +97,7 @@ impl LoadedSource {
         if let Some(dir) = &input_dir {
             search_dirs.push(dir.clone());
         }
-        resolve_import_sources(&mut database, source_id, &search_dirs)?;
+        resolve_import_sources(&mut database, source_id, &search_dirs);
 
         Ok(Self {
             path: resolved.display_path,
@@ -140,28 +142,31 @@ impl LoadedSource {
 
     #[cfg(feature = "codegen")]
     fn mir(&self) -> &sarif_codegen::MirLowering {
-        self.mir_cache
-            .get_or_init(|| {
-                let root_module = self.database.hir(self.source_id).module.clone();
-                let imported_modules =
-                    self.database.resolve_imports(&root_module, &mut Vec::new(), &mut Vec::new());
-                let imported_info = ImportedInfo::from_resolved_modules(&imported_modules);
-                
-                // Merge all modules into one synthetic module for lowering
-                let mut merged_module = root_module;
-                
-                // Collect HIRs from all imported modules
-                let mut seen_modules: HashSet<String> = HashSet::new();
-                let imported_hirs = collect_imported_hirs(&self.database, &merged_module, &mut seen_modules);
-                
-                // Remove Import items and merge all non-import items
-                merged_module.items.retain(|item| !matches!(item, Item::Import(_)));
-                for (_, imported_hir) in imported_hirs {
-                    merged_module.items.extend(imported_hir.items);
-                }
-                
-                lower_with_imports(&merged_module, &imported_info)
-            })
+        self.mir_cache.get_or_init(|| {
+            let root_module = self.database.hir(self.source_id).module;
+            let imported_modules =
+                self.database
+                    .resolve_imports(&root_module, &mut Vec::new(), &mut Vec::new());
+            let imported_info = ImportedInfo::from_resolved_modules(&imported_modules);
+
+            // Merge all modules into one synthetic module for lowering
+            let mut merged_module = root_module;
+
+            // Collect HIRs from all imported modules
+            let mut seen_modules: HashSet<String> = HashSet::new();
+            let imported_hirs =
+                collect_imported_hirs(&self.database, &merged_module, &mut seen_modules);
+
+            // Remove Import items and merge all non-import items
+            merged_module
+                .items
+                .retain(|item| !matches!(item, Item::Import(_)));
+            for (_, imported_hir) in imported_hirs {
+                merged_module.items.extend(imported_hir.items);
+            }
+
+            lower_with_imports(&merged_module, &imported_info)
+        })
     }
 
     #[cfg(feature = "codegen")]
@@ -741,7 +746,7 @@ fn resolve_import_sources(
     database: &mut FrontendDatabase,
     source_id: SourceId,
     search_dirs: &[PathBuf],
-) -> Result<(), String> {
+) {
     let mut seen_modules = HashSet::new();
     let mut pending = vec![source_id];
     while let Some(id) = pending.pop() {
@@ -764,7 +769,6 @@ fn resolve_import_sources(
             }
         }
     }
-    Ok(())
 }
 
 /// Search `search_dirs` for `{name}.sarif` or `{name}/main.sarif`.
@@ -772,17 +776,13 @@ fn find_import_source(name: &str, search_dirs: &[PathBuf]) -> Option<(String, St
     for dir in search_dirs {
         // Try `{name}.sarif`
         let file_path = dir.join(format!("{name}.sarif"));
-        if file_path.is_file() {
-            if let Ok(source) = fs::read_to_string(&file_path) {
-                return Some((file_path.display().to_string(), source));
-            }
+        if file_path.is_file() && let Ok(source) = fs::read_to_string(&file_path) {
+            return Some((file_path.display().to_string(), source));
         }
         // Try `{name}/main.sarif`
         let dir_path = dir.join(name).join("main.sarif");
-        if dir_path.is_file() {
-            if let Ok(source) = fs::read_to_string(&dir_path) {
-                return Some((dir_path.display().to_string(), source));
-            }
+        if dir_path.is_file() && let Ok(source) = fs::read_to_string(&dir_path) {
+            return Some((dir_path.display().to_string(), source));
         }
     }
     None
@@ -800,12 +800,11 @@ fn collect_imported_hirs(
 
     // First, collect all module names we need to process (including nested imports)
     for item in &module.items {
-        if let Item::Import(import) = item {
-            if processed.insert(import.module.clone()) {
-                if let Some(&source_id) = database.import_sources().get(&import.module) {
-                    queue.push((import.module.clone(), source_id));
-                }
-            }
+        if let Item::Import(import) = item
+            && processed.insert(import.module.clone())
+            && let Some(&source_id) = database.import_sources().get(&import.module)
+        {
+            queue.push((import.module.clone(), source_id));
         }
     }
 
@@ -813,19 +812,18 @@ fn collect_imported_hirs(
     while let Some((mod_name, source_id)) = queue.pop() {
         let imported_hir = database.hir(source_id).module.clone();
         result.push((mod_name.clone(), imported_hir.clone()));
-        
+
         // Check for nested imports
         for item in &imported_hir.items {
-            if let Item::Import(import) = item {
-                if processed.insert(import.module.clone()) {
-                    if let Some(&nested_id) = database.import_sources().get(&import.module) {
-                        queue.push((import.module.clone(), nested_id));
-                    }
-                }
+            if let Item::Import(import) = item
+                && processed.insert(import.module.clone())
+                && let Some(&nested_id) = database.import_sources().get(&import.module)
+            {
+                queue.push((import.module.clone(), nested_id));
             }
         }
     }
-    
+
     *seen_modules = processed;
     result
 }

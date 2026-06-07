@@ -8,7 +8,11 @@ use super::{WasmEnum, WasmError, WasmRecord};
 use crate::Program;
 
 const fn memarg(offset: u64) -> MemArg {
-    MemArg { offset, align: 0, memory_index: 0 }
+    MemArg {
+        offset,
+        align: 0,
+        memory_index: 0,
+    }
 }
 
 pub(crate) struct RuntimeSections {
@@ -19,7 +23,9 @@ pub(crate) struct RuntimeSections {
     pub(crate) globals: GlobalSection,
     pub(crate) exports: ExportSection,
     pub(crate) code_bodies: Vec<Function>,
+    #[expect(dead_code)]
     pub(crate) num_imported_funcs: u32,
+    #[expect(dead_code)]
     pub(crate) num_runtime_funcs: u32,
 }
 
@@ -29,29 +35,48 @@ pub(crate) fn emit_runtime_sections(
     _enums: &BTreeMap<String, WasmEnum>,
     call_offset: u32,
 ) -> Result<RuntimeSections, WasmError> {
-    let co = |idx: u32| -> u32 {
-        if idx == 0 { idx } else { idx + call_offset }
-    };
+    let co = |idx: u32| -> u32 { if idx == 0 { idx } else { idx + call_offset } };
 
     let mut types = TypeSection::new();
     types.ty().function([ValType::I32], [ValType::I32]);
     types.ty().function([], []);
-    types.ty().function([ValType::I32, ValType::I32], [ValType::I64]);
+    types
+        .ty()
+        .function([ValType::I32, ValType::I32], [ValType::I64]);
     types.ty().function([ValType::I64], [ValType::I32]);
-    types.ty().function([ValType::I64, ValType::I64], [ValType::I64]);
-    types.ty().function([ValType::I64, ValType::I64, ValType::I64], [ValType::I64]);
-    types.ty().function([ValType::I64, ValType::I64], [ValType::I32]);
-    types.ty().function([ValType::I64, ValType::I64, ValType::I64, ValType::I64], [ValType::I64]);
+    types
+        .ty()
+        .function([ValType::I64, ValType::I64], [ValType::I64]);
+    types
+        .ty()
+        .function([ValType::I64, ValType::I64, ValType::I64], [ValType::I64]);
+    types
+        .ty()
+        .function([ValType::I64, ValType::I64], [ValType::I32]);
+    types.ty().function(
+        [ValType::I64, ValType::I64, ValType::I64, ValType::I64],
+        [ValType::I64],
+    );
     types.ty().function([ValType::I64], [ValType::I64]);
     types.ty().function([ValType::I64], [ValType::F64]);
-    types.ty().function([ValType::F64, ValType::I64], [ValType::I64]);
+    types
+        .ty()
+        .function([ValType::F64, ValType::I64], [ValType::I64]);
     types.ty().function([], [ValType::I64]);
-    types.ty().function([ValType::I32, ValType::I32], [ValType::I32]);
+    types
+        .ty()
+        .function([ValType::I32, ValType::I32], [ValType::I32]);
     types.ty().function([ValType::I64], []);
-    types.ty().function([ValType::I32, ValType::I64, ValType::I32], [ValType::I32]);
+    types
+        .ty()
+        .function([ValType::I32, ValType::I64, ValType::I32], [ValType::I32]);
 
     let mut imports = ImportSection::new();
-    imports.import("wasi_snapshot_preview1", "fd_write", EntityType::Function(0));
+    imports.import(
+        "wasi_snapshot_preview1",
+        "fd_write",
+        EntityType::Function(0),
+    );
 
     let mut functions = FunctionSection::new();
     functions.function(0);
@@ -108,11 +133,31 @@ pub(crate) fn emit_runtime_sections(
     functions.function(5);
 
     let mut memories = MemorySection::new();
-    memories.memory(MemoryType { minimum: 1, maximum: None, memory64: false, shared: false, page_size_log2: None });
+    memories.memory(MemoryType {
+        minimum: 1,
+        maximum: None,
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    });
 
     let mut globals = GlobalSection::new();
-globals.global(GlobalType { val_type: ValType::I32, mutable: true, shared: false }, &ConstExpr::i32_const(1048576));
-globals.global(GlobalType { val_type: ValType::I32, mutable: true, shared: false }, &ConstExpr::i32_const(0));
+    globals.global(
+        GlobalType {
+            val_type: ValType::I32,
+            mutable: true,
+            shared: false,
+        },
+        &ConstExpr::i32_const(1048576),
+    );
+    globals.global(
+        GlobalType {
+            val_type: ValType::I32,
+            mutable: true,
+            shared: false,
+        },
+        &ConstExpr::i32_const(0),
+    );
 
     let mut exports = ExportSection::new();
     exports.export("alloc", ExportKind::Func, 1);
@@ -145,7 +190,11 @@ globals.global(GlobalType { val_type: ValType::I32, mutable: true, shared: false
     exports.export("__sarif_text_builder_new", ExportKind::Func, 28);
     exports.export("__sarif_text_builder_reserve", ExportKind::Func, 29);
     exports.export("__sarif_text_builder_append", ExportKind::Func, 30);
-    exports.export("__sarif_text_builder_append_codepoint", ExportKind::Func, 31);
+    exports.export(
+        "__sarif_text_builder_append_codepoint",
+        ExportKind::Func,
+        31,
+    );
     exports.export("__sarif_text_builder_append_ascii", ExportKind::Func, 32);
     exports.export("__sarif_text_builder_append_slice", ExportKind::Func, 33);
     exports.export("__sarif_text_builder_append_i32", ExportKind::Func, 34);
@@ -1430,7 +1479,14 @@ globals.global(GlobalType { val_type: ValType::I32, mutable: true, shared: false
     code_bodies.push(f);
 
     // Function 27: __sarif_text_from_f64_fixed
-    let mut f = Function::new([(4, ValType::I32), (1, ValType::I64), (1, ValType::F64), (4, ValType::I32), (1, ValType::I64), (2, ValType::I32)]);
+    let mut f = Function::new([
+        (4, ValType::I32),
+        (1, ValType::I64),
+        (1, ValType::F64),
+        (4, ValType::I32),
+        (1, ValType::I64),
+        (2, ValType::I32),
+    ]);
     f.instruction(&Instruction::LocalGet(1));
     f.instruction(&Instruction::I32WrapI64);
     f.instruction(&Instruction::LocalTee(2));

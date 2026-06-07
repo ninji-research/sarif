@@ -1814,6 +1814,7 @@ impl RuntimeValue {
 
 #[allow(clippy::too_many_lines)]
 #[must_use]
+#[derive(Default)]
 /// Pre-computed information about imported modules, needed by `lower` to resolve
 /// references to imported functions, structs, and enums during codegen.
 pub struct ImportedInfo {
@@ -1821,17 +1822,6 @@ pub struct ImportedInfo {
     pub struct_fields: BTreeMap<String, Vec<String>>,
     pub struct_layouts: BTreeMap<String, Vec<(String, String)>>,
     pub enum_variants: BTreeMap<String, Vec<EnumVariantType>>,
-}
-
-impl Default for ImportedInfo {
-    fn default() -> Self {
-        Self {
-            function_returns: BTreeMap::new(),
-            struct_fields: BTreeMap::new(),
-            struct_layouts: BTreeMap::new(),
-            enum_variants: BTreeMap::new(),
-        }
-    }
 }
 
 impl ImportedInfo {
@@ -1842,27 +1832,40 @@ impl ImportedInfo {
         let mut struct_layouts = BTreeMap::new();
         let mut enum_variants = BTreeMap::new();
 
-        for (_mod_name, resolved) in modules {
+        for resolved in modules.values() {
             for (name, sig) in &resolved.functions {
-                function_returns.entry(name.clone()).or_insert_with(|| sig.return_type.render());
+                function_returns
+                    .entry(name.clone())
+                    .or_insert_with(|| sig.return_type.render());
             }
             for (name, layout) in &resolved.struct_layouts {
                 let field_names: Vec<String> = layout.iter().map(|(n, _)| n.clone()).collect();
                 struct_fields.entry(name.clone()).or_insert(field_names);
-                let type_strs: Vec<(String, String)> = layout.iter().map(|(n, t)| (n.clone(), t.render())).collect();
+                let type_strs: Vec<(String, String)> = layout
+                    .iter()
+                    .map(|(n, t)| (n.clone(), t.render()))
+                    .collect();
                 struct_layouts.entry(name.clone()).or_insert(type_strs);
             }
             for (name, variants) in &resolved.enum_variants {
-                let converted: Vec<EnumVariantType> = variants.iter().map(|v| EnumVariantType {
-                    name: v.name.clone(),
-                    payload_type: v.payload.as_ref().map(|t| t.render()),
-                    discriminant: v.discriminant.clone(),
-                }).collect();
+                let converted: Vec<EnumVariantType> = variants
+                    .iter()
+                    .map(|v| EnumVariantType {
+                        name: v.name.clone(),
+                        payload_type: v.payload.as_ref().map(|t| t.render()),
+                        discriminant: v.discriminant.clone(),
+                    })
+                    .collect();
                 enum_variants.entry(name.clone()).or_insert(converted);
             }
         }
 
-        Self { function_returns, struct_fields, struct_layouts, enum_variants }
+        Self {
+            function_returns,
+            struct_fields,
+            struct_layouts,
+            enum_variants,
+        }
     }
 }
 
