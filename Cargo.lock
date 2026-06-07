@@ -726,6 +726,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sarif_query_planner"
+version = "0.1.0"
+
+[[package]]
 name = "sarif_syntax"
 version = "0.1.0"
 dependencies = [
@@ -746,6 +750,7 @@ version = "0.1.0"
 dependencies = [
  "sarif_codegen",
  "sarif_frontend",
+ "sarif_query_planner",
  "sarif_syntax",
  "sarif_tools",
  "toml",

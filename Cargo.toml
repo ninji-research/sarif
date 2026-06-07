@@ -3,6 +3,7 @@ members = [
   "apps/sarifc",
   "crates/sarif_codegen",
   "crates/sarif_frontend",
+  "crates/sarif_query_planner",
   "crates/sarif_syntax",
   "crates/sarif_tools",
 ]

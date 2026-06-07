@@ -260,6 +260,77 @@ fn run_command(command: command::Command) -> ExitCode {
         CommandKind::BootstrapDoc => exit_code_from_result(run_bootstrap_doc(&command)),
         CommandKind::Run => run_program(command),
         CommandKind::Build => exit_code_from_result(build_program(&command)),
+        CommandKind::Plan => run_plan(&command),
+        CommandKind::Query => run_query(&command),
+    }
+}
+
+fn run_plan(command: &command::Command) -> ExitCode {
+    use sarif_query_planner::{open_database, prepare_query};
+
+    let source = command.query_source.as_deref().unwrap_or(&command.path);
+    match open_database(source) {
+        Ok(db) => {
+            let sql = &command.path;
+            match prepare_query(&db, sql) {
+                Ok(plan) => {
+                    if let Some(ref optimized) = plan.optimized {
+                        print!("{}", optimized.pretty());
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_query(command: &command::Command) -> ExitCode {
+    use sarif_query_planner::{OptimizedStatement, generate_sarif, open_database, prepare_query};
+
+    let source = command.query_source.as_deref().unwrap_or(&command.path);
+    match open_database(source) {
+        Ok(db) => {
+            let sql = &command.path;
+            match prepare_query(&db, sql) {
+                Ok(plan) => plan
+                    .optimized
+                    .as_ref()
+                    .map_or(ExitCode::SUCCESS, |optimized| {
+                        if let Some(OptimizedStatement::Select(select)) =
+                            optimized.statements.first()
+                        {
+                            match generate_sarif(&select.original) {
+                                Ok(code) => {
+                                    print!("{code}");
+                                    ExitCode::SUCCESS
+                                }
+                                Err(e) => {
+                                    eprintln!("codegen error: {e}");
+                                    ExitCode::FAILURE
+                                }
+                            }
+                        } else {
+                            ExitCode::SUCCESS
+                        }
+                    }),
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 

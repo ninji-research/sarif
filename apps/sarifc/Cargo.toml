@@ -17,6 +17,7 @@ docs = []
 [dependencies]
 sarif_codegen = { path = "../../crates/sarif_codegen", optional = true }
 sarif_frontend = { path = "../../crates/sarif_frontend" }
+sarif_query_planner = { path = "../../crates/sarif_query_planner" }
 sarif_syntax = { path = "../../crates/sarif_syntax" }
 sarif_tools = { path = "../../crates/sarif_tools" }
 toml.workspace = true

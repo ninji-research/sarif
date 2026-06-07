@@ -1,0 +1,13 @@
+[package]
+name = "sarif_query_planner"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[features]
+default = []
+capi = []
+
+[lints]
+workspace = true

@@ -14,6 +14,7 @@ pub struct Command {
     pub debug: bool,
     pub format: Option<String>,
     pub import_paths: Vec<String>,
+    pub query_source: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,6 +36,8 @@ pub enum CommandKind {
     BootstrapFormat,
     Run,
     Build,
+    Plan,
+    Query,
 }
 
 #[must_use]
@@ -50,6 +53,8 @@ pub fn usage() -> String {
     usage += "  run               execute the program's main function\n";
     usage += "                    append `-- <args>` to pass runtime args to `main` builtins\n";
     usage += "  build             compile to native, wasm, or C (`-o` required)\n";
+    usage += "  plan              show planned execution for SQL query\n";
+    usage += "  query             execute SQL query directly on BCS file\n";
     usage += "  help              show this help message\n";
     usage += "  version           show compiler version\n\n";
     usage += "profiles:\n";
@@ -71,6 +76,7 @@ pub fn usage() -> String {
     usage += "  --inspect=<tool>  inspect build output (wasmprinter; only for `build`)\n";
     usage += "  --debug           enable target runtime null-pointer trap checks\n";
     usage += "  --format <format> diagnostic output format (text, sarif)\n";
+    usage += "  --from <file>     source BCS file for query command\n";
     usage += "  -h, --help        show this help message\n";
     usage += "  -v, --version     show compiler version\n";
     usage
@@ -85,6 +91,8 @@ const COMMAND_NAMES: &[&str] = &[
     "bootstrap-format",
     "run",
     "build",
+    "plan",
+    "query",
     "help",
     "version",
 ];
@@ -135,6 +143,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
     let mut debug = false;
     let mut format = None;
     let mut import_paths = Vec::new();
+    let mut query_source = None;
 
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -153,6 +162,8 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             "bootstrap-format" => kind = Some(CommandKind::BootstrapFormat),
             "run" => kind = Some(CommandKind::Run),
             "build" => kind = Some(CommandKind::Build),
+            "plan" => kind = Some(CommandKind::Plan),
+            "query" => kind = Some(CommandKind::Query),
             "--import-path" => {
                 if let Some(dir) = iter.next() {
                     import_paths.push(dir.clone());
@@ -192,6 +203,11 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
                     format = Some(f.clone());
                 } else {
                     return Err("missing argument for `--format`".to_owned());
+                }
+            }
+            "--from" => {
+                if let Some(src) = iter.next() {
+                    query_source = Some(src.clone());
                 }
             }
             other if other.starts_with("--format=") => {
@@ -245,6 +261,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
             debug,
             format: None,
             import_paths,
+            query_source,
         });
     }
 
@@ -276,6 +293,7 @@ fn parse_command_inner(args: &[String]) -> Result<Command, String> {
         debug,
         format,
         import_paths,
+        query_source,
     })
 }
 
