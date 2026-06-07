@@ -3105,4 +3105,84 @@ mod tests {
         assert!(matches!(expr.repeat_len, Some(ArrayLen::Name(ref name)) if name == "N"));
         assert!(ast.diagnostics.is_empty());
     }
+
+    #[test]
+    fn unescape_tab() {
+        assert_eq!(super::unescape_string("\\t"), "\t");
+    }
+
+    #[test]
+    fn unescape_newline() {
+        assert_eq!(super::unescape_string("\\n"), "\n");
+    }
+
+    #[test]
+    fn unescape_carriage_return() {
+        assert_eq!(super::unescape_string("\\r"), "\r");
+    }
+
+    #[test]
+    fn unescape_null() {
+        assert_eq!(super::unescape_string("\\0"), "\0");
+    }
+
+    #[test]
+    fn unescape_backslash() {
+        assert_eq!(super::unescape_string("\\\\"), "\\");
+    }
+
+    #[test]
+    fn unescape_quote() {
+        assert_eq!(super::unescape_string("\\\""), "\"");
+    }
+
+    #[test]
+    fn unescape_mixed() {
+        assert_eq!(super::unescape_string("hello\\tworld\\n"), "hello\tworld\n");
+    }
+
+    #[test]
+    fn unescape_no_escapes() {
+        assert_eq!(super::unescape_string("plain text"), "plain text");
+    }
+
+    #[test]
+    fn unescape_consecutive() {
+        assert_eq!(super::unescape_string("\\n\\t\\r"), "\n\t\r");
+    }
+
+    #[test]
+    fn unescape_tab_in_middle() {
+        assert_eq!(super::unescape_string("a\\tb"), "a\tb");
+    }
+
+    #[test]
+    fn unescape_trailing_backslash() {
+        assert_eq!(super::unescape_string("end\\"), "end\\");
+    }
+
+    #[test]
+    fn unescape_unknown_escape_passes_through() {
+        assert_eq!(super::unescape_string("\\x"), "\\x");
+    }
+
+    #[test]
+    fn unescape_string_literal_in_ast() {
+        let lexed = lex("fn main() -> Text { \"hello\\tworld\" }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.first().expect("function item") else {
+            panic!("expected function");
+        };
+        let Expr::String(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected string expression");
+        };
+        assert_eq!(expr.value, "hello\tworld");
+        assert!(ast.diagnostics.is_empty());
+    }
 }

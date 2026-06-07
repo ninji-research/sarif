@@ -1823,3 +1823,136 @@ fn wasm_build_preserves_runtime_traps() {
     assert!(error.contains("wasm call failed"), "{error}");
     assert!(error.contains("!main"), "{error}");
 }
+
+#[cfg(feature = "wasm")]
+#[test]
+fn wasm_build_emits_valid_wasm_magic_bytes() {
+    let path = temp_source("fn main() -> I32 { 42 }");
+    let wasm_path = temp_output("magic_check", "wasm");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "wasm",
+        "-o",
+        wasm_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(build.status.success(), "wasm build should succeed");
+    let bytes = std::fs::read(&wasm_path).expect("wasm artifact should exist");
+    assert_eq!(
+        &bytes[0..4],
+        b"\0asm",
+        "output should start with wasm magic bytes"
+    );
+}
+
+#[cfg(feature = "wasm")]
+#[test]
+fn wasm_build_runs_arithmetic_program() {
+    let path =
+        temp_source("fn main() -> I32 { let mut total = 0; for i in 1..6 { total += i; }; total }");
+    let wasm_path = temp_output("arithmetic_wasm", "wasm");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "wasm",
+        "-o",
+        wasm_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(build.status.success(), "wasm build should succeed");
+    let bytes = std::fs::read(&wasm_path).expect("wasm artifact should exist");
+    assert!(bytes.starts_with(b"\0asm"));
+    assert_eq!(
+        run_wasm_main(&wasm_path).expect("built wasm should run"),
+        15
+    );
+}
+
+#[cfg(feature = "wasm")]
+#[test]
+fn wasm_build_runs_record_program() {
+    let path = temp_source(
+        "struct Pair { left: I32, right: I32 }\nfn main() -> I32 { let p = Pair { left: 20, right: 22 }; p.left + p.right }",
+    );
+    let wasm_path = temp_output("record_wasm", "wasm");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "wasm",
+        "-o",
+        wasm_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(build.status.success(), "wasm build should succeed");
+    let bytes = std::fs::read(&wasm_path).expect("wasm artifact should exist");
+    assert!(bytes.starts_with(b"\0asm"));
+    assert_eq!(
+        run_wasm_main(&wasm_path).expect("built wasm should run"),
+        42
+    );
+}
+
+#[cfg(feature = "wasm")]
+#[test]
+fn wasm_build_runs_match_program() {
+    let path = temp_source(
+        "enum Color { red, green, blue }\nfn main() -> I32 { match Color.green { Color.red => { 1 }, Color.green => { 42 }, Color.blue => { 3 }, } }",
+    );
+    let wasm_path = temp_output("match_wasm", "wasm");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--target",
+        "wasm",
+        "-o",
+        wasm_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(build.status.success(), "wasm build should succeed");
+    let bytes = std::fs::read(&wasm_path).expect("wasm artifact should exist");
+    assert!(bytes.starts_with(b"\0asm"));
+    assert_eq!(
+        run_wasm_main(&wasm_path).expect("built wasm should run"),
+        42
+    );
+}
+
+#[test]
+fn run_executes_escape_sequences_in_strings() {
+    let path = temp_source(
+        "fn main() effects [SystemIO] { perform SystemIO.stdout_write(\"hello\\tworld\\n\") }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "escape run should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "hello\tworld\n");
+}
+
+#[test]
+fn run_executes_backslash_escape_in_strings() {
+    let path = temp_source(
+        "fn main() effects [SystemIO] { perform SystemIO.stdout_write(\"back\\\\slash\\\"quoted\\\"\") }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "escape run should succeed");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "back\\slash\"quoted\""
+    );
+}
+
+#[test]
+fn run_executes_null_and_carriage_return_escapes() {
+    let path = temp_source(
+        "fn main() effects [SystemIO] { perform SystemIO.stdout_write(\"a\\0b\\rc\\n\") }",
+    );
+    let output = run_sarif(&["run", path.to_str().expect("utf-8 path")]);
+    assert!(output.status.success(), "escape run should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains('a'), "should contain 'a'");
+    assert!(stdout.contains('b'), "should contain 'b'");
+    assert!(stdout.contains('c'), "should contain 'c'");
+}
