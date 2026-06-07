@@ -1969,24 +1969,15 @@ fn text_len_returns_zero_for_empty_string() {
 
 #[test]
 fn template_pure_text_at_runtime() {
-    assert_run_parity(
-        r#"fn main() -> Text { "hello world" }"#,
-        "hello world",
-    );
+    assert_run_parity(r#"fn main() -> Text { "hello world" }"#, "hello world");
 }
 
 #[test]
 fn template_with_newline_escape_in_text() {
-    assert_run_parity(
-        r#"fn main() -> Text { "line1\nline2" }"#,
-        "line1\nline2",
-    );
+    assert_run_parity(r#"fn main() -> Text { "line1\nline2" }"#, "line1\nline2");
 }
 
 #[test]
 fn template_with_tab_escape_in_text() {
-    assert_run_parity(
-        r#"fn main() -> Text { "col1\tcol2" }"#,
-        "col1\tcol2",
-    );
+    assert_run_parity(r#"fn main() -> Text { "col1\tcol2" }"#, "col1\tcol2");
 }

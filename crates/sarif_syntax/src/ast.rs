@@ -3161,108 +3161,111 @@ mod tests {
         assert_eq!(super::unescape_string("end\\"), "end\\");
     }
 
-#[test]
-fn unescape_unknown_escape_passes_through() {
-    assert_eq!(super::unescape_string("\\x"), "\\x");
-}
+    #[test]
+    fn unescape_unknown_escape_passes_through() {
+        assert_eq!(super::unescape_string("\\x"), "\\x");
+    }
 
-#[test]
-fn unescape_nested() {
-    assert_eq!(super::unescape_string("a\\tb\\nc"), "a\tb\nc");
-}
+    #[test]
+    fn unescape_nested() {
+        assert_eq!(super::unescape_string("a\\tb\\nc"), "a\tb\nc");
+    }
 
-#[test]
-fn unescape_all_windows_style() {
-    assert_eq!(super::unescape_string("\\t\\n\\r"), "\t\n\r");
-}
+    #[test]
+    fn unescape_all_windows_style() {
+        assert_eq!(super::unescape_string("\\t\\n\\r"), "\t\n\r");
+    }
 
-#[test]
-fn unescape_empty() {
-    assert_eq!(super::unescape_string(""), "");
-}
+    #[test]
+    fn unescape_empty() {
+        assert_eq!(super::unescape_string(""), "");
+    }
 
-#[test]
-fn unescape_lone_at_sign() {
-    assert_eq!(super::unescape_string("@"), "@");
-}
+    #[test]
+    fn unescape_lone_at_sign() {
+        assert_eq!(super::unescape_string("@"), "@");
+    }
 
-#[test]
-fn unescape_all_single_char_escapes() {
-    assert_eq!(super::unescape_string("\\t\\n\\r\\0\\\"\\\\"), "\t\n\r\0\"\\");
-}
+    #[test]
+    fn unescape_all_single_char_escapes() {
+        assert_eq!(
+            super::unescape_string("\\t\\n\\r\\0\\\"\\\\"),
+            "\t\n\r\0\"\\"
+        );
+    }
 
-#[test]
-fn unescape_double_backslash_only() {
-    assert_eq!(super::unescape_string("\\\\"), "\\");
-}
+    #[test]
+    fn unescape_double_backslash_only() {
+        assert_eq!(super::unescape_string("\\\\"), "\\");
+    }
 
-#[test]
-fn unescape_just_quotes() {
-    assert_eq!(super::unescape_string("\"\""), "\"\"");
-}
+    #[test]
+    fn unescape_just_quotes() {
+        assert_eq!(super::unescape_string("\"\""), "\"\"");
+    }
 
-#[test]
-fn unescape_null_in_middle() {
-    assert_eq!(super::unescape_string("a\\0b"), "a\0b");
-}
+    #[test]
+    fn unescape_null_in_middle() {
+        assert_eq!(super::unescape_string("a\\0b"), "a\0b");
+    }
 
-#[test]
-fn unescape_returns_passthrough() {
-    assert_eq!(super::unescape_string("\\r\\r"), "\r\r");
-}
+    #[test]
+    fn unescape_returns_passthrough() {
+        assert_eq!(super::unescape_string("\\r\\r"), "\r\r");
+    }
 
-#[test]
-fn unescape_mixed_unknown() {
-    assert_eq!(super::unescape_string("a\\?b"), "a\\?b");
-}
+    #[test]
+    fn unescape_mixed_unknown() {
+        assert_eq!(super::unescape_string("a\\?b"), "a\\?b");
+    }
 
-#[test]
-fn unescape_leading_backslash() {
-    assert_eq!(super::unescape_string("\\hello"), "\\hello");
-}
+    #[test]
+    fn unescape_leading_backslash() {
+        assert_eq!(super::unescape_string("\\hello"), "\\hello");
+    }
 
-#[test]
-fn unescape_consecutive_known_unknown() {
-    assert_eq!(super::unescape_string("\\t\\x\\n"), "\t\\x\n");
-}
+    #[test]
+    fn unescape_consecutive_known_unknown() {
+        assert_eq!(super::unescape_string("\\t\\x\\n"), "\t\\x\n");
+    }
 
-#[test]
-fn lowers_template_pure_text_at_runtime() {
-    let lexed = lex(r#"fn main() -> Text { "hello world" }"#);
-    let parsed = parse(&lexed.tokens);
-    let ast = lower(&parsed.root);
-    let Item::Function(function) = ast.file.items.first().expect("function item") else {
-        panic!("expected function");
-    };
-    let Expr::String(expr) = function
-        .body
-        .as_ref()
-        .and_then(|body| body.tail.as_ref())
-        .expect("tail expression")
-    else {
-        panic!("expected string expression");
-    };
-    assert_eq!(expr.value, "hello world");
-    assert!(ast.diagnostics.is_empty());
-}
+    #[test]
+    fn lowers_template_pure_text_at_runtime() {
+        let lexed = lex(r#"fn main() -> Text { "hello world" }"#);
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.first().expect("function item") else {
+            panic!("expected function");
+        };
+        let Expr::String(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected string expression");
+        };
+        assert_eq!(expr.value, "hello world");
+        assert!(ast.diagnostics.is_empty());
+    }
 
-#[test]
-fn unescape_string_literal_in_ast() {
-    let lexed = lex("fn main() -> Text { \"hello\\tworld\" }");
-    let parsed = parse(&lexed.tokens);
-    let ast = lower(&parsed.root);
-    let Item::Function(function) = ast.file.items.first().expect("function item") else {
-        panic!("expected function");
-    };
-    let Expr::String(expr) = function
-        .body
-        .as_ref()
-        .and_then(|body| body.tail.as_ref())
-        .expect("tail expression")
-    else {
-        panic!("expected string expression");
-    };
-    assert_eq!(expr.value, "hello\tworld");
-    assert!(ast.diagnostics.is_empty());
-}
+    #[test]
+    fn unescape_string_literal_in_ast() {
+        let lexed = lex("fn main() -> Text { \"hello\\tworld\" }");
+        let parsed = parse(&lexed.tokens);
+        let ast = lower(&parsed.root);
+        let Item::Function(function) = ast.file.items.first().expect("function item") else {
+            panic!("expected function");
+        };
+        let Expr::String(expr) = function
+            .body
+            .as_ref()
+            .and_then(|body| body.tail.as_ref())
+            .expect("tail expression")
+        else {
+            panic!("expected string expression");
+        };
+        assert_eq!(expr.value, "hello\tworld");
+        assert!(ast.diagnostics.is_empty());
+    }
 }

@@ -135,7 +135,11 @@ fn cli_reports_option_errors_directly() {
     let missing_file = run_sarif(&["check", "/nonexistent/path/to/file.sarif"]);
     assert!(!missing_file.status.success());
     let missing_stderr = String::from_utf8_lossy(&missing_file.stderr);
-    assert!(missing_stderr.contains("No such file") || missing_stderr.contains("missing input file") || missing_stderr.contains("does not exist"));
+    assert!(
+        missing_stderr.contains("No such file")
+            || missing_stderr.contains("missing input file")
+            || missing_stderr.contains("does not exist")
+    );
 
     let bad_format = run_sarif(&[
         "check",
