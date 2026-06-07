@@ -4,6 +4,30 @@ use std::fmt::Write;
 
 use crate::{Diagnostic, Element, Node, NodeKind, Span, TokenKind};
 
+fn unescape_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            result.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') | None => result.push('\\'),
+            Some('"') => result.push('"'),
+            Some('n') => result.push('\n'),
+            Some('t') => result.push('\t'),
+            Some('r') => result.push('\r'),
+            Some('0') => result.push('\0'),
+            Some(c) => {
+                result.push('\\');
+                result.push(c);
+            }
+        }
+    }
+    result
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct AstFile {
     pub items: Vec<Item>,
@@ -1880,16 +1904,14 @@ impl Lowerer {
 
     fn lower_string_expr(node: &Node) -> Option<StringExpr> {
         let token = Self::first_token(node, TokenKind::String)?;
-        let value = token
+        let inner = token
             .lexeme
             .strip_prefix('"')
             .and_then(|value| value.strip_suffix('"'))
-            .unwrap_or(&token.lexeme)
-            .replace("\\\"", "\"")
-            .replace("\\n", "\n");
+            .unwrap_or(&token.lexeme);
         Some(StringExpr {
             literal: token.lexeme.clone(),
-            value,
+            value: unescape_string(inner),
             span: token.span,
         })
     }
@@ -1934,9 +1956,7 @@ impl Lowerer {
                 }
                 if !buf.is_empty() {
                     let text = std::mem::take(&mut buf);
-                    segments.push(TemplateSegment::Text(
-                        text.replace("\\\"", "\"").replace("\\n", "\n"),
-                    ));
+                    segments.push(TemplateSegment::Text(unescape_string(&text)));
                 }
                 let mut expr_text = String::new();
                 let mut depth = 1usize;
@@ -2329,9 +2349,7 @@ impl Lowerer {
                     .lexeme
                     .strip_prefix('"')
                     .and_then(|value| value.strip_suffix('"'))
-                    .unwrap_or(&token.lexeme)
-                    .replace("\\\"", "\"")
-                    .replace("\\n", "\n"),
+                    .map_or_else(|| unescape_string(&token.lexeme), unescape_string),
                 span: token.span,
             }),
             TokenKind::KwTrue | TokenKind::KwFalse => Some(MatchPattern::Bool {

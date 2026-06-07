@@ -776,12 +776,16 @@ fn find_import_source(name: &str, search_dirs: &[PathBuf]) -> Option<(String, St
     for dir in search_dirs {
         // Try `{name}.sarif`
         let file_path = dir.join(format!("{name}.sarif"));
-        if file_path.is_file() && let Ok(source) = fs::read_to_string(&file_path) {
+        if file_path.is_file()
+            && let Ok(source) = fs::read_to_string(&file_path)
+        {
             return Some((file_path.display().to_string(), source));
         }
         // Try `{name}/main.sarif`
         let dir_path = dir.join(name).join("main.sarif");
-        if dir_path.is_file() && let Ok(source) = fs::read_to_string(&dir_path) {
+        if dir_path.is_file()
+            && let Ok(source) = fs::read_to_string(&dir_path)
+        {
             return Some((dir_path.display().to_string(), source));
         }
     }

@@ -1,4 +1,0 @@
-fn main() -> I32 {
-    let f = file_open("test.txt", "r");
-    0
-}
