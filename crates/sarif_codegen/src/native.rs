@@ -2046,24 +2046,24 @@ pub fn lower_inst<M: Module>(
             let value_kind = value_kinds
                 .get(value)
                 .expect("kind inference ensures value kind");
-            if *value_kind == NativeValueKind::F64 {
-                value_val = builder
-                    .ins()
-                    .bitcast(types::I64, MemFlags::new(), value_val);
-            }
-            let helper = module.declare_func_in_func(list_new_id, builder.func);
-            let ptr = call_helper(
-                builder,
-                helper,
-                &[len_val, value_val],
-                "list new",
-                function,
-                backend,
-            )?;
-            values.insert(*dest, NativeValueRepr::Native(ptr));
-            Ok(true)
-        }
-        Inst::ListLen { dest, list } => {
+      if *value_kind == NativeValueKind::F64 {
+        value_val = builder
+          .ins()
+          .bitcast(types::I64, MemFlags::new(), value_val);
+      }
+      let helper = module.declare_func_in_func(list_new_id, builder.func);
+      let ptr = call_helper(
+        builder,
+        helper,
+        &[len_val, value_val],
+        "list new",
+        function,
+        backend,
+      )?;
+      values.insert(*dest, NativeValueRepr::Native(ptr));
+      Ok(true)
+    }
+    Inst::ListLen { dest, list } => {
             let vec_val = native_value(values, *list, function, "list_len list", backend)?;
             let header = cached_list_header(
                 builder,
@@ -2153,24 +2153,24 @@ pub fn lower_inst<M: Module>(
         } => {
             let vec_val = native_value(values, *list, function, "list_push list", backend)?;
             let len_val = native_value(values, *len, function, "list_push len", backend)?;
-            let mut value_val = native_value(values, *value, function, "list_push value", backend)?;
-            let value_kind = value_kinds
-                .get(value)
-                .expect("kind inference ensures list_push value kind");
-            if *value_kind == NativeValueKind::F64 {
-                value_val = builder
-                    .ins()
-                    .bitcast(types::I64, MemFlags::new(), value_val);
-            }
-            let helper = module.declare_func_in_func(list_push_id, builder.func);
-            let ptr = call_helper(
-                builder,
-                helper,
-                &[vec_val, len_val, value_val],
-                "list push",
-                function,
-                backend,
-            )?;
+    let mut value_val = native_value(values, *value, function, "list_push value", backend)?;
+    let value_kind = value_kinds
+      .get(value)
+      .expect("kind inference ensures list_push value kind");
+    if *value_kind == NativeValueKind::F64 {
+      value_val = builder
+        .ins()
+        .bitcast(types::I64, MemFlags::new(), value_val);
+    }
+    let helper = module.declare_func_in_func(list_push_id, builder.func);
+    let ptr = call_helper(
+      builder,
+      helper,
+      &[vec_val, len_val, value_val],
+      "list push",
+      function,
+      backend,
+    )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }

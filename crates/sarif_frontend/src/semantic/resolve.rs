@@ -320,12 +320,12 @@ pub fn resolve_module(
             crate::hir::Item::Effect(_) => {}
             crate::hir::Item::Import(import) => {
                 let Some(resolved) = imported_modules.get(&import.module) else {
-                    diagnostics.push(Diagnostic::new(
-                    "semantic.import-not-found",
-                    format!("import module `{}` not found", import.module),
-                    import.span,
-                    Some("Make sure the module path is correct and the source file is available.".to_owned()),
-                ));
+      diagnostics.push(Diagnostic::new(
+        "semantic.import-not-found",
+        format!("import module `{}` not found — the file `{}.sarif` could not be located in any import search path. Check that the module name matches the file name, and that the file exists relative to the entry point or any configured import directories.", import.module, import.module),
+        import.span,
+        Some("Try: `sarc --import-path <dir> <file>` or ensure the module declaration resolves to a `.sarif` file in the same directory as your project root.".to_owned()),
+      ));
                     continue;
                 };
                 if import.names.is_empty() {
@@ -452,20 +452,20 @@ pub fn resolve_module(
                                 }
                                 struct_layouts.insert(import_name.clone(), layout.clone());
                             }
-                        } else {
-                            diagnostics.push(Diagnostic::new(
-                                "semantic.import-name-not-found",
-                                format!(
-                                    "name `{import_name}` not found in module `{}`",
-                                    import.module
-                                ),
-                                import.span,
-                                Some(format!(
-                                    "Check that `{import_name}` is exported from `{}`.",
-                                    import.module
-                                )),
-                            ));
-                        }
+    } else {
+      diagnostics.push(Diagnostic::new(
+        "semantic.import-name-not-found",
+        format!(
+          "name `{import_name}` not found in module `{}` — the symbol is not exported from that module",
+          import.module
+        ),
+        import.span,
+        Some(format!(
+          "Check that `{import_name}` is exported from `{}` and that its declaration is visible before the import statement.",
+          import.module,
+        )),
+      ));
+    }
                     }
                 }
             }

@@ -2257,10 +2257,57 @@ void sarif_clock_sleep(int64_t ms) {
     nanosleep(&req, NULL);
 }
 
+static int sarif_runtime_check(void) {
+  uint64_t i = 0;
+  struct SarifRecordChunk* chunk = NULL;
+  struct SarifInternBucket* bucket = NULL;
+  (void)i;
+  for (i = 0; i < SARIF_SCOPE_STACK_CAP; i++) {
+    if (sarif_scope_stack[i].chunk != NULL) {
+      chunk = sarif_scope_stack[i].chunk;
+      while (chunk != NULL) {
+        if (chunk->used > chunk->cap) {
+          return -1;
+        }
+        chunk = chunk->next;
+      }
+    }
+  }
+  if (sarif_scope_depth >= SARIF_SCOPE_STACK_CAP && sarif_scope_overflow != NULL) {
+    chunk = sarif_scope_overflow->scope.chunk;
+    while (chunk != NULL) {
+      if (chunk->used > chunk->cap) {
+        return -2;
+      }
+      chunk = chunk->next;
+    }
+  }
+  for (i = 0; i < SARIF_INTERN_BUCKET_COUNT; i++) {
+    bucket = &sarif_intern_table[i];
+    if (bucket->hash != 0) {
+      if (bucket->text == NULL) {
+        return -3;
+      }
+      uint64_t interned_len = 0;
+      memcpy(&interned_len, bucket->text, sizeof(uint64_t));
+      if (interned_len > SIZE_MAX - 8 || bucket->text[8 + interned_len] == 0) {
+      }
+    }
+  }
+  if (sarif_record_current != NULL && sarif_record_current->used > sarif_record_current->cap) {
+    return -4;
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
-    sarif_argc = argc;
-    sarif_argv = argv;
-    setvbuf(stdout, NULL, _IOFBF, 0);
+  sarif_argc = argc;
+  sarif_argv = argv;
+  setvbuf(stdout, NULL, _IOFBF, 0);
+  if (sarif_runtime_check() != 0) {
+    fprintf(stderr, "SARIF RUNTIME CHECK FAILED\n");
+    return 1;
+  }
 #if SARIF_MAIN_KIND == 1
     int32_t value = sarif_user_main();
 #if SARIF_MAIN_PRINT
