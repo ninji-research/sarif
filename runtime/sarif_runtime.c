@@ -360,6 +360,9 @@ static unsigned char* sarif_intern_alloc(uint64_t size) {
 
 static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uint64_t len) {
     uint64_t hash = sarif_intern_hash(data, len);
+    if (hash == 0) {
+        hash = 1;
+    }
     uint64_t idx = hash % SARIF_INTERN_BUCKET_COUNT;
     for (uint64_t probe = 0; probe < SARIF_INTERN_BUCKET_COUNT; probe++) {
         struct SarifInternBucket* b = &sarif_intern_table[idx];
