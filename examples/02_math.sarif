@@ -1,0 +1,23 @@
+fn add(left: I32, right: I32) -> I32 {
+  left + right
+}
+
+fn fact(n: I32) -> I32 {
+  if n < 2 {
+    1
+  } else {
+    n * fact(n - 1)
+  }
+}
+
+fn main() -> I32 effects [SystemIO] {
+  let x = add(3, 7);
+  let y = fact(5);
+  let mut total = 0;
+  let mut i = 1;
+  while i <= 5 {
+    total = total + i;
+    i = i + 1;
+  };
+  total + x
+}

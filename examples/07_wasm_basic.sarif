@@ -1,0 +1,3 @@
+fn main() effects [SystemIO] {
+  perform SystemIO.stdout_write("hello from wasm\n")
+}

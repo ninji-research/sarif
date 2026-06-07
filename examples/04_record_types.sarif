@@ -1,0 +1,21 @@
+struct Point {
+  x: I32,
+  y: I32,
+}
+
+struct Person {
+  name: Text,
+  age: I32,
+}
+
+fn manhattan(p: Point) -> I32 {
+  p.x + p.y
+}
+
+fn main() effects [SystemIO] {
+  let alice = Person { name: "Alice", age: 30 };
+  let bob = Person { name: "Bob", age: 25 };
+  let p1 = Point { x: 3, y: 4 };
+  let d = manhattan(p1);
+  perform SystemIO.stdout_write("done")
+}

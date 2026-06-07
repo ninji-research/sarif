@@ -1,0 +1,25 @@
+fn classify(n: I32) -> Text {
+  match n {
+    0 => "zero",
+    1 => "one",
+    2 => "two",
+    3 => "three",
+    4 => "four",
+    5 => "five",
+    _ => "other"
+  }
+}
+
+fn classify_msg(s: Text) -> Text {
+  match s {
+    "" => "empty",
+    "hello" => "greeting",
+    _ => "other"
+  }
+}
+
+fn main() effects [SystemIO] {
+  let msg = classify(5);
+  let msg2 = classify_msg("hello");
+  perform SystemIO.stdout_write("done")
+}

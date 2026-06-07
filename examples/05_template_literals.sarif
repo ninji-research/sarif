@@ -1,0 +1,31 @@
+fn int_to_text(n: I32) -> Text {
+  if n < 0 {
+    text_concat("-", int_to_text(0 - n))
+  } else if n == 0 {
+    "0"
+  } else if n == 1 {
+    "1"
+  } else if n == 2 {
+    "2"
+  } else if n == 3 {
+    "3"
+  } else if n == 4 {
+    "4"
+  } else if n == 5 {
+    "5"
+  } else if n == 6 {
+    "6"
+  } else if n == 7 {
+    "7"
+  } else if n == 8 {
+    "8"
+  } else {
+    text_concat(int_to_text(n / 10), int_to_text(n % 10))
+  }
+}
+
+fn main() effects [SystemIO] {
+  let count = 3;
+  let msg = "hello {int_to_text(count)}";
+  perform SystemIO.stdout_write(msg)
+}

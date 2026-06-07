@@ -1,0 +1,5 @@
+fn main() effects [SystemIO] {
+  let greeting = "Hello, World!\n";
+  let tab_line = "col1\tcol2\tcol3\n";
+  perform SystemIO.stdout_write(greeting)
+}
