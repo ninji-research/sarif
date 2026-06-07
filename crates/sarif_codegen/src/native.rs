@@ -368,8 +368,11 @@ fn infer_inst_kinds(
                     },
                 );
             }
-            Inst::TextIndexGet { dest, .. } | Inst::TextIndexContains { dest, .. } => {
+            Inst::TextIndexGet { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);
+            }
+            Inst::TextIndexContains { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::Bool);
             }
             Inst::TextIndexGetOrInsert { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::I32);

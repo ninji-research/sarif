@@ -1019,7 +1019,7 @@ fn builtin_return_type(name: Text) -> Text {
     else if text_cmp(name, "text_byte") == 0 { "I32" }
     else if text_cmp(name, "text_cmp") == 0 { "I32" }
     else if text_cmp(name, "text_find_byte_range") == 0 { "I32" }
-    else if text_cmp(name, "text_index_contains") == 0 { "I32" }
+    else if text_cmp(name, "text_index_contains") == 0 { "Bool" }
     else if text_cmp(name, "text_index_get") == 0 { "I32" }
     else if text_cmp(name, "text_index_get_or_insert") == 0 { "I32" }
     else if text_cmp(name, "text_line_end") == 0 { "I32" }

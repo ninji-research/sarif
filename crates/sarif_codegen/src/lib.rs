@@ -12412,6 +12412,27 @@ fn main() -> I32 {
         });
     }
 
+    #[cfg(feature = "backend-c")]
+    #[test]
+    fn c_codegen_emits_user_f64_return() {
+        run_with_large_stack("c_codegen_emits_user_f64_return", || {
+            let mir = lower_source(
+                "fn double_it(x: F64) -> F64 { x * 2.0 }
+                 fn main() -> F64 { double_it(21.0) }",
+            );
+            assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
+            let c_code = crate::c::emit_c(&mir.program).expect("C emission should succeed");
+            assert!(
+                c_code.contains("double_it("),
+                "C output should call double_it, got:\n{c_code}"
+            );
+            assert!(
+                !c_code.contains("(uint64_t)double_it"),
+                "C output should not cast double_it return to uint64_t, got:\n{c_code}"
+            );
+        });
+    }
+
     #[cfg(feature = "backend-wasm")]
     #[test]
     fn wasm_codegen_emits_extern_import() {
