@@ -547,30 +547,30 @@
       local.set $mag
     end
     block $digits_done
-      loop $digits
-        local.get $mag
-        i64.eqz
-        br_if $digits_done
-        local.get $buf
-        local.get $i
-        i32.add
-        local.get $mag
-        i64.const 10
-        i64.rem_u
-        i32.wrap_i64
-        i32.const 48
-        i32.add
-        i32.store8
-        local.get $mag
-        i64.const 10
-        i64.div_u
-        local.set $mag
-        local.get $i
-        i32.const 1
-        i32.sub
-        local.set $i
-        br $digits
-      end
+    loop $digits
+      local.get $mag
+      i64.eqz
+      br_if $digits_done
+      local.get $buf
+      local.get $i
+      i32.add
+      local.get $mag
+      i64.const 10
+      i64.rem_u
+      i32.wrap_i64
+      i32.const 48
+      i32.add
+      i32.store8
+      local.get $mag
+      i64.const 10
+      i64.div_u
+      local.set $mag
+      local.get $i
+      i32.const 1
+      i32.sub
+      local.set $i
+      br $digits
+    end
     end
     local.get $neg
     if
@@ -601,6 +601,12 @@
     i32.sub
     call $__sarif_pack_text
     call $__sarif_text_builder_append
+  )
+  (func $__sarif_text_builder_append_i64
+    (param $builder i64) (param $value i64) (result i64)
+    local.get $builder
+    local.get $value
+    call $__sarif_text_builder_append_i32
   )
   (func $__sarif_text_builder_finish (param $builder i64) (result i64)
     (local $state i32) (local $data_ptr i32) (local $len i32)

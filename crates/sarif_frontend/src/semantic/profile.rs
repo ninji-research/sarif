@@ -71,7 +71,7 @@ fn type_is_rt_safe_inner(
                 && type_is_rt_safe_inner(right, struct_fields, visiting)
         }
         Type::Param(_) => false,
-        Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => true,
+        Type::I32 | Type::I64 | Type::F64 | Type::Bool | Type::Unit | Type::Error => true,
         Type::TextIndex | Type::TextBuilder | Type::List(_) | Type::File => false,
     }
 }

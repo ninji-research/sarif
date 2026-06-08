@@ -257,6 +257,17 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &["Pass an I32 value."],
             dispatch_simple: true,
         }),
+        "i64_from_i32" => Some(BuiltinEntry {
+            name: "i64_from_i32",
+            runtime_code: None,
+            arity_error_code: "semantic.i64_from_i32-arity",
+            type_error_code: "semantic.i64_from_i32-type",
+            result_ty: Type::I64,
+            call_hint: "Call `i64_from_i32(value)` with one I32 argument.",
+            arg_types: &[Type::I32],
+            arg_helps: &["Pass an I32 value."],
+            dispatch_simple: true,
+        }),
         "len" => Some(BuiltinEntry {
             name: "len",
             runtime_code: None,
@@ -2319,9 +2330,14 @@ pub(super) fn infer_binary_expr(
         | crate::hir::BinaryOp::Div => {
             if expr.op == crate::hir::BinaryOp::Add
                 && left.ty == Type::TextBuilder
-                && matches!(right.ty, Type::Text | Type::I32)
+                && matches!(right.ty, Type::Text | Type::I32 | Type::I64)
             {
                 Type::TextBuilder
+            } else if expr.op == crate::hir::BinaryOp::Add
+                && left.ty == Type::Text
+                && right.ty == Type::Text
+            {
+                Type::Text
             } else if let Some(ty) = matching_numeric_type(&left.ty, &right.ty) {
                 ty
             } else {
@@ -2329,7 +2345,7 @@ pub(super) fn infer_binary_expr(
                     diagnostics.push(Diagnostic::new(
                         "semantic.binary-type",
                         format!(
-                            "operands of `{}` must both be `I32`, both be `F64`, or append to `TextBuilder`, found `{}` and `{}`",
+                            "operands of `{}` must both be `I32`, both be `F64`, both be `Text`, or append to `TextBuilder`, found `{}` and `{}`",
                             expr.op.symbol(),
                             left.ty.render(),
                             right.ty.render(),
@@ -2342,50 +2358,66 @@ pub(super) fn infer_binary_expr(
             }
         }
         crate::hir::BinaryOp::Rem => {
-            expect_type(
-                diagnostics,
-                &expr.left,
-                &left.ty,
-                &Type::I32,
-                expr.op.symbol(),
-                "left",
-                "Use `I32` operands with `%`.",
-            );
-            expect_type(
-                diagnostics,
-                &expr.right,
-                &right.ty,
-                &Type::I32,
-                expr.op.symbol(),
-                "right",
-                "Use `I32` operands with `%`.",
-            );
-            Type::I32
+            if left.ty != Type::I32 && left.ty != Type::I64 && left.ty != Type::Error {
+                expect_type(
+                    diagnostics,
+                    &expr.left,
+                    &left.ty,
+                    &Type::I32,
+                    expr.op.symbol(),
+                    "left",
+                    "Use `I32` or `I64` operands with `%`.",
+                );
+            }
+            if right.ty != Type::I32 && right.ty != Type::I64 && right.ty != Type::Error {
+                expect_type(
+                    diagnostics,
+                    &expr.right,
+                    &right.ty,
+                    &Type::I32,
+                    expr.op.symbol(),
+                    "right",
+                    "Use `I32` or `I64` operands with `%`.",
+                );
+            }
+            if left.ty == Type::I64 || right.ty == Type::I64 {
+                Type::I64
+            } else {
+                Type::I32
+            }
         }
         crate::hir::BinaryOp::BitAnd
         | crate::hir::BinaryOp::BitOr
         | crate::hir::BinaryOp::BitXor
         | crate::hir::BinaryOp::Shl
         | crate::hir::BinaryOp::Shr => {
-            expect_type(
-                diagnostics,
-                &expr.left,
-                &left.ty,
-                &Type::I32,
-                expr.op.symbol(),
-                "left",
-                "Use `I32` operands with integer bitwise operators.",
-            );
-            expect_type(
-                diagnostics,
-                &expr.right,
-                &right.ty,
-                &Type::I32,
-                expr.op.symbol(),
-                "right",
-                "Use `I32` operands with integer bitwise operators.",
-            );
-            Type::I32
+            if left.ty != Type::I32 && left.ty != Type::I64 && left.ty != Type::Error {
+                expect_type(
+                    diagnostics,
+                    &expr.left,
+                    &left.ty,
+                    &Type::I32,
+                    expr.op.symbol(),
+                    "left",
+                    "Use `I32` or `I64` operands with integer bitwise operators.",
+                );
+            }
+            if right.ty != Type::I32 && right.ty != Type::I64 && right.ty != Type::Error {
+                expect_type(
+                    diagnostics,
+                    &expr.right,
+                    &right.ty,
+                    &Type::I32,
+                    expr.op.symbol(),
+                    "right",
+                    "Use `I32` or `I64` operands with integer bitwise operators.",
+                );
+            }
+            if left.ty == Type::I64 || right.ty == Type::I64 {
+                Type::I64
+            } else {
+                Type::I32
+            }
         }
         crate::hir::BinaryOp::Lt
         | crate::hir::BinaryOp::Le
@@ -2961,7 +2993,7 @@ const SYSTEM_FILE_METHODS: &[SystemEffectMethod] = &[
         name: "seek",
         params: &[
             ("file", Type::File),
-            ("offset", Type::I32),
+            ("offset", Type::I64),
             ("whence", Type::I32),
         ],
         return_type: Type::I32,

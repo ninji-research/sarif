@@ -165,6 +165,7 @@ impl Env<'_> {
             | Inst::TextBuilderAppendAscii { dest, .. }
             | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
+            | Inst::TextBuilderAppendI64 { dest, .. }
             | Inst::StdoutWriteBuilder { dest, .. }
             | Inst::TextIndexGet { dest, .. }
             | Inst::TextIndexContains { dest, .. }
@@ -367,6 +368,7 @@ impl Env<'_> {
             | Inst::ParseI32Range { .. }
             | Inst::ParseF64 { .. }
             | Inst::F64FromI32 { .. }
+            | Inst::I64FromI32 { .. }
             | Inst::TextLen { .. }
             | Inst::BytesLen { .. }
             | Inst::TextCmp { .. }

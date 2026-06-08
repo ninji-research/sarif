@@ -181,6 +181,7 @@ pub(super) fn decode_record_from_memory(
         let raw = read_i64_from_memory(memory, store, field_ptr)?;
         let value = match &field.kind {
             WasmValueKind::I32 => RuntimeValue::Int(raw),
+            WasmValueKind::I64 => RuntimeValue::Int(raw),
             WasmValueKind::F64 => RuntimeValue::F64(f64::from_bits(raw as u64)),
             WasmValueKind::Bool => RuntimeValue::Bool(raw != 0),
             WasmValueKind::TextIndex => {
@@ -271,6 +272,7 @@ pub(super) fn decode_enum_from_memory(
             let raw = read_i64_from_memory(memory, store, ptr + 8)?;
             let value = match kind {
                 WasmValueKind::I32 => RuntimeValue::Int(raw),
+                WasmValueKind::I64 => RuntimeValue::Int(raw),
                 WasmValueKind::F64 => RuntimeValue::F64(f64::from_bits(raw as u64)),
                 WasmValueKind::Bool => RuntimeValue::Bool(raw != 0),
                 WasmValueKind::TextIndex => {

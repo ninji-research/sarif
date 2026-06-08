@@ -276,6 +276,7 @@ const RUNTIME_FUNC_NAMES: &[&str] = &[
     "__sarif_text_builder_append_ascii",
     "__sarif_text_builder_append_slice",
     "__sarif_text_builder_append_i32",
+    "__sarif_text_builder_append_i64",
     "__sarif_text_builder_finish",
     "__sarif_stdout_write",
     "__sarif_stdout_write_builder",
@@ -637,10 +638,6 @@ pub(crate) fn emit_wasm_binary(
 
     let bytes = module.finish();
 
-    if std::env::var("SARIF_DEBUG_WASM").is_ok() {
-        eprintln!("[binary emitted {} bytes]", bytes.len());
-    }
-
     Ok(bytes)
 }
 
@@ -747,6 +744,7 @@ const RUNTIME_FUNCTION_TYPES: &[u32] = &[
     4,  // __sarif_text_builder_append_ascii
     7,  // __sarif_text_builder_append_slice
     4,  // __sarif_text_builder_append_i32
+    4,  // __sarif_text_builder_append_i64
     8,  // __sarif_text_builder_finish
     13, // __sarif_stdout_write
     8,  // __sarif_stdout_write_builder
@@ -948,6 +946,7 @@ fn emit_memory_kind_equality_binary(
             }
         }
         WasmValueKind::I32
+        | WasmValueKind::I64
         | WasmValueKind::Bool
         | WasmValueKind::TextIndex
         | WasmValueKind::TextBuilder
@@ -1205,6 +1204,7 @@ fn collect_locals_binary(
             | Inst::TextBuilderAppendAscii { dest, .. }
             | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
+            | Inst::TextBuilderAppendI64 { dest, .. }
             | Inst::TextBuilderFinish { dest, .. }
             | Inst::StdoutWriteBuilder { dest, .. }
             | Inst::TextIndexGet { dest, .. }
@@ -1253,6 +1253,7 @@ fn collect_locals_binary(
             | Inst::And { dest, .. }
             | Inst::Or { dest, .. }
             | Inst::F64FromI32 { dest, .. }
+            | Inst::I64FromI32 { dest, .. }
             | Inst::Sqrt { dest, .. }
             | Inst::Perform { dest, .. }
             | Inst::Handle { dest, .. }
@@ -1704,6 +1705,19 @@ fn emit_inst_binary(
                 *dest,
                 &[*builder, *value],
                 func_indices.runtime("__sarif_text_builder_append_i32"),
+            );
+        }
+        Inst::TextBuilderAppendI64 {
+            dest,
+            builder,
+            value,
+        } => {
+            emit_runtime_call_binary(
+                f,
+                env,
+                *dest,
+                &[*builder, *value],
+                func_indices.runtime("__sarif_text_builder_append_i64"),
             );
         }
         Inst::TextBuilderFinish { dest, builder } => {
@@ -2275,6 +2289,13 @@ fn emit_inst_binary(
             let dest_idx = env.get_or_alloc_value(*dest);
             f.instruction(&Instruction::LocalGet(src_idx));
             f.instruction(&Instruction::F64ConvertI64S);
+            f.instruction(&Instruction::LocalSet(dest_idx));
+        }
+        Inst::I64FromI32 { dest, value } => {
+            let src_idx = env.get_value(*value);
+            let dest_idx = env.get_or_alloc_value(*dest);
+            f.instruction(&Instruction::LocalGet(src_idx));
+            f.instruction(&Instruction::I64ExtendI32S);
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::Sqrt { dest, value } => {

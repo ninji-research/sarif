@@ -240,6 +240,7 @@ fn child_record_expr(kind: &NativeValueKind) -> String {
         NativeValueKind::Record(name) => format!("&{}", record_ident(name)),
         NativeValueKind::Unit
         | NativeValueKind::I32
+        | NativeValueKind::I64
         | NativeValueKind::F64
         | NativeValueKind::Bool
         | NativeValueKind::Text
@@ -257,6 +258,7 @@ fn child_enum_expr(kind: &NativeValueKind) -> String {
         NativeValueKind::Enum(name) => format!("&{}", enum_ident(name)),
         NativeValueKind::Unit
         | NativeValueKind::I32
+        | NativeValueKind::I64
         | NativeValueKind::F64
         | NativeValueKind::Bool
         | NativeValueKind::Text
@@ -334,6 +336,7 @@ const fn c_kind(kind: &NativeValueKind) -> u32 {
     match kind {
         NativeValueKind::Unit => 0,
         NativeValueKind::I32 => 1,
+        NativeValueKind::I64 => 11,
         NativeValueKind::Bool => 2,
         NativeValueKind::Text | NativeValueKind::Bytes => 3,
         NativeValueKind::Record(_) => 4,

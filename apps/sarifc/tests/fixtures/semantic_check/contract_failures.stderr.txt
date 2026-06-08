@@ -7,12 +7,12 @@
    │ 
    │ Help: Use local bindings or parameters instead.
 ───╯
-[semantic.binary-type] Error: operands of `+` must both be `I32`, both be `F64`, or append to `TextBuilder`, found `I32` and `Bool`
+[semantic.binary-type] Error: operands of `+` must both be `I32`, both be `F64`, both be `Text`, or append to `TextBuilder`, found `I32` and `Bool`
    ╭─[ examples/invalid/contract_failures.sarif:1:52 ]
    │
  1 │ fn main(flag: Bool) -> I32 requires result ensures result + flag { 3 }
    │                                                    ──────┬──────  
-   │                                                          ╰──────── operands of `+` must both be `I32`, both be `F64`, or append to `TextBuilder`, found `I32` and `Bool`
+   │                                                          ╰──────── operands of `+` must both be `I32`, both be `F64`, both be `Text`, or append to `TextBuilder`, found `I32` and `Bool`
    │ 
    │ Help: Use matching numeric operand types for arithmetic.
 ───╯

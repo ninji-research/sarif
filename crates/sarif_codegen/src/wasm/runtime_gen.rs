@@ -104,12 +104,13 @@ pub(crate) fn emit_runtime_sections(
     functions.function(10);
     functions.function(11);
     functions.function(12);
-    functions.function(4);
-    functions.function(4);
-    functions.function(4);
-    functions.function(7);
-    functions.function(4);
-    functions.function(8);
+    functions.function(4); // 30: __sarif_text_builder_append
+    functions.function(4); // 31: __sarif_text_builder_append_codepoint
+    functions.function(4); // 32: __sarif_text_builder_append_ascii
+    functions.function(7); // 33: __sarif_text_builder_append_slice
+    functions.function(4); // 34: __sarif_text_builder_append_i32
+    functions.function(4); // 35: __sarif_text_builder_append_i64
+    functions.function(8); // 36: __sarif_text_builder_finish
     functions.function(13);
     functions.function(8);
     functions.function(3);
@@ -194,24 +195,25 @@ pub(crate) fn emit_runtime_sections(
     exports.export("__sarif_text_builder_append_ascii", ExportKind::Func, 32);
     exports.export("__sarif_text_builder_append_slice", ExportKind::Func, 33);
     exports.export("__sarif_text_builder_append_i32", ExportKind::Func, 34);
-    exports.export("__sarif_text_builder_finish", ExportKind::Func, 35);
-    exports.export("__sarif_stdout_write", ExportKind::Func, 36);
-    exports.export("__sarif_stdout_write_builder", ExportKind::Func, 37);
-    exports.export("__sarif_text_hash", ExportKind::Func, 38);
-    exports.export("__sarif_text_index_new", ExportKind::Func, 39);
-    exports.export("__sarif_text_index_ensure_capacity", ExportKind::Func, 40);
-    exports.export("__sarif_text_index_find_entry", ExportKind::Func, 41);
-    exports.export("__sarif_text_index_get", ExportKind::Func, 42);
-    exports.export("__sarif_text_index_contains", ExportKind::Func, 43);
-    exports.export("__sarif_text_index_set", ExportKind::Func, 44);
-    exports.export("__sarif_text_index_get_or_insert", ExportKind::Func, 45);
-    exports.export("__sarif_list_new", ExportKind::Func, 46);
-    exports.export("__sarif_list_len", ExportKind::Func, 47);
-    exports.export("__sarif_list_get", ExportKind::Func, 48);
-    exports.export("__sarif_list_set", ExportKind::Func, 49);
-    exports.export("__sarif_list_push", ExportKind::Func, 50);
-    exports.export("__sarif_list_sort_text", ExportKind::Func, 51);
-    exports.export("__sarif_list_sort_record_text_field", ExportKind::Func, 52);
+    exports.export("__sarif_text_builder_append_i64", ExportKind::Func, 35);
+    exports.export("__sarif_text_builder_finish", ExportKind::Func, 36);
+    exports.export("__sarif_stdout_write", ExportKind::Func, 37);
+    exports.export("__sarif_stdout_write_builder", ExportKind::Func, 38);
+    exports.export("__sarif_text_hash", ExportKind::Func, 39);
+    exports.export("__sarif_text_index_new", ExportKind::Func, 40);
+    exports.export("__sarif_text_index_ensure_capacity", ExportKind::Func, 41);
+    exports.export("__sarif_text_index_find_entry", ExportKind::Func, 42);
+    exports.export("__sarif_text_index_get", ExportKind::Func, 43);
+    exports.export("__sarif_text_index_contains", ExportKind::Func, 44);
+    exports.export("__sarif_text_index_set", ExportKind::Func, 45);
+    exports.export("__sarif_text_index_get_or_insert", ExportKind::Func, 46);
+    exports.export("__sarif_list_new", ExportKind::Func, 47);
+    exports.export("__sarif_list_len", ExportKind::Func, 48);
+    exports.export("__sarif_list_get", ExportKind::Func, 49);
+    exports.export("__sarif_list_set", ExportKind::Func, 50);
+    exports.export("__sarif_list_push", ExportKind::Func, 51);
+    exports.export("__sarif_list_sort_text", ExportKind::Func, 52);
+    exports.export("__sarif_list_sort_record_text_field", ExportKind::Func, 53);
     exports.export("memory", ExportKind::Memory, 0);
 
     let mut code_bodies: Vec<Function> = Vec::new();
@@ -2376,7 +2378,104 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 35: __sarif_text_builder_finish
+    // Function 35: __sarif_text_builder_append_i64
+    let mut f = Function::new([(3, ValType::I32), (2, ValType::I64)]);
+    f.instruction(&Instruction::I32Const(21));
+    f.instruction(&Instruction::Call(co(1)));
+    f.instruction(&Instruction::LocalSet(2));
+    f.instruction(&Instruction::I32Const(20));
+    f.instruction(&Instruction::LocalSet(3));
+    f.instruction(&Instruction::LocalGet(1));
+    f.instruction(&Instruction::I64Const(0i64));
+    f.instruction(&Instruction::I64LtS);
+    f.instruction(&Instruction::If(BlockType::Empty));
+    f.instruction(&Instruction::I32Const(1));
+    f.instruction(&Instruction::LocalSet(4));
+    f.instruction(&Instruction::LocalGet(2));
+    f.instruction(&Instruction::I32Const(20));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I64Const(0i64));
+    f.instruction(&Instruction::LocalGet(1));
+    f.instruction(&Instruction::I64Const(10i64));
+    f.instruction(&Instruction::I64RemS);
+    f.instruction(&Instruction::I64Sub);
+    f.instruction(&Instruction::I32WrapI64);
+    f.instruction(&Instruction::I32Const(48));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I32Store8(memarg(0)));
+    f.instruction(&Instruction::I64Const(0i64));
+    f.instruction(&Instruction::LocalGet(1));
+    f.instruction(&Instruction::I64Const(10i64));
+    f.instruction(&Instruction::I64DivS);
+    f.instruction(&Instruction::I64Sub);
+    f.instruction(&Instruction::LocalSet(5));
+    f.instruction(&Instruction::I32Const(19));
+    f.instruction(&Instruction::LocalSet(3));
+    f.instruction(&Instruction::Else);
+    f.instruction(&Instruction::I32Const(0));
+    f.instruction(&Instruction::LocalSet(4));
+    f.instruction(&Instruction::LocalGet(1));
+    f.instruction(&Instruction::LocalSet(5));
+    f.instruction(&Instruction::End);
+    f.instruction(&Instruction::Block(BlockType::Empty));
+    f.instruction(&Instruction::Loop(BlockType::Empty));
+    f.instruction(&Instruction::LocalGet(5));
+    f.instruction(&Instruction::I64Eqz);
+    f.instruction(&Instruction::BrIf(1));
+    f.instruction(&Instruction::LocalGet(2));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::LocalGet(5));
+    f.instruction(&Instruction::I64Const(10i64));
+    f.instruction(&Instruction::I64RemU);
+    f.instruction(&Instruction::I32WrapI64);
+    f.instruction(&Instruction::I32Const(48));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I32Store8(memarg(0)));
+    f.instruction(&Instruction::LocalGet(5));
+    f.instruction(&Instruction::I64Const(10i64));
+    f.instruction(&Instruction::I64DivU);
+    f.instruction(&Instruction::LocalSet(5));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Const(1));
+    f.instruction(&Instruction::I32Sub);
+    f.instruction(&Instruction::LocalSet(3));
+    f.instruction(&Instruction::Br(0));
+    f.instruction(&Instruction::End);
+    f.instruction(&Instruction::End);
+    f.instruction(&Instruction::LocalGet(4));
+    f.instruction(&Instruction::If(BlockType::Empty));
+    f.instruction(&Instruction::LocalGet(2));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I32Const(45));
+    f.instruction(&Instruction::I32Store8(memarg(0)));
+    f.instruction(&Instruction::LocalGet(0));
+    f.instruction(&Instruction::LocalGet(2));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I32Const(21));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Sub);
+    f.instruction(&Instruction::Call(co(4)));
+    f.instruction(&Instruction::Call(co(30)));
+    f.instruction(&Instruction::Return);
+    f.instruction(&Instruction::End);
+    f.instruction(&Instruction::LocalGet(0));
+    f.instruction(&Instruction::LocalGet(2));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I32Const(1));
+    f.instruction(&Instruction::I32Add);
+    f.instruction(&Instruction::I32Const(20));
+    f.instruction(&Instruction::LocalGet(3));
+    f.instruction(&Instruction::I32Sub);
+    f.instruction(&Instruction::Call(co(4)));
+    f.instruction(&Instruction::Call(co(30)));
+    f.instruction(&Instruction::End);
+    code_bodies.push(f);
+
+    // Function 36: __sarif_text_builder_finish
     let mut f = Function::new([(3, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2393,7 +2492,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 36: __sarif_stdout_write
+    // Function 37: __sarif_stdout_write
     let mut f = Function::new([(3, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2422,7 +2521,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 37: __sarif_stdout_write_builder
+    // Function 38: __sarif_stdout_write_builder
     let mut f = Function::new([(4, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2460,7 +2559,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 38: __sarif_text_hash
+    // Function 39: __sarif_text_hash
     let mut f = Function::new([(4, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2507,7 +2606,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 39: __sarif_text_index_new
+    // Function 40: __sarif_text_index_new
     let mut f = Function::new([(4, ValType::I32)]);
     f.instruction(&Instruction::I32Const(12));
     f.instruction(&Instruction::Call(co(1)));
@@ -2575,7 +2674,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 40: __sarif_text_index_ensure_capacity
+    // Function 41: __sarif_text_index_ensure_capacity
     let mut f = Function::new([(8, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32Load(memarg(0)));
@@ -2710,7 +2809,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 41: __sarif_text_index_find_entry
+    // Function 42: __sarif_text_index_find_entry
     let mut f = Function::new([(4, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32Load(memarg(4)));
@@ -2791,14 +2890,14 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 42: __sarif_text_index_get
+    // Function 43: __sarif_text_index_get
     let mut f = Function::new([(1, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
     f.instruction(&Instruction::LocalGet(1));
     f.instruction(&Instruction::LocalGet(1));
-    f.instruction(&Instruction::Call(co(38)));
-    f.instruction(&Instruction::Call(co(41)));
+    f.instruction(&Instruction::Call(co(39)));
+    f.instruction(&Instruction::Call(co(42)));
     f.instruction(&Instruction::LocalTee(2));
     f.instruction(&Instruction::I32Load(memarg(20)));
     f.instruction(&Instruction::If(BlockType::Empty));
@@ -2810,37 +2909,37 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 43: __sarif_text_index_contains
+    // Function 44: __sarif_text_index_contains
     let mut f = Function::new([(1, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
     f.instruction(&Instruction::LocalGet(1));
     f.instruction(&Instruction::LocalGet(1));
-    f.instruction(&Instruction::Call(co(38)));
-    f.instruction(&Instruction::Call(co(41)));
+    f.instruction(&Instruction::Call(co(39)));
+    f.instruction(&Instruction::Call(co(42)));
     f.instruction(&Instruction::LocalTee(2));
     f.instruction(&Instruction::I32Load(memarg(20)));
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 44: __sarif_text_index_set
+    // Function 45: __sarif_text_index_set
     let mut f = Function::new([(3, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
     f.instruction(&Instruction::LocalTee(3));
-    f.instruction(&Instruction::Call(co(40)));
+    f.instruction(&Instruction::Call(co(41)));
     f.instruction(&Instruction::I32Eqz);
     f.instruction(&Instruction::If(BlockType::Empty));
     f.instruction(&Instruction::I64Const(-1i64));
     f.instruction(&Instruction::Return);
     f.instruction(&Instruction::End);
     f.instruction(&Instruction::LocalGet(1));
-    f.instruction(&Instruction::Call(co(38)));
+    f.instruction(&Instruction::Call(co(39)));
     f.instruction(&Instruction::LocalSet(4));
     f.instruction(&Instruction::LocalGet(3));
     f.instruction(&Instruction::LocalGet(1));
     f.instruction(&Instruction::LocalGet(4));
-    f.instruction(&Instruction::Call(co(41)));
+    f.instruction(&Instruction::Call(co(42)));
     f.instruction(&Instruction::LocalTee(5));
     f.instruction(&Instruction::I32Load(memarg(20)));
     f.instruction(&Instruction::If(BlockType::Empty));
@@ -2872,24 +2971,24 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 45: __sarif_text_index_get_or_insert
+    // Function 46: __sarif_text_index_get_or_insert
     let mut f = Function::new([(3, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
     f.instruction(&Instruction::LocalTee(3));
-    f.instruction(&Instruction::Call(co(40)));
+    f.instruction(&Instruction::Call(co(41)));
     f.instruction(&Instruction::I32Eqz);
     f.instruction(&Instruction::If(BlockType::Empty));
     f.instruction(&Instruction::I64Const(-1i64));
     f.instruction(&Instruction::Return);
     f.instruction(&Instruction::End);
     f.instruction(&Instruction::LocalGet(1));
-    f.instruction(&Instruction::Call(co(38)));
+    f.instruction(&Instruction::Call(co(39)));
     f.instruction(&Instruction::LocalSet(4));
     f.instruction(&Instruction::LocalGet(3));
     f.instruction(&Instruction::LocalGet(1));
     f.instruction(&Instruction::LocalGet(4));
-    f.instruction(&Instruction::Call(co(41)));
+    f.instruction(&Instruction::Call(co(42)));
     f.instruction(&Instruction::LocalTee(5));
     f.instruction(&Instruction::I32Load(memarg(20)));
     f.instruction(&Instruction::If(BlockType::Empty));
@@ -2919,7 +3018,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 46: __sarif_list_new
+    // Function 47: __sarif_list_new
     let mut f = Function::new([(6, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2978,7 +3077,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 47: __sarif_list_len
+    // Function 48: __sarif_list_len
     let mut f = Function::new(Vec::<(u32, ValType)>::new());
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -2987,7 +3086,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 48: __sarif_list_get
+    // Function 49: __sarif_list_get
     let mut f = Function::new([(4, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -3024,7 +3123,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 49: __sarif_list_set
+    // Function 50: __sarif_list_set
     let mut f = Function::new([(2, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -3062,7 +3161,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 50: __sarif_list_push
+    // Function 51: __sarif_list_push
     let mut f = Function::new([(7, ValType::I32)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -3176,7 +3275,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 51: __sarif_list_sort_text
+    // Function 52: __sarif_list_sort_text
     let mut f = Function::new([(5, ValType::I32), (2, ValType::I64)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);
@@ -3287,7 +3386,7 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::End);
     code_bodies.push(f);
 
-    // Function 52: __sarif_list_sort_record_text_field
+    // Function 53: __sarif_list_sort_record_text_field
     let mut f = Function::new([(6, ValType::I32), (2, ValType::I64)]);
     f.instruction(&Instruction::LocalGet(0));
     f.instruction(&Instruction::I32WrapI64);

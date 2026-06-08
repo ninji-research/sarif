@@ -1592,7 +1592,13 @@ fn is_affine_type_inner(
         Type::Array(element, _) => {
             is_affine_type_inner(element, struct_fields, enum_variants, visiting)
         }
-        Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Param(_) | Type::Error => false,
+        Type::I32
+        | Type::I64
+        | Type::F64
+        | Type::Bool
+        | Type::Unit
+        | Type::Param(_)
+        | Type::Error => false,
     }
 }
 

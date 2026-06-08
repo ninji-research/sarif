@@ -77,6 +77,7 @@ pub(super) fn type_exists(
         }
         Type::Param(name) => generic_params.contains(name),
         Type::I32
+        | Type::I64
         | Type::F64
         | Type::Bool
         | Type::Text
@@ -94,6 +95,7 @@ pub(super) fn types_compatible(expected: &Type, actual: &Type) -> bool {
     match (expected, actual) {
         (Type::Error, _) | (_, Type::Error) => true,
         (Type::I32, Type::I32)
+        | (Type::I64, Type::I64)
         | (Type::F64, Type::F64)
         | (Type::Bool, Type::Bool)
         | (Type::Text, Type::Text)
@@ -138,6 +140,7 @@ pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> 
     }
     match name {
         "I32" => Some(Type::I32),
+        "I64" => Some(Type::I64),
         "F64" => Some(Type::F64),
         "Bool" => Some(Type::Bool),
         "Text" => Some(Type::Text),

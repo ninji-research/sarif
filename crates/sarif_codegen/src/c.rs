@@ -388,12 +388,14 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::BytesMaterialize { dest, .. } => Some(*dest),
         Inst::TextFromF64Fixed { dest, .. } => Some(*dest),
         Inst::F64FromI32 { dest, .. } => Some(*dest),
+        Inst::I64FromI32 { dest, .. } => Some(*dest),
         Inst::TextBuilderNew { dest } => Some(*dest),
         Inst::TextBuilderAppend { dest, .. } => Some(*dest),
         Inst::TextBuilderAppendCodepoint { dest, .. } => Some(*dest),
         Inst::TextBuilderAppendAscii { dest, .. } => Some(*dest),
         Inst::TextBuilderAppendSlice { dest, .. } => Some(*dest),
         Inst::TextBuilderAppendI32 { dest, .. } => Some(*dest),
+        Inst::TextBuilderAppendI64 { dest, .. } => Some(*dest),
         Inst::TextBuilderFinish { dest, .. } => Some(*dest),
         Inst::TextIntern { dest, .. } => Some(*dest),
         Inst::StdoutWriteBuilder { dest, .. } => Some(*dest),
@@ -551,7 +553,10 @@ fn func_type_name(ty: Option<&str>) -> &'static str {
 }
 
 fn is_signed(val: &ValueId, value_kinds: &BTreeMap<ValueId, CodegenValueKind>) -> bool {
-    matches!(value_kinds.get(val), Some(CodegenValueKind::I32))
+    matches!(
+        value_kinds.get(val),
+        Some(CodegenValueKind::I32 | CodegenValueKind::I64)
+    )
 }
 
 fn is_text(val: &ValueId, value_kinds: &BTreeMap<ValueId, CodegenValueKind>) -> bool {
@@ -810,6 +815,9 @@ fn emit_inst(
         }
         Inst::F64FromI32 { dest, value } => {
             out.line(&format!("v{} = (double)(int64_t){};", dest.0, vref(value)))?;
+        }
+        Inst::I64FromI32 { dest, value } => {
+            out.line(&format!("v{} = (int64_t)(int32_t){};", dest.0, vref(value)))?;
         }
         Inst::TextLen { dest, text } => {
             out.line(&format!(
@@ -1155,6 +1163,18 @@ fn emit_inst(
         } => {
             out.line(&format!(
                 "v{} = (uint64_t)sarif_text_builder_append_i32((void*){}, (int64_t){});",
+                dest.0,
+                vref(builder),
+                vref(value)
+            ))?;
+        }
+        Inst::TextBuilderAppendI64 {
+            dest,
+            builder,
+            value,
+        } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_text_builder_append_i64((void*){}, (int64_t){});",
                 dest.0,
                 vref(builder),
                 vref(value)
@@ -1864,6 +1884,7 @@ fn emit_main_wrapper(
 ) -> Result<(), String> {
     let ret_type = match main.return_type.as_deref() {
         Some("I32") => "int32_t",
+        Some("I64") => "int64_t",
         Some("Bool") => "uint32_t",
         Some("Text") | Some("Bytes") => "uintptr_t",
         Some("F64") => "double",
@@ -1980,13 +2001,14 @@ fn infer_inst_kind_c(
             let lk = kinds.get(left).cloned().unwrap_or(CodegenValueKind::I32);
             kinds.insert(*dest, lk);
         }
-        Inst::Rem { dest, .. }
-        | Inst::BitAnd { dest, .. }
-        | Inst::BitOr { dest, .. }
-        | Inst::BitXor { dest, .. }
-        | Inst::Shl { dest, .. }
-        | Inst::Shr { dest, .. } => {
-            kinds.insert(*dest, CodegenValueKind::I32);
+        Inst::Rem { dest, left, .. }
+        | Inst::BitAnd { dest, left, .. }
+        | Inst::BitOr { dest, left, .. }
+        | Inst::BitXor { dest, left, .. }
+        | Inst::Shl { dest, left, .. }
+        | Inst::Shr { dest, left, .. } => {
+            let lk = kinds.get(left).cloned().unwrap_or(CodegenValueKind::I32);
+            kinds.insert(*dest, lk);
         }
         Inst::Sqrt { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::F64);
@@ -2004,6 +2026,9 @@ fn infer_inst_kind_c(
         }
         Inst::F64FromI32 { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::F64);
+        }
+        Inst::I64FromI32 { dest, .. } => {
+            kinds.insert(*dest, CodegenValueKind::I64);
         }
         Inst::TextLen { dest, .. }
         | Inst::BytesLen { dest, .. }
@@ -2037,6 +2062,7 @@ fn infer_inst_kind_c(
         | Inst::TextBuilderAppendAscii { dest, .. }
         | Inst::TextBuilderAppendSlice { dest, .. }
         | Inst::TextBuilderAppendI32 { dest, .. }
+        | Inst::TextBuilderAppendI64 { dest, .. }
         | Inst::StdoutWriteBuilder { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::TextBuilder);
         }
@@ -2252,6 +2278,7 @@ fn str_to_kind(ty: &str, program: &Program) -> CodegenValueKind {
     }
     match ty {
         "I32" => CodegenValueKind::I32,
+        "I64" => CodegenValueKind::I64,
         "F64" => CodegenValueKind::F64,
         "Bool" => CodegenValueKind::Bool,
         "Text" => CodegenValueKind::Text,

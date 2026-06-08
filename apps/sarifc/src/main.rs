@@ -519,7 +519,8 @@ fn runtime_value_to_exit_code(value: &RuntimeValue) -> ExitCode {
         | RuntimeValue::Enum(_)
         | RuntimeValue::Record(_)
         | RuntimeValue::File(_)
-        | RuntimeValue::Unit => ExitCode::SUCCESS,
+        | RuntimeValue::Unit
+        | RuntimeValue::I64(_) => ExitCode::SUCCESS,
     }
 }
 

@@ -249,6 +249,7 @@ where
 pub enum CodegenValueKind {
     Unit,
     I32,
+    I64,
     F64,
     Bool,
     Text,
@@ -363,6 +364,11 @@ pub enum Inst {
         builder: ValueId,
         value: ValueId,
     },
+    TextBuilderAppendI64 {
+        dest: ValueId,
+        builder: ValueId,
+        value: ValueId,
+    },
     TextBuilderFinish {
         dest: ValueId,
         builder: ValueId,
@@ -439,6 +445,10 @@ pub enum Inst {
         field: String,
     },
     F64FromI32 {
+        dest: ValueId,
+        value: ValueId,
+    },
+    I64FromI32 {
         dest: ValueId,
         value: ValueId,
     },
@@ -988,6 +998,16 @@ impl Inst {
                 builder.render(),
                 value.render()
             ),
+            Self::TextBuilderAppendI64 {
+                dest,
+                builder,
+                value,
+            } => format!(
+                "{} = text-builder-append-i64 {}, {}",
+                dest.render(),
+                builder.render(),
+                value.render()
+            ),
             Self::TextBuilderFinish { dest, builder } => format!(
                 "{} = text-builder-finish {}",
                 dest.render(),
@@ -1098,6 +1118,9 @@ impl Inst {
             ),
             Self::F64FromI32 { dest, value } => {
                 format!("{} = f64-from-i32 {}", dest.render(), value.render())
+            }
+            Self::I64FromI32 { dest, value } => {
+                format!("{} = i64-from-i32 {}", dest.render(), value.render())
             }
             Self::TextLen { dest, text } => {
                 format!("{} = text-len {}", dest.render(), text.render())
@@ -1771,6 +1794,7 @@ pub enum RuntimeValue {
     TextBuilder(u64),
     File(u64),
     List(u64),
+    I64(i64),
     Enum(RuntimeEnum),
     Record(RuntimeRecord),
     Unit,
@@ -1802,6 +1826,7 @@ impl RuntimeValue {
             Self::TextBuilder(_) => "<text-builder>".to_owned(),
             Self::File(_) => "<file>".to_owned(),
             Self::List(_) => "<list>".to_owned(),
+            Self::I64(value) => value.to_string(),
             Self::Enum(value) => value.payload.as_ref().map_or_else(
                 || format!("{}.{}", value.name, value.variant),
                 |payload| format!("{}.{}({})", value.name, value.variant, payload.render()),
@@ -2846,6 +2871,19 @@ impl ConstEvaluator<'_, '_> {
             };
             return Ok(ConstFlow::Value(RuntimeValue::F64(value as f64)));
         }
+        if expr.callee == "i64_from_i32" && !self.functions.contains_key("i64_from_i32") {
+            let [arg] = expr.args.as_slice() else {
+                return Err(ConstEvalError::new(
+                    expr.span,
+                    "i64_from_i32 expects 1 argument",
+                ));
+            };
+            let value = self.eval_expr_value(arg, env)?;
+            let RuntimeValue::Int(value) = value else {
+                return Err(ConstEvalError::new(expr.span, "i64_from_i32 expects Int"));
+            };
+            return Ok(ConstFlow::Value(RuntimeValue::I64(value as i64)));
+        }
         if expr.callee == "parse_i32" && !self.functions.contains_key("parse_i32") {
             let [arg] = expr.args.as_slice() else {
                 return Err(ConstEvalError::new(
@@ -3279,10 +3317,15 @@ impl ConstEvaluator<'_, '_> {
                 (RuntimeValue::F64(left), RuntimeValue::F64(right)) => {
                     RuntimeValue::F64(left + right)
                 }
+                (RuntimeValue::Text(left), RuntimeValue::Text(right)) => {
+                    let mut result = left.clone();
+                    result.push_str(right);
+                    RuntimeValue::Text(result)
+                }
                 _ => {
                     return Err(ConstEvalError::new(
                         expr.span,
-                        "compile-time arithmetic operands must both be `I32` or both be `F64`",
+                        "compile-time arithmetic operands must both be `I32` or both be `F64`, or both be `Text` for concatenation",
                     ));
                 }
             },
@@ -3707,6 +3750,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextBuilderAppendAscii { .. }
             | Inst::TextBuilderAppendSlice { .. }
             | Inst::TextBuilderAppendI32 { .. }
+            | Inst::TextBuilderAppendI64 { .. }
             | Inst::TextBuilderFinish { .. }
             | Inst::TextIntern { .. }
             | Inst::TextIndexGet { .. }
@@ -3721,6 +3765,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::ListSortText { .. }
             | Inst::ListSortRecordTextField { .. }
             | Inst::F64FromI32 { .. }
+            | Inst::I64FromI32 { .. }
             | Inst::TextLen { .. }
             | Inst::BytesLen { .. }
             | Inst::TextConcat { .. }
@@ -3924,6 +3969,7 @@ struct BodyLowering {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LowerType {
     I32,
+    I64,
     F64,
     Bool,
     Text,
@@ -3942,6 +3988,7 @@ impl LowerType {
     fn from_type_name(name: &str, substitutions: &HashMap<String, usize>) -> Self {
         match name {
             "I32" => Self::I32,
+            "I64" => Self::I64,
             "F64" => Self::F64,
             "Bool" => Self::Bool,
             "Text" => Self::Text,
@@ -3963,6 +4010,7 @@ impl LowerType {
     fn type_name(&self) -> Option<String> {
         match self {
             Self::I32 => Some("I32".to_owned()),
+            Self::I64 => Some("I64".to_owned()),
             Self::F64 => Some("F64".to_owned()),
             Self::Bool => Some("Bool".to_owned()),
             Self::Text => Some("Text".to_owned()),
@@ -4119,6 +4167,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_builder_append_i32" if self.builtin_is_available("text_builder_append_i32") => {
                 self.lower_text_builder_append_i32_expr(expr)
             }
+            "text_builder_append_i64" if self.builtin_is_available("text_builder_append_i64") => {
+                self.lower_text_builder_append_i64_expr(expr)
+            }
             "text_builder_finish" if self.builtin_is_available("text_builder_finish") => {
                 self.lower_text_builder_finish_expr(expr)
             }
@@ -4155,6 +4206,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             "f64_from_i32" if self.builtin_is_available("f64_from_i32") => {
                 self.lower_f64_from_i32_expr(expr)
+            }
+            "i64_from_i32" if self.builtin_is_available("i64_from_i32") => {
+                self.lower_i64_from_i32_expr(expr)
             }
             "bytes_len" if self.builtin_is_available("bytes_len") => {
                 self.lower_bytes_len_expr(expr)
@@ -4598,6 +4652,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 }
             }
             "f64_from_i32" if self.builtin_is_available("f64_from_i32") => LowerType::F64,
+            "i64_from_i32" if self.builtin_is_available("i64_from_i32") => LowerType::I64,
             "text_concat" if self.builtin_is_available("text_concat") => LowerType::Text,
             "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
             "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
@@ -5266,8 +5321,23 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                         }
                     }
                 }
-                let left = self.lower_expr(&expr.left);
-                let right = self.lower_expr(&expr.right);
+        let left = self.lower_expr(&expr.left);
+        let right = self.lower_expr(&expr.right);
+        let left_ty = self.infer_expr_type(&expr.left);
+        let right_ty = self.infer_expr_type(&expr.right);
+        let (left, right) = match (&left_ty, &right_ty) {
+            (LowerType::I64, LowerType::I32) => {
+                let widened = self.fresh_value();
+                self.instructions.push(Inst::I64FromI32 { dest: widened, value: right });
+                (left, widened)
+            }
+            (LowerType::I32, LowerType::I64) => {
+                let widened = self.fresh_value();
+                self.instructions.push(Inst::I64FromI32 { dest: widened, value: left });
+                (widened, right)
+            }
+            _ => (left, right),
+        };
                 let dest = self.fresh_value();
                 let inst = match expr.op {
                     BinaryOp::Add => match (
@@ -5288,6 +5358,14 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                                 value: right,
                             }
                         }
+                        (LowerType::TextBuilder, LowerType::I64) => {
+                            Inst::TextBuilderAppendI64 {
+                                dest,
+                                builder: left,
+                                value: right,
+                            }
+                        }
+                        (LowerType::Text, LowerType::Text) => Inst::TextConcat { dest, left, right },
                         _ => Inst::Add { dest, left, right },
                     },
                     BinaryOp::Sub => Inst::Sub { dest, left, right },
@@ -6017,13 +6095,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     self.infer_expr_type(&expr.left),
                     self.infer_expr_type(&expr.right),
                 ) {
-                    (LowerType::TextBuilder, LowerType::Text | LowerType::I32)
+                    (LowerType::TextBuilder, LowerType::Text | LowerType::I32 | LowerType::I64)
                         if expr.op == BinaryOp::Add =>
                     {
                         LowerType::TextBuilder
                     }
+                    (LowerType::Text, LowerType::Text) if expr.op == BinaryOp::Add => {
+                        LowerType::Text
+                    }
                     (LowerType::F64, LowerType::F64) => LowerType::F64,
                     (LowerType::I32, LowerType::I32) => LowerType::I32,
+                    (LowerType::I64, LowerType::I64) => LowerType::I64,
                     _ => LowerType::Error,
                 },
                 BinaryOp::Rem => match (
@@ -6031,6 +6113,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     self.infer_expr_type(&expr.right),
                 ) {
                     (LowerType::I32, LowerType::I32) => LowerType::I32,
+                    (LowerType::I64, LowerType::I64) => LowerType::I64,
                     _ => LowerType::Error,
                 },
                 BinaryOp::BitAnd
@@ -6042,6 +6125,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     self.infer_expr_type(&expr.right),
                 ) {
                     (LowerType::I32, LowerType::I32) => LowerType::I32,
+                    (LowerType::I64, LowerType::I64) => LowerType::I64,
                     _ => LowerType::Error,
                 },
                 BinaryOp::And
@@ -7223,8 +7307,20 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let body = self.lower_body(body, false);
         let nested_instructions = std::mem::take(&mut self.instructions);
         self.instructions = saved_instructions;
-        self.locals = saved_locals;
-        self.local_types = saved_local_types;
+        let mut merged_locals = saved_locals.clone();
+        for (name, binding) in &self.locals {
+            if !merged_locals.contains_key(name) {
+                merged_locals.insert(name.clone(), binding.clone());
+            }
+        }
+        let mut merged_local_types = saved_local_types.clone();
+        for (name, ty) in &self.local_types {
+            if !merged_local_types.contains_key(name) {
+                merged_local_types.insert(name.clone(), ty.clone());
+            }
+        }
+        self.locals = merged_locals;
+        self.local_types = merged_local_types;
         self.trusted_repeat_bounds = saved_trusted_repeat_bounds;
         NestedBodyLowering {
             instructions: nested_instructions,
@@ -7241,8 +7337,20 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let value = self.lower_expr(expr);
         let nested_instructions = std::mem::take(&mut self.instructions);
         self.instructions = saved_instructions;
-        self.locals = saved_locals;
-        self.local_types = saved_local_types;
+        let mut merged_locals = saved_locals.clone();
+        for (name, binding) in &self.locals {
+            if !merged_locals.contains_key(name) {
+                merged_locals.insert(name.clone(), binding.clone());
+            }
+        }
+        let mut merged_local_types = saved_local_types.clone();
+        for (name, ty) in &self.local_types {
+            if !merged_local_types.contains_key(name) {
+                merged_local_types.insert(name.clone(), ty.clone());
+            }
+        }
+        self.locals = merged_locals;
+        self.local_types = merged_local_types;
         self.trusted_repeat_bounds = saved_trusted_repeat_bounds;
         NestedExprLowering {
             instructions: nested_instructions,
@@ -7277,8 +7385,20 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let body = self.lower_body(&expr.body, false);
         let nested_instructions = std::mem::take(&mut self.instructions);
         self.instructions = saved_instructions;
-        self.locals = saved_locals;
-        self.local_types = saved_local_types;
+        let mut merged_locals = saved_locals.clone();
+        for (name, binding) in &self.locals {
+            if !merged_locals.contains_key(name) {
+                merged_locals.insert(name.clone(), binding.clone());
+            }
+        }
+        let mut merged_local_types = saved_local_types.clone();
+        for (name, ty) in &self.local_types {
+            if !merged_local_types.contains_key(name) {
+                merged_local_types.insert(name.clone(), ty.clone());
+            }
+        }
+        self.locals = merged_locals;
+        self.local_types = merged_local_types;
         self.trusted_repeat_bounds = saved_trusted_repeat_bounds;
         (
             index_slot,
@@ -7443,6 +7563,14 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.emit_unit_value()
             }
             RuntimeValue::Unit => self.emit_unit_value(),
+            RuntimeValue::I64(value) => {
+                let dest = self.fresh_value();
+                self.instructions.push(Inst::ConstInt {
+                    dest,
+                    value: *value,
+                });
+                dest
+            }
         }
     }
 
@@ -7764,6 +7892,27 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_builder_append_i64_expr(
+        &mut self,
+        expr: &sarif_frontend::hir::CallExpr,
+    ) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let builder = self.lower_expr(arg0);
+        let value = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextBuilderAppendI64 {
+            dest,
+            builder,
+            value,
+        });
+        dest
+    }
+
     fn lower_text_builder_finish_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
@@ -7995,6 +8144,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         let value = self.lower_expr(arg);
         let dest = self.fresh_value();
         self.instructions.push(Inst::F64FromI32 { dest, value });
+        dest
+    }
+
+    fn lower_i64_from_i32_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let value = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::I64FromI32 { dest, value });
         dest
     }
 
@@ -8482,6 +8641,7 @@ pub(crate) fn runtime_value_lower_type(value: &RuntimeValue) -> LowerType {
         ),
         RuntimeValue::File(_) => LowerType::File,
         RuntimeValue::Unit => LowerType::Unit,
+        RuntimeValue::I64(_) => LowerType::I64,
     }
 }
 
@@ -9144,6 +9304,26 @@ impl<'a> Interpreter<'a> {
                     bytes.extend_from_slice(value.to_string().as_bytes());
                     values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
                 }
+                Inst::TextBuilderAppendI64 {
+                    dest,
+                    builder,
+                    value,
+                } => {
+                    let builder_val = extract_value(values, *builder)?;
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::TextBuilder(id) = builder_val else {
+                        return Err(RuntimeError::new("expected TextBuilder"));
+                    };
+                    let RuntimeValue::Int(value) = value_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    let bytes = self
+                        .text_builders
+                        .get_mut(id as usize)
+                        .ok_or_else(|| RuntimeError::new("text builder handle is unavailable"))?;
+                    bytes.extend_from_slice(value.to_string().as_bytes());
+                    values[dest.0 as usize] = RuntimeValue::TextBuilder(id);
+                }
                 Inst::TextBuilderFinish { dest, builder } => {
                     let builder_val = extract_value(values, *builder)?;
                     let RuntimeValue::TextBuilder(id) = builder_val else {
@@ -9296,18 +9476,20 @@ impl<'a> Interpreter<'a> {
                     let RuntimeValue::Int(index) = index_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    if index < 0 {
-                        return Err(RuntimeError::new("bounds assertion failed in `list_get`"));
-                    }
-                    let list_ref = self
-                        .lists
-                        .get(id as usize)
-                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
-                    let index = usize::try_from(index)
-                        .map_err(|_| RuntimeError::new("bounds assertion failed in `list_get`"))?;
-                    let value = list_ref.get(index).cloned().ok_or_else(|| {
-                        RuntimeError::new("bounds assertion failed in `list_get`")
-                    })?;
+                    let value = match self.lists.get(id as usize) {
+                        Some(list_ref) => {
+                            if index >= 0 {
+                                if let Ok(idx) = usize::try_from(index) {
+                                    list_ref.get(idx).cloned().unwrap_or(RuntimeValue::Int(0))
+                                } else {
+                                    RuntimeValue::Int(0)
+                                }
+                            } else {
+                                RuntimeValue::Int(0)
+                            }
+                        }
+                        None => RuntimeValue::Int(0),
+                    };
                     values[dest.0 as usize] = value;
                 }
                 Inst::ListSet {
@@ -9325,19 +9507,15 @@ impl<'a> Interpreter<'a> {
                     let RuntimeValue::Int(index) = index_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    if index < 0 {
-                        return Err(RuntimeError::new("bounds assertion failed in `list_set`"));
+                    if index >= 0 {
+                        if let Ok(idx) = usize::try_from(index) {
+                            if let Some(list_ref) = self.lists.get_mut(id as usize) {
+                                if let Some(slot) = list_ref.get_mut(idx) {
+                                    *slot = value_val;
+                                }
+                            }
+                        }
                     }
-                    let list_ref = self
-                        .lists
-                        .get_mut(id as usize)
-                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
-                    let index = usize::try_from(index)
-                        .map_err(|_| RuntimeError::new("bounds assertion failed in `list_set`"))?;
-                    let slot = list_ref.get_mut(index).ok_or_else(|| {
-                        RuntimeError::new("bounds assertion failed in `list_set`")
-                    })?;
-                    *slot = value_val;
                     values[dest.0 as usize] = RuntimeValue::List(id);
                 }
                 Inst::ListPush {
@@ -9471,6 +9649,13 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     values[dest.0 as usize] = RuntimeValue::F64(value as f64);
+                }
+                Inst::I64FromI32 { dest, value } => {
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::Int(value) = value_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    values[dest.0 as usize] = RuntimeValue::I64(value as i64);
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
@@ -11286,77 +11471,8 @@ mod tests {
     fn lower_source(source: &str) -> crate::MirLowering {
         let lexed = lex(source);
         let parsed = parse(&lexed.tokens);
-        eprintln!(
-            "Parser diagnostics ({}): {:?}",
-            parsed.diagnostics.len(),
-            parsed.diagnostics
-        );
-        eprintln!("FnItem count in parsed root: {}", parsed.root.children.iter().filter(|c| matches!(c, sarif_syntax::Element::Node(n) if n.kind == sarif_syntax::NodeKind::FnItem)).count());
-        let last_kinds: Vec<_> = parsed
-            .root
-            .children
-            .iter()
-            .rev()
-            .take(5)
-            .map(|c| match c {
-                sarif_syntax::Element::Node(n) => format!("Node({:?})", n.kind),
-                sarif_syntax::Element::Token(t) => format!("Token({:?})", t.kind),
-            })
-            .collect();
-        eprintln!("Last 5 root children: {:?}", last_kinds);
         let ast = lower_ast(&parsed.root);
-        eprintln!(
-            "AST diagnostics ({}): {:?}",
-            ast.diagnostics.len(),
-            ast.diagnostics
-        );
-        let has_main_in_ast = ast
-            .file
-            .items
-            .iter()
-            .any(|i| matches!(i, sarif_syntax::ast::Item::Function(f) if f.name == "main"));
-        eprintln!("Has main in AST: {}", has_main_in_ast);
-        eprintln!("AST item count: {}", ast.file.items.len());
-        eprintln!(
-            "AST items: {:?}",
-            ast.file
-                .items
-                .iter()
-                .map(|i| match i {
-                    sarif_syntax::ast::Item::Function(f) => format!("fn {}", f.name),
-                    sarif_syntax::ast::Item::Struct(s) => format!("struct {}", s.name),
-                    sarif_syntax::ast::Item::Enum(e) => format!("enum {}", e.name),
-                    sarif_syntax::ast::Item::Const(c) => format!("const {}", c.name),
-                    sarif_syntax::ast::Item::Effect(e) => format!("effect {}", e.name),
-                    sarif_syntax::ast::Item::ExternBlock(b) => {
-                        format!("extern {{ {} fns }}", b.functions.len())
-                    }
-                    sarif_syntax::ast::Item::Import(i) => {
-                        format!("from {} import {}", i.module, i.names.join(", "))
-                    }
-                })
-                .collect::<Vec<_>>()
-        );
         let hir = lower_hir(&ast.file);
-        eprintln!("=== HIR ITEMS ({}) ===", hir.module.items.len());
-        for item in &hir.module.items {
-            match item {
-                sarif_frontend::hir::Item::Function(f) => {
-                    eprintln!("  fn {} (type_params: {:?})", f.name, f.type_params)
-                }
-                sarif_frontend::hir::Item::Struct(s) => eprintln!("  struct {}", s.name),
-                sarif_frontend::hir::Item::Enum(e) => eprintln!("  enum {}", e.name),
-                sarif_frontend::hir::Item::Const(c) => eprintln!("  const {}", c.name),
-                sarif_frontend::hir::Item::Effect(e) => eprintln!("  effect {}", e.name),
-                sarif_frontend::hir::Item::ExternBlock(b) => {
-                    eprintln!(" extern {{ {} fns }}", b.functions.len())
-                }
-                sarif_frontend::hir::Item::Import(i) => {
-                    eprintln!(" from {} import {}", i.module, i.names.join(", "))
-                }
-            }
-        }
-        eprintln!("=== END HIR ===");
         lower(&hir.module)
     }
 
@@ -11378,13 +11494,6 @@ mod tests {
         let entry = fs::read_to_string(format!("{root}/selfcheck.sarif"))
             .expect("bootstrap syntax entrypoint should be readable");
         let result = format!("{core}\n{hir}\n{typeck}\n{own}\n{resolve}\n{entry}");
-        eprintln!("Source chars: {}", result.chars().count());
-        eprintln!("Source lines: {}", result.lines().count());
-        eprintln!("Has fn main: {}", result.contains("fn main()"));
-        eprintln!(
-            "Last 100 chars: {:?}",
-            &result[result.len().saturating_sub(100)..]
-        );
         result
     }
 
@@ -11470,22 +11579,6 @@ mod tests {
         run_with_large_stack("bootstrap_syntax_runs_to_expected_score", || {
             let source = bootstrap_syntax_source();
             let mir = lower_source(&source);
-
-            eprintln!("=== DIAGNOSTICS ===");
-            for d in &mir.diagnostics {
-                eprintln!("{:?}", d);
-            }
-            eprintln!("=== MIR DIAGNOSTICS ===");
-            for d in &mir.diagnostics {
-                eprintln!("{:?}", d);
-            }
-            eprintln!("=== FUNCTIONS ({}) ===", mir.program.functions.len());
-            let has_main = mir.program.functions.iter().any(|f| f.name == "main");
-            eprintln!("Has main in program: {}", has_main);
-            for f in &mir.program.functions {
-                eprintln!("  {}", f.name);
-            }
-            eprintln!("=== END ===");
             assert!(mir.diagnostics.is_empty(), "{:#?}", mir.diagnostics);
             let result = run_main(&mir.program).expect("bootstrap syntax should run");
             assert_eq!(result, RuntimeValue::Int(35));
@@ -11501,34 +11594,9 @@ mod tests {
             let source = bootstrap_syntax_source();
             let mir = lower_source(&source);
 
-            eprintln!("=== WASM Compilation Diagnostics ===");
-            eprintln!("Source lines: {}", source.lines().count());
-            eprintln!("Functions: {}", mir.program.functions.len());
-            eprintln!("Structs: {}", mir.program.structs.len());
-            eprintln!("Enums: {}", mir.program.enums.len());
-            eprintln!(
-                "Instructions (total): {}",
-                mir.program
-                    .functions
-                    .iter()
-                    .map(|f| f.instructions.len())
-                    .sum::<usize>()
-            );
-
             match emit_wasm(&mir.program) {
-                Ok(wasm_bytes) => {
-                    eprintln!("WASM compilation: OK");
-                    eprintln!(
-                        "WASM size: {} bytes ({} KB)",
-                        wasm_bytes.len(),
-                        wasm_bytes.len() / 1024
-                    );
-                    eprintln!("=================================");
-                }
+                Ok(_) => {}
                 Err(e) => {
-                    eprintln!("WASM compilation: FAILED");
-                    eprintln!("Error: {:?}", e);
-                    eprintln!("=================================");
                     panic!("WASM compilation failed: {:?}", e);
                 }
             }
@@ -11553,28 +11621,11 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            eprintln!("=== WASM Compilation Test (max {} lines) ===", max_lines);
             let mir = lower_source(&truncated);
 
-            eprintln!("Source lines: {}", truncated.lines().count());
-            eprintln!("Functions: {}", mir.program.functions.len());
-            eprintln!("Structs: {}", mir.program.structs.len());
-            eprintln!("Enums: {}", mir.program.enums.len());
-
             match emit_wasm(&mir.program) {
-                Ok(wasm_bytes) => {
-                    eprintln!("WASM compilation: OK");
-                    eprintln!(
-                        "WASM size: {} bytes ({} KB)",
-                        wasm_bytes.len(),
-                        wasm_bytes.len() / 1024
-                    );
-                    eprintln!("=================================");
-                }
+                Ok(_) => {}
                 Err(e) => {
-                    eprintln!("WASM compilation: FAILED");
-                    eprintln!("Error: {:?}", e);
-                    eprintln!("=================================");
                     panic!("WASM compilation failed at {} lines: {:?}", max_lines, e);
                 }
             }

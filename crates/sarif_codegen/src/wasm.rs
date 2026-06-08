@@ -81,17 +81,7 @@ pub fn emit_wasm(program: &Program) -> Result<Vec<u8>, WasmError> {
     let emitter = WasmEmitter::new(program)?;
 
     if std::env::var("SARIF_USE_WAT").is_ok() {
-        if std::env::var("SARIF_DEBUG_RUNTIME").is_ok() {
-            let runtime_binary =
-                runtime_gen::emit_runtime_module(program, &emitter.records, &emitter.enums)?;
-            eprintln!("[runtime_gen produced {} bytes]", runtime_binary.len());
-        }
-
         let wat = emitter.emit()?;
-
-        if std::env::var("SARIF_DEBUG_WASM").is_ok() {
-            eprintln!("{wat}");
-        }
         wat::parse_str(&wat).map_err(|error| WasmError::new(error.to_string()))
     } else {
         binary::emit_wasm_binary(program, &emitter.records, &emitter.enums)
@@ -372,6 +362,7 @@ impl<'a> WasmEmitter<'a> {
                 }
             }
             WasmValueKind::I32
+            | WasmValueKind::I64
             | WasmValueKind::Bool
             | WasmValueKind::TextIndex
             | WasmValueKind::TextBuilder
@@ -528,6 +519,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::TextBuilderAppendAscii { dest, .. }
                 | Inst::TextBuilderAppendSlice { dest, .. }
                 | Inst::TextBuilderAppendI32 { dest, .. }
+                | Inst::TextBuilderAppendI64 { dest, .. }
                 | Inst::TextBuilderFinish { dest, .. }
                 | Inst::StdoutWriteBuilder { dest, .. }
                 | Inst::TextIndexGet { dest, .. }
@@ -576,6 +568,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::And { dest, .. }
                 | Inst::Or { dest, .. }
                 | Inst::F64FromI32 { dest, .. }
+                | Inst::I64FromI32 { dest, .. }
                 | Inst::Sqrt { dest, .. }
                 | Inst::Perform { dest, .. }
                 | Inst::Handle { dest, .. }
@@ -923,6 +916,18 @@ impl<'a> WasmEmitter<'a> {
                     *dest,
                     &[*builder, *value],
                     "$__sarif_text_builder_append_i32",
+                );
+            }
+            Inst::TextBuilderAppendI64 {
+                dest,
+                builder,
+                value,
+            } => {
+                w_call(
+                    output,
+                    *dest,
+                    &[*builder, *value],
+                    "$__sarif_text_builder_append_i64",
                 );
             }
             Inst::TextBuilderFinish { dest, builder } => {
@@ -1339,6 +1344,9 @@ impl<'a> WasmEmitter<'a> {
             }
             Inst::F64FromI32 { dest, value } => {
                 w_unary(output, *dest, *value, "f64.convert_i64_s");
+            }
+            Inst::I64FromI32 { dest, value } => {
+                w_unary(output, *dest, *value, "i64.extend_i32_s");
             }
             Inst::Sqrt { dest, value } => {
                 w_unary(output, *dest, *value, "f64.sqrt");
@@ -2025,6 +2033,7 @@ pub(crate) fn wasm_value_kind_from_name(
 ) -> Result<WasmValueKind, WasmError> {
     match name {
         "I32" => Ok(WasmValueKind::I32),
+        "I64" => Ok(WasmValueKind::I64),
         "F64" => Ok(WasmValueKind::F64),
         "Bool" => Ok(WasmValueKind::Bool),
         "Text" => Ok(WasmValueKind::Text),
@@ -2137,6 +2146,9 @@ pub(crate) fn collect_inst_kinds(
             | Inst::ClockNow { dest } => {
                 kinds.insert(*dest, WasmValueKind::F64);
             }
+            Inst::I64FromI32 { dest, .. } => {
+                kinds.insert(*dest, WasmValueKind::I64);
+            }
             Inst::ListGet { dest, list, .. } => {
                 // Infer element kind from the list's type
                 let Some(WasmValueKind::List(element)) = kinds.get(list).cloned() else {
@@ -2178,7 +2190,8 @@ pub(crate) fn collect_inst_kinds(
             | Inst::TextBuilderAppendCodepoint { dest, .. }
             | Inst::TextBuilderAppendAscii { dest, .. }
             | Inst::TextBuilderAppendSlice { dest, .. }
-            | Inst::TextBuilderAppendI32 { dest, .. } => {
+            | Inst::TextBuilderAppendI32 { dest, .. }
+            | Inst::TextBuilderAppendI64 { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::TextBuilder);
             }
             Inst::TextBuilderFinish { dest, .. } => {
@@ -2280,12 +2293,13 @@ pub(crate) fn collect_inst_kinds(
             | Inst::Rem { dest, left, .. } => {
                 kinds.insert(*dest, kinds[left].clone());
             }
-            Inst::BitAnd { dest, .. }
-            | Inst::BitOr { dest, .. }
-            | Inst::BitXor { dest, .. }
-            | Inst::Shl { dest, .. }
-            | Inst::Shr { dest, .. } => {
-                kinds.insert(*dest, WasmValueKind::I32);
+            Inst::BitAnd { dest, left, .. }
+            | Inst::BitOr { dest, left, .. }
+            | Inst::BitXor { dest, left, .. }
+            | Inst::Shl { dest, left, .. }
+            | Inst::Shr { dest, left, .. } => {
+                let kind = kinds.get(left).cloned().unwrap_or(WasmValueKind::I32);
+                kinds.insert(*dest, kind);
             }
             Inst::Eq { dest, .. }
             | Inst::Ne { dest, .. }

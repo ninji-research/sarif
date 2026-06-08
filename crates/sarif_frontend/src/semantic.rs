@@ -37,6 +37,7 @@ use typecheck::{render_signature, types_compatible};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     I32,
+    I64,
     F64,
     Bool,
     Text,
@@ -58,6 +59,7 @@ impl Type {
     pub fn render(&self) -> String {
         match self {
             Self::I32 => "I32".to_owned(),
+            Self::I64 => "I64".to_owned(),
             Self::F64 => "F64".to_owned(),
             Self::Bool => "Bool".to_owned(),
             Self::Text => "Text".to_owned(),

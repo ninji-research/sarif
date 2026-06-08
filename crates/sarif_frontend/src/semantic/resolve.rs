@@ -32,6 +32,7 @@ pub fn resolve_module(
     let mut struct_layouts = BTreeMap::<String, Vec<(String, Type)>>::new();
     let mut known_types = BTreeSet::from([
         "I32".to_owned(),
+        "I64".to_owned(),
         "F64".to_owned(),
         "Bool".to_owned(),
         "Text".to_owned(),
@@ -320,7 +321,7 @@ pub fn resolve_module(
             crate::hir::Item::Effect(_) => {}
             crate::hir::Item::Import(import) => {
                 let Some(resolved) = imported_modules.get(&import.module) else {
-      diagnostics.push(Diagnostic::new(
+                    diagnostics.push(Diagnostic::new(
         "semantic.import-not-found",
         format!("import module `{}` not found — the file `{}.sarif` could not be located in any import search path. Check that the module name matches the file name, and that the file exists relative to the entry point or any configured import directories.", import.module, import.module),
         import.span,
@@ -452,8 +453,8 @@ pub fn resolve_module(
                                 }
                                 struct_layouts.insert(import_name.clone(), layout.clone());
                             }
-    } else {
-      diagnostics.push(Diagnostic::new(
+                        } else {
+                            diagnostics.push(Diagnostic::new(
         "semantic.import-name-not-found",
         format!(
           "name `{import_name}` not found in module `{}` — the symbol is not exported from that module",
@@ -465,7 +466,7 @@ pub fn resolve_module(
           import.module,
         )),
       ));
-    }
+                        }
                     }
                 }
             }
@@ -567,6 +568,7 @@ fn collect_const_params_from_type(ty: &Type, params: &mut BTreeSet<String>) {
             collect_const_params_from_type(right, params);
         }
         Type::I32
+        | Type::I64
         | Type::F64
         | Type::Bool
         | Type::Text

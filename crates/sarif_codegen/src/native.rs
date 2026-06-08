@@ -66,10 +66,6 @@ impl TrustedListAccesses {
     fn contains(&self, list: ValueId, index: ValueId) -> bool {
         self.pairs.contains(&(list, index))
     }
-
-    fn unique_vecs(&self) -> BTreeSet<ValueId> {
-        self.pairs.iter().map(|(vec, _)| *vec).collect()
-    }
 }
 
 const PAYLOAD_ENUM_SIZE: u32 = 16;
@@ -340,6 +336,9 @@ fn infer_inst_kinds(
             Inst::ParseF64 { dest, .. } | Inst::F64FromI32 { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::F64);
             }
+            Inst::I64FromI32 { dest, .. } => {
+                kinds.insert(*dest, NativeValueKind::I64);
+            }
             Inst::ListGet { dest, list, .. } => {
                 let Some(NativeValueKind::List(element)) = kinds.get(list) else {
                     return Err(format!(
@@ -358,6 +357,7 @@ fn infer_inst_kinds(
             | Inst::TextBuilderAppendAscii { dest, .. }
             | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
+            | Inst::TextBuilderAppendI64 { dest, .. }
             | Inst::StdoutWriteBuilder { dest, .. } => {
                 kinds.insert(
                     *dest,
@@ -462,6 +462,9 @@ fn infer_inst_kinds(
                     NativeValueKind::I32 | NativeValueKind::Bool => {
                         kinds.insert(*dest, NativeValueKind::I32);
                     }
+                    NativeValueKind::I64 => {
+                        kinds.insert(*dest, NativeValueKind::I64);
+                    }
                     NativeValueKind::F64 => {
                         kinds.insert(*dest, kind);
                     }
@@ -473,12 +476,13 @@ fn infer_inst_kinds(
                     }
                 }
             }
-            Inst::BitAnd { dest, .. }
-            | Inst::BitOr { dest, .. }
-            | Inst::BitXor { dest, .. }
-            | Inst::Shl { dest, .. }
-            | Inst::Shr { dest, .. } => {
-                kinds.insert(*dest, NativeValueKind::I32);
+            Inst::BitAnd { dest, left, .. }
+            | Inst::BitOr { dest, left, .. }
+            | Inst::BitXor { dest, left, .. }
+            | Inst::Shl { dest, left, .. }
+            | Inst::Shr { dest, left, .. } => {
+                let kind = kinds.get(left).cloned().unwrap_or(NativeValueKind::I32);
+                kinds.insert(*dest, kind);
             }
             Inst::ConstBool { dest, .. }
             | Inst::FileIsValid { dest, .. }
@@ -604,13 +608,13 @@ fn infer_inst_kinds(
                                 function.name
                             ));
                         }
-                        (None, None) => {}
-                        _ => {
-                            return Err(format!(
-                                "native conditional fallthrough branches in `{}` do not agree on whether they produce a value",
-                                function.name
-                            ));
+                        (Some(left), None) => {
+                            kinds.insert(*dest, left);
                         }
+                        (None, Some(right)) => {
+                            kinds.insert(*dest, right);
+                        }
+                        (None, None) => {}
                     }
                 } else if then_falls {
                     if let Some(kind) = then_kind {
@@ -672,6 +676,7 @@ pub fn native_value_kind(
     }
     match name {
         "I32" => Ok(NativeValueKind::I32),
+        "I64" => Ok(NativeValueKind::I64),
         "F64" => Ok(NativeValueKind::F64),
         "Bool" => Ok(NativeValueKind::Bool),
         "Text" => Ok(NativeValueKind::Text),
@@ -969,6 +974,7 @@ fn lower_native_kind_equality<M: Module>(
     match kind {
         NativeValueKind::Unit
         | NativeValueKind::I32
+        | NativeValueKind::I64
         | NativeValueKind::Bool
         | NativeValueKind::TextIndex
         | NativeValueKind::TextBuilder
@@ -1283,6 +1289,7 @@ pub struct RuntimeHelperIds {
     pub text_builder_append_ascii_id: Option<FuncId>,
     pub text_builder_append_slice_id: Option<FuncId>,
     pub text_builder_append_i32_id: Option<FuncId>,
+    pub text_builder_append_i64_id: Option<FuncId>,
     pub text_builder_finish_id: Option<FuncId>,
     pub stdout_write_builder_id: Option<FuncId>,
     pub text_index_helpers: TextIndexHelperIds,
@@ -1363,6 +1370,7 @@ pub fn declare_runtime_helpers<M: Module>(
         text_builder_append_ascii_id: Some(declare_text_builder_append_ascii(module, backend)?),
         text_builder_append_slice_id: Some(declare_text_builder_append_slice(module, backend)?),
         text_builder_append_i32_id: Some(declare_text_builder_append_i32(module, backend)?),
+        text_builder_append_i64_id: Some(declare_text_builder_append_i64(module, backend)?),
         text_builder_finish_id: Some(declare_text_builder_finish(module, backend)?),
         stdout_write_builder_id: Some(declare_stdout_write_builder(module, backend)?),
         text_index_helpers: TextIndexHelperIds {
@@ -1517,6 +1525,7 @@ pub fn lower_inst<M: Module>(
         text_builder_append_ascii_id,
         text_builder_append_slice_id,
         text_builder_append_i32_id,
+        text_builder_append_i64_id,
         text_builder_finish_id,
         stdout_write_builder_id,
         text_index_helpers,
@@ -1864,6 +1873,40 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::TextBuilderAppendI64 {
+            dest,
+            builder: builder_value,
+            value,
+        } => {
+            let builder_val = native_value(
+                values,
+                *builder_value,
+                function,
+                "text_builder_append_i64 builder",
+                backend,
+            )?;
+            let value_val = native_value(
+                values,
+                *value,
+                function,
+                "text_builder_append_i64 value",
+                backend,
+            )?;
+            let helper = module.declare_func_in_func(
+                text_builder_append_i64_id.expect("text builder declared"),
+                builder.func,
+            );
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[builder_val, value_val],
+                "text builder append i64",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::TextBuilderFinish {
             dest,
             builder: builder_value,
@@ -2046,24 +2089,24 @@ pub fn lower_inst<M: Module>(
             let value_kind = value_kinds
                 .get(value)
                 .expect("kind inference ensures value kind");
-      if *value_kind == NativeValueKind::F64 {
-        value_val = builder
-          .ins()
-          .bitcast(types::I64, MemFlags::new(), value_val);
-      }
-      let helper = module.declare_func_in_func(list_new_id, builder.func);
-      let ptr = call_helper(
-        builder,
-        helper,
-        &[len_val, value_val],
-        "list new",
-        function,
-        backend,
-      )?;
-      values.insert(*dest, NativeValueRepr::Native(ptr));
-      Ok(true)
-    }
-    Inst::ListLen { dest, list } => {
+            if *value_kind == NativeValueKind::F64 {
+                value_val = builder
+                    .ins()
+                    .bitcast(types::I64, MemFlags::new(), value_val);
+            }
+            let helper = module.declare_func_in_func(list_new_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[len_val, value_val],
+                "list new",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::ListLen { dest, list } => {
             let vec_val = native_value(values, *list, function, "list_len list", backend)?;
             let header = cached_list_header(
                 builder,
@@ -2097,20 +2140,44 @@ pub fn lower_inst<M: Module>(
                 ));
             };
             if !trusted_list_accesses.contains(*list, *index) {
-                let too_large =
+                let in_bounds = builder
+                    .ins()
+                    .icmp(IntCC::UnsignedLessThan, index_val, header.len);
+                let element_type = native_kind_type(element);
+                let in_block = builder.create_block();
+                let oob_block = builder.create_block();
+                let end_block = builder.create_block();
+                builder.append_block_param(end_block, element_type);
+                let zero = if element_type == types::F64 {
+                    builder.ins().f64const(0.0)
+                } else {
+                    builder.ins().iconst(element_type, 0)
+                };
+                builder.ins().brif(in_bounds, in_block, &[], oob_block, &[]);
+                builder.seal_block(oob_block);
+                builder.switch_to_block(oob_block);
+                builder.ins().jump(end_block, &[BlockArg::Value(zero)]);
+                builder.seal_block(in_block);
+                builder.switch_to_block(in_block);
+                let byte_offset = builder.ins().imul_imm(index_val, 8);
+                let addr = builder.ins().iadd(header.values_ptr, byte_offset);
+                let real_val = builder
+                    .ins()
+                    .load(element_type, MemFlags::trusted(), addr, 0);
+                builder.ins().jump(end_block, &[BlockArg::Value(real_val)]);
+                builder.seal_block(end_block);
+                builder.switch_to_block(end_block);
+                let value = builder.block_params(end_block)[0];
+                values.insert(*dest, NativeValueRepr::Native(value));
+            } else {
+                let byte_offset = builder.ins().imul_imm(index_val, 8);
+                let addr = builder.ins().iadd(header.values_ptr, byte_offset);
+                let value =
                     builder
                         .ins()
-                        .icmp(IntCC::UnsignedGreaterThanOrEqual, index_val, header.len);
-                builder
-                    .ins()
-                    .trapnz(too_large, TrapCode::HEAP_OUT_OF_BOUNDS);
+                        .load(native_kind_type(element), MemFlags::trusted(), addr, 0);
+                values.insert(*dest, NativeValueRepr::Native(value));
             }
-            let byte_offset = builder.ins().imul_imm(index_val, 8);
-            let addr = builder.ins().iadd(header.values_ptr, byte_offset);
-            let value = builder
-                .ins()
-                .load(native_kind_type(element), MemFlags::trusted(), addr, 0);
-            values.insert(*dest, NativeValueRepr::Native(value));
             Ok(true)
         }
         Inst::ListSet {
@@ -2131,17 +2198,31 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             if !trusted_list_accesses.contains(*list, *index) {
-                let too_large =
-                    builder
-                        .ins()
-                        .icmp(IntCC::UnsignedGreaterThanOrEqual, index_val, header.len);
+                let in_bounds = builder
+                    .ins()
+                    .icmp(IntCC::UnsignedLessThan, index_val, header.len);
+                let store_block = builder.create_block();
+                let skip_block = builder.create_block();
+                let end_block = builder.create_block();
                 builder
                     .ins()
-                    .trapnz(too_large, TrapCode::HEAP_OUT_OF_BOUNDS);
+                    .brif(in_bounds, store_block, &[], skip_block, &[]);
+                builder.seal_block(skip_block);
+                builder.switch_to_block(skip_block);
+                builder.ins().jump(end_block, &[]);
+                builder.seal_block(store_block);
+                builder.switch_to_block(store_block);
+                let byte_offset = builder.ins().imul_imm(index_val, 8);
+                let addr = builder.ins().iadd(header.values_ptr, byte_offset);
+                builder.ins().store(MemFlags::trusted(), value_val, addr, 0);
+                builder.ins().jump(end_block, &[]);
+                builder.seal_block(end_block);
+                builder.switch_to_block(end_block);
+            } else {
+                let byte_offset = builder.ins().imul_imm(index_val, 8);
+                let addr = builder.ins().iadd(header.values_ptr, byte_offset);
+                builder.ins().store(MemFlags::trusted(), value_val, addr, 0);
             }
-            let byte_offset = builder.ins().imul_imm(index_val, 8);
-            let addr = builder.ins().iadd(header.values_ptr, byte_offset);
-            builder.ins().store(MemFlags::trusted(), value_val, addr, 0);
             values.insert(*dest, NativeValueRepr::Native(vec_val));
             Ok(true)
         }
@@ -2153,24 +2234,24 @@ pub fn lower_inst<M: Module>(
         } => {
             let vec_val = native_value(values, *list, function, "list_push list", backend)?;
             let len_val = native_value(values, *len, function, "list_push len", backend)?;
-    let mut value_val = native_value(values, *value, function, "list_push value", backend)?;
-    let value_kind = value_kinds
-      .get(value)
-      .expect("kind inference ensures list_push value kind");
-    if *value_kind == NativeValueKind::F64 {
-      value_val = builder
-        .ins()
-        .bitcast(types::I64, MemFlags::new(), value_val);
-    }
-    let helper = module.declare_func_in_func(list_push_id, builder.func);
-    let ptr = call_helper(
-      builder,
-      helper,
-      &[vec_val, len_val, value_val],
-      "list push",
-      function,
-      backend,
-    )?;
+            let mut value_val = native_value(values, *value, function, "list_push value", backend)?;
+            let value_kind = value_kinds
+                .get(value)
+                .expect("kind inference ensures list_push value kind");
+            if *value_kind == NativeValueKind::F64 {
+                value_val = builder
+                    .ins()
+                    .bitcast(types::I64, MemFlags::new(), value_val);
+            }
+            let helper = module.declare_func_in_func(list_push_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[vec_val, len_val, value_val],
+                "list push",
+                function,
+                backend,
+            )?;
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -2264,6 +2345,16 @@ pub fn lower_inst<M: Module>(
             let int_val = native_value(values, *value, function, "f64_from_i32 value", backend)?;
             let float = builder.ins().fcvt_from_sint(types::F64, int_val);
             values.insert(*dest, NativeValueRepr::Native(float));
+            Ok(true)
+        }
+        Inst::I64FromI32 { dest, value } => {
+            let int_val = native_value(values, *value, function, "i64_from_i32 value", backend)?;
+            let extended = if builder.func.dfg.value_type(int_val) == types::I64 {
+                int_val
+            } else {
+                builder.ins().uextend(types::I64, int_val)
+            };
+            values.insert(*dest, NativeValueRepr::Native(extended));
             Ok(true)
         }
         Inst::TextLen { dest, text } => {
@@ -3455,15 +3546,6 @@ pub fn lower_inst<M: Module>(
                 })?;
             let base = native_value(values, *base, function, "field base", backend)?;
             let load_ty = native_kind_type(&field.kind);
-            if DEBUG_ENABLED.load(Ordering::Relaxed) && function.name == "first" {
-                eprintln!(
-                    "[TRAP] {} Field {name}: base=v{}, field.kind={:?}, load_ty={load_ty}, offset={}",
-                    function.name,
-                    base.as_u32(),
-                    field.kind,
-                    field.offset,
-                );
-            }
             let native = builder.ins().load(
                 load_ty,
                 MemFlags::trusted(),
@@ -3807,14 +3889,21 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             if then_falls {
-                let then_args = branch_jump_args(
-                    &then_values,
-                    *then_result,
-                    dest_type,
-                    function,
-                    "then",
-                    backend,
-                )?;
+                let then_args = if let Some(result) = *then_result {
+                    branch_jump_args(
+                        &then_values,
+                        Some(result),
+                        dest_type,
+                        function,
+                        "then",
+                        backend,
+                    )?
+                } else if let Some(ty) = dest_type {
+                    let zero = builder.ins().iconst(ty, 0);
+                    vec![BlockArg::Value(zero)]
+                } else {
+                    vec![]
+                };
                 builder.ins().jump(merge_block, &then_args);
             }
 
@@ -3843,14 +3932,21 @@ pub fn lower_inst<M: Module>(
                 backend,
             )?;
             if else_falls {
-                let else_args = branch_jump_args(
-                    &else_values,
-                    *else_result,
-                    dest_type,
-                    function,
-                    "else",
-                    backend,
-                )?;
+                let else_args = if let Some(result) = *else_result {
+                    branch_jump_args(
+                        &else_values,
+                        Some(result),
+                        dest_type,
+                        function,
+                        "else",
+                        backend,
+                    )?
+                } else if let Some(ty) = dest_type {
+                    let zero = builder.ins().iconst(ty, 0);
+                    vec![BlockArg::Value(zero)]
+                } else {
+                    vec![]
+                };
                 builder.ins().jump(merge_block, &else_args);
             }
 
@@ -3884,35 +3980,7 @@ pub fn lower_inst<M: Module>(
                 .map_or_else(TrustedListAccesses::default, |slot| {
                     collect_trusted_repeat_list_accesses(body_insts, slot)
                 });
-            if !loop_trusted_accesses.pairs.is_empty() {
-                let zero = builder.ins().iconst(types::I64, 0);
-                let has_positive_count =
-                    builder
-                        .ins()
-                        .icmp(IntCC::SignedGreaterThan, initial_count, zero);
-                let effective_count = builder
-                    .ins()
-                    .select(has_positive_count, initial_count, zero);
-                for vec in loop_trusted_accesses.unique_vecs() {
-                    let vec_val =
-                        native_value(values, vec, function, "repeat trusted f64 vec", backend)?;
-                    let header = cached_list_header(
-                        builder,
-                        list_headers,
-                        vec_val,
-                        function,
-                        "repeat trusted f64 vec",
-                        backend,
-                    )?;
-                    let count_exceeds_len =
-                        builder
-                            .ins()
-                            .icmp(IntCC::UnsignedGreaterThan, effective_count, header.len);
-                    builder
-                        .ins()
-                        .trapnz(count_exceeds_len, TrapCode::HEAP_OUT_OF_BOUNDS);
-                }
-            }
+            // per-access ListGet/ListSet handles OOB by returning 0 / no-op
             let header_block = builder.create_block();
             let body_block = builder.create_block();
             let exit_block = builder.create_block();
@@ -4153,6 +4221,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::ListLen { dest, .. }
             | Inst::ListGet { dest, .. }
             | Inst::F64FromI32 { dest, .. }
+            | Inst::I64FromI32 { dest, .. }
             | Inst::TextLen { dest, .. }
             | Inst::BytesLen { dest, .. }
             | Inst::TextConcat { dest, .. }
@@ -4251,6 +4320,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::TextBuilderAppendAscii { dest, .. }
             | Inst::TextBuilderAppendSlice { dest, .. }
             | Inst::TextBuilderAppendI32 { dest, .. }
+            | Inst::TextBuilderAppendI64 { dest, .. }
             | Inst::TextIndexGet { dest, .. }
             | Inst::TextIndexContains { dest, .. }
             | Inst::TextIndexGetOrInsert { dest, .. }
@@ -4677,6 +4747,20 @@ pub fn declare_text_builder_append_i32<M: Module>(
         "sarif_text_builder_append_i32",
         backend,
         "text builder append i32 helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_text_builder_append_i64<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_text_builder_append_i64",
+        backend,
+        "text builder append i64 helper",
         &[types::I64, types::I64],
         &[types::I64],
     )

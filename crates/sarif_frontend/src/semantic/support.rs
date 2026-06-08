@@ -71,7 +71,7 @@ fn type_contains_affine_values_inner(
         }
         Type::TextIndex | Type::TextBuilder | Type::List(_) | Type::File => true,
         Type::Param(_) => false,
-        Type::I32 | Type::F64 | Type::Bool | Type::Unit | Type::Error => false,
+        Type::I32 | Type::I64 | Type::F64 | Type::Bool | Type::Unit | Type::Error => false,
     }
 }
 
@@ -188,6 +188,7 @@ pub(super) fn expect_type(
 pub(super) const fn matching_numeric_type(left: &Type, right: &Type) -> Option<Type> {
     match (left, right) {
         (Type::I32, Type::I32) => Some(Type::I32),
+        (Type::I64, Type::I64) | (Type::I64, Type::I32) | (Type::I32, Type::I64) => Some(Type::I64),
         (Type::F64, Type::F64) => Some(Type::F64),
         _ => None,
     }
