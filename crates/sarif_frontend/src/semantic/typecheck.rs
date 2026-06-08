@@ -147,6 +147,7 @@ pub(super) fn parse_type_name(name: &str, generic_params: &BTreeSet<String>) -> 
         "Bytes" => Some(Type::Bytes),
         "TextIndex" => Some(Type::TextIndex),
         "TextBuilder" => Some(Type::TextBuilder),
+        "File" => Some(Type::File),
         "Unit" => Some(Type::Unit),
         other if other.starts_with("List[") && other.ends_with(']') => {
             let inner = &other[5..other.len() - 1];
