@@ -871,20 +871,14 @@ fn lower_comparison<M: Module>(
         let left_float = native_value(values, left, function, "comparison left operand", backend)?;
         let right_float =
             native_value(values, right, function, "comparison right operand", backend)?;
-        let native = if matches!(condition, IntCC::NotEqual) {
-            let eq = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
-            let ne = builder.ins().bnot(eq);
-            builder.ins().uextend(types::I64, ne)
-        } else {
-            let Some(float_condition) = float_cc(condition) else {
-                return Err(format!(
-                    "{backend} cannot lower float comparison `{condition:?}` in `{}`",
-                    function.name
-                ));
-            };
-            let compare = builder.ins().fcmp(float_condition, left_float, right_float);
-            builder.ins().uextend(types::I64, compare)
+        let Some(float_condition) = float_cc(condition) else {
+            return Err(format!(
+                "{backend} cannot lower float comparison `{condition:?}` in `{}`",
+                function.name
+            ));
         };
+        let compare = builder.ins().fcmp(float_condition, left_float, right_float);
+        let native = builder.ins().uextend(types::I64, compare);
         values.insert(dest, NativeValueRepr::Native(native));
         return Ok(true);
     }
@@ -930,11 +924,6 @@ fn lower_native_kind_comparison<M: Module>(
         NativeValueKind::F64 => {
             let left_float = left;
             let right_float = right;
-            if matches!(condition, IntCC::NotEqual) {
-                let eq = builder.ins().fcmp(FloatCC::Equal, left_float, right_float);
-                let ne = builder.ins().bnot(eq);
-                return Ok(builder.ins().uextend(types::I64, ne));
-            }
             let Some(float_condition) = float_cc(condition) else {
                 return Err(format!(
                     "{backend} cannot lower float comparison `{condition:?}` in `{}`",
