@@ -1,3 +1,77 @@
+fn is_text_empty(s: Text) -> Bool {
+    text_len(s) == 0
+}
+
+fn text_starts_with(text: Text, prefix: Text) -> Bool {
+    let tlen = text_len(text);
+    let plen = text_len(prefix);
+    if tlen < plen { false }
+    else { text_eq_range(text, 0, plen, prefix) }
+}
+
+fn find_byte_index(source: Text, byte: I32, index: I32) -> I32 {
+    let len = text_len(source);
+    let mut i = index;
+    let mut found_at = -1;
+    while i < len and found_at < 0 {
+        if text_byte(source, i) == byte {
+            found_at = i;
+        };
+        i = i + 1;
+    };
+    found_at
+}
+
+fn is_layout_byte(byte: I32) -> Bool {
+    byte == 9 or byte == 10 or byte == 13 or byte == 32
+}
+
+fn trim_start_index(source: Text, index: I32) -> I32 {
+    if index >= text_len(source) {
+        index
+    } else {
+        if is_layout_byte(text_byte(source, index)) {
+            trim_start_index(source, index + 1)
+        } else {
+            index
+        }
+    }
+}
+
+fn trim_end_index(source: Text, index: I32) -> I32 {
+    if index <= 0 {
+        0
+    } else {
+        if is_layout_byte(text_byte(source, index - 1)) {
+            trim_end_index(source, index - 1)
+        } else {
+            index
+        }
+    }
+}
+
+fn trim_text(source: Text) -> Text {
+    let start = trim_start_index(source, 0);
+    let end = trim_end_index(source, text_len(source));
+    if end <= start {
+        ""
+    } else {
+        text_slice(source, start, end)
+    }
+}
+
+fn find_last_byte(source: Text, needle: I32, end_pos: I32) -> I32 {
+    let mut i = end_pos - 1;
+    let mut found_at = -1;
+    while i >= 0 and found_at < 0 {
+        if text_byte(source, i) == needle {
+            found_at = i;
+        };
+        i = i - 1;
+    };
+    found_at
+}
+
 fn analyze_borrow_escape(module: HirModuleData) -> Text {
     let mut diags = "";
     let fns = module.funcs;
@@ -43,8 +117,8 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
                      else { f.params.p16 };
                 if popt.present {
                     let p = popt.param;
-                    if not is_empty_text(p.name) {
-                        if is_empty_text(param_seen) {
+                    if not is_text_empty(p.name) {
+                        if is_text_empty(param_seen) {
                             param_seen = p.name;
                         } else if p.name == param_seen {
                             diags = text_concat(diags, text_concat("warning: duplicate parameter name `", text_concat(p.name, "`\n")));
@@ -80,7 +154,7 @@ fn analyze_borrow_escape(module: HirModuleData) -> Text {
              else if ci == 15 { consts.c15 }
              else { consts.c16 };
         if opt.present {
-            if is_empty_text(opt.c.name) {
+            if is_text_empty(opt.c.name) {
                 diags = text_concat(diags, "error: unnamed constant\n");
             };
         };
@@ -100,9 +174,18 @@ fn is_borrow_only_builtin(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "text_cmp") { true }
     else if text_eq_simple(fn_name, "text_eq_range") { true }
     else if text_eq_simple(fn_name, "text_intern") { true }
+    else if text_eq_simple(fn_name, "text_line_end") { true }
+    else if text_eq_simple(fn_name, "text_next_line") { true }
+    else if text_eq_simple(fn_name, "text_field_end") { true }
+    else if text_eq_simple(fn_name, "text_next_field") { true }
+    else if text_eq_simple(fn_name, "text_find_byte_range") { true }
     else if text_eq_simple(fn_name, "bytes_len") { true }
     else if text_eq_simple(fn_name, "bytes_byte") { true }
     else if text_eq_simple(fn_name, "bytes_slice") { true }
+    else if text_eq_simple(fn_name, "bytes_materialize") { true }
+    else if text_eq_simple(fn_name, "bytes_find_byte_range") { true }
+    else if text_eq_simple(fn_name, "bytes_field_end") { true }
+    else if text_eq_simple(fn_name, "bytes_next_field") { true }
     else if text_eq_simple(fn_name, "list_len") { true }
     else if text_eq_simple(fn_name, "list_get") { true }
     else if text_eq_simple(fn_name, "text_builder_append_i32") { true }
@@ -113,6 +196,7 @@ fn is_borrow_only_builtin(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "text_index_contains") { true }
     else if text_eq_simple(fn_name, "text_index_set") { true }
     else if text_eq_simple(fn_name, "text_index_get_or_insert") { true }
+    else if text_eq_simple(fn_name, "text_index_keys") { true }
     else if text_eq_simple(fn_name, "stdout_write") { true }
     else if text_eq_simple(fn_name, "stdout_write_builder") { true }
     else if text_eq_simple(fn_name, "parse_i32_range") { true }
@@ -123,6 +207,9 @@ fn is_borrow_only_builtin(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "file_size") { true }
     else if text_eq_simple(fn_name, "file_seek") { true }
     else if text_eq_simple(fn_name, "file_tell") { true }
+    else if text_eq_simple(fn_name, "file_exists") { true }
+    else if text_eq_simple(fn_name, "file_remove") { true }
+    else if text_eq_simple(fn_name, "file_is_valid") { true }
     else if text_eq_simple(fn_name, "len") { true }
     else { false }
 }
@@ -140,6 +227,8 @@ fn is_consuming_builtin(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "parse_f64") { true }
     else if text_eq_simple(fn_name, "stdin_text") { true }
     else if text_eq_simple(fn_name, "stdin_bytes") { true }
+    else if text_eq_simple(fn_name, "bytes_to_text") { true }
+    else if text_eq_simple(fn_name, "text_concat") { true }
     else { false }
 }
 
@@ -148,17 +237,16 @@ fn is_text_type(ty: Text) -> Bool {
     else if text_eq_simple(ty, "Bytes") { true }
     else if text_eq_simple(ty, "TextBuilder") { true }
     else if text_eq_simple(ty, "TextIndex") { true }
-    else if text_eq_simple(ty, "List[Text]") { true }
-    else if text_eq_simple(ty, "List[TextBuilder]") { true }
-    else if text_eq_simple(ty, "List[TextIndex]") { true }
-    else if text_eq_simple(ty, "Optional[Text]") { true }
-    else if text_eq_simple(ty, "Optional[TextBuilder]") { true }
-    else if text_eq_simple(ty, "Optional[TextIndex]") { true }
+    else if text_eq_simple(ty, "File") { true }
+    else if text_starts_with(ty, "List[") { true }
+    else if text_starts_with(ty, "Optional[") { true }
     else { false }
 }
 
 fn is_affine_type(ty: Text) -> Bool {
-    is_text_type(ty)
+    if is_text_type(ty) { true }
+    else if text_starts_with(ty, "[") { true }
+    else { false }
 }
 
 fn check_affine_param_usage(param_name: Text, param_type: Text, fn_name: Text) -> Text {
@@ -167,4 +255,98 @@ fn check_affine_param_usage(param_name: Text, param_type: Text, fn_name: Text) -
         text_concat("warning: consuming affine value `", text_concat(param_name, text_concat("` in `", text_concat(fn_name, "`\n"))))
     }
     else { "" }
+}
+
+fn count_name_in_source(source: Text, name: Text, start: I32, end_pos: I32) -> I32 {
+    let nlen = text_len(name);
+    let mut count = 0;
+    let mut pos = start;
+    while pos + nlen <= end_pos {
+        if text_eq_range(source, pos, pos + nlen, name) {
+            let before_ok = pos == start or not is_name_byte(text_byte(source, pos - 1));
+            let after_ok = pos + nlen >= end_pos or not is_name_byte(text_byte(source, pos + nlen));
+            if before_ok and after_ok {
+                count = count + 1;
+            };
+        };
+        pos = pos + 1;
+    };
+    count
+}
+
+fn is_name_byte(b: I32) -> Bool {
+    (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95
+}
+
+fn check_affine_param_reuse(param_name: Text, source: Text, body_start: I32, body_end: I32) -> Text {
+    let count = count_name_in_source(source, param_name, body_start, body_end);
+    if count > 1 {
+        text_concat("affine reuse: `", text_concat(param_name, text_concat("` used ", "")))
+    } else if count == 1 {
+        text_concat("affine used once: `", text_concat(param_name, "`"))
+    } else {
+        ""
+    }
+}
+
+fn find_open_paren_before(source: Text, index: I32) -> I32 {
+    let mut i = index - 1;
+    let mut found_at = -1;
+    while i >= 0 and found_at < 0 {
+        if text_byte(source, i) == 40 {
+            found_at = i;
+        };
+        i = i - 1;
+    };
+    found_at
+}
+
+fn extract_params_text(source: Text, fn_name: Text, fn_name_end: I32) -> Text {
+    let paren = find_byte_index(source, 40, fn_name_end);
+    let close_paren = find_byte_index(source, 41, if paren >= 0 { paren + 1 } else { 0 });
+    if paren >= 0 and close_paren > paren + 1 {
+        let raw = text_slice(source, paren + 1, close_paren);
+        trim_text(raw)
+    } else {
+        ""
+    }
+}
+
+fn find_fn_body_start(source: Text, fn_decl_end: I32) -> I32 {
+    let brace = find_byte_index(source, 123, fn_decl_end);
+    if brace >= 0 { brace + 1 } else { fn_decl_end }
+}
+
+fn find_fn_body_end(source: Text, body_start: I32) -> I32 {
+    let brace = find_byte_index(source, 125, body_start);
+    if brace >= 0 { brace } else { text_len(source) }
+}
+
+fn check_fn_affine_usage(source: Text, fn_name: Text, params_text: Text, body_start: I32, body_end: I32) -> Text {
+    let mut diags = "";
+    let mut pi = 0;
+    let plen = text_len(params_text);
+    while pi < plen {
+        let colon = find_byte_index(params_text, 58, pi);
+        if colon < 0 {
+            pi = plen;
+        } else {
+            let comma = find_byte_index(params_text, 44, colon + 1);
+            let param_end = if comma >= 0 { comma } else { plen };
+            let pname = trim_text(text_slice(params_text, pi, colon));
+            let ptype = trim_text(text_slice(params_text, colon + 1, param_end));
+            if not is_text_empty(pname) and not is_text_empty(ptype) and is_affine_type(ptype) {
+                let d = check_affine_param_reuse(pname, source, body_start, body_end);
+                if not is_text_empty(d) {
+                    diags = text_concat(diags, d);
+                };
+            };
+            pi = if comma >= 0 { comma + 1 } else { plen };
+        };
+    };
+    if not is_text_empty(diags) {
+        text_concat("ownership(", text_concat(fn_name, text_concat("): ", diags)))
+    } else {
+        ""
+    }
 }

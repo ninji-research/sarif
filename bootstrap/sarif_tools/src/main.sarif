@@ -2654,14 +2654,144 @@ fn check_text(source: Text, package_names: Text) -> Text {
         let fn_sigs = collect_fn_sigs_from(source, parse_state_new(source));
         let const_type_diag = check_const_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
         let fn_type_diag = check_fn_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
+        let ownership_diag = check_ownership_from(source, parse_state_new(source));
         
-        let combined = text_concat(dup_diag, text_concat(call_diag, text_concat(const_type_diag, fn_type_diag)));
+        let combined = text_concat(dup_diag, text_concat(call_diag, text_concat(const_type_diag, text_concat(fn_type_diag, ownership_diag))));
         if is_empty(combined) {
             "ok [core]\n"
         } else {
             combined
         }
     }
+}
+
+fn is_affine_ownership_type(ty: Text) -> Bool {
+    let tlen = text_len(ty);
+    if tlen == 4 and text_byte(ty, 0) == 84 {
+        true
+    } else if tlen == 5 and text_byte(ty, 0) == 66 {
+        true
+    } else if tlen == 11 and text_byte(ty, 0) == 84 {
+        true
+    } else if tlen == 9 and text_byte(ty, 0) == 84 {
+        true
+    } else if tlen == 4 and text_byte(ty, 0) == 70 {
+        true
+    } else {
+        false
+    }
+}
+
+fn count_affine_param_uses_in_body(source: Text, param_name: Text, body_start: I32, body_end: I32) -> I32 {
+    let pnlen = text_len(param_name);
+    let mut count = 0;
+    let mut pos = body_start;
+    while pos + pnlen <= body_end {
+        if text_eq_range(source, pos, pos + pnlen, param_name) {
+            let before_ok = pos == body_start or not is_name_byte(text_byte(source, pos - 1));
+            let after_ok = pos + pnlen >= body_end or not is_name_byte(text_byte(source, pos + pnlen));
+            if before_ok and after_ok {
+                count = count + 1;
+            };
+        };
+        pos = pos + 1;
+    };
+    count
+}
+
+fn is_name_byte(b: I32) -> Bool {
+    (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95
+}
+
+fn find_open_paren_before(source: Text, before_pos: I32) -> I32 {
+    let mut pos = before_pos - 1;
+    let mut found = -1;
+    while pos >= 0 and found < 0 {
+        if text_byte(source, pos) == 40 {
+            found = pos;
+        };
+        pos = pos - 1;
+    };
+    found
+}
+
+fn extract_params_text(source: Text, fn_name_end: I32, body_start: I32) -> Text {
+    let open_paren = find_open_paren_before(source, body_start);
+    if open_paren >= 0 and open_paren > fn_name_end {
+        let close_paren = find_matching_close_raw(source, open_paren);
+        if close_paren >= 0 and close_paren < body_start and close_paren > open_paren + 1 {
+            trim_text(text_slice(source, open_paren + 1, close_paren))
+        } else {
+            ""
+        }
+    } else {
+        ""
+    }
+}
+
+fn check_fn_ownership(source: Text, fn_name_start: I32, fn_name_end: I32, body_start: I32, body_end: I32) -> Text {
+    let fn_name = text_slice(source, fn_name_start, fn_name_end);
+    
+    let params_trimmed = extract_params_text(source, fn_name_end, body_start);
+    if is_empty(params_trimmed) {
+        ""
+    } else {
+        let mut diags = "";
+        let mut pi = 0;
+        let plen = text_len(params_trimmed);
+        while pi < plen {
+            let colon = find_byte_index(params_trimmed, 58, pi);
+            if colon < 0 {
+                pi = plen;
+            } else {
+                let comma = find_byte_index(params_trimmed, 44, colon + 1);
+                let param_end = if comma >= 0 { comma } else { plen };
+                let pname = trim_text(text_slice(params_trimmed, pi, colon));
+                let ptype = trim_text(text_slice(params_trimmed, colon + 1, param_end));
+                if not is_empty(pname) and is_affine_ownership_type(ptype) {
+                    let count = count_affine_param_uses_in_body(source, pname, body_start, body_end);
+                    if count > 1 {
+                        let msg = text_concat("affine value `", text_concat(pname, text_concat("` used ", text_concat(int_to_text(count), text_concat(" times in `", text_concat(fn_name, "`\n"))))));
+                        diags = if is_empty(diags) { msg } else { text_concat(diags, msg) };
+                    };
+                };
+                pi = if comma >= 0 { comma + 1 } else { plen };
+            };
+        };
+        diags
+    }
+}
+
+fn check_ownership_from(source: Text, state: ParseState) -> Text {
+    let mut cur_state = state;
+    let mut out = "";
+    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
+        if cur_state.cursor.kind == TokenKind.KwFn {
+            let name_span = top_level_name_span(source, cur_state);
+            let parsed = parse_fn_item_with_shape(source, cur_state);
+            cur_state = parsed.state;
+            if name_span.present and parsed.shape.body_span.present {
+                let fn_name_start = name_span.span.start;
+                let fn_name_end = name_span.span.end;
+                let body_span = parsed.shape.body_span.span;
+                let body_start = body_span.start;
+                let body_end = body_span.end;
+                let diag = check_fn_ownership(source, fn_name_start, fn_name_end, body_start, body_end);
+                if not is_empty(diag) {
+                    out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                };
+            };
+        } else {
+            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, cur_state)
+            } else if cur_state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, cur_state)
+            } else {
+                parse_const_item(source, cur_state)
+            };
+        };
+    };
+    out
 }
 
 fn bool_score(value: Bool) -> I32 {
