@@ -15,6 +15,7 @@ const fn memarg(offset: u64) -> MemArg {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) struct RuntimeSections {
     pub(crate) types: TypeSection,
     pub(crate) imports: ImportSection,
@@ -3519,6 +3520,7 @@ pub(crate) fn emit_runtime_sections(
     })
 }
 
+#[allow(dead_code)]
 pub fn emit_runtime_module(
     program: &Program,
     records: &BTreeMap<String, WasmRecord>,

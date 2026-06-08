@@ -330,13 +330,13 @@ impl<'a> ObjectBackend<'a> {
                     builder.ins().return_(&[value]);
                 }
                 ValueRepr::Unit => {
-                    if let Some(rt) = &function.return_type {
-                        if rt != "Unit" {
-                            return Err(ObjectError::new(format!(
-                                "function `{}` has return type `{}` but no computed value for result",
-                                function.name, rt
-                            )));
-                        }
+                    if let Some(rt) = &function.return_type
+                        && rt != "Unit"
+                    {
+                        return Err(ObjectError::new(format!(
+                            "function `{}` has return type `{}` but no computed value for result",
+                            function.name, rt
+                        )));
                     }
                     builder.ins().return_(&[]);
                 }

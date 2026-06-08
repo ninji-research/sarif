@@ -530,10 +530,10 @@ fn emit_function(
 
     emit_instructions(&func.instructions, func, value_kinds, structs, enums, out)?;
 
-    if let Some(result) = &func.result {
-        if ret_type != "void" {
-            out.line(&format!("return v{};", result.0))?;
-        }
+    if let Some(result) = &func.result
+        && ret_type != "void"
+    {
+        out.line(&format!("return v{};", result.0))?;
     }
     out.block_close()?;
     out.line("")?;
@@ -1929,10 +1929,10 @@ fn emit_main_wrapper(
 
     emit_instructions(&main.instructions, main, value_kinds, structs, enums, out)?;
 
-    if let Some(result) = &main.result {
-        if ret_type != "void" {
-            out.line(&format!("return v{};", result.0))?;
-        }
+    if let Some(result) = &main.result
+        && ret_type != "void"
+    {
+        out.line(&format!("return v{};", result.0))?;
     }
     out.indent -= 1;
     out.line("}")?;

@@ -2882,7 +2882,7 @@ impl ConstEvaluator<'_, '_> {
             let RuntimeValue::Int(value) = value else {
                 return Err(ConstEvalError::new(expr.span, "i64_from_i32 expects Int"));
             };
-            return Ok(ConstFlow::Value(RuntimeValue::I64(value as i64)));
+            return Ok(ConstFlow::Value(RuntimeValue::I64(value)));
         }
         if expr.callee == "parse_i32" && !self.functions.contains_key("parse_i32") {
             let [arg] = expr.args.as_slice() else {
@@ -9507,14 +9507,12 @@ impl<'a> Interpreter<'a> {
                     let RuntimeValue::Int(index) = index_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    if index >= 0 {
-                        if let Ok(idx) = usize::try_from(index) {
-                            if let Some(list_ref) = self.lists.get_mut(id as usize) {
-                                if let Some(slot) = list_ref.get_mut(idx) {
-                                    *slot = value_val;
-                                }
-                            }
-                        }
+                    if index >= 0
+                        && let Ok(idx) = usize::try_from(index)
+                        && let Some(list_ref) = self.lists.get_mut(id as usize)
+                        && let Some(slot) = list_ref.get_mut(idx)
+                    {
+                        *slot = value_val;
                     }
                     values[dest.0 as usize] = RuntimeValue::List(id);
                 }
@@ -9655,7 +9653,7 @@ impl<'a> Interpreter<'a> {
                     let RuntimeValue::Int(value) = value_val else {
                         return Err(RuntimeError::new("expected Int"));
                     };
-                    values[dest.0 as usize] = RuntimeValue::I64(value as i64);
+                    values[dest.0 as usize] = RuntimeValue::I64(value);
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;
