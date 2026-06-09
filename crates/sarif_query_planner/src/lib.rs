@@ -210,18 +210,14 @@ mod tests {
     fn test_parse_select_with_where() {
         let plan =
             parse_sql("SELECT id, name FROM users WHERE age > 18").expect("parse should succeed");
-        let Statement::Select(select) = &plan.statements[0] else {
-            panic!("expected select statement");
-        };
+        let Statement::Select(select) = &plan.statements[0];
         assert!(select.where_clause.is_some());
     }
 
     #[test]
     fn test_parse_select_with_limit() {
         let plan = parse_sql("SELECT * FROM users LIMIT 10").expect("parse should succeed");
-        let Statement::Select(select) = &plan.statements[0] else {
-            panic!("expected select statement");
-        };
+        let Statement::Select(select) = &plan.statements[0];
         assert_eq!(select.limit, Some(10));
     }
 }

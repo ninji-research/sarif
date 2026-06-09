@@ -11,10 +11,8 @@ pub extern "C" fn sarif_open(path: *const c_char) -> *mut SarifQuery {
         return ptr::null_mut();
     }
     let c_str = unsafe { CStr::from_ptr(path) };
-    match open_database(c_str.to_str().unwrap_or("")) {
-        Ok(query) => Box::into_raw(Box::new(query)),
-        Err(_) => ptr::null_mut(),
-    }
+    open_database(c_str.to_str().unwrap_or(""))
+        .map_or(ptr::null_mut(), |query| Box::into_raw(Box::new(query)))
 }
 
 #[unsafe(no_mangle)]
@@ -24,13 +22,12 @@ pub extern "C" fn sarif_prepare(db: *mut SarifQuery, sql: *const c_char) -> *mut
     }
     let query = unsafe { &*db };
     let c_str = unsafe { CStr::from_ptr(sql) };
-    match prepare_query(query, c_str.to_str().unwrap_or("")) {
-        Ok(plan) => Box::into_raw(Box::new(plan)),
-        Err(_) => ptr::null_mut(),
-    }
+    prepare_query(query, c_str.to_str().unwrap_or(""))
+        .map_or(ptr::null_mut(), |plan| Box::into_raw(Box::new(plan)))
 }
 
 #[unsafe(no_mangle)]
+#[allow(unused_variables)]
 pub extern "C" fn sarif_execute(plan: *mut SarifPlan) -> *mut SarifResult {
     if plan.is_null() {
         return ptr::null_mut();
@@ -45,7 +42,7 @@ pub extern "C" fn sarif_step(result: *mut SarifResult) -> c_long {
         return 0;
     }
     let res = unsafe { &mut *result };
-    if res.step() { 1 } else { 0 }
+    c_long::from(res.step())
 }
 
 #[unsafe(no_mangle)]
@@ -54,10 +51,10 @@ pub extern "C" fn sarif_column_text(result: *mut SarifResult, col: c_long) -> *c
         return ptr::null();
     }
     let res = unsafe { &*result };
-    match res.column_text(col as usize) {
-        Some(s) => CString::new(s.as_str()).unwrap().into_raw(),
-        None => ptr::null(),
-    }
+    let idx: usize = col.try_into().unwrap_or(0);
+    res.column_text(idx).map_or(ptr::null(), |s| {
+        CString::new(s.as_str()).unwrap().into_raw()
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -66,7 +63,8 @@ pub extern "C" fn sarif_column_int(result: *mut SarifResult, col: c_long) -> c_l
         return 0;
     }
     let res = unsafe { &*result };
-    res.column_int(col as usize).unwrap_or(0)
+    let idx: usize = col.try_into().unwrap_or(0);
+    res.column_int(idx).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
@@ -75,7 +73,8 @@ pub extern "C" fn sarif_column_double(result: *mut SarifResult, col: c_long) -> 
         return 0.0;
     }
     let res = unsafe { &*result };
-    res.column_double(col as usize).unwrap_or(0.0)
+    let idx: usize = col.try_into().unwrap_or(0);
+    res.column_double(idx).unwrap_or(0.0)
 }
 
 #[unsafe(no_mangle)]

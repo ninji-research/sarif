@@ -1864,14 +1864,12 @@ impl ImportedInfo {
                 function_returns
                     .entry(name.clone())
                     .or_insert_with(|| sig.return_type.render());
-                function_params
-                    .entry(name.clone())
-                    .or_insert_with(|| {
-                        sig.params
-                            .iter()
-                            .map(|(pname, pty, _)| (pname.clone(), pty.render()))
-                            .collect()
-                    });
+                function_params.entry(name.clone()).or_insert_with(|| {
+                    sig.params
+                        .iter()
+                        .map(|(pname, pty, _)| (pname.clone(), pty.render()))
+                        .collect()
+                });
             }
             for (name, layout) in &resolved.struct_layouts {
                 let field_names: Vec<String> = layout.iter().map(|(n, _)| n.clone()).collect();

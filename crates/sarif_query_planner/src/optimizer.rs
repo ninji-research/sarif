@@ -7,15 +7,13 @@ pub struct Optimizer;
 impl Optimizer {
     #[must_use]
     pub fn optimize(&self, plan: &QueryPlan) -> OptimizedPlan {
-        let optimized_statements: Vec<OptimizedStatement> = plan
+        let stmts: Vec<OptimizedStatement> = plan
             .statements
             .iter()
             .map(|stmt| self.optimize_statement(stmt))
             .collect();
 
-        OptimizedPlan {
-            statements: optimized_statements,
-        }
+        OptimizedPlan { statements: stmts }
     }
 
     fn optimize_statement(&self, stmt: &Statement) -> OptimizedStatement {
@@ -28,10 +26,10 @@ impl Optimizer {
     }
 
     fn optimize_select(&self, plan: &SelectPlan) -> OptimizedSelect {
-        let select_order = self.determine_select_order(plan);
+        let order = self.determine_select_order(plan);
         OptimizedSelect {
             original: plan.clone(),
-            execution_order: select_order,
+            execution_order: order,
         }
     }
 
@@ -167,12 +165,9 @@ mod tests {
         };
 
         let optimizer = Optimizer;
-        let optimized = optimizer.optimize(&plan);
+        let opt = optimizer.optimize(&plan);
 
-        assert!(matches!(
-            optimized.statements[0],
-            OptimizedStatement::Select(_)
-        ));
+        assert!(matches!(opt.statements[0], OptimizedStatement::Select(_)));
     }
 
     #[test]
@@ -195,9 +190,9 @@ mod tests {
         };
 
         let optimizer = Optimizer;
-        let optimized = optimizer.optimize(&plan);
+        let opt = optimizer.optimize(&plan);
 
-        let OptimizedStatement::Select(opt_select) = &optimized.statements[0];
+        let OptimizedStatement::Select(opt_select) = &opt.statements[0];
         assert!(
             opt_select
                 .execution_order
@@ -229,9 +224,9 @@ mod tests {
         };
 
         let optimizer = Optimizer;
-        let optimized = optimizer.optimize(&plan);
+        let opt = optimizer.optimize(&plan);
 
-        let OptimizedStatement::Select(opt_select) = &optimized.statements[0];
+        let OptimizedStatement::Select(opt_select) = &opt.statements[0];
         assert!(opt_select.execution_order.contains(&SelectOperation::Joins));
     }
 }

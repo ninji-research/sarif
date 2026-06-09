@@ -2,17 +2,20 @@
 
 use std::cell::RefCell;
 
+use crate::optimizer::OptimizedPlan;
 use crate::{SarifPlan, SarifQuery, SarifResult, open_database, prepare_query};
 
 thread_local! {
-    static CURRENT_DB: RefCell<Option<SarifQuery>> = RefCell::new(None);
-    static CURRENT_RESULT: RefCell<Option<SarifResult>> = RefCell::new(None);
+    static CURRENT_DB: RefCell<Option<SarifQuery>> = const { RefCell::new(None) };
+    static CURRENT_RESULT: RefCell<Option<SarifResult>> = const { RefCell::new(None) };
 }
 
+#[allow(dead_code)]
 pub struct SarifQueryHandle {
     db: SarifQuery,
 }
 
+#[allow(dead_code)]
 impl SarifQueryHandle {
     pub fn open(path: &str) -> Result<Self, String> {
         let db = open_database(path)?;
@@ -28,34 +31,41 @@ impl SarifQueryHandle {
     }
 }
 
+#[allow(dead_code)]
 pub struct SarifPlanHandle {
     plan: SarifPlan,
 }
 
+#[allow(dead_code)]
 impl SarifPlanHandle {
-    pub fn execute(&self) -> Result<SarifResultSetHandle, String> {
+    pub fn execute() -> SarifResultSetHandle {
         let result = SarifResult::default();
         CURRENT_RESULT.with(|cell| {
             *cell.borrow_mut() = Some(result.clone());
         });
-        Ok(SarifResultSetHandle { result })
+        SarifResultSetHandle { result }
     }
 }
 
+#[allow(dead_code)]
 pub struct SarifResultSetHandle {
     result: SarifResult,
 }
 
+#[allow(dead_code)]
 impl SarifResultSetHandle {
-    pub fn next(&mut self) -> bool {
+    #[must_use]
+    pub const fn next(&mut self) -> bool {
         self.result.step()
     }
 
-    pub fn column_count(&self) -> usize {
+    #[must_use]
+    pub const fn column_count(&self) -> usize {
         self.result.column_count()
     }
 
-    pub fn row_count(&self) -> usize {
+    #[must_use]
+    pub const fn row_count(&self) -> usize {
         self.result.row_count()
     }
 
@@ -73,14 +83,14 @@ impl SarifResultSetHandle {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_plan_pretty(plan: &SarifPlan) -> String {
-    if let Some(ref optimized) = plan.optimized {
-        optimized.pretty()
-    } else {
-        String::from("no optimized plan")
-    }
+    plan.optimized
+        .as_ref()
+        .map_or_else(|| String::from("no optimized plan"), OptimizedPlan::pretty)
 }
 
-pub fn execute_plan(_plan: &SarifPlan) -> Result<SarifResult, String> {
-    Ok(SarifResult::default())
+#[allow(dead_code)]
+pub fn execute_plan(_plan: &SarifPlan) -> SarifResult {
+    SarifResult::default()
 }
