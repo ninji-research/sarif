@@ -3,7 +3,7 @@ mod capi;
 mod codegen;
 mod optimizer;
 mod plan;
-#[cfg(feature = "capi")]
+#[cfg(any(feature = "wasm-api", feature = "capi"))]
 mod wasm_api;
 
 pub use codegen::{CodegenError, generate_sarif};

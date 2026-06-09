@@ -10,6 +10,7 @@ thread_local! {
     static CURRENT_RESULT: RefCell<Option<SarifResult>> = const { RefCell::new(None) };
 }
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct SarifQueryHandle {
     db: SarifQuery,
@@ -31,6 +32,7 @@ impl SarifQueryHandle {
     }
 }
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct SarifPlanHandle {
     plan: SarifPlan,
@@ -47,6 +49,7 @@ impl SarifPlanHandle {
     }
 }
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct SarifResultSetHandle {
     result: SarifResult,
@@ -93,4 +96,86 @@ pub fn get_plan_pretty(plan: &SarifPlan) -> String {
 #[allow(dead_code)]
 pub fn execute_plan(_plan: &SarifPlan) -> SarifResult {
     SarifResult::default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::optimizer::OptimizedPlan;
+
+    #[test]
+    fn test_get_plan_pretty_with_optimized() {
+        let db = SarifQuery::default();
+        let optimized = OptimizedPlan::default();
+        let plan = SarifPlan {
+            query: db,
+            optimized: Some(optimized),
+        };
+        let pretty = get_plan_pretty(&plan);
+        assert!(pretty.contains("OPTIMIZED PLAN"));
+    }
+
+    #[test]
+    fn test_get_plan_pretty_no_optimized() {
+        let db = SarifQuery::default();
+        let plan = SarifPlan {
+            query: db,
+            optimized: None,
+        };
+        assert_eq!(get_plan_pretty(&plan), "no optimized plan");
+    }
+
+    #[test]
+    fn test_execute_plan_returns_default_result() {
+        let db = SarifQuery::default();
+        let plan = SarifPlan {
+            query: db,
+            optimized: None,
+        };
+        let result = execute_plan(&plan);
+        assert_eq!(result.column_count(), 0);
+        assert_eq!(result.row_count(), 0);
+    }
+
+    #[test]
+    fn test_sarif_result_set_handle() {
+        let result = SarifResult {
+            columns: vec!["id".to_string(), "name".to_string()],
+            rows: vec![
+                vec!["1".to_string(), "alice".to_string()],
+                vec!["2".to_string(), "bob".to_string()],
+            ],
+            current_row: 0,
+        };
+        let mut handle = SarifResultSetHandle { result };
+
+        assert!(handle.next());
+        assert_eq!(handle.column_count(), 2);
+        assert_eq!(handle.row_count(), 2);
+        assert_eq!(handle.get_column("id"), Some("1".to_string()));
+        assert_eq!(handle.get_column_by_index(1), Some("alice".to_string()));
+
+        assert!(handle.next());
+        assert_eq!(handle.get_column("id"), Some("2".to_string()));
+
+        assert!(!handle.next());
+    }
+
+    #[test]
+    fn test_sarif_result_set_handle_empty() {
+        let result = SarifResult::default();
+        let mut handle = SarifResultSetHandle { result };
+
+        assert!(!handle.next());
+        assert_eq!(handle.column_count(), 0);
+        assert_eq!(handle.row_count(), 0);
+        assert_eq!(handle.get_column("anything"), None);
+    }
+
+    #[test]
+    fn test_sarif_query_handle_requires_existing_file() {
+        let result = SarifQueryHandle::open("/tmp/nonexistent_file_xyz");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
 }
