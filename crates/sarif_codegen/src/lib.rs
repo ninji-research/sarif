@@ -1844,6 +1844,7 @@ impl RuntimeValue {
 /// references to imported functions, structs, and enums during codegen.
 pub struct ImportedInfo {
     pub function_returns: BTreeMap<String, String>,
+    pub function_params: BTreeMap<String, Vec<(String, String)>>,
     pub struct_fields: BTreeMap<String, Vec<String>>,
     pub struct_layouts: BTreeMap<String, Vec<(String, String)>>,
     pub enum_variants: BTreeMap<String, Vec<EnumVariantType>>,
@@ -1853,6 +1854,7 @@ impl ImportedInfo {
     /// Build `ImportedInfo` from the frontend's resolved module map.
     pub fn from_resolved_modules(modules: &BTreeMap<String, ResolvedModule>) -> Self {
         let mut function_returns = BTreeMap::new();
+        let mut function_params = BTreeMap::new();
         let mut struct_fields = BTreeMap::new();
         let mut struct_layouts = BTreeMap::new();
         let mut enum_variants = BTreeMap::new();
@@ -1862,6 +1864,14 @@ impl ImportedInfo {
                 function_returns
                     .entry(name.clone())
                     .or_insert_with(|| sig.return_type.render());
+                function_params
+                    .entry(name.clone())
+                    .or_insert_with(|| {
+                        sig.params
+                            .iter()
+                            .map(|(pname, pty, _)| (pname.clone(), pty.render()))
+                            .collect()
+                    });
             }
             for (name, layout) in &resolved.struct_layouts {
                 let field_names: Vec<String> = layout.iter().map(|(n, _)| n.clone()).collect();
@@ -1887,6 +1897,7 @@ impl ImportedInfo {
 
         Self {
             function_returns,
+            function_params,
             struct_fields,
             struct_layouts,
             enum_variants,
