@@ -32,6 +32,11 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
 
         loop {
+            // Optional `pub` modifier — consumed and ignored by AST
+            if self.at(TokenKind::KwPub) {
+                children.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut children);
+            }
             if self.at(TokenKind::KwEnum) {
                 children.push(Element::Node(self.parse_enum_item()));
             } else if self.at(TokenKind::KwStruct) {
@@ -56,7 +61,7 @@ impl<'a> Parser<'a> {
             let token = self.bump();
             self.diagnostics.push(Diagnostic::new(
                 "parse.out-of-order-item",
-                format!("unexpected token `{:?}`: expected a top-level item (enum, struct, effect, extern, const, fn)", token.kind),
+                format!("unexpected token `{:?}`: expected a top-level item (pub, enum, struct, effect, extern, const, fn)", token.kind),
                 token.span,
                 Some("Move this item to its canonical section.".to_owned()),
             ));

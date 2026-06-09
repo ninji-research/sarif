@@ -79,6 +79,7 @@ pub enum TokenKind {
     KwNot,
     KwOr,
     KwPerform,
+    KwPub,
     KwRepeat,
     KwRequires,
     KwStruct,
