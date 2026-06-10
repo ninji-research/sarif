@@ -1,4 +1,4 @@
-use sarif_query_planner::{generate_sarif, open_database, prepare_query, OptimizedStatement};
+use sarif_query_planner::{OptimizedStatement, generate_sarif, open_database, prepare_query};
 
 #[test]
 fn test_prepare_query_with_where() {

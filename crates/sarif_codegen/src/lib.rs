@@ -4185,6 +4185,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_intern" if self.builtin_is_available("text_intern") => {
                 self.lower_text_intern_expr(expr)
             }
+            "text_promote" if self.builtin_is_available("text_promote") => {
+                self.lower_text_intern_expr(expr)
+            }
             "text_index_get" if self.builtin_is_available("text_index_get") => {
                 self.lower_text_index_get_expr(expr)
             }
@@ -4614,6 +4617,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 LowerType::Text
             }
             "text_intern" if self.builtin_is_available("text_intern") => LowerType::Text,
+            "text_promote" if self.builtin_is_available("text_promote") => LowerType::Text,
             "text_index_get" if self.builtin_is_available("text_index_get") => LowerType::I32,
             "text_index_contains" if self.builtin_is_available("text_index_contains") => {
                 LowerType::I32

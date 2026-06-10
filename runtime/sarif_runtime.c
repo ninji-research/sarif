@@ -397,6 +397,13 @@ __attribute__((used)) const unsigned char* sarif_text_intern(const unsigned char
     return sarif_intern_find_or_insert(text + 8, len);
 }
 
+// Promote an arena-allocated text value to process lifetime.
+// The returned pointer is valid for the program's entire lifetime
+// and may be deduplicated with other promoted or interned text.
+__attribute__((used)) const unsigned char* sarif_text_promote(const unsigned char* text) {
+    return sarif_text_intern(text);
+}
+
 uint64_t sarif_text_len(const unsigned char* text) {
     if (text == NULL) { return 0; }
     return sarif_load_u64(text, 0);

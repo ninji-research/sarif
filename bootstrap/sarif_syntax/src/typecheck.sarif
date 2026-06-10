@@ -102,6 +102,7 @@ fn get_builtin_fn_return_type(fn_name: Text) -> Text {
     else if text_eq_simple(fn_name, "text_builder_append_i32") { "TextBuilder" }
     else if text_eq_simple(fn_name, "text_builder_finish") { "Text" }
     else if text_eq_simple(fn_name, "text_intern") { "Text" }
+    else if text_eq_simple(fn_name, "text_promote") { "Text" }
     else if text_eq_simple(fn_name, "text_index_new") { "TextIndex" }
     else if text_eq_simple(fn_name, "text_index_get") { "I32" }
     else if text_eq_simple(fn_name, "text_index_contains") { "Bool" }
@@ -151,6 +152,7 @@ fn is_builtin_fn(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "text_builder_append_i32") { true }
     else if text_eq_simple(fn_name, "text_builder_finish") { true }
     else if text_eq_simple(fn_name, "text_intern") { true }
+    else if text_eq_simple(fn_name, "text_promote") { true }
     else if text_eq_simple(fn_name, "text_index_new") { true }
     else if text_eq_simple(fn_name, "text_index_get") { true }
     else if text_eq_simple(fn_name, "text_index_contains") { true }
@@ -274,6 +276,38 @@ fn typecheck_hir_module(module: HirModuleData) -> Text {
     };
     if i <= enums_list.len {
         diags = text_concat(diags, "error: too many enum definitions (only 16 supported)\n");
+    };
+    
+    i = 1;
+    let consts_list = module.consts;
+    while i <= consts_list.len and i <= 16 {
+        let opt = if i == 1 { consts_list.c1 }
+             else if i == 2 { consts_list.c2 }
+             else if i == 3 { consts_list.c3 }
+             else if i == 4 { consts_list.c4 }
+             else if i == 5 { consts_list.c5 }
+             else if i == 6 { consts_list.c6 }
+             else if i == 7 { consts_list.c7 }
+             else if i == 8 { consts_list.c8 }
+             else if i == 9 { consts_list.c9 }
+             else if i == 10 { consts_list.c10 }
+             else if i == 11 { consts_list.c11 }
+             else if i == 12 { consts_list.c12 }
+             else if i == 13 { consts_list.c13 }
+             else if i == 14 { consts_list.c14 }
+             else if i == 15 { consts_list.c15 }
+             else { consts_list.c16 };
+        if opt.present {
+            known_types = add_name_to_table(known_types, opt.c.name);
+            let e2 = check_type_ref_exists(opt.c.ty, known_types);
+            if not is_empty_text(e2) {
+                diags = text_concat(diags, e2);
+            };
+        };
+        i = i + 1;
+    };
+    if i <= consts_list.len {
+        diags = text_concat(diags, "error: too many const definitions (only 16 supported)\n");
     };
     
     i = 1;

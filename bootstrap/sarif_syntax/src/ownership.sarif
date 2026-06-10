@@ -174,6 +174,7 @@ fn is_borrow_only_builtin(fn_name: Text) -> Bool {
     else if text_eq_simple(fn_name, "text_cmp") { true }
     else if text_eq_simple(fn_name, "text_eq_range") { true }
     else if text_eq_simple(fn_name, "text_intern") { true }
+    else if text_eq_simple(fn_name, "text_promote") { true }
     else if text_eq_simple(fn_name, "text_line_end") { true }
     else if text_eq_simple(fn_name, "text_next_line") { true }
     else if text_eq_simple(fn_name, "text_field_end") { true }

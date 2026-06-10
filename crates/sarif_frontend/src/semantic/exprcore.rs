@@ -701,6 +701,17 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &["Pass a Text argument to intern."],
             dispatch_simple: true,
         }),
+        "text_promote" => Some(BuiltinEntry {
+            name: "text_promote",
+            runtime_code: None,
+            arity_error_code: "semantic.text_promote-arity",
+            type_error_code: "semantic.text_promote-type",
+            result_ty: Type::Text,
+            call_hint: "Call `text_promote(text)`.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text argument to promote to process lifetime."],
+            dispatch_simple: true,
+        }),
         "text_slice" => Some(BuiltinEntry {
             name: "text_slice",
             runtime_code: None,

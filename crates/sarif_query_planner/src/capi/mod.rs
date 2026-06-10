@@ -208,9 +208,9 @@ mod tests {
         assert_eq!(sarif_column_int(ptr::null_mut(), 0), 0);
     }
 
-#[test]
-#[allow(clippy::approx_constant)]
-fn test_sarif_column_double() {
+    #[test]
+    #[allow(clippy::approx_constant)]
+    fn test_sarif_column_double() {
         let ptr = Box::into_raw(Box::new(SarifResult {
             columns: vec!["val".to_string()],
             rows: vec![vec!["3.14".to_string()]],
@@ -257,7 +257,11 @@ fn test_sarif_column_double() {
 
         let query_ptr = Box::into_raw(Box::new(SarifQuery::default()));
         assert!(sarif_prepare(query_ptr, ptr::null_mut()).is_null());
-        assert!(sarif_prepare(ptr::null_mut(), CString::new("SELECT 1").unwrap().as_ptr()).is_null());
-        unsafe { drop(Box::from_raw(query_ptr)); }
+        assert!(
+            sarif_prepare(ptr::null_mut(), CString::new("SELECT 1").unwrap().as_ptr()).is_null()
+        );
+        unsafe {
+            drop(Box::from_raw(query_ptr));
+        }
     }
 }
