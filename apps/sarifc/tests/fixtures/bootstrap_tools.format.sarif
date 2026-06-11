@@ -88,6 +88,7 @@ enum ExprKind {
     Call,
     Index,
     Binary,
+    Unary,
 }
 
 enum MirInst {
@@ -102,6 +103,7 @@ enum MirInst {
     Sub,
     Mul,
     Div,
+    Rem,
     BitAnd,
     BitOr,
     BitXor,
@@ -342,13 +344,24 @@ struct OptionalBlockItemEntry {
 }
 
 struct BlockOutline {
-    total_count: I32,
-    truncated: Bool,
-    first: OptionalBlockItemEntry,
-    second: OptionalBlockItemEntry,
-    third: OptionalBlockItemEntry,
-    fourth: OptionalBlockItemEntry,
-    fifth: OptionalBlockItemEntry,
+total_count: I32,
+truncated: Bool,
+first: OptionalBlockItemEntry,
+second: OptionalBlockItemEntry,
+third: OptionalBlockItemEntry,
+fourth: OptionalBlockItemEntry,
+fifth: OptionalBlockItemEntry,
+sixth: OptionalBlockItemEntry,
+seventh: OptionalBlockItemEntry,
+eighth: OptionalBlockItemEntry,
+ninth: OptionalBlockItemEntry,
+tenth: OptionalBlockItemEntry,
+eleventh: OptionalBlockItemEntry,
+twelfth: OptionalBlockItemEntry,
+thirteenth: OptionalBlockItemEntry,
+fourteenth: OptionalBlockItemEntry,
+fifteenth: OptionalBlockItemEntry,
+sixteenth: OptionalBlockItemEntry,
 }
 
 enum SyntaxEventKind {
@@ -406,6 +419,7 @@ enum TokenKind {
     Comment,
     Comma,
     Dot,
+    DotDot,
     Ident,
     Integer,
     Float,
@@ -428,7 +442,6 @@ enum TokenKind {
     KwNot,
     KwOr,
     KwPerform,
-    KwPub,
     KwRepeat,
     KwRequires,
     KwStruct,
@@ -465,6 +478,8 @@ enum TokenKind {
     Ampersand,
     Shl,
     Shr,
+    Percent,
+    PercentEq,
     Invalid,
     Eof,
 }
@@ -604,8 +619,8 @@ fn make_event_stream(total_count: I32, truncated: Bool, first: OptionalSyntaxEve
     EventStream { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
 }
 
-fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry) -> BlockOutline {
-    BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth }
+fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry, sixth: OptionalBlockItemEntry, seventh: OptionalBlockItemEntry, eighth: OptionalBlockItemEntry, ninth: OptionalBlockItemEntry, tenth: OptionalBlockItemEntry, eleventh: OptionalBlockItemEntry, twelfth: OptionalBlockItemEntry, thirteenth: OptionalBlockItemEntry, fourteenth: OptionalBlockItemEntry, fifteenth: OptionalBlockItemEntry, sixteenth: OptionalBlockItemEntry) -> BlockOutline {
+    BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
 }
 
 fn missing_block_item_entry() -> OptionalBlockItemEntry {
@@ -613,31 +628,75 @@ fn missing_block_item_entry() -> OptionalBlockItemEntry {
 }
 
 fn block_outline_new() -> BlockOutline {
-    make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
+    make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
 }
 
 fn block_outline_push(outline: BlockOutline, entry: OptionalBlockItemEntry) -> BlockOutline {
     let next_count = outline.total_count + 1;
     if outline.total_count == 0 {
-        make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth)
+    make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
     } else {
-        if outline.total_count == 1 {
-            make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth)
-        } else {
-            if outline.total_count == 2 {
-                make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth)
-            } else {
-                if outline.total_count == 3 {
-                    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth)
-                } else {
-                    if outline.total_count == 4 {
-                        make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry)
-                    } else {
-                        make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth)
-                    }
-                }
-            }
-        }
+    if outline.total_count == 1 {
+    make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 2 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 3 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 4 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 5 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, entry, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 6 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, entry, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 7 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, entry, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 8 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, entry, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 9 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, entry, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 10 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, entry, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 11 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, entry, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 12 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, entry, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 13 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, entry, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 14 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, entry, outline.sixteenth)
+    } else {
+    if outline.total_count == 15 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, entry)
+    } else {
+    make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
     }
 }
 
@@ -906,25 +965,69 @@ fn fn_outline_entry_at(outline: FnOutline, index: I32) -> OptionalFnOutlineEntry
 
 fn block_item_entry_at(outline: BlockOutline, index: I32) -> OptionalBlockItemEntry {
     if index == 0 {
-        outline.first
+    outline.first
     } else {
-        if index == 1 {
-            outline.second
-        } else {
-            if index == 2 {
-                outline.third
-            } else {
-                if index == 3 {
-                    outline.fourth
-                } else {
-                    if index == 4 {
-                        outline.fifth
-                    } else {
-                        missing_block_item_entry()
-                    }
-                }
-            }
-        }
+    if index == 1 {
+    outline.second
+    } else {
+    if index == 2 {
+    outline.third
+    } else {
+    if index == 3 {
+    outline.fourth
+    } else {
+    if index == 4 {
+    outline.fifth
+    } else {
+    if index == 5 {
+    outline.sixth
+    } else {
+    if index == 6 {
+    outline.seventh
+    } else {
+    if index == 7 {
+    outline.eighth
+    } else {
+    if index == 8 {
+    outline.ninth
+    } else {
+    if index == 9 {
+    outline.tenth
+    } else {
+    if index == 10 {
+    outline.eleventh
+    } else {
+    if index == 11 {
+    outline.twelfth
+    } else {
+    if index == 12 {
+    outline.thirteenth
+    } else {
+    if index == 13 {
+    outline.fourteenth
+    } else {
+    if index == 14 {
+    outline.fifteenth
+    } else {
+    if index == 15 {
+    outline.sixteenth
+    } else {
+    missing_block_item_entry()
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
     }
 }
 
@@ -1053,7 +1156,7 @@ fn append_clause_event(stream: EventStream, kind: SyntaxEventKind, span: Optiona
 fn append_block_events(stream: EventStream, outline: BlockOutline) -> EventStream {
     let mut current = stream;
     let mut index = 0;
-    while index < 5 {
+    while index < 16 {
         let entry = block_item_entry_at(outline, index);
         if entry.present {
             current = event_stream_push(current, make_optional_syntax_event(true, make_syntax_event(block_event_kind(entry.entry.kind), entry.entry.expr_span, entry.entry.binding_span, entry.entry.expr_kind)));
@@ -1100,22 +1203,10 @@ fn module_report_from_state(state: ParseState, top_level: TopLevelReport, outlin
     } else {
         let start = state.cursor.start;
         let raw_end = state.cursor.end;
-        let end = if raw_end > start {
-            raw_end
-        } else {
-            start + 1
-        };
-        let clamped_end = if end > text_len(source) {
-            text_len(source)
-        } else {
-            end
-        };
+        let end = if raw_end > start { raw_end } else { start + 1 };
+        let clamped_end = if end > text_len(source) { text_len(source) } else { end };
         let lexeme = text_slice(source, start, clamped_end);
-        let ctx_start = if start > 40 {
-            start - 40
-        } else {
-            0
-        };
+        let ctx_start = if start > 40 { start - 40 } else { 0 };
         let context = text_slice(source, ctx_start, start);
         if text_len(lexeme) == 0 {
             text_concat("invalid: unexpected end of input after `", text_concat(context, "`\n"))
@@ -1403,6 +1494,38 @@ fn scan_comment(source: Text, offset: I32, len: I32) -> I32 {
     end
 }
 
+fn scan_exponent(source: Text, offset: I32, len: I32) -> I32 {
+    if offset < len {
+        let b = text_byte(source, offset);
+        if b == 101 or b == 69 {
+            let after_e = offset + 1;
+            if after_e < len {
+                let c = text_byte(source, after_e);
+                if c == 43 or c == 45 {
+                    let after_sign = after_e + 1;
+                    if after_sign < len and is_digit(text_byte(source, after_sign)) {
+                        scan_while(source, after_sign, len, ByteClass.Digit)
+                    } else {
+                        offset
+                    }
+                } else {
+                    if is_digit(c) {
+                        scan_while(source, after_e, len, ByteClass.Digit)
+                    } else {
+                        offset
+                    }
+                }
+            } else {
+                offset
+            }
+        } else {
+            offset
+        }
+    } else {
+        offset
+    }
+}
+
 fn scan_string(source: Text, offset: I32, len: I32) -> I32 {
     let mut end = offset + 1;
     let mut escaped = false;
@@ -1606,48 +1729,55 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
         41 => {
             make_single(TokenKind.RParen, offset)
         },
-        45 => {
+         45 => {
             if next_is(source, offset, len, 62) {
                 make_double(TokenKind.Arrow, offset)
+            } else if next_is(source, offset, len, 61) {
+                make_double(TokenKind.MinusEq, offset)
             } else {
-                if next_is(source, offset, len, 61) {
-                    make_double(TokenKind.MinusEq, offset)
-                } else {
-                    make_single(TokenKind.Minus, offset)
-                }
+                make_single(TokenKind.Minus, offset)
             }
         },
-        47 => {
+         47 => {
             if next_is(source, offset, len, 47) {
                 make_token(TokenKind.Comment, offset, scan_comment(source, offset, len))
+            } else if next_is(source, offset, len, 61) {
+                make_double(TokenKind.SlashEq, offset)
             } else {
-                if next_is(source, offset, len, 61) {
-                    make_double(TokenKind.SlashEq, offset)
-                } else {
-                    make_single(TokenKind.Slash, offset)
-                }
+                make_single(TokenKind.Slash, offset)
+    }
+        },
+         37 => {
+            if next_is(source, offset, len, 61) {
+                make_double(TokenKind.PercentEq, offset)
+            } else {
+                make_single(TokenKind.Percent, offset)
             }
         },
-        42 => {
+         42 => {
             if next_is(source, offset, len, 61) {
                 make_double(TokenKind.StarEq, offset)
             } else {
                 make_single(TokenKind.Star, offset)
             }
         },
-        58 => {
+         58 => {
             make_single(TokenKind.Colon, offset)
         },
         44 => {
             make_single(TokenKind.Comma, offset)
         },
         46 => {
-            make_single(TokenKind.Dot, offset)
+            if next_is(source, offset, len, 46) {
+                make_double(TokenKind.DotDot, offset)
+            } else {
+                make_single(TokenKind.Dot, offset)
+            }
         },
         59 => {
             make_single(TokenKind.Semicolon, offset)
         },
-        43 => {
+         43 => {
             if next_is(source, offset, len, 61) {
                 make_double(TokenKind.PlusEq, offset)
             } else {
@@ -1665,29 +1795,25 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
                 }
             }
         },
-        62 => {
+         62 => {
             if next_is(source, offset, len, 61) {
                 make_double(TokenKind.Ge, offset)
+            } else if next_is(source, offset, len, 62) {
+                make_double(TokenKind.Shr, offset)
             } else {
-                if next_is(source, offset, len, 62) {
-                    make_double(TokenKind.Shr, offset)
-                } else {
-                    make_single(TokenKind.Gt, offset)
-                }
+                make_single(TokenKind.Gt, offset)
             }
         },
         123 => {
             make_single(TokenKind.LBrace, offset)
         },
-        60 => {
+         60 => {
             if next_is(source, offset, len, 61) {
                 make_double(TokenKind.Le, offset)
+            } else if next_is(source, offset, len, 60) {
+                make_double(TokenKind.Shl, offset)
             } else {
-                if next_is(source, offset, len, 60) {
-                    make_double(TokenKind.Shl, offset)
-                } else {
-                    make_single(TokenKind.Lt, offset)
-                }
+                make_single(TokenKind.Lt, offset)
             }
         },
         91 => {
@@ -1706,16 +1832,16 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
         93 => {
             make_single(TokenKind.RBracket, offset)
         },
-        95 => {
+         95 => {
             make_single(TokenKind.Underscore, offset)
         },
-        124 => {
+         124 => {
             make_single(TokenKind.Pipe, offset)
         },
-        38 => {
+         38 => {
             make_single(TokenKind.Ampersand, offset)
         },
-        _ => {
+         _ => {
             make_single(TokenKind.Invalid, offset)
         },
     }
@@ -1741,11 +1867,17 @@ fn lex_next(source: Text, offset: I32) -> Token {
             LeadClass.Digit => {
                 let start = offset;
                 let end = scan_while(source, offset, len, ByteClass.Digit);
-                if end < len and text_byte(source, end) == 46 {
+                if end < len and text_byte(source, end) == 46 and text_byte(source, end + 1) != 46 {
                     let after_dot = scan_while(source, end + 1, len, ByteClass.Digit);
-                    make_token(TokenKind.Float, start, after_dot)
+                    let after_exp = scan_exponent(source, after_dot, len);
+                    make_token(TokenKind.Float, start, after_exp)
                 } else {
-                    make_token(TokenKind.Integer, start, end)
+                    let after_exp = scan_exponent(source, end, len);
+                    if after_exp != end {
+                        make_token(TokenKind.Float, start, after_exp)
+                    } else {
+                        make_token(TokenKind.Integer, start, end)
+                    }
                 }
             },
             LeadClass.Other => {
@@ -1897,6 +2029,9 @@ fn infix_left_bp(kind: TokenKind) -> I32 {
         TokenKind.Slash => {
             9
         },
+        TokenKind.Percent => {
+            9
+        },
         TokenKind.Dot => {
             11
         },
@@ -1969,42 +2104,39 @@ fn next_after_name(source: Text, cursor: Token) -> Token {
                 keep_going = false;
                 current = next;
             };
-        } else {
-            if current.kind == TokenKind.LBracket {
-                let mut depth = 1;
-                let mut scan = next_significant(source, current.offset);
-                while depth > 0 and scan.kind != TokenKind.Eof {
-                    if scan.kind == TokenKind.LBracket {
-                        depth = depth + 1;
-                    } else {
-                        if scan.kind == TokenKind.RBracket {
-                            depth = depth - 1;
-                        }
-                    };
-                    if depth > 0 {
-                        scan = next_significant(source, scan.offset);
-                    };
+        } else if current.kind == TokenKind.LBracket {
+            let mut depth = 1;
+            let mut scan = next_significant(source, current.offset);
+            while depth > 0 and scan.kind != TokenKind.Eof {
+                if scan.kind == TokenKind.LBracket {
+                    depth = depth + 1;
+                } else if scan.kind == TokenKind.RBracket {
+                    depth = depth - 1;
                 };
-                if scan.kind == TokenKind.RBracket {
-                    current = next_significant(source, scan.offset);
-                } else {
-                    keep_going = false;
-                    current = scan;
+                if depth > 0 {
+                    scan = next_significant(source, scan.offset);
                 };
+            };
+            if scan.kind == TokenKind.RBracket {
+                current = next_significant(source, scan.offset);
             } else {
                 keep_going = false;
-            }
+                current = scan;
+            };
+        } else {
+            keep_going = false;
         };
     };
     current
 }
 
 fn is_assign_op(kind: TokenKind) -> Bool {
-    kind == TokenKind.Eq or
-    kind == TokenKind.PlusEq or
-    kind == TokenKind.MinusEq or
-    kind == TokenKind.StarEq or
-    kind == TokenKind.SlashEq
+    kind == TokenKind.Eq
+        or kind == TokenKind.PlusEq
+        or kind == TokenKind.MinusEq
+        or kind == TokenKind.StarEq
+        or kind == TokenKind.SlashEq
+        or kind == TokenKind.PercentEq
 }
 
 fn starts_assign(source: Text, state: ParseState) -> Bool {
@@ -2117,7 +2249,13 @@ fn parse_match_pattern(source: Text, state: ParseState) -> ParseState {
             parse_payload_pattern(source, parse_named_type(source, state))
         },
         TokenKind.Integer => {
-            parse_expect(source, state, TokenKind.Integer)
+            let after_int = parse_expect(source, state, TokenKind.Integer);
+            if after_int.cursor.kind == TokenKind.DotDot {
+                let after_dotdot = parse_expect(source, after_int, TokenKind.DotDot);
+                parse_expect(source, after_dotdot, TokenKind.Integer)
+            } else {
+                after_int
+            }
         },
         TokenKind.String => {
             parse_expect(source, state, TokenKind.String)
@@ -2505,12 +2643,10 @@ fn parse_tuple_pattern(source: Text, state: ParseState) -> SpannedParse {
     while current.status == ParseStatus.Ok and current.cursor.kind != TokenKind.RParen and current.cursor.kind != TokenKind.Eof {
         if current.cursor.kind == TokenKind.Ident {
             current = parse_expect(source, current, TokenKind.Ident);
+        } else if current.cursor.kind == TokenKind.Comma {
+            current = parse_expect(source, current, TokenKind.Comma);
         } else {
-            if current.cursor.kind == TokenKind.Comma {
-                current = parse_expect(source, current, TokenKind.Comma);
-            } else {
-                current = with_parse_state(current, current.cursor, ParseStatus.Err);
-            }
+            current = with_parse_state(current, current.cursor, ParseStatus.Err);
         };
     };
     if current.status == ParseStatus.Ok {
@@ -2569,22 +2705,23 @@ fn parse_stmt(source: Text, state: ParseState) -> BlockEntry {
 }
 
 fn is_binary_operator_token(kind: TokenKind) -> Bool {
-    kind == TokenKind.EqEq or
-    kind == TokenKind.NotEq or
-    kind == TokenKind.Lt or
-    kind == TokenKind.Gt or
-    kind == TokenKind.Le or
-    kind == TokenKind.Ge or
-    kind == TokenKind.Plus or
-    kind == TokenKind.Minus or
-    kind == TokenKind.Star or
-    kind == TokenKind.Slash or
-    kind == TokenKind.KwAnd or
-    kind == TokenKind.KwOr or
-    kind == TokenKind.Pipe or
-    kind == TokenKind.Ampersand or
-    kind == TokenKind.Shl or
-    kind == TokenKind.Shr
+    kind == TokenKind.EqEq
+        or kind == TokenKind.NotEq
+        or kind == TokenKind.Lt
+        or kind == TokenKind.Gt
+        or kind == TokenKind.Le
+        or kind == TokenKind.Ge
+        or kind == TokenKind.Plus
+        or kind == TokenKind.Minus
+        or kind == TokenKind.Star
+        or kind == TokenKind.Slash
+        or kind == TokenKind.Percent
+        or kind == TokenKind.KwAnd
+        or kind == TokenKind.KwOr
+        or kind == TokenKind.Pipe
+        or kind == TokenKind.Ampersand
+        or kind == TokenKind.Shl
+        or kind == TokenKind.Shr
 }
 
 fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
@@ -2593,16 +2730,12 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
             let after_name = parse_named_type(source, state);
             if after_name.cursor.kind == TokenKind.LParen {
                 ExprKind.Call
+            } else if starts_record_literal(source, after_name) {
+                ExprKind.Record
+            } else if is_binary_operator_token(after_name.cursor.kind) {
+                ExprKind.Binary
             } else {
-                if starts_record_literal(source, after_name) {
-                    ExprKind.Record
-                } else {
-                    if is_binary_operator_token(after_name.cursor.kind) {
-                        ExprKind.Binary
-                    } else {
-                        ExprKind.Name
-                    }
-                }
+                ExprKind.Name
             }
         },
         TokenKind.Integer => {
@@ -2665,6 +2798,9 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
         },
         TokenKind.KwWhile => {
             ExprKind.While
+        },
+        TokenKind.KwNot => {
+            ExprKind.Unary
         },
         _ => {
             ExprKind.Name
@@ -2823,10 +2959,15 @@ fn parse_module_report(source: Text) -> ModuleReport {
 }
 
 fn syntax_selfcheck() -> I32 {
-    let sample = "struct Pair { left: I32, right: [I32; 2], }\nenum OptionText { none, some(Text), }\nconst answer: I32 = 40 + 2;\nfn build(start: I32) -> Token { let token = Token { kind: TokenKind.Ident, start: start, end: start + 1, offset: start + 1 }; token }\nfn pick(pair: Pair) -> Pair effects [alloc] requires answer == 42 ensures true { let value = pair; if not false and answer == 42 or false { value } else { pair } }\n";
+    let sample = "struct Pair { left: I32, right: [I32;
+    2], }\nenum OptionText { none, some(Text), }\nconst answer: I32 = 40 + 2;
+    \nfn build(start: I32) -> Token { let token = Token { kind: TokenKind.Ident, start: start, end: start + 1, offset: start + 1 };
+    token }\nfn pick(pair: Pair) -> Pair effects [alloc] requires answer == 42 ensures true { let value = pair;
+    if not false and answer == 42 or false { value } else { pair } }\n";
     let sample_ok = report_matches_sample(parse_module_report(sample));
     let empty_ok = report_matches_empty_module(parse_module_report("fn main() {}"));
-    let broken_ok = parse_module_report("fn broken() { let value = ; }").ok == false;
+    let broken_ok = parse_module_report("fn broken() { let value = ;
+    }").ok == false;
     if sample_ok and empty_ok and broken_ok {
         report_score(parse_module_report(sample))
     } else {
@@ -2969,6 +3110,9 @@ fn mir_inst_tag_is_alloc_push(tag: MirInst) -> Bool {
             false
         },
         MirInst.Div => {
+            false
+        },
+        MirInst.Rem => {
             false
         },
         MirInst.BitAnd => {
@@ -3137,6 +3281,9 @@ fn mir_inst_tag_name(tag: MirInst) -> Text {
         },
         MirInst.Div => {
             "div"
+        },
+        MirInst.Rem => {
+            "rem"
         },
         MirInst.BitAnd => {
             "bit-and"
@@ -3336,6 +3483,10 @@ fn mir_inst_div(dest: I32, left: I32, right: I32) -> MirInstData {
     MirInstData { tag: MirInst.Div, a: dest, b: left, c: right, d: 0, t1: "", t2: "" }
 }
 
+fn mir_inst_rem(dest: I32, left: I32, right: I32) -> MirInstData {
+    MirInstData { tag: MirInst.Rem, a: dest, b: left, c: right, d: 0, t1: "", t2: "" }
+}
+
 fn mir_inst_bitand(dest: I32, left: I32, right: I32) -> MirInstData {
     MirInstData { tag: MirInst.BitAnd, a: dest, b: left, c: right, d: 0, t1: "", t2: "" }
 }
@@ -3503,48 +3654,28 @@ fn is_empty(source: Text) -> Bool {
 fn int_to_text(n: I32) -> Text {
     if n < 0 {
         text_concat("-", int_to_text(0 - n))
+    } else if n == 0 {
+        "0"
+    } else if n == 1 {
+        "1"
+    } else if n == 2 {
+        "2"
+    } else if n == 3 {
+        "3"
+    } else if n == 4 {
+        "4"
+    } else if n == 5 {
+        "5"
+    } else if n == 6 {
+        "6"
+    } else if n == 7 {
+        "7"
+    } else if n == 8 {
+        "8"
+    } else if n == 9 {
+        "9"
     } else {
-        if n == 0 {
-            "0"
-        } else {
-            if n == 1 {
-                "1"
-            } else {
-                if n == 2 {
-                    "2"
-                } else {
-                    if n == 3 {
-                        "3"
-                    } else {
-                        if n == 4 {
-                            "4"
-                        } else {
-                            if n == 5 {
-                                "5"
-                            } else {
-                                if n == 6 {
-                                    "6"
-                                } else {
-                                    if n == 7 {
-                                        "7"
-                                    } else {
-                                        if n == 8 {
-                                            "8"
-                                        } else {
-                                            if n == 9 {
-                                                "9"
-                                            } else {
-                                                text_concat(int_to_text(n / 10), int_to_text(n % 10))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        text_concat(int_to_text(n / 10), int_to_text(n % 10))
     }
 }
 
@@ -3782,7 +3913,7 @@ fn rewrite_body_lines_from(source: Text, index: I32) -> Text {
                 if is_empty(right) {
                     left
                 } else {
-                    text_concat(left, text_concat("\n", text_concat(indent_text(leading_indent_end(line, 0)), right)))
+                    text_concat(left, text_concat("\n", text_concat(indent_text(leading_indent_end(line, 0)), rewrite_body_lines_from(right, 0))))
                 }
             } else {
                 line
@@ -3892,11 +4023,7 @@ fn body_source_text(source: Text, shape: FnHeaderShape) -> Text {
         if end <= start {
             ""
         } else {
-            let body_start = if text_byte(raw, start) == 123 {
-                start + 1
-            } else {
-                start
-            };
+            let body_start = if text_byte(raw, start) == 123 { start + 1 } else { start };
             let body_end = if body_start < end and text_byte(raw, end - 1) == 125 {
                 end - 1
             } else {
@@ -3913,7 +4040,10 @@ fn body_source_text(source: Text, shape: FnHeaderShape) -> Text {
             if is_empty(trimmed) {
                 ""
             } else {
-                rewrite_body_lines_from(strip_indent_lines_from(trimmed, 0, first_content_indent(trimmed, 0)), 0)
+                rewrite_body_lines_from(
+                    strip_indent_lines_from(trimmed, 0, first_content_indent(trimmed, 0)),
+                    0,
+                )
             }
         }
     } else {
@@ -3977,10 +4107,8 @@ fn count_enum_variants(source: Text, start: I32, end: I32) -> I32 {
                     if b == 44 {
                         count = count + 1;
                         after_comma = true;
-                    } else {
-                        if not (b == 9 or b == 10 or b == 13 or b == 32) {
-                            after_comma = false;
-                        }
+                    } else if not (b == 9 or b == 10 or b == 13 or b == 32) {
+                        after_comma = false;
                     };
                     i = i + 1;
                 };
@@ -4156,6 +4284,9 @@ fn expr_kind_text(kind: ExprKind) -> Text {
         ExprKind.Binary => {
             "binary"
         },
+        ExprKind.Unary => {
+            "unary"
+        },
     }
 }
 
@@ -4236,30 +4367,6 @@ fn outline_text_from(source: Text, state: ParseState) -> Text {
     }
 }
 
-fn contains_blocked_effect(source: Text, span: OptionalSpan) -> Bool {
-    if span.present {
-        let text = span_text(source, span);
-        if text_starts_with_at(text, "io", 0) or text_starts_with_at(text, "alloc", 0) or text_starts_with_at(text, "async", 0) or text_starts_with_at(text, "parallel", 0) {
-            true
-        } else {
-            let io_idx = find_operator_index(text, "io", 0);
-            let alloc_idx = find_operator_index(text, "alloc", 0);
-            let async_idx = find_operator_index(text, "async", 0);
-            let parallel_idx = find_operator_index(text, "parallel", 0);
-            io_idx >= 0 or
-            alloc_idx >= 0 or
-            async_idx >= 0 or
-            parallel_idx >= 0
-        }
-    } else {
-        false
-    }
-}
-
-fn fn_has_blocked_effect(source: Text, shape: FnHeaderShape) -> Bool {
-    contains_blocked_effect(source, shape.effects_span)
-}
-
 fn extract_const_value_from_span(source: Text, item_start: I32, item_end: I32) -> Text {
     let item_text = text_slice(source, item_start, item_end);
     let eq_pos = find_byte_index(item_text, 61, 0);
@@ -4292,61 +4399,6 @@ fn struct_body_contains_affine(source: Text, body_start: I32, body_end: I32) -> 
     }
 }
 
-fn outline_doc_text_from(source: Text, state: ParseState) -> Text {
-    if state.status == ParseStatus.Err or state.cursor.kind == TokenKind.Eof {
-        ""
-    } else {
-        let item_start = state.cursor.start;
-        let name_span = top_level_name_span(source, state);
-        if state.cursor.kind == TokenKind.KwStruct {
-            let next = parse_struct_item(source, state);
-            let name = name_text(source, name_span);
-            let has_affine = struct_body_contains_affine(source, item_start, next.cursor.start);
-            let ownership = if has_affine {
-                "`contains affine fields`"
-            } else {
-                "`plain value`"
-            };
-            let rt_status = "`profile-compatible`";
-            let current = text_concat("## struct ", text_concat(name, text_concat("\n\n- ownership: ", text_concat(ownership, text_concat("\n- rt status: ", text_concat(rt_status, "\n\n"))))));
-            text_concat(current, outline_doc_text_from(source, next))
-        } else {
-            if state.cursor.kind == TokenKind.KwEnum {
-                let next = parse_enum_item(source, state);
-                let name = name_text(source, name_span);
-                let variant_count = count_enum_variants(source, state.cursor.start, next.cursor.start);
-                let variants_text = text_concat("`", text_concat(int_to_text(variant_count), "`"));
-                let current = text_concat("## enum ", text_concat(name, text_concat("\n\n- variants: ", text_concat(variants_text, "\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n"))));
-                text_concat(current, outline_doc_text_from(source, next))
-            } else {
-                if state.cursor.kind == TokenKind.KwConst {
-                    let next = parse_const_item(source, state);
-                    let name = name_text(source, name_span);
-                    let value = extract_const_value_from_span(source, item_start, next.cursor.start);
-                    let current = text_concat("## const ", text_concat(name, text_concat("\n\n- type: `I32`\n- value: `", text_concat(value, "`\n"))));
-                    text_concat(current, outline_doc_text_from(source, next))
-                } else {
-                    if state.cursor.kind == TokenKind.KwFn {
-                        let parsed = parse_fn_item_with_shape(source, state);
-                        let name = name_text(source, name_span);
-                        let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
-                        let ownership = if name == "main" {
-                            "`affine-safe in stage-0`"
-                        } else {
-                            "`consumes affine arguments`"
-                        };
-                        let rt_status = "`profile-compatible`";
-                        let current = text_concat("## fn ", text_concat(name, text_concat("\n\n- signature: `", text_concat(sig, text_concat("`\n- ownership: ", text_concat(ownership, text_concat("\n- rt status: ", text_concat(rt_status, "\n\n"))))))));
-                        text_concat(current, outline_doc_text_from(source, parsed.state))
-                    } else {
-                        ""
-                    }
-                }
-            }
-        }
-    }
-}
-
 fn outline_doc_text(source: Text) -> Text effects [alloc] {
     let mut state = parse_state_new(source);
     let mut out = text_builder_new();
@@ -4357,62 +4409,48 @@ fn outline_doc_text(source: Text) -> Text effects [alloc] {
             let next = parse_struct_item(source, state);
             let name = name_text(source, name_span);
             let has_affine = struct_body_contains_affine(source, item_start, next.cursor.start);
-            let ownership = if has_affine {
-                "`contains affine fields`"
-            } else {
-                "`plain value`"
-            };
-            out = out + "## struct ";
-            out = out + name;
-            out = out + "\n\n- ownership: ";
-            out = out + ownership;
-            out = out + "\n- rt status: `profile-compatible`\n\n";
+            let ownership = if has_affine { "`contains affine fields`" } else { "`plain value`" };
+            out += "## struct ";
+            out += name;
+            out += "\n\n- ownership: ";
+            out += ownership;
+            out += "\n- rt status: `profile-compatible`\n\n";
             state = next;
+        } else if state.cursor.kind == TokenKind.KwEnum {
+            let next = parse_enum_item(source, state);
+            let name = name_text(source, name_span);
+            let variant_count = count_enum_variants(source, item_start, next.cursor.start);
+            out += "## enum ";
+            out += name;
+            out += "\n\n- variants: `";
+            out += int_to_text(variant_count);
+            out += "`\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n";
+            state = next;
+        } else if state.cursor.kind == TokenKind.KwConst {
+            let next = parse_const_item(source, state);
+            let name = name_text(source, name_span);
+            let value = extract_const_value_from_span(source, item_start, next.cursor.start);
+            out += "## const ";
+            out += name;
+            out += "\n\n- type: `I32`\n- value: `";
+            out += value;
+            out += "`\n";
+            state = next;
+        } else if state.cursor.kind == TokenKind.KwFn {
+            let parsed = parse_fn_item_with_shape(source, state);
+            let name = name_text(source, name_span);
+            let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
+            let ownership = if name == "main" { "`affine-safe in stage-0`" } else { "`consumes affine arguments`" };
+            out += "## fn ";
+            out += name;
+            out += "\n\n- signature: `";
+            out += sig;
+            out += "`\n- ownership: ";
+            out += ownership;
+            out += "\n- rt status: `profile-compatible`\n\n";
+            state = parsed.state;
         } else {
-            if state.cursor.kind == TokenKind.KwEnum {
-                let next = parse_enum_item(source, state);
-                let name = name_text(source, name_span);
-                let variant_count = count_enum_variants(source, item_start, next.cursor.start);
-                out = out + "## enum ";
-                out = out + name;
-                out = out + "\n\n- variants: `";
-                out = out + int_to_text(variant_count);
-                out = out + "`\n- ownership: `plain tag`\n- rt status: `profile-compatible`\n\n";
-                state = next;
-            } else {
-                if state.cursor.kind == TokenKind.KwConst {
-                    let next = parse_const_item(source, state);
-                    let name = name_text(source, name_span);
-                    let value = extract_const_value_from_span(source, item_start, next.cursor.start);
-                    out = out + "## const ";
-                    out = out + name;
-                    out = out + "\n\n- type: `I32`\n- value: `";
-                    out = out + value;
-                    out = out + "`\n";
-                    state = next;
-                } else {
-                    if state.cursor.kind == TokenKind.KwFn {
-                        let parsed = parse_fn_item_with_shape(source, state);
-                        let name = name_text(source, name_span);
-                        let sig = fn_signature_text(source, make_top_level_entry(TopLevelKind.Fn, make_span(item_start, item_start), name_span), parsed.shape);
-                        let ownership = if name == "main" {
-                            "`affine-safe in stage-0`"
-                        } else {
-                            "`consumes affine arguments`"
-                        };
-                        out = out + "## fn ";
-                        out = out + name;
-                        out = out + "\n\n- signature: `";
-                        out = out + sig;
-                        out = out + "`\n- ownership: ";
-                        out = out + ownership;
-                        out = out + "\n- rt status: `profile-compatible`\n\n";
-                        state = parsed.state;
-                    } else {
-                        state = parse_fn_item(source, state);
-                    }
-                }
-            }
+            state = parse_fn_item(source, state);
         };
     };
     text_builder_finish(out)
@@ -4444,13 +4482,24 @@ fn name_table_has(table: Text, name: Text) -> Bool {
             end == text_len(table) or text_byte(table, end) == 10
         } else {
             let search = text_concat("\n", name);
-            let idx = find_operator_index(table, search, 0);
-            if idx < 0 {
-                false
-            } else {
-                let after = idx + text_len(search);
-                after >= text_len(table) or text_byte(table, after) == 10
-            }
+            let mut idx = 0;
+            let mut found = false;
+            let mut searching = true;
+            while searching {
+                idx = find_operator_index(table, search, idx);
+                if idx < 0 {
+                    searching = false;
+                } else {
+                    let after = idx + text_len(search);
+                    if after >= text_len(table) or text_byte(table, after) == 10 {
+                        found = true;
+                        searching = false;
+                    } else {
+                        idx = after;
+                    };
+                };
+            };
+            found
         }
     }
 }
@@ -4488,76 +4537,77 @@ fn extract_call_callee(expr_text: Text) -> Text {
     }
 }
 
-fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text {
-    let mut cur_state = state;
-    let mut cur_names = names;
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        let name_span = top_level_name_span(source, cur_state);
-        cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-            parse_struct_item(source, cur_state)
-        } else {
-            if cur_state.cursor.kind == TokenKind.KwEnum {
-                parse_enum_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwConst {
-                    parse_const_item(source, cur_state)
-                } else {
-                    parse_fn_item(source, cur_state)
-                }
-            }
-        };
-        let cur_name = name_text(source, name_span);
-        if not is_empty(cur_name) and cur_name != "_" {
-            cur_names = name_table_add(cur_names, cur_name);
-        };
-    };
-    cur_names
-}
-
-fn collect_all_names(source: Text) -> Text {
-    collect_all_names_from(source, parse_state_new(source), "")
-}
-
-fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text {
-    let mut cur_state = state;
-    let mut seen = "";
-    let mut out = "";
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        let name_span = top_level_name_span(source, cur_state);
-        cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-            parse_struct_item(source, cur_state)
-        } else {
-            if cur_state.cursor.kind == TokenKind.KwEnum {
-                parse_enum_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwConst {
-                    parse_const_item(source, cur_state)
-                } else {
-                    parse_fn_item(source, cur_state)
-                }
-            }
-        };
-        if name_span.present {
-            let name = text_slice(source, name_span.span.start, name_span.span.end);
-            if not is_empty(name) and name != "_" {
-                if name_table_has(seen, name) {
-                    let diag = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
-                    out = if is_empty(out) {
-                        diag
-                    } else {
-                        text_concat(out, diag)
-                    };
-                } else {
-                    seen = name_table_add(seen, name);
-                };
-            };
-        };
-    };
-    out
-}
-
 fn is_builtin_fn(name: Text) -> Bool {
-    name_table_has("text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_contains\ntext_index_get_or_insert\ntext_index_set\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\nlen", name)
+    name_table_has("text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_contains\ntext_index_get_or_insert\ntext_index_set\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\ntext_intern\ntext_promote\nlen", name)
+}
+
+fn builtin_return_type(name: Text) -> Text {
+    if text_cmp(name, "text_len") == 0 { "I32" }
+    else if text_cmp(name, "text_byte") == 0 { "I32" }
+    else if text_cmp(name, "text_cmp") == 0 { "I32" }
+    else if text_cmp(name, "text_find_byte_range") == 0 { "I32" }
+    else if text_cmp(name, "text_index_contains") == 0 { "Bool" }
+    else if text_cmp(name, "text_index_get") == 0 { "I32" }
+    else if text_cmp(name, "text_index_get_or_insert") == 0 { "I32" }
+    else if text_cmp(name, "text_line_end") == 0 { "I32" }
+    else if text_cmp(name, "text_next_field") == 0 { "I32" }
+    else if text_cmp(name, "text_next_line") == 0 { "I32" }
+    else if text_cmp(name, "bytes_len") == 0 { "I32" }
+    else if text_cmp(name, "bytes_byte") == 0 { "I32" }
+    else if text_cmp(name, "bytes_find_byte_range") == 0 { "I32" }
+    else if text_cmp(name, "file_seek") == 0 { "I32" }
+    else if text_cmp(name, "file_size") == 0 { "I32" }
+    else if text_cmp(name, "file_tell") == 0 { "I32" }
+    else if text_cmp(name, "file_write") == 0 { "I32" }
+    else if text_cmp(name, "parse_i32") == 0 { "I32" }
+    else if text_cmp(name, "parse_i32_range") == 0 { "I32" }
+    else if text_cmp(name, "enum_to_i32") == 0 { "I32" }
+    else if text_cmp(name, "len") == 0 { "I32" }
+    else if text_cmp(name, "list_len") == 0 { "I32" }
+    else if text_cmp(name, "arg_count") == 0 { "I32" }
+    else if text_cmp(name, "text_slice") == 0 { "Text" }
+    else if text_cmp(name, "text_concat") == 0 { "Text" }
+    else if text_cmp(name, "text_from_f64_fixed") == 0 { "Text" }
+    else if text_cmp(name, "text_intern") == 0 { "Text" }
+    else if text_cmp(name, "text_promote") == 0 { "Text" }
+    else if text_cmp(name, "text_builder_finish") == 0 { "Text" }
+    else if text_cmp(name, "stdin_text") == 0 { "Text" }
+    else if text_cmp(name, "arg_text") == 0 { "Text" }
+    else if text_cmp(name, "bytes_to_text") == 0 { "Text" }
+    else if text_cmp(name, "codepoint_to_text") == 0 { "Text" }
+    else if text_cmp(name, "enum_to_text") == 0 { "Text" }
+    else if text_cmp(name, "text_eq_range") == 0 { "Bool" }
+    else if text_cmp(name, "file_exists") == 0 { "Bool" }
+    else if text_cmp(name, "file_is_valid") == 0 { "Bool" }
+    else if text_cmp(name, "file_remove") == 0 { "Bool" }
+    else if text_cmp(name, "stdout_write") == 0 { "Unit" }
+    else if text_cmp(name, "alloc_pop") == 0 { "Unit" }
+    else if text_cmp(name, "alloc_push") == 0 { "Unit" }
+    else if text_cmp(name, "file_close") == 0 { "Unit" }
+    else if text_cmp(name, "const_assert") == 0 { "Unit" }
+    else if text_cmp(name, "list_set") == 0 { "Unit" }
+    else if text_cmp(name, "list_push") == 0 { "Unit" }
+    else if text_cmp(name, "file_read") == 0 { "Bytes" }
+    else if text_cmp(name, "file_read_to_end") == 0 { "Bytes" }
+    else if text_cmp(name, "stdin_bytes") == 0 { "Bytes" }
+    else if text_cmp(name, "bytes_slice") == 0 { "Bytes" }
+    else if text_cmp(name, "text_index_new") == 0 { "TextIndex" }
+    else if text_cmp(name, "text_index_set") == 0 { "TextIndex" }
+    else if text_cmp(name, "text_builder_new") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_codepoint") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_ascii") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_i32") == 0 { "TextBuilder" }
+    else if text_cmp(name, "text_builder_append_slice") == 0 { "TextBuilder" }
+    else if text_cmp(name, "stdout_write_builder") == 0 { "TextBuilder" }
+    else if text_cmp(name, "file_open") == 0 { "File" }
+    else if text_cmp(name, "list_new") == 0 { "List" }
+    else if text_cmp(name, "list_sort_text") == 0 { "List" }
+    else if text_cmp(name, "list_sort_by_text_field") == 0 { "List" }
+    else if text_cmp(name, "f64_from_i32") == 0 { "F64" }
+    else if text_cmp(name, "sqrt") == 0 { "F64" }
+    else if text_cmp(name, "list_get") == 0 { "Text" }
+    else { "I32" }
 }
 
 fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
@@ -4581,13 +4631,10 @@ fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
             };
             if name_start < name_end {
                 let callee = text_slice(text, name_start, name_end);
-                if callee != "_" and not name_table_has(known, callee) and not is_builtin_fn(callee) {
+                let before_name_is_dot = name_start > 0 and text_byte(text, name_start - 1) == 46;
+                if callee != "_" and not before_name_is_dot and not name_table_has(known, callee) and not is_builtin_fn(callee) {
                     let err = text_concat("error: unknown function `", text_concat(callee, "`\n"));
-                    out = if is_empty(out) {
-                        err
-                    } else {
-                        text_concat(out, err)
-                    };
+                    out = if is_empty(out) { err } else { text_concat(out, err) };
                 };
             };
             let next_pos = find_byte_index(text, 40, pos + 1);
@@ -4602,7 +4649,7 @@ fn check_expr_for_calls(source: Text, expr_span: Span, known: Text) -> Text {
 }
 
 fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, known: Text) -> Text {
-    if index >= 5 {
+    if index >= outline.total_count {
         ""
     } else {
         let entry = block_item_entry_at(outline, index);
@@ -4638,36 +4685,6 @@ fn check_body_outline_calls(source: Text, outline: BlockOutline, index: I32, kno
     }
 }
 
-fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text {
-    let mut cur_state = state;
-    let mut out = "";
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        if cur_state.cursor.kind == TokenKind.KwFn {
-            let parsed = parse_fn_item_with_shape(source, cur_state);
-            let body_diag = check_body_outline_calls(source, parsed.shape.body_outline, 0, known);
-            cur_state = parsed.state;
-            if not is_empty(body_diag) {
-                out = if is_empty(out) {
-                    body_diag
-                } else {
-                    text_concat(out, body_diag)
-                };
-            };
-        } else {
-            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, cur_state)
-                } else {
-                    parse_const_item(source, cur_state)
-                }
-            };
-        };
-    };
-    out
-}
-
 fn span_text_safe(source: Text, span: OptionalSpan) -> Text {
     if span.present {
         text_slice(source, span.span.start, span.span.end)
@@ -4685,17 +4702,6 @@ fn extract_type_text(type_text: Text) -> Text {
     }
 }
 
-fn is_builtin_type(name: Text) -> Bool {
-    name == "I32" or
-    name == "F64" or
-    name == "Bool" or
-    name == "Text" or
-    name == "Unit" or
-    name == "Bytes" or
-    name == "TextIndex" or
-    name == "TextBuilder"
-}
-
 fn is_numeric_type(ty: Text) -> Bool {
     ty == "I32" or ty == "F64"
 }
@@ -4706,11 +4712,7 @@ fn type_table_lookup(table: Text, key: Text) -> Text {
     } else {
         let sep = find_byte_index(table, 58, 0);
         let eol = find_byte_index(table, 10, 0);
-        let entry_end = if eol >= 0 {
-            eol
-        } else {
-            text_len(table)
-        };
+        let entry_end = if eol >= 0 { eol } else { text_len(table) };
         let entry_key = text_slice(table, 0, sep);
         let entry_val = text_slice(table, sep + 1, entry_end);
         if entry_key == key {
@@ -4743,11 +4745,7 @@ fn collect_struct_field_layout(body: Text) -> Text {
             offset = body_len;
         } else {
             let comma = find_byte_index(body, 44, colon + 1);
-            let field_end = if comma >= 0 {
-                comma
-            } else {
-                body_len
-            };
+            let field_end = if comma >= 0 { comma } else { body_len };
             let name = trim_text(text_slice(body, offset, colon));
             let ty = trim_text(text_slice(body, colon + 1, field_end));
             if not is_empty(name) and not is_empty(ty) {
@@ -4757,49 +4755,10 @@ fn collect_struct_field_layout(body: Text) -> Text {
                     text_concat(fields, text_concat(",", text_concat(name, text_concat(":", ty))))
                 };
             };
-            offset = if comma >= 0 {
-                comma + 1
-            } else {
-                body_len
-            };
+            offset = if comma >= 0 { comma + 1 } else { body_len };
         };
     };
     fields
-}
-
-fn collect_struct_types(source: Text, state: ParseState) -> Text {
-    let mut cur_state = state;
-    let mut types = "";
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        if cur_state.cursor.kind == TokenKind.KwStruct {
-            let name_span = top_level_name_span(source, cur_state);
-            let open_brace = find_byte_index(source, 123, cur_state.cursor.start);
-            let parsed = parse_struct_item(source, cur_state);
-            cur_state = parsed;
-            if name_span.present and open_brace >= 0 {
-                let close_brace = find_matching_close_raw(source, open_brace);
-                if close_brace > open_brace + 1 {
-                    let name = text_slice(source, name_span.span.start, name_span.span.end);
-                    let body = text_slice(source, open_brace + 1, close_brace - 1);
-                    let fields = collect_struct_field_layout(body);
-                    if not is_empty(name) and not is_empty(fields) {
-                        types = type_table_extend(types, name, fields);
-                    };
-                };
-            };
-        } else {
-            cur_state = if cur_state.cursor.kind == TokenKind.KwEnum {
-                parse_enum_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwConst {
-                    parse_const_item(source, cur_state)
-                } else {
-                    parse_fn_item(source, cur_state)
-                }
-            };
-        };
-    };
-    types
 }
 
 fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
@@ -4809,7 +4768,7 @@ fn infer_name_type(name: Text, locals: Text, consts: Text, fns: Text) -> Text {
     } else {
         let from_locals = type_table_lookup(locals, name);
         if not is_empty(from_locals) {
-            from_locals
+            strip_mut_prefix(from_locals)
         } else {
             let from_consts = type_table_lookup(consts, name);
             if not is_empty(from_consts) {
@@ -4885,20 +4844,12 @@ fn resolve_struct_field(field: Text, fields_text: Text) -> Text {
             let name_part = trim_text(text_slice(fields_text, 0, colon));
             let rest_start = colon + 1;
             let comma = find_byte_index(fields_text, 44, rest_start);
-            let type_end = if comma >= 0 {
-                comma
-            } else {
-                text_len(fields_text)
-            };
+            let type_end = if comma >= 0 { comma } else { text_len(fields_text) };
             let type_part = trim_text(text_slice(fields_text, rest_start, type_end));
             if name_part == field {
                 type_part
             } else {
-                let next_start = if comma >= 0 {
-                    comma + 1
-                } else {
-                    text_len(fields_text)
-                };
+                let next_start = if comma >= 0 { comma + 1 } else { text_len(fields_text) };
                 if next_start < text_len(fields_text) {
                     let rest = text_slice(fields_text, next_start, text_len(fields_text));
                     resolve_struct_field(field, rest)
@@ -4918,7 +4869,7 @@ fn infer_call_ret_type(source: Text, expr_span: Span, fns: Text) -> Text {
         let ret_type = type_table_lookup(fns, callee);
         if is_empty(ret_type) {
             if is_builtin_fn(callee) {
-                "I32"
+                builtin_return_type(callee)
             } else {
                 ""
             }
@@ -4954,10 +4905,8 @@ fn find_matching_close_raw(source: Text, start: I32) -> I32 {
             let b = text_byte(source, i);
             if b == open_byte {
                 depth = depth + 1;
-            } else {
-                if b == close_byte {
-                    depth = depth - 1;
-                }
+            } else if b == close_byte {
+                depth = depth - 1;
             };
             i = i + 1;
         };
@@ -4984,16 +4933,12 @@ fn skip_expr_text(source: Text, start: I32) -> I32 {
         b == 59;
         if is_space {
             i = i + 1;
+        } else if is_open {
+            i = find_matching_close_raw(source, i) + 1;
+        } else if is_stop {
+            done = true;
         } else {
-            if is_open {
-                i = find_matching_close_raw(source, i) + 1;
-            } else {
-                if is_stop {
-                    done = true;
-                } else {
-                    i = i + 1;
-                }
-            }
+            i = i + 1;
         };
     };
     i
@@ -5011,46 +4956,31 @@ fn find_operator_in_expr(source: Text, span: Span) -> Text {
             if is_eq {
                 op = "Bool";
             };
-        } else {
-            if b == 33 {
-                let is_ne = i + 1 < len and text_byte(expr_text, i + 1) == 61;
-                if is_ne {
+        } else if b == 33 {
+            let is_ne = i + 1 < len and text_byte(expr_text, i + 1) == 61;
+            if is_ne {
+                op = "Bool";
+            };
+        } else if b == 60 {
+            op = "Bool";
+        } else if b == 62 {
+            op = "Bool";
+        } else if b == 97 or b == 111 {
+            if b == 97 {
+                let is_and = i + 1 < len and text_byte(expr_text, i + 1) == 110 and i + 2 < len and text_byte(expr_text, i + 2) == 100;
+                if is_and {
                     op = "Bool";
                 };
             } else {
-                if b == 60 {
+                let is_or = i + 1 < len and text_byte(expr_text, i + 1) == 114;
+                if is_or {
                     op = "Bool";
-                } else {
-                    if b == 62 {
-                        op = "Bool";
-                    } else {
-                        if b == 97 or b == 111 {
-                            if b == 97 {
-                                let is_and = i + 1 < len and
-                                text_byte(expr_text, i + 1) == 110 and
-                                i + 2 < len and
-                                text_byte(expr_text, i + 2) == 100;
-                                if is_and {
-                                    op = "Bool";
-                                };
-                            } else {
-                                let is_or = i + 1 < len and text_byte(expr_text, i + 1) == 114;
-                                if is_or {
-                                    op = "Bool";
-                                };
-                            };
-                        } else {
-                            if b == 43 {
-                                op = "Add";
-                            } else {
-                                if b == 45 or b == 42 or b == 47 or b == 37 {
-                                    op = "I32";
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                };
+            };
+        } else if b == 43 {
+            op = "Add";
+        } else if b == 45 or b == 42 or b == 47 or b == 37 {
+            op = "I32";
         };
         i = i + 1;
     };
@@ -5082,6 +5012,45 @@ fn infer_binary_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text
     find_operator_in_expr(source, span)
 }
 
+fn infer_unary_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let trimmed = trim_text(expr_text);
+    let len = text_len(trimmed);
+    let mut i = 0;
+    let mut op_end = -1;
+    while i < len and op_end < 0 {
+        let b = text_byte(trimmed, i);
+        if b == 110 {
+            if i + 3 < len and text_slice(trimmed, i, i + 4) == "not " {
+                op_end = i + 4;
+            } else {
+                i = i + 1;
+            };
+        } else if b == 45 or b == 126 {
+            op_end = i + 1;
+        } else {
+            i = i + 1;
+        };
+    };
+    if op_end < 0 or op_end >= len {
+        ""
+    } else {
+        let operand = trim_text(text_slice(trimmed, op_end, len));
+        if is_empty(operand) {
+            ""
+        } else {
+            let operand_type = infer_snippet_type(operand, locals, consts, fns);
+            if is_empty(operand_type) {
+                ""
+            } else if text_byte(trimmed, 0) == 110 {
+                "Bool"
+            } else {
+                operand_type
+            }
+        }
+    }
+}
+
 fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
     let expr_text = text_slice(source, span.start, span.end);
     let else_pos = find_byte_index(expr_text, 101, 0);
@@ -5099,25 +5068,17 @@ fn infer_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns:
                 let else_kind = classify_expr_kind(else_trimmed, else_state);
                 if else_kind == ExprKind.Integer {
                     "I32"
+                } else if else_kind == ExprKind.Float {
+                    "F64"
+                } else if else_kind == ExprKind.Bool {
+                    "Bool"
+                } else if else_kind == ExprKind.String {
+                    "Text"
+                } else if else_kind == ExprKind.Name {
+                    let name_text_val = text_slice(else_trimmed, 0, text_len(else_trimmed));
+                    infer_name_type(name_text_val, locals, consts, fns)
                 } else {
-                    if else_kind == ExprKind.Float {
-                        "F64"
-                    } else {
-                        if else_kind == ExprKind.Bool {
-                            "Bool"
-                        } else {
-                            if else_kind == ExprKind.String {
-                                "Text"
-                            } else {
-                                if else_kind == ExprKind.Name {
-                                    let name_text_val = text_slice(else_trimmed, 0, text_len(else_trimmed));
-                                    infer_name_type(name_text_val, locals, consts, fns)
-                                } else {
-                                    ""
-                                }
-                            }
-                        }
-                    }
+                    ""
                 }
             }
         } else {
@@ -5208,6 +5169,9 @@ fn infer_expr_type_deep(source: Text, span: Span, kind: ExprKind, locals: Text, 
         ExprKind.Group => {
             infer_group_type_deep(source, span, locals, consts, fns)
         },
+        ExprKind.Unary => {
+            infer_unary_type_deep(source, span, locals, consts, fns)
+        },
         _ => {
             ""
         },
@@ -5219,18 +5183,10 @@ fn infer_expr_type_from_outline(source: Text, expr_span: OptionalSpan, expr_kind
         ""
     } else {
         match expr_kind {
-            ExprKind.Integer => {
-                "I32"
-            },
-            ExprKind.Float => {
-                "F64"
-            },
-            ExprKind.Bool => {
-                "Bool"
-            },
-            ExprKind.String => {
-                "Text"
-            },
+            ExprKind.Integer => { "I32" },
+            ExprKind.Float => { "F64" },
+            ExprKind.Bool => { "Bool" },
+            ExprKind.String => { "Text" },
             ExprKind.Name => {
                 let name_text_val = text_slice(source, expr_span.span.start, expr_span.span.end);
                 infer_name_type(name_text_val, locals, consts, fns)
@@ -5270,10 +5226,7 @@ fn is_simple_name(text: Text) -> Bool {
         let mut i = 0;
         while i < text_len(text) {
             let b = text_byte(text, i);
-            let valid = (b >= 97 and b <= 122) or
-            (b >= 65 and b <= 90) or
-            (b >= 48 and b <= 57) or
-            b == 95;
+            let valid = (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95;
             if not valid {
                 ok = false;
                 i = text_len(text);
@@ -5291,6 +5244,13 @@ fn format_type_diag(source: Text, span: Span, message: Text) -> Text {
     text_concat("error: ", text_concat(message, text_concat("\n  at >", text_concat(line_text, "\n"))))
 }
 
+fn format_type_diag_at(source: Text, span_start: I32, span_end: I32, message: Text) -> Text {
+    let line_start = line_start_index(source, span_start);
+    let line_end = find_line_end(source, span_start);
+    let line_text = text_slice(source, line_start, line_end);
+    text_concat("error: ", text_concat(message, text_concat("\n  at >", text_concat(line_text, "\n"))))
+}
+
 fn extract_param_types_from(source: Text, span: OptionalSpan) -> Text {
     if not span.present {
         ""
@@ -5301,11 +5261,7 @@ fn extract_param_types_from(source: Text, span: OptionalSpan) -> Text {
             ""
         } else {
             let open = find_byte_index(trimmed, 40, 0);
-            let close = if open >= 0 {
-                find_byte_index(trimmed, 41, open + 1)
-            } else {
-                -1
-            };
+            let close = if open >= 0 { find_byte_index(trimmed, 41, open + 1) } else { -1 };
             if open >= 0 and close > open {
                 let content = trim_text(text_slice(trimmed, open + 1, close));
                 parse_params_from(content, 0)
@@ -5326,11 +5282,7 @@ fn parse_params_from(content: Text, index: I32) -> Text {
         } else {
             let name = trim_text(text_slice(content, index, colon));
             let comma = find_byte_index(content, 44, colon + 1);
-            let type_end = if comma >= 0 {
-                comma
-            } else {
-                text_len(content)
-            };
+            let type_end = if comma >= 0 { comma } else { text_len(content) };
             let type_text = trim_text(text_slice(content, colon + 1, type_end));
             let entry = text_concat(name, text_concat(":", type_text));
             let rest = if comma >= 0 {
@@ -5358,18 +5310,10 @@ fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> T
         } else {
             let kind = classify_expr_kind(trimmed, parse_state);
             match kind {
-                ExprKind.Integer => {
-                    "I32"
-                },
-                ExprKind.Float => {
-                    "F64"
-                },
-                ExprKind.Bool => {
-                    "Bool"
-                },
-                ExprKind.String => {
-                    "Text"
-                },
+                ExprKind.Integer => { "I32" },
+                ExprKind.Float => { "F64" },
+                ExprKind.Bool => { "Bool" },
+                ExprKind.String => { "Text" },
                 ExprKind.Name => {
                     let name_val = trim_text(trimmed);
                     infer_name_type(name_val, locals, consts, fns)
@@ -5381,7 +5325,7 @@ fn infer_snippet_type(snippet: Text, locals: Text, consts: Text, fns: Text) -> T
                         let ret = type_table_lookup(fns, callee);
                         if is_empty(ret) {
                             if is_builtin_fn(callee) {
-                                "I32"
+                                builtin_return_type(callee)
                             } else {
                                 ""
                             }
@@ -5468,17 +5412,15 @@ fn extract_block_body(block_text: Text) -> Text {
     let trimmed = trim_text(block_text);
     if is_empty(trimmed) {
         ""
-    } else {
-        if text_byte(trimmed, 0) == 123 {
-            let close = find_matching_close_raw(trimmed, 0);
-            if close > 1 {
-                text_slice(trimmed, 1, close - 1)
-            } else {
-                ""
-            }
+    } else if text_byte(trimmed, 0) == 123 {
+        let close = find_matching_close_raw(trimmed, 0);
+        if close > 1 {
+            text_slice(trimmed, 1, close - 1)
         } else {
-            trimmed
+            ""
         }
+    } else {
+        trimmed
     }
 }
 
@@ -5486,17 +5428,15 @@ fn infer_branch_type(branch_text: Text, locals: Text, consts: Text, fns: Text) -
     let trimmed = trim_text(branch_text);
     if is_empty(trimmed) {
         "Unit"
-    } else {
-        if text_byte(trimmed, 0) == 123 {
-            let body = extract_block_body(branch_text);
-            if is_empty(body) {
-                "Unit"
-            } else {
-                infer_snippet_type(body, locals, consts, fns)
-            }
+    } else if text_byte(trimmed, 0) == 123 {
+        let body = extract_block_body(branch_text);
+        if is_empty(body) {
+            "Unit"
         } else {
-            infer_snippet_type(trimmed, locals, consts, fns)
+            infer_snippet_type(body, locals, consts, fns)
         }
+    } else {
+        infer_snippet_type(trimmed, locals, consts, fns)
     }
 }
 
@@ -5533,6 +5473,49 @@ fn check_if_type_deep(source: Text, span: Span, locals: Text, consts: Text, fns:
     }
 }
 
+fn check_unary_operator_args(source: Text, span: Span, locals: Text, consts: Text, fns: Text) -> Text {
+    let expr_text = text_slice(source, span.start, span.end);
+    let trimmed = trim_text(expr_text);
+    let len = text_len(trimmed);
+    let mut i = 0;
+    let mut op_end = -1;
+    while i < len and op_end < 0 {
+        let b = text_byte(trimmed, i);
+        if b == 110 {
+            if i + 3 < len and text_slice(trimmed, i, i + 4) == "not " {
+                op_end = i + 4;
+            } else {
+                i = i + 1;
+            };
+        } else if b == 45 or b == 126 {
+            op_end = i + 1;
+        } else {
+            i = i + 1;
+        };
+    };
+    if op_end < 0 or op_end >= len {
+        ""
+    } else {
+        let operand = trim_text(text_slice(trimmed, op_end, len));
+        if is_empty(operand) {
+            ""
+        } else {
+            let operand_type = infer_snippet_type(operand, locals, consts, fns);
+            if is_empty(operand_type) {
+                ""
+            } else if text_byte(trimmed, 0) == 110 {
+                if operand_type != "Bool" {
+                    format_type_diag(source, span, text_concat("operand of `not` must be `Bool`, found `", text_concat(operand_type, "`")))
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            }
+        }
+    }
+}
+
 fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprKind, locals: Text, consts: Text, fns: Text) -> Text {
     if expr_span.present {
         match expr_kind {
@@ -5545,6 +5528,9 @@ fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprK
             ExprKind.Match => {
                 check_match_arm_types(source, expr_span.span, locals, consts, fns)
             },
+            ExprKind.Unary => {
+                check_unary_operator_args(source, expr_span.span, locals, consts, fns)
+            },
             _ => {
                 ""
             },
@@ -5554,140 +5540,126 @@ fn check_expr_types_deep(source: Text, expr_span: OptionalSpan, expr_kind: ExprK
     }
 }
 
-fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
-    let parsed = parse_fn_item_with_shape(source, state);
-    let shape = parsed.shape;
-    let outline = shape.body_outline;
-    let return_span = shape.return_span;
+fn check_fn_return_type_from_shape(source: Text, body_outline: BlockOutline, return_span: OptionalSpan, params_span: OptionalSpan, body_span: OptionalSpan, consts: Text, fns: Text, known: Text) -> Text {
+    let outline = body_outline;
     let return_type_text = extract_type_text(span_text_safe(source, return_span));
-    let mut locals = extract_param_types_from(source, shape.params_span);
+    let mut locals = extract_param_types_from(source, params_span);
     let mut tail_type = "";
     let mut out = "";
     let mut index = 0;
-    while index < 5 {
-        let item = block_item_entry_at(outline, index);
-        if item.present {
-            let entry = item.entry;
-            let entry_kind = entry.kind;
-            let entry_binding = entry.binding_span;
+    while index < outline.total_count {
+    let item = block_item_entry_at(outline, index);
+    if item.present {
+    let entry = item.entry;
+    let entry_kind = entry.kind;
+    let entry_binding = entry.binding_span;
             let entry_expr = entry.expr_span;
             let entry_expr_kind = entry.expr_kind;
             if entry_kind == BlockItemKind.Let {
                 if entry_binding.present {
-                    let binding_name = text_slice(source, entry_binding.span.start, entry_binding.span.end);
+                    let binding_text_span = entry_binding.span;
+                    let binding_start = binding_text_span.start;
+                    let binding_end = binding_text_span.end;
+                    let binding_name = text_slice(source, binding_start, binding_end);
                     if not is_empty(type_table_lookup(locals, binding_name)) {
-                        let diag = format_type_diag(source, entry_binding.span, text_concat("duplicate local `", text_concat(binding_name, "`")));
-                        out = if is_empty(out) {
-                            diag
-                        } else {
-                            text_concat(out, diag)
-                        };
+                        let diag = format_type_diag_at(source, binding_start, binding_end, text_concat("duplicate local `", text_concat(binding_name, "`")));
+                        out = if is_empty(out) { diag } else { text_concat(out, diag) };
                     } else {
-                        if entry_expr_kind == ExprKind.Name and entry_expr.present {
-                            let name_str = text_slice(source, entry_expr.span.start, entry_expr.span.end);
-                            if is_simple_name(name_str) {
-                                let is_known = not is_empty(type_table_lookup(locals, name_str)) or
-                                not is_empty(type_table_lookup(consts, name_str)) or
-                                not is_empty(type_table_lookup(fns, name_str)) or
-                                not is_empty(type_table_lookup(known, name_str)) or
-                                is_builtin_fn(name_str);
-                                if not is_known {
-                                    let diag = format_type_diag(source, entry_expr.span, text_concat("unknown name `", text_concat(name_str, "`")));
-                                    out = if is_empty(out) {
-                                        diag
-                                    } else {
-                                        text_concat(out, diag)
-                                    };
-                                };
-                            };
-                        };
                         let inferred = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
                         if not is_empty(inferred) {
-                            locals = type_table_extend(locals, binding_name, inferred);
+                            let is_mutable = binding_start >= 5 and text_slice(source, binding_start - 4, binding_start) == "mut ";
+                            let entry_type = if is_mutable { text_concat("mut:", inferred) } else { inferred };
+                            locals = type_table_extend(locals, binding_name, entry_type);
                         };
-                        let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
-                        if not is_empty(deep_diag) {
-                            out = if is_empty(out) {
-                                deep_diag
+                    };
+                    let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                    if not is_empty(deep_diag) {
+                        out = if is_empty(out) { deep_diag } else { text_concat(out, deep_diag) };
+                    };
+                };
+            } else if entry_kind == BlockItemKind.Assign {
+                if entry_binding.present {
+                    let binding_span = entry_binding.span;
+                    let binding_start = binding_span.start;
+                    let binding_end = binding_span.end;
+                    let binding_text = text_slice(source, binding_start, binding_end);
+                    let has_index = find_byte_index(binding_text, 91, 0) >= 0;
+                    if has_index {
+                        let open_bracket = find_byte_index(binding_text, 91, 0);
+                        let target_name = trim_text(text_slice(binding_text, 0, open_bracket));
+                        if not is_empty(target_name) and is_simple_name(target_name) {
+                            let target_type = type_table_lookup(locals, target_name);
+                            if not is_empty(target_type) {
+                                if not is_array_or_list_type(target_type) {
+                                    let diag = format_type_diag_at(source, binding_start, binding_end, text_concat("cannot index into non-array type `", text_concat(target_type, "`")));
+                                    out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                                };
                             } else {
-                                text_concat(out, deep_diag)
+                                let diag = format_type_diag_at(source, binding_start, binding_end, text_concat("unknown variable `", text_concat(target_name, "`")));
+                                out = if is_empty(out) { diag } else { text_concat(out, diag) };
                             };
+                        };
+                    } else if is_simple_name(binding_text) {
+                        let binding_type = type_table_lookup(locals, binding_text);
+                        if is_empty(binding_type) {
+                            let diag = format_type_diag_at(source, binding_start, binding_end, text_concat("unknown variable `", text_concat(binding_text, "`")));
+                            out = if is_empty(out) { diag } else { text_concat(out, diag) };
+                        } else if not text_starts_with_at(binding_type, "mut", 0) {
+                            let diag = format_type_diag_at(source, binding_start, binding_end, text_concat("cannot assign to immutable variable `", binding_text));
+                            out = if is_empty(out) { diag } else { text_concat(out, diag) };
                         };
                     };
                 };
-            } else {
-                if entry_kind == BlockItemKind.TailExpr {
-                    if entry_expr_kind == ExprKind.Name and entry_expr.present {
-                        let name_str = text_slice(source, entry_expr.span.start, entry_expr.span.end);
-                        if is_simple_name(name_str) {
-                            let is_known = not is_empty(type_table_lookup(locals, name_str)) or
-                            not is_empty(type_table_lookup(consts, name_str)) or
-                            not is_empty(type_table_lookup(fns, name_str)) or
-                            not is_empty(type_table_lookup(known, name_str)) or
-                            is_builtin_fn(name_str);
-                            if not is_known {
-                                let diag = format_type_diag(source, entry_expr.span, text_concat("unknown name `", text_concat(name_str, "`")));
-                                out = if is_empty(out) {
-                                    diag
-                                } else {
-                                    text_concat(out, diag)
-                                };
-                            };
-                        };
-                    };
-                    tail_type = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
-                    let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
-                    if not is_empty(deep_diag) {
-                        out = if is_empty(out) {
-                            deep_diag
-                        } else {
-                            text_concat(out, deep_diag)
-                        };
-                    };
-                }
+                let deep_diag = check_expr_types_deep(source, entry_expr, entry_expr_kind, locals, consts, fns);
+                if not is_empty(deep_diag) {
+                    out = if is_empty(out) { deep_diag } else { text_concat(out, deep_diag) };
+                };
+            } else if entry_kind == BlockItemKind.TailExpr {
+                tail_type = infer_expr_type_from_outline(source, entry_expr, entry_expr_kind, locals, consts, fns);
             };
+            };
+            index = index + 1;
         };
-        index = index + 1;
-    };
-    let return_diag = if is_empty(return_type_text) {
-        if is_empty(tail_type) {
-            ""
-        } else {
-            if tail_type == "Unit" {
+        let return_diag = if is_empty(return_type_text) {
+            if is_empty(tail_type) {
                 ""
             } else {
-                format_type_diag(source, shape.body_span.span, text_concat("tail expression type `", text_concat(tail_type, text_concat("` does not match implicit Unit return type", ""))))
+                if tail_type == "Unit" {
+                    ""
+                } else {
+                    format_type_diag(source, body_span.span, text_concat("tail expression type `", text_concat(tail_type, text_concat("` does not match implicit Unit return type", ""))))
+                }
             }
-        }
-    } else {
-        if is_empty(tail_type) {
-            ""
         } else {
-            if return_type_text == tail_type or (is_numeric_type(return_type_text) and is_numeric_type(tail_type)) {
+            if is_empty(tail_type) {
                 ""
             } else {
-                format_type_diag(source, shape.body_span.span, text_concat("expected return type `", text_concat(return_type_text, text_concat("` but tail expression has type `", text_concat(tail_type, "`")))))
+                if return_type_text == tail_type or (is_numeric_type(return_type_text) and is_numeric_type(tail_type)) {
+                    ""
+                } else {
+                    format_type_diag(source, body_span.span, text_concat("expected return type `", text_concat(return_type_text, text_concat("` but tail expression has type `", text_concat(tail_type, "`")))))
+                }
             }
-        }
-    };
-    if is_empty(out) {
-        return_diag
-    } else {
-        if is_empty(return_diag) {
-            out
-        } else {
-            text_concat(out, return_diag)
-        }
-    }
+        };
+        if is_empty(out) { return_diag } else { if is_empty(return_diag) { out } else { text_concat(out, return_diag) } }
 }
 
 fn is_affine_type(ty: Text) -> Bool {
-    ty == "Text" or
-    ty == "Bytes" or
-    ty == "File" or
-    ty == "TextBuilder" or
-    ty == "TextIndex" or
-    ty == "List"
+    let stripped = strip_mut_prefix(ty);
+    stripped == "Text" or stripped == "Bytes" or stripped == "File" or stripped == "TextBuilder" or stripped == "TextIndex" or text_starts_with_at(stripped, "List", 0)
+}
+
+fn is_array_or_list_type(ty: Text) -> Bool {
+    let stripped = strip_mut_prefix(ty);
+    text_starts_with_at(stripped, "[", 0) or stripped == "List"
+}
+
+fn strip_mut_prefix(ty: Text) -> Text {
+    if text_starts_with_at(ty, "mut:", 0) {
+        text_slice(ty, 4, text_len(ty))
+    } else {
+        ty
+    }
 }
 
 fn is_comparison_operator(expr_text: Text) -> Bool {
@@ -5721,37 +5693,31 @@ fn check_binary_operator_args(source: Text, span: Span, locals: Text, consts: Te
                     op_pos = i;
                     op_width = 5;
                 };
-            } else {
-                if b == 111 {
-                    if i + 3 < len and text_slice(expr_text, i, i + 4) == " or " {
+            } else if b == 111 {
+                if i + 3 < len and text_slice(expr_text, i, i + 4) == " or " {
+                    op_pos = i;
+                    op_width = 4;
+                };
+            } else if b == 61 or b == 33 {
+                if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
+                    op_pos = i;
+                    op_width = 2;
+                };
+            } else if b == 60 or b == 62 {
+                if i > 0 and is_layout_byte(text_byte(expr_text, i - 1)) {
+                    if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
                         op_pos = i;
-                        op_width = 4;
-                    };
-                } else {
-                    if b == 61 or b == 33 {
-                        if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
-                            op_pos = i;
-                            op_width = 2;
-                        };
+                        op_width = 2;
                     } else {
-                        if b == 60 or b == 62 {
-                            if i > 0 and is_layout_byte(text_byte(expr_text, i - 1)) {
-                                if i + 1 < len and text_byte(expr_text, i + 1) == 61 {
-                                    op_pos = i;
-                                    op_width = 2;
-                                } else {
-                                    op_pos = i;
-                                    op_width = 1;
-                                };
-                            };
-                        } else {
-                            if i > 0 and (b == 43 or b == 45 or b == 42 or b == 47 or b == 37) and is_layout_byte(text_byte(expr_text, i - 1)) {
-                                op_pos = i;
-                                op_width = 1;
-                            };
-                        }
-                    }
-                }
+                        op_pos = i;
+                        op_width = 1;
+                    };
+                };
+            } else {
+                if i > 0 and (b == 43 or b == 45 or b == 42 or b == 47 or b == 37) and is_layout_byte(text_byte(expr_text, i - 1)) {
+                    op_pos = i;
+                    op_width = 1;
+                };
             };
         };
         i = i + 1;
@@ -5769,35 +5735,37 @@ fn check_binary_operator_args(source: Text, span: Span, locals: Text, consts: Te
             let right_type = infer_snippet_type(right_str, locals, consts, fns);
             if is_empty(left_type) or is_empty(right_type) {
                 ""
-            } else {
-                if is_comparison_operator(expr_text) or is_chain_operator(expr_text) {
-                    if left_type != right_type {
-                        if is_numeric_type(left_type) and is_numeric_type(right_type) {
-                            ""
-                        } else {
-                            format_type_diag(source, span, text_concat("binary operator requires same types, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
-                        }
-                    } else {
+            } else if is_chain_operator(expr_text) {
+                if left_type != "Bool" {
+                    format_type_diag(source, span, text_concat("left operand of `", text_concat(expr_text, text_concat("` must be `Bool`, found `", text_concat(left_type, "`")))))
+                } else if right_type != "Bool" {
+                    format_type_diag(source, span, text_concat("right operand of `", text_concat(expr_text, text_concat("` must be `Bool`, found `", text_concat(right_type, "`")))))
+                } else {
+                    ""
+                }
+            } else if is_comparison_operator(expr_text) {
+                if left_type != right_type {
+                    if is_numeric_type(left_type) and is_numeric_type(right_type) {
                         ""
+                    } else {
+                        format_type_diag(source, span, text_concat("binary operator requires same types, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
                     }
                 } else {
-                    if find_byte_index(expr_text, 43, 0) >= 0 {
-                        if left_type == "Text" and right_type == "Text" {
-                            ""
-                        } else {
-                            if is_numeric_type(left_type) and is_numeric_type(right_type) {
-                                ""
-                            } else {
-                                format_type_diag(source, span, text_concat("`+` requires Text or numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
-                            }
-                        }
-                    } else {
-                        if is_numeric_type(left_type) and is_numeric_type(right_type) {
-                            ""
-                        } else {
-                            format_type_diag(source, span, text_concat("arithmetic operator requires numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
-                        }
-                    }
+                    ""
+                }
+            } else if find_byte_index(expr_text, 43, 0) >= 0 {
+                if left_type == "Text" and right_type == "Text" {
+                    ""
+                } else if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                    ""
+                } else {
+                    format_type_diag(source, span, text_concat("`+` requires Text or numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
+                }
+            } else {
+                if is_numeric_type(left_type) and is_numeric_type(right_type) {
+                    ""
+                } else {
+                    format_type_diag(source, span, text_concat("arithmetic operator requires numeric operands, got `", text_concat(left_type, text_concat("` and `", text_concat(right_type, "`")))))
                 }
             }
         }
@@ -5830,11 +5798,7 @@ fn check_match_arm_types(source: Text, span: Span, locals: Text, consts: Text, f
                         find_matching_close_raw(body, arm_start)
                     } else {
                         let comma = find_byte_index(body, 44, arm_start);
-                        if comma >= 0 {
-                            comma
-                        } else {
-                            body_len
-                        }
+                        if comma >= 0 { comma } else { body_len }
                     };
                     let arm_expr = trim_text(text_slice(body, arm_start, arm_end));
                     if not is_empty(arm_expr) {
@@ -5847,19 +5811,15 @@ fn check_match_arm_types(source: Text, span: Span, locals: Text, consts: Text, f
                     body_i = arm_end;
                     if body_i < body_len and text_byte(body, body_i) == 44 {
                         body_i = body_i + 1;
-                    } else {
-                        if body_i < body_len and text_byte(body, body_i) == 125 {
-                            body_i = body_len;
+                    } else if body_i < body_len and text_byte(body, body_i) == 125 {
+                        body_i = body_len;
+                    } else if body_i < body_len {
+                        let next_stop = find_byte_index(body, 44, body_i);
+                        if next_stop >= 0 {
+                            body_i = next_stop + 1;
                         } else {
-                            if body_i < body_len {
-                                let next_stop = find_byte_index(body, 44, body_i);
-                                if next_stop >= 0 {
-                                    body_i = next_stop + 1;
-                                } else {
-                                    body_i = body_len;
-                                };
-                            }
-                        }
+                            body_i = body_len;
+                        };
                     };
                 };
             };
@@ -5913,10 +5873,10 @@ fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, kn
                         if expr_kind == ExprKind.Name {
                             let name_str = text_slice(source, expr_start, expr_end);
                             if is_simple_name(name_str) {
-                                let is_known = not is_empty(type_table_lookup(consts, name_str)) or
-                                not is_empty(type_table_lookup(fns, name_str)) or
-                                not is_empty(type_table_lookup(known, name_str)) or
-                                is_builtin_fn(name_str);
+                                let is_known = not is_empty(type_table_lookup(consts, name_str))
+                                    or not is_empty(type_table_lookup(fns, name_str))
+                                    or not is_empty(type_table_lookup(known, name_str))
+                                    or is_builtin_fn(name_str);
                                 if not is_known {
                                     out = format_type_diag(source, Span { start: expr_start, end: expr_end }, text_concat("unknown name `", text_concat(name_str, "`")));
                                 };
@@ -5928,11 +5888,7 @@ fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, kn
                                 if declared_type != inferred and not (is_numeric_type(declared_type) and is_numeric_type(inferred)) {
                                     let msg = text_concat("expected const type `", text_concat(declared_type, text_concat("` but initializer has type `", text_concat(inferred, "`"))));
                                     let diag = format_type_diag(source, Span { start: expr_start, end: expr_end }, msg);
-                                    out = if is_empty(out) {
-                                        diag
-                                    } else {
-                                        text_concat(out, diag)
-                                    };
+                                    out = if is_empty(out) { diag } else { text_concat(out, diag) };
                                 };
                             };
                         };
@@ -5954,141 +5910,48 @@ fn check_const_type(source: Text, state: ParseState, consts: Text, fns: Text, kn
     }
 }
 
-fn check_const_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
+fn check_all_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
     let mut cur_state = state;
     let mut out = "";
     while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        if cur_state.cursor.kind == TokenKind.KwConst {
-            let diag = check_const_type(source, cur_state, consts, fns, known);
-            cur_state = parse_const_item(source, cur_state);
-            if not is_empty(diag) {
-                out = if is_empty(out) {
-                    diag
-                } else {
-                    text_concat(out, diag)
-                };
-            };
-        } else {
-            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, cur_state)
-                } else {
-                    parse_fn_item(source, cur_state)
-                }
-            };
-        };
+    if cur_state.cursor.kind == TokenKind.KwFn {
+    let name_span = top_level_name_span(source, cur_state);
+    let parsed = parse_fn_item_with_shape(source, cur_state);
+    let shape = parsed.shape;
+    let body_outline = shape.body_outline;
+    let return_span = shape.return_span;
+    let params_span = shape.params_span;
+    let body_span = shape.body_span;
+    let fn_type_diag = check_fn_return_type_from_shape(source, body_outline, return_span, params_span, body_span, consts, fns, known);
+    let call_diag = check_body_outline_calls(source, body_outline, 0, known);
+    let ownership_diag = if name_span.present and body_span.present {
+    check_fn_ownership(source, name_span.span.start, name_span.span.end, body_span.span.start, body_span.span.end)
+    } else {
+    ""
+    };
+    cur_state = parsed.state;
+    let item_diag = text_concat(call_diag, text_concat(fn_type_diag, ownership_diag));
+    if not is_empty(item_diag) {
+    out = if is_empty(out) { item_diag } else { text_concat(out, item_diag) };
+    };
+    } else if cur_state.cursor.kind == TokenKind.KwConst {
+    let const_diag = check_const_type(source, cur_state, consts, fns, known);
+    cur_state = parse_const_item(source, cur_state);
+    if not is_empty(const_diag) {
+    out = if is_empty(out) { const_diag } else { text_concat(out, const_diag) };
+    };
+    } else {
+    cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
+    parse_struct_item(source, cur_state)
+    } else {
+    parse_enum_item(source, cur_state)
+    };
+    };
     };
     out
 }
 
-fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text {
-    let mut cur_state = state;
-    let mut out = "";
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        if cur_state.cursor.kind == TokenKind.KwFn {
-            let diag = check_fn_return_type(source, cur_state, consts, fns, known);
-            let parsed = parse_fn_item_with_shape(source, cur_state);
-            cur_state = parsed.state;
-            if not is_empty(diag) {
-                out = if is_empty(out) {
-                    diag
-                } else {
-                    text_concat(out, diag)
-                };
-            };
-        } else {
-            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, cur_state)
-                } else {
-                    parse_const_item(source, cur_state)
-                }
-            };
-        };
-    };
-    out
-}
-
-fn collect_const_types(source: Text, state: ParseState) -> Text {
-    let mut cur_state = state;
-    let mut types = "";
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        if cur_state.cursor.kind == TokenKind.KwConst {
-            let name_span = top_level_name_span(source, cur_state);
-            let parsed = parse_const_item(source, cur_state);
-            cur_state = parsed;
-            if name_span.present {
-                let nspan = name_span.span;
-                let nend = nspan.end;
-                let cname = text_slice(source, nspan.start, nend);
-                if not is_empty(cname) {
-                    let colon_idx = find_byte_index(source, 58, nend);
-                    let semi_idx = find_byte_index(source, 59, nend);
-                    if colon_idx >= 0 and semi_idx >= 0 and colon_idx < semi_idx {
-                        let eq_idx = find_byte_index(source, 61, colon_idx);
-                        if eq_idx >= 0 and eq_idx < semi_idx {
-                            let type_text_v = trim_text(text_slice(source, colon_idx + 1, eq_idx));
-                            if not is_empty(type_text_v) {
-                                types = type_table_extend(types, cname, type_text_v);
-                            };
-                        };
-                    };
-                };
-            };
-        } else {
-            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, cur_state)
-                } else {
-                    parse_fn_item(source, cur_state)
-                }
-            };
-        };
-    };
-    types
-}
-
-fn collect_fn_sigs_from(source: Text, state: ParseState) -> Text {
-    let mut cur_state = state;
-    let mut sigs = "";
-    while cur_state.status == ParseStatus.Ok and cur_state.cursor.kind != TokenKind.Eof {
-        if cur_state.cursor.kind == TokenKind.KwFn {
-            let name_span = top_level_name_span(source, cur_state);
-            let parsed = parse_fn_item_with_shape(source, cur_state);
-            cur_state = parsed.state;
-            if name_span.present {
-                let fn_name = text_slice(source, name_span.span.start, name_span.span.end);
-                if not is_empty(fn_name) {
-                    let ret_text = extract_type_text(span_text_safe(source, parsed.shape.return_span));
-                    if is_empty(ret_text) {
-                        sigs = type_table_extend(sigs, fn_name, "Unit");
-                    } else {
-                        sigs = type_table_extend(sigs, fn_name, ret_text);
-                    };
-                };
-            };
-        } else {
-            cur_state = if cur_state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, cur_state)
-            } else {
-                if cur_state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, cur_state)
-                } else {
-                    parse_const_item(source, cur_state)
-                }
-            };
-        };
-    };
-    sigs
-}
-
-fn check_text(source: Text, package_names: Text) -> Text {
+fn check_text(source: Text, package_names: Text, package_fn_sigs: Text) -> Text {
     let report = parse_module_report(source);
     if not report.ok {
         report.diagnostics
@@ -6097,20 +5960,61 @@ fn check_text(source: Text, package_names: Text) -> Text {
         let mut all_names = "";
         let mut seen = "";
         let mut dup_diag = "";
+        let mut struct_types = "";
+        let mut base_const_types = "";
+        let mut fn_sigs = if is_empty(package_fn_sigs) { "" } else { package_fn_sigs };
         while state.status == ParseStatus.Ok and state.cursor.kind != TokenKind.Eof {
             let name_span = top_level_name_span(source, state);
-            state = if state.cursor.kind == TokenKind.KwStruct {
-                parse_struct_item(source, state)
+            if state.cursor.kind == TokenKind.KwStruct {
+                let open_brace = find_byte_index(source, 123, state.cursor.start);
+                state = parse_struct_item(source, state);
+                if name_span.present and open_brace >= 0 {
+                    let close_brace = find_matching_close_raw(source, open_brace);
+                    if close_brace > open_brace + 1 {
+                        let name = text_slice(source, name_span.span.start, name_span.span.end);
+                        let body = text_slice(source, open_brace + 1, close_brace - 1);
+                        let fields = collect_struct_field_layout(body);
+                        if not is_empty(name) and not is_empty(fields) {
+                            struct_types = type_table_extend(struct_types, name, fields);
+                        };
+                    };
+                };
+            } else if state.cursor.kind == TokenKind.KwEnum {
+                state = parse_enum_item(source, state);
+            } else if state.cursor.kind == TokenKind.KwConst {
+                let const_name_span = name_span;
+                let const_name_end = if name_span.present { name_span.span.end } else { 0 };
+                state = parse_const_item(source, state);
+                if const_name_span.present {
+                    let cname = text_slice(source, const_name_span.span.start, const_name_end);
+                    if not is_empty(cname) {
+                        let colon_idx = find_byte_index(source, 58, const_name_end);
+                        let semi_idx = find_byte_index(source, 59, const_name_end);
+                        if colon_idx >= 0 and semi_idx >= 0 and colon_idx < semi_idx {
+                            let eq_idx = find_byte_index(source, 61, colon_idx);
+                            if eq_idx >= 0 and eq_idx < semi_idx {
+                                let type_text_v = trim_text(text_slice(source, colon_idx + 1, eq_idx));
+                                if not is_empty(type_text_v) {
+                                    base_const_types = type_table_extend(base_const_types, cname, type_text_v);
+                                };
+                            };
+                        };
+                    };
+                };
             } else {
-                if state.cursor.kind == TokenKind.KwEnum {
-                    parse_enum_item(source, state)
-                } else {
-                    if state.cursor.kind == TokenKind.KwConst {
-                        parse_const_item(source, state)
-                    } else {
-                        parse_fn_item(source, state)
-                    }
-                }
+                let parsed = parse_fn_item_with_shape(source, state);
+                state = parsed.state;
+                if name_span.present {
+                    let fn_name = text_slice(source, name_span.span.start, name_span.span.end);
+                    if not is_empty(fn_name) {
+                        let ret_text = extract_type_text(span_text_safe(source, parsed.shape.return_span));
+                        if is_empty(ret_text) {
+                            fn_sigs = type_table_extend(fn_sigs, fn_name, "Unit");
+                        } else {
+                            fn_sigs = type_table_extend(fn_sigs, fn_name, ret_text);
+                        };
+                    };
+                };
             };
             if name_span.present {
                 let name = text_slice(source, name_span.span.start, name_span.span.end);
@@ -6118,11 +6022,7 @@ fn check_text(source: Text, package_names: Text) -> Text {
                     all_names = name_table_add(all_names, name);
                     if name_table_has(seen, name) {
                         let diag = text_concat("error: duplicate definition `", text_concat(name, "`\n"));
-                        dup_diag = if is_empty(dup_diag) {
-                            diag
-                        } else {
-                            text_concat(dup_diag, diag)
-                        };
+                        dup_diag = if is_empty(dup_diag) { diag } else { text_concat(dup_diag, diag) };
                     } else {
                         seen = name_table_add(seen, name);
                     };
@@ -6134,27 +6034,119 @@ fn check_text(source: Text, package_names: Text) -> Text {
         } else {
             text_concat(all_names, text_concat("\n", package_names))
         };
-        let call_diag = check_body_calls_from(source, parse_state_new(source), known);
-        let struct_types = collect_struct_types(source, parse_state_new(source));
-        let base_const_types = collect_const_types(source, parse_state_new(source));
         let const_types = if is_empty(struct_types) {
             base_const_types
+        } else if is_empty(base_const_types) {
+            struct_types
         } else {
-            if is_empty(base_const_types) {
-                struct_types
-            } else {
-                text_concat(base_const_types, text_concat("\n", struct_types))
-            }
+            text_concat(base_const_types, text_concat("\n", struct_types))
         };
-        let fn_sigs = collect_fn_sigs_from(source, parse_state_new(source));
-        let const_type_diag = check_const_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
-        let fn_type_diag = check_fn_types_from(source, parse_state_new(source), const_types, fn_sigs, known);
-        let combined = text_concat(dup_diag, text_concat(call_diag, text_concat(const_type_diag, fn_type_diag)));
+    
+    let call_diag = check_all_from(source, parse_state_new(source), const_types, fn_sigs, known);
+    
+    let combined = text_concat(dup_diag, call_diag);
         if is_empty(combined) {
             "ok [core]\n"
         } else {
             combined
         }
+    }
+}
+
+fn is_affine_ownership_type(ty: Text) -> Bool {
+    let tlen = text_len(ty);
+    if tlen == 4 and text_byte(ty, 0) == 84 {
+        true
+    } else if tlen == 5 and text_byte(ty, 0) == 66 {
+        true
+    } else if tlen == 11 and text_byte(ty, 0) == 84 {
+        true
+    } else if tlen == 9 and text_byte(ty, 0) == 84 {
+        true
+    } else if tlen == 4 and text_byte(ty, 0) == 70 {
+        true
+    } else {
+        false
+    }
+}
+
+fn count_affine_param_uses_in_body(source: Text, param_name: Text, body_start: I32, body_end: I32) -> I32 {
+    let pnlen = text_len(param_name);
+    let mut count = 0;
+    let mut pos = body_start;
+    while pos + pnlen <= body_end {
+        if text_eq_range(source, pos, pos + pnlen, param_name) {
+            let before_ok = pos == body_start or not is_name_byte(text_byte(source, pos - 1));
+            let after_ok = pos + pnlen >= body_end or not is_name_byte(text_byte(source, pos + pnlen));
+            if before_ok and after_ok {
+                count = count + 1;
+            };
+        };
+        pos = pos + 1;
+    };
+    count
+}
+
+fn is_name_byte(b: I32) -> Bool {
+    (b >= 97 and b <= 122) or (b >= 65 and b <= 90) or (b >= 48 and b <= 57) or b == 95
+}
+
+fn find_open_paren_before(source: Text, before_pos: I32) -> I32 {
+    let mut pos = before_pos - 1;
+    let mut found = -1;
+    while pos >= 0 and found < 0 {
+        if text_byte(source, pos) == 40 {
+            found = pos;
+        };
+        pos = pos - 1;
+    };
+    found
+}
+
+fn extract_params_text(source: Text, fn_name_end: I32, body_start: I32) -> Text {
+    let open_paren = find_open_paren_before(source, body_start);
+    if open_paren >= 0 and open_paren > fn_name_end {
+        let close_paren = find_matching_close_raw(source, open_paren);
+        if close_paren >= 0 and close_paren < body_start and close_paren > open_paren + 1 {
+            trim_text(text_slice(source, open_paren + 1, close_paren))
+        } else {
+            ""
+        }
+    } else {
+        ""
+    }
+}
+
+fn check_fn_ownership(source: Text, fn_name_start: I32, fn_name_end: I32, body_start: I32, body_end: I32) -> Text {
+    let fn_name = text_slice(source, fn_name_start, fn_name_end);
+    
+    let params_trimmed = extract_params_text(source, fn_name_end, body_start);
+    if is_empty(params_trimmed) {
+        ""
+    } else {
+        let mut diags = "";
+        let mut pi = 0;
+        let plen = text_len(params_trimmed);
+        while pi < plen {
+            let colon = find_byte_index(params_trimmed, 58, pi);
+            if colon < 0 {
+                pi = plen;
+            } else {
+                let comma = find_byte_index(params_trimmed, 44, colon + 1);
+                let param_end = if comma >= 0 { comma } else { plen };
+                let pname = trim_text(text_slice(params_trimmed, pi, colon));
+                let ptype = trim_text(text_slice(params_trimmed, colon + 1, param_end));
+                if not is_empty(pname) and is_affine_ownership_type(ptype) {
+                    let count = count_affine_param_uses_in_body(source, pname, body_start, body_end);
+                    if count > 1 {
+                        let msg = text_concat("affine value `", text_concat(pname, text_concat("` used ", text_concat(int_to_text(count), text_concat(" times in `", text_concat(fn_name, "`\n"))))));
+                        diags = if is_empty(diags) { msg } else { text_concat(diags, msg) };
+                    };
+                };
+                pi = if comma >= 0 { comma + 1 } else { plen };
+            };
+        };
+        diags
     }
 }
 
@@ -6166,12 +6158,50 @@ fn bool_score(value: Bool) -> I32 {
     }
 }
 
+fn collect_fn_sigs_text(source: Text, package_fn_sigs: Text) -> Text {
+    let mut state = parse_state_new(source);
+    let mut fn_sigs = if is_empty(package_fn_sigs) { "" } else { package_fn_sigs };
+    while state.status == ParseStatus.Ok and state.cursor.kind != TokenKind.Eof {
+        if state.cursor.kind == TokenKind.KwFn {
+            let name_span = top_level_name_span(source, state);
+            let parsed = parse_fn_item_with_shape(source, state);
+            state = parsed.state;
+            if name_span.present {
+                let fn_name = text_slice(source, name_span.span.start, name_span.span.end);
+                if not is_empty(fn_name) {
+                    let ret_text = extract_type_text(span_text_safe(source, parsed.shape.return_span));
+                    if is_empty(ret_text) {
+                        fn_sigs = type_table_extend(fn_sigs, fn_name, "Unit");
+                    } else {
+                        fn_sigs = type_table_extend(fn_sigs, fn_name, ret_text);
+                    };
+                };
+            };
+        } else {
+            state = if state.cursor.kind == TokenKind.KwStruct {
+                parse_struct_item(source, state)
+            } else if state.cursor.kind == TokenKind.KwEnum {
+                parse_enum_item(source, state)
+            } else {
+                parse_const_item(source, state)
+            };
+        };
+    };
+    fn_sigs
+}
+
 fn main() -> I32 {
     let mut total = 0;
     total = total + bool_score(format_text("") == "\n");
     total = total + bool_score(format_text("fn main() -> I32 { 0 }") == "fn main() -> I32 {\n    0\n}\n");
     total = total + bool_score(format_text("fn main() -> I32 { 0 }\n") == "fn main() -> I32 {\n    0\n}\n");
-    total = total + bool_score(format_text("fn main() -> I32 {\n    let mut total = 0;\n    if true {\n        total = total + 2;\n    };\n    total\n}\n") == "fn main() -> I32 {\n    let mut total = 0;\n    if true {\n        total = total + 2;\n    };\n    total\n}\n");
+    total = total + bool_score(format_text("fn main() -> I32 {\n    let mut total = 0;
+    \n    if true {\n        total = total + 2;
+    \n    };
+    \n    total\n}\n") == "fn main() -> I32 {\n    let mut total = 0;
+    \n    if true {\n        total = total + 2;
+    \n    };
+    \n    total\n}\n");
     total = total + bool_score(format_text("struct Pair {}\nfn main() {}") == "struct Pair {}\n\nfn main() {\n}\n");
     total = total + bool_score(text_slice("sarif", 1, 4) == "ari");
     total = total + bool_score(text_slice("sarif", 3, 99) == "if");

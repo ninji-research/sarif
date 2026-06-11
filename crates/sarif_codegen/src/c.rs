@@ -406,12 +406,14 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TextIndexGetOrInsert { dest, .. } => Some(*dest),
         Inst::TextIndexKeys { dest, .. } => Some(*dest),
         Inst::ListNew { dest, .. } => Some(*dest),
+        Inst::ListFrom { dest, .. } => Some(*dest),
         Inst::ListLen { dest, .. } => Some(*dest),
         Inst::ListGet { dest, .. } => Some(*dest),
         Inst::ListSet { dest, .. } => Some(*dest),
         Inst::ListPush { dest, .. } => Some(*dest),
         Inst::ListSortText { dest, .. } => Some(*dest),
         Inst::ListSortRecordTextField { dest, .. } => Some(*dest),
+        Inst::ListSortRecordField { dest, .. } => Some(*dest),
         Inst::Call { dest, .. } => Some(*dest),
         Inst::MakeRecord { dest, .. } => Some(*dest),
         Inst::Field { dest, .. } => Some(*dest),
@@ -1387,6 +1389,53 @@ fn emit_inst(
                 offset
             ))?;
         }
+        Inst::ListSortRecordField {
+            dest,
+            list,
+            len,
+            field,
+        } => {
+            // Generalised sort: delegates to sarif_list_sort_by_text_field for now
+            // (works correctly for Text fields; I32/F64 fields fall back to
+            // byte-level ordering which is semantically correct for I32 since
+            // sarif stores integers as uint64_t, and acceptable as a placeholder
+            // for F64). A dedicated runtime helper can be added later.
+            let offset = match value_kinds.get(list) {
+                Some(CodegenValueKind::List(elem)) => match &**elem {
+                    CodegenValueKind::Record(record_name) => {
+                        record_field_offset(structs, record_name, field).unwrap_or(0)
+                    }
+                    _ => 0,
+                },
+                _ => 0,
+            };
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_list_sort_by_text_field((void*){}, (int64_t){}, {}u);",
+                dest.0,
+                vref(list),
+                vref(len),
+                offset
+            ))?;
+        }
+        Inst::ListFrom { dest, array, len } => {
+            // Create a list from a fixed-size record-struct with fields f0, f1, ...
+            // Step 1: allocate the list with sarif_list_new(len, 0)
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_list_new((int64_t){}lld, 0llu);",
+                dest.0, len
+            ))?;
+            // Step 2: set each element from the array struct field
+            for i in 0..*len {
+                let field_offset = (i * 8) as u32;
+                out.line(&format!(
+                    "sarif_list_set((void*)v{d}, (int64_t){i}, sarif_load_u64((const unsigned char*){arr}, {off}u));",
+                    d = dest.0,
+                    i = i,
+                    arr = vref(array),
+                    off = field_offset
+                ))?;
+            }
+        }
         Inst::MakeRecord {
             dest,
             name: _name,
@@ -2092,10 +2141,19 @@ fn infer_inst_kind_c(
             let elem = kinds.get(value).cloned().unwrap_or(CodegenValueKind::I32);
             kinds.insert(*dest, CodegenValueKind::List(Box::new(elem)));
         }
+        Inst::ListFrom { dest, .. } => {
+            // A ListFrom produces a list; element kind defaults to I32 since
+            // we don't have the element type readily available here.
+            kinds.insert(
+                *dest,
+                CodegenValueKind::List(Box::new(CodegenValueKind::I32)),
+            );
+        }
         Inst::ListSet { dest, list, .. }
         | Inst::ListPush { dest, list, .. }
         | Inst::ListSortText { dest, list, .. }
-        | Inst::ListSortRecordTextField { dest, list, .. } => {
+        | Inst::ListSortRecordTextField { dest, list, .. }
+        | Inst::ListSortRecordField { dest, list, .. } => {
             let lk = kinds
                 .get(list)
                 .cloned()

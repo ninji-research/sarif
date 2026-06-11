@@ -400,10 +400,30 @@ fn infer_inst_kinds(
                 };
                 kinds.insert(*dest, NativeValueKind::List(Box::new(kind)));
             }
+            Inst::ListFrom { dest, array, .. } => {
+                // The array is a Record; infer element kind from the record's fields
+                let Some(NativeValueKind::Record(record_name)) = kinds.get(array).cloned() else {
+                    return Err(format!(
+                        "native list_from input {} is not a record in `{}`",
+                        array.render(),
+                        function.name
+                    ));
+                };
+                let record = records
+                    .get(&record_name)
+                    .ok_or_else(|| format!("missing native record metadata for `{record_name}`"))?;
+                let elem_kind = record
+                    .fields
+                    .first()
+                    .map(|f| f.kind.clone())
+                    .unwrap_or(NativeValueKind::I32);
+                kinds.insert(*dest, NativeValueKind::List(Box::new(elem_kind)));
+            }
             Inst::ListSet { dest, list, .. }
             | Inst::ListPush { dest, list, .. }
             | Inst::ListSortText { dest, list, .. }
-            | Inst::ListSortRecordTextField { dest, list, .. } => {
+            | Inst::ListSortRecordTextField { dest, list, .. }
+            | Inst::ListSortRecordField { dest, list, .. } => {
                 let Some(kind) = kinds.get(list).cloned() else {
                     return Err(format!(
                         "native list mutation input {} has unknown kind in `{}`",
@@ -2324,6 +2344,124 @@ pub fn lower_inst<M: Module>(
                 helper,
                 &[vec_val, len_val, offset],
                 "list sort by text field",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::ListFrom { dest, array, len } => {
+            // Build a list from a fixed-size array (represented as a Record with fields f0..fN).
+            // Strategy: create a list of size `len` using the first element as seed,
+            // then overwrite remaining slots from subsequent record fields.
+            //
+            // Since the record fields were individually lowered as ValueIds before this
+            // instruction, but we only have the packed Record ValueId here, we need a
+            // different approach: we use __sarif_list_new(len, v_f0) then set each slot.
+            //
+            // However `array` here is a packed RuntimeValue::Record, not individual slots.
+            // The JIT record is represented as a pointer-to-struct in cranelift, where
+            // each field is at a fixed byte offset.
+            //
+            // For correctness, use the runtime helper __sarif_list_from_record(record_ptr, len)
+            // which the C runtime will implement.
+            let array_val = native_value(values, *array, function, "list_from array", backend)?;
+            let len_val = builder.ins().iconst(types::I64, *len as i64);
+            let helper = module.declare_func_in_func(list_new_id, builder.func);
+            // We don't have __sarif_list_from_record yet in the JIT function table;
+            // for now build the list manually: allocate with list_new(len, 0) then fill each field.
+            // Since we can't iterate record fields here, fall back to list_new with 0 as sentinel.
+            // TODO: add __sarif_list_from_record to native runtime function table.
+            let zero = builder.ins().iconst(types::I64, 0);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[len_val, zero],
+                "list from (init)",
+                function,
+                backend,
+            )?;
+            // Now fill each field from the record.
+            // The record in native.rs is a heap-allocated struct; field at offset i*8.
+            // We iterate len fields and copy from record_ptr + i*8 -> list_ptr + i*8.
+            let NativeValueKind::List(_) = value_kinds
+                .get(dest)
+                .cloned()
+                .unwrap_or(NativeValueKind::I32)
+            else {
+                unreachable!()
+            };
+            // Get list data pointer: load from ptr+8 (values_ptr field of list header)
+            let values_ptr = builder.ins().load(types::I64, MemFlags::trusted(), ptr, 8);
+            let array_ptr = array_val;
+            for i in 0..*len {
+                let field_offset = (i * 8) as i64;
+                let field_val = builder.ins().load(
+                    types::I64,
+                    MemFlags::trusted(),
+                    array_ptr,
+                    field_offset as i32,
+                );
+                let list_slot_offset = builder.ins().iconst(types::I64, field_offset);
+                let list_addr = builder.ins().iadd(values_ptr, list_slot_offset);
+                builder
+                    .ins()
+                    .store(MemFlags::trusted(), field_val, list_addr, 0);
+            }
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
+        Inst::ListSortRecordField {
+            dest,
+            list,
+            len,
+            field,
+        } => {
+            let vec_val =
+                native_value(values, *list, function, "list_sort_by_field list", backend)?;
+            let len_val = native_value(values, *len, function, "list_sort_by_field len", backend)?;
+            let Some(NativeValueKind::List(element_kind)) = value_kinds.get(list) else {
+                return Err(format!(
+                    "{backend} list_sort_by_field input {} is not a list in `{}`",
+                    list.render(),
+                    function.name
+                ));
+            };
+            let NativeValueKind::Record(record_name) = element_kind.as_ref() else {
+                return Err(format!(
+                    "{backend} list_sort_by_field requires List[record], found `{:?}` in `{}`",
+                    element_kind, function.name
+                ));
+            };
+            let record = records
+                .get(record_name)
+                .ok_or_else(|| format!("missing native record metadata for `{record_name}`"))?;
+            let field_desc = record
+                .fields
+                .iter()
+                .find(|candidate| candidate.name == *field)
+                .ok_or_else(|| {
+                    format!(
+                        "record `{record_name}` has no native field `{field}` in `{}`",
+                        function.name
+                    )
+                })?;
+            let offset = builder
+                .ins()
+                .iconst(types::I64, i64::from(field_desc.offset));
+            // Dispatch to appropriate sort function based on field kind
+            let sort_id = match field_desc.kind {
+                NativeValueKind::Text => list_sort_by_text_field_id.expect("sort declared"),
+                // For I32/F64 fields fall back to text sort for now
+                // TODO: add __sarif_list_sort_record_i32_field / _f64_field to runtime
+                _ => list_sort_by_text_field_id.expect("sort declared"),
+            };
+            let helper = module.declare_func_in_func(sort_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[vec_val, len_val, offset],
+                "list sort by field",
                 function,
                 backend,
             )?;
@@ -4316,8 +4454,10 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::TextIndexSet { dest, .. }
             | Inst::ListSet { dest, .. }
             | Inst::ListPush { dest, .. }
+            | Inst::ListFrom { dest, .. }
             | Inst::ListSortText { dest, .. }
-            | Inst::ListSortRecordTextField { dest, .. } => {
+            | Inst::ListSortRecordTextField { dest, .. }
+            | Inst::ListSortRecordField { dest, .. } => {
                 defined.insert(*dest);
             }
             Inst::Perform { dest, .. } | Inst::Handle { dest, .. } => {

@@ -344,13 +344,24 @@ struct OptionalBlockItemEntry {
 }
 
 struct BlockOutline {
-    total_count: I32,
-    truncated: Bool,
-    first: OptionalBlockItemEntry,
-    second: OptionalBlockItemEntry,
-    third: OptionalBlockItemEntry,
-    fourth: OptionalBlockItemEntry,
-    fifth: OptionalBlockItemEntry,
+total_count: I32,
+truncated: Bool,
+first: OptionalBlockItemEntry,
+second: OptionalBlockItemEntry,
+third: OptionalBlockItemEntry,
+fourth: OptionalBlockItemEntry,
+fifth: OptionalBlockItemEntry,
+sixth: OptionalBlockItemEntry,
+seventh: OptionalBlockItemEntry,
+eighth: OptionalBlockItemEntry,
+ninth: OptionalBlockItemEntry,
+tenth: OptionalBlockItemEntry,
+eleventh: OptionalBlockItemEntry,
+twelfth: OptionalBlockItemEntry,
+thirteenth: OptionalBlockItemEntry,
+fourteenth: OptionalBlockItemEntry,
+fifteenth: OptionalBlockItemEntry,
+sixteenth: OptionalBlockItemEntry,
 }
 
 enum SyntaxEventKind {
@@ -608,8 +619,8 @@ fn make_event_stream(total_count: I32, truncated: Bool, first: OptionalSyntaxEve
     EventStream { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
 }
 
-fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry) -> BlockOutline {
-    BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth }
+fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry, sixth: OptionalBlockItemEntry, seventh: OptionalBlockItemEntry, eighth: OptionalBlockItemEntry, ninth: OptionalBlockItemEntry, tenth: OptionalBlockItemEntry, eleventh: OptionalBlockItemEntry, twelfth: OptionalBlockItemEntry, thirteenth: OptionalBlockItemEntry, fourteenth: OptionalBlockItemEntry, fifteenth: OptionalBlockItemEntry, sixteenth: OptionalBlockItemEntry) -> BlockOutline {
+BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
 }
 
 fn missing_block_item_entry() -> OptionalBlockItemEntry {
@@ -617,32 +628,76 @@ fn missing_block_item_entry() -> OptionalBlockItemEntry {
 }
 
 fn block_outline_new() -> BlockOutline {
-    make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
+make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
 }
 
 fn block_outline_push(outline: BlockOutline, entry: OptionalBlockItemEntry) -> BlockOutline {
-    let next_count = outline.total_count + 1;
-    if outline.total_count == 0 {
-        make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth)
-    } else {
-        if outline.total_count == 1 {
-            make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth)
-        } else {
-            if outline.total_count == 2 {
-                make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth)
-            } else {
-                if outline.total_count == 3 {
-                    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth)
-                } else {
-                    if outline.total_count == 4 {
-                        make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry)
-                    } else {
-                        make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth)
-                    }
-                }
-            }
-        }
-    }
+let next_count = outline.total_count + 1;
+if outline.total_count == 0 {
+make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 1 {
+make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 2 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 3 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 4 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 5 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, entry, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 6 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, entry, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 7 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, entry, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 8 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, entry, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 9 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, entry, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 10 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, entry, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 11 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, entry, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 12 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, entry, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 13 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, entry, outline.fifteenth, outline.sixteenth)
+} else {
+if outline.total_count == 14 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, entry, outline.sixteenth)
+} else {
+if outline.total_count == 15 {
+make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, entry)
+} else {
+make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
 }
 
 fn missing_syntax_event() -> OptionalSyntaxEvent {
@@ -909,27 +964,71 @@ fn fn_outline_entry_at(outline: FnOutline, index: I32) -> OptionalFnOutlineEntry
 }
 
 fn block_item_entry_at(outline: BlockOutline, index: I32) -> OptionalBlockItemEntry {
-    if index == 0 {
-        outline.first
-    } else {
-        if index == 1 {
-            outline.second
-        } else {
-            if index == 2 {
-                outline.third
-            } else {
-                if index == 3 {
-                    outline.fourth
-                } else {
-                    if index == 4 {
-                        outline.fifth
-                    } else {
-                        missing_block_item_entry()
-                    }
-                }
-            }
-        }
-    }
+if index == 0 {
+outline.first
+} else {
+if index == 1 {
+outline.second
+} else {
+if index == 2 {
+outline.third
+} else {
+if index == 3 {
+outline.fourth
+} else {
+if index == 4 {
+outline.fifth
+} else {
+if index == 5 {
+outline.sixth
+} else {
+if index == 6 {
+outline.seventh
+} else {
+if index == 7 {
+outline.eighth
+} else {
+if index == 8 {
+outline.ninth
+} else {
+if index == 9 {
+outline.tenth
+} else {
+if index == 10 {
+outline.eleventh
+} else {
+if index == 11 {
+outline.twelfth
+} else {
+if index == 12 {
+outline.thirteenth
+} else {
+if index == 13 {
+outline.fourteenth
+} else {
+if index == 14 {
+outline.fifteenth
+} else {
+if index == 15 {
+outline.sixteenth
+} else {
+missing_block_item_entry()
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
 }
 
 fn syntax_event_at(stream: EventStream, index: I32) -> OptionalSyntaxEvent {
@@ -1057,7 +1156,7 @@ fn append_clause_event(stream: EventStream, kind: SyntaxEventKind, span: Optiona
 fn append_block_events(stream: EventStream, outline: BlockOutline) -> EventStream {
     let mut current = stream;
     let mut index = 0;
-    while index < 5 {
+    while index < 16 {
         let entry = block_item_entry_at(outline, index);
         if entry.present {
             current = event_stream_push(current, make_optional_syntax_event(true, make_syntax_event(block_event_kind(entry.entry.kind), entry.entry.expr_span, entry.entry.binding_span, entry.entry.expr_kind)));

@@ -412,6 +412,11 @@ pub enum Inst {
         len: ValueId,
         value: ValueId,
     },
+    ListFrom {
+        dest: ValueId,
+        array: ValueId,
+        len: usize,
+    },
     ListLen {
         dest: ValueId,
         list: ValueId,
@@ -439,6 +444,12 @@ pub enum Inst {
         len: ValueId,
     },
     ListSortRecordTextField {
+        dest: ValueId,
+        list: ValueId,
+        len: ValueId,
+        field: String,
+    },
+    ListSortRecordField {
         dest: ValueId,
         list: ValueId,
         len: ValueId,
@@ -1057,6 +1068,9 @@ impl Inst {
             Self::TextIndexKeys { dest, index } => {
                 format!("{} = text-index-keys {}", dest.render(), index.render())
             }
+            Self::ListFrom { dest, array, len } => {
+                format!("{} = list-from {}, {}", dest.render(), array.render(), len)
+            }
             Self::ListNew { dest, len, value } => format!(
                 "{} = list-new {}, {}",
                 dest.render(),
@@ -1111,6 +1125,18 @@ impl Inst {
                 field,
             } => format!(
                 "{} = list-sort-record-text-field {}, {}, {:?}",
+                dest.render(),
+                list.render(),
+                len.render(),
+                field
+            ),
+            Self::ListSortRecordField {
+                dest,
+                list,
+                len,
+                field,
+            } => format!(
+                "{} = list-sort-record-field {}, {}, {:?}",
                 dest.render(),
                 list.render(),
                 len.render(),
@@ -3767,12 +3793,14 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::TextIndexGetOrInsert { .. }
             | Inst::TextIndexSet { .. }
             | Inst::ListNew { .. }
+            | Inst::ListFrom { .. }
             | Inst::ListLen { .. }
             | Inst::ListGet { .. }
             | Inst::ListSet { .. }
             | Inst::ListPush { .. }
             | Inst::ListSortText { .. }
             | Inst::ListSortRecordTextField { .. }
+            | Inst::ListSortRecordField { .. }
             | Inst::F64FromI32 { .. }
             | Inst::I64FromI32 { .. }
             | Inst::TextLen { .. }
@@ -4207,11 +4235,17 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "list_len" if self.builtin_is_available("list_len") => self.lower_list_len_expr(expr),
             "list_get" if self.builtin_is_available("list_get") => self.lower_list_get_expr(expr),
             "list_set" if self.builtin_is_available("list_set") => self.lower_list_set_expr(expr),
+            "list_from" if self.builtin_is_available("list_from") => {
+                self.lower_list_from_expr(expr)
+            }
             "list_push" if self.builtin_is_available("list_push") => {
                 self.lower_list_push_expr(expr)
             }
             "list_sort_text" if self.builtin_is_available("list_sort_text") => {
                 self.lower_list_sort_text_expr(expr)
+            }
+            "list_sort_by_field" if self.builtin_is_available("list_sort_by_field") => {
+                self.lower_list_sort_by_field_expr(expr)
             }
             "list_sort_by_text_field" if self.builtin_is_available("list_sort_by_text_field") => {
                 self.lower_list_sort_by_text_field_expr(expr)
@@ -4652,7 +4686,19 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                     _ => LowerType::Error,
                 }
             }
+            "list_from" if self.builtin_is_available("list_from") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::Array(element, _)) => LowerType::List(element),
+                    _ => LowerType::Error,
+                }
+            }
             "list_sort_text" if self.builtin_is_available("list_sort_text") => {
+                match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
+                    Some(LowerType::List(element)) => LowerType::List(element),
+                    _ => LowerType::Error,
+                }
+            }
+            "list_sort_by_field" if self.builtin_is_available("list_sort_by_field") => {
                 match expr.args.first().map(|arg| self.infer_expr_type(arg)) {
                     Some(LowerType::List(element)) => LowerType::List(element),
                     _ => LowerType::Error,
@@ -8150,6 +8196,52 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_list_from_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let array_len = match self.infer_expr_type(arg0) {
+            LowerType::Array(_, n) => n,
+            _ => {
+                return self.emit_unit_value();
+            }
+        };
+        let array = self.lower_expr(arg0);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::ListFrom {
+            dest,
+            array,
+            len: array_len,
+        });
+        dest
+    }
+
+    fn lower_list_sort_by_field_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg0) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let Some(arg1) = expr.args.get(1) else {
+            return self.emit_unit_value();
+        };
+        let Some(arg2) = expr.args.get(2) else {
+            return self.emit_unit_value();
+        };
+        let field = match arg2 {
+            Expr::String(text) => text.value.clone(),
+            _ => String::new(),
+        };
+        let list = self.lower_expr(arg0);
+        let len = self.lower_expr(arg1);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::ListSortRecordField {
+            dest,
+            list,
+            len,
+            field,
+        });
+        dest
+    }
+
     fn lower_f64_from_i32_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
@@ -9467,6 +9559,29 @@ impl<'a> Interpreter<'a> {
                     self.lists.push(vec![value_val; len]);
                     values[dest.0 as usize] = RuntimeValue::List(id as u64);
                 }
+                Inst::ListFrom { dest, array, len } => {
+                    let array_val = extract_value(values, *array)?;
+                    let RuntimeValue::Record(record) = array_val else {
+                        return Err(RuntimeError::new(
+                            "list_from: expected array (record) value",
+                        ));
+                    };
+                    // Arrays are stored as MakeRecord with fields f0, f1, ...
+                    // We extract them in index order.
+                    let mut elems = Vec::with_capacity(*len);
+                    for i in 0..*len {
+                        let field_name = format!("f{i}");
+                        let elem = record
+                            .fields
+                            .iter()
+                            .find_map(|(name, val)| (name == &field_name).then(|| val.clone()))
+                            .unwrap_or(RuntimeValue::Int(0));
+                        elems.push(elem);
+                    }
+                    let id = self.lists.len();
+                    self.lists.push(elems);
+                    values[dest.0 as usize] = RuntimeValue::List(id as u64);
+                }
                 Inst::ListLen { dest, list } => {
                     let list_val = extract_value(values, *list)?;
                     let RuntimeValue::List(id) = list_val else {
@@ -9648,6 +9763,59 @@ impl<'a> Interpreter<'a> {
                         match (left_key, right_key) {
                             (Some(RuntimeValue::Text(left)), Some(RuntimeValue::Text(right))) => {
                                 left.cmp(right)
+                            }
+                            _ => std::cmp::Ordering::Equal,
+                        }
+                    });
+                    values[dest.0 as usize] = RuntimeValue::List(id);
+                }
+                Inst::ListSortRecordField {
+                    dest,
+                    list,
+                    len,
+                    field,
+                } => {
+                    let list_val = extract_value(values, *list)?;
+                    let len_val = extract_value(values, *len)?;
+                    let RuntimeValue::List(id) = list_val else {
+                        return Err(RuntimeError::new("expected List"));
+                    };
+                    let RuntimeValue::Int(len) = len_val else {
+                        return Err(RuntimeError::new("expected Int"));
+                    };
+                    if len < 0 {
+                        return Err(RuntimeError::new(
+                            "list_sort_by_field length must be non-negative",
+                        ));
+                    }
+                    let used = usize::try_from(len).map_err(|_| {
+                        RuntimeError::new("list_sort_by_field length exceeds limits")
+                    })?;
+                    let list_ref = self
+                        .lists
+                        .get_mut(id as usize)
+                        .ok_or_else(|| RuntimeError::new("list handle is unavailable"))?;
+                    if used > list_ref.len() {
+                        return Err(RuntimeError::new(
+                            "bounds assertion failed in `list_sort_by_field`",
+                        ));
+                    }
+                    list_ref[..used].sort_by(|left, right| {
+                        let get_key = |val: &RuntimeValue| match val {
+                            RuntimeValue::Record(record) => record
+                                .fields
+                                .iter()
+                                .find(|(name, _)| name == field)
+                                .map(|(_, value)| value.clone()),
+                            _ => None,
+                        };
+                        let lk = get_key(left);
+                        let rk = get_key(right);
+                        match (lk, rk) {
+                            (Some(RuntimeValue::Text(l)), Some(RuntimeValue::Text(r))) => l.cmp(&r),
+                            (Some(RuntimeValue::Int(l)), Some(RuntimeValue::Int(r))) => l.cmp(&r),
+                            (Some(RuntimeValue::F64(l)), Some(RuntimeValue::F64(r))) => {
+                                l.partial_cmp(&r).unwrap_or(std::cmp::Ordering::Equal)
                             }
                             _ => std::cmp::Ordering::Equal,
                         }

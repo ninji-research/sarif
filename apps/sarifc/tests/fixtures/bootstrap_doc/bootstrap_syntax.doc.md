@@ -345,7 +345,7 @@
 
 ### fn make_block_outline
 
-- signature: `fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry) -> BlockOutline`
+- signature: `fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry, sixth: OptionalBlockItemEntry, seventh: OptionalBlockItemEntry, eighth: OptionalBlockItemEntry, ninth: OptionalBlockItemEntry, tenth: OptionalBlockItemEntry, eleventh: OptionalBlockItemEntry, twelfth: OptionalBlockItemEntry, thirteenth: OptionalBlockItemEntry, fourteenth: OptionalBlockItemEntry, fifteenth: OptionalBlockItemEntry, sixteenth: OptionalBlockItemEntry) -> BlockOutline`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -1794,6 +1794,54 @@ invalid
 
 ## bootstrap/sarif_syntax/src/ownership.sarif
 
+### fn is_text_empty
+
+- signature: `fn is_text_empty(s: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn text_starts_with
+
+- signature: `fn text_starts_with(text: Text, prefix: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_byte_index
+
+- signature: `fn find_byte_index(source: Text, byte: I32, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_layout_byte
+
+- signature: `fn is_layout_byte(byte: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_start_index
+
+- signature: `fn trim_start_index(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_end_index
+
+- signature: `fn trim_end_index(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn trim_text
+
+- signature: `fn trim_text(source: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_last_byte
+
+- signature: `fn find_last_byte(source: Text, needle: I32, end_pos: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
 ### fn analyze_borrow_escape
 
 - signature: `fn analyze_borrow_escape(module: HirModuleData) -> Text`
@@ -1827,6 +1875,54 @@ invalid
 ### fn check_affine_param_usage
 
 - signature: `fn check_affine_param_usage(param_name: Text, param_type: Text, fn_name: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn count_name_in_source
+
+- signature: `fn count_name_in_source(source: Text, name: Text, start: I32, end_pos: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_name_byte
+
+- signature: `fn is_name_byte(b: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_affine_param_reuse
+
+- signature: `fn check_affine_param_reuse(param_name: Text, source: Text, body_start: I32, body_end: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_open_paren_before
+
+- signature: `fn find_open_paren_before(source: Text, index: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_params_text
+
+- signature: `fn extract_params_text(source: Text, fn_name: Text, fn_name_end: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_fn_body_start
+
+- signature: `fn find_fn_body_start(source: Text, fn_decl_end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_fn_body_end
+
+- signature: `fn find_fn_body_end(source: Text, body_start: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_fn_affine_usage
+
+- signature: `fn check_fn_affine_usage(source: Text, fn_name: Text, params_text: Text, body_start: I32, body_end: I32) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 

@@ -511,3 +511,53 @@ fn bootstrap_check_infers_complex_else_branches() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn bootstrap_check_rejects_unknown_name_in_let() {
+    let source = "fn main() -> I32 { let x = unknown_name; x }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unknown name `unknown_name`"));
+}
+
+#[test]
+fn bootstrap_check_rejects_assign_to_immutable() {
+    let source = "fn main() -> I32 { let x = 5; x = 10; x }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("cannot assign to immutable variable `x`"));
+}
+
+#[test]
+fn bootstrap_check_rejects_assign_to_unknown_variable() {
+    let source = "fn main() -> I32 { y = 10; 0 }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unknown variable `y`"));
+}
+
+#[test]
+fn bootstrap_check_rejects_tail_expr_type_mismatch_with_implicit_unit() {
+    let source = "fn main() { 42 }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("does not match implicit Unit return type"));
+}
+
+#[test]
+fn bootstrap_check_rejects_duplicate_local() {
+    let source = "fn main() -> I32 { let x = 5; let x = 10; x }";
+    let path = temp_source(source);
+    let output = run_path("bootstrap-check", &path);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("duplicate local `x`"));
+}

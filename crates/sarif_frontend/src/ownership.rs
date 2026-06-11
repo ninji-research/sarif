@@ -1462,10 +1462,20 @@ fn expr_type_for_ownership(
             "list_set" => expr.args.first().and_then(|list| {
                 expr_type_for_ownership(list, locals, struct_layouts, result_type)
             }),
+            "list_from" => expr.args.first().and_then(|array| {
+                let array_ty = expr_type_for_ownership(array, locals, struct_layouts, result_type)?;
+                match array_ty {
+                    Type::Array(element, _) => Some(Type::List(element)),
+                    _ => None,
+                }
+            }),
             "list_push" => expr.args.first().and_then(|list| {
                 expr_type_for_ownership(list, locals, struct_layouts, result_type)
             }),
             "list_sort_text" => expr.args.first().and_then(|list| {
+                expr_type_for_ownership(list, locals, struct_layouts, result_type)
+            }),
+            "list_sort_by_field" => expr.args.first().and_then(|list| {
                 expr_type_for_ownership(list, locals, struct_layouts, result_type)
             }),
             "list_sort_by_text_field" => expr.args.first().and_then(|list| {

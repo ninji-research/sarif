@@ -1228,12 +1228,14 @@ fn collect_locals_binary(
             | Inst::EnumToI32 { dest, .. }
             | Inst::EnumToText { dest, .. }
             | Inst::ListNew { dest, .. }
+            | Inst::ListFrom { dest, .. }
             | Inst::ListLen { dest, .. }
             | Inst::ListGet { dest, .. }
             | Inst::ListSet { dest, .. }
             | Inst::ListPush { dest, .. }
             | Inst::ListSortText { dest, .. }
             | Inst::ListSortRecordTextField { dest, .. }
+            | Inst::ListSortRecordField { dest, .. }
             | Inst::Add { dest, .. }
             | Inst::Sub { dest, .. }
             | Inst::Mul { dest, .. }
@@ -2158,6 +2160,117 @@ fn emit_inst_binary(
                     field_desc.kind, function.name
                 )));
             }
+            let offset = i64::from(field_desc.offset);
+            let list_idx = env.get_value(*list);
+            let len_idx = env.get_value(*len);
+            let dest_idx = env.get_or_alloc_value(*dest);
+            f.instruction(&Instruction::LocalGet(list_idx));
+            f.instruction(&Instruction::LocalGet(len_idx));
+            f.instruction(&Instruction::I64Const(offset));
+            f.instruction(&Instruction::Call(
+                func_indices.runtime("__sarif_list_sort_record_text_field"),
+            ));
+            f.instruction(&Instruction::LocalSet(dest_idx));
+        }
+        Inst::ListFrom { dest, array, len } => {
+            // Allocate a new list with len and fill value 0.
+            f.instruction(&Instruction::I64Const(*len as i64));
+            f.instruction(&Instruction::I64Const(0));
+            f.instruction(&Instruction::Call(func_indices.runtime("__sarif_list_new")));
+
+            let dest_idx = env.get_or_alloc_value(*dest);
+            f.instruction(&Instruction::LocalSet(dest_idx));
+
+            // Now, get the record name of the array record
+            let WasmValueKind::Record(record_name) =
+                kinds.get(array).cloned().ok_or_else(|| {
+                    WasmError::new(format!(
+                        "wasm list_from array {} kind not found in `{}`",
+                        array.render(),
+                        function.name
+                    ))
+                })?
+            else {
+                return Err(WasmError::new(format!(
+                    "wasm list_from array {} is not a record in `{}`",
+                    array.render(),
+                    function.name
+                )));
+            };
+            let record = records.get(record_name.as_str()).ok_or_else(|| {
+                WasmError::new(format!("missing wasm record metadata for `{record_name}`"))
+            })?;
+
+            // For each element, load from record and call __sarif_list_set
+            let array_idx = env.get_value(*array);
+            for i in 0..*len {
+                f.instruction(&Instruction::LocalGet(dest_idx));
+                f.instruction(&Instruction::I64Const(i as i64));
+
+                // Load field f{i}
+                let field_name = format!("f{i}");
+                let field = record
+                    .fields
+                    .iter()
+                    .find(|f| f.name == field_name)
+                    .ok_or_else(|| {
+                        WasmError::new(format!(
+                            "record `{record_name}` has no field `{field_name}` in `{}`",
+                            function.name
+                        ))
+                    })?;
+
+                f.instruction(&Instruction::LocalGet(array_idx));
+                f.instruction(&Instruction::I32WrapI64);
+                let offset = u64::from(field.offset);
+                match wasm_type_from_kind_result(&field.kind) {
+                    Some(WasmType::I64) | None => {
+                        f.instruction(&Instruction::I64Load(memarg(offset)));
+                    }
+                    Some(WasmType::F64) => {
+                        f.instruction(&Instruction::F64Load(memarg(offset)));
+                        f.instruction(&Instruction::I64ReinterpretF64);
+                    }
+                }
+
+                // Call __sarif_list_set
+                f.instruction(&Instruction::Call(func_indices.runtime("__sarif_list_set")));
+                // Drop the returned list pointer
+                f.instruction(&Instruction::Drop);
+            }
+        }
+        Inst::ListSortRecordField {
+            dest,
+            list,
+            len,
+            field,
+        } => {
+            let Some(WasmValueKind::List(element)) = kinds.get(list) else {
+                return Err(WasmError::new(format!(
+                    "wasm list_sort_record_field input {} is not a list in `{}`",
+                    list.render(),
+                    function.name
+                )));
+            };
+            let WasmValueKind::Record(record_name) = element.as_ref() else {
+                return Err(WasmError::new(format!(
+                    "wasm list_sort_record_field requires List[record], found `{:?}` in `{}`",
+                    element, function.name
+                )));
+            };
+            let record = records.get(record_name.as_str()).ok_or_else(|| {
+                WasmError::new(format!("missing wasm record metadata for `{record_name}`"))
+            })?;
+            let field_desc = record
+                .fields
+                .iter()
+                .find(|candidate| candidate.name == *field)
+                .ok_or_else(|| {
+                    WasmError::new(format!(
+                        "record `{record_name}` has no wasm field `{field}` in `{}`",
+                        function.name
+                    ))
+                })?;
             let offset = i64::from(field_desc.offset);
             let list_idx = env.get_value(*list);
             let len_idx = env.get_value(*len);

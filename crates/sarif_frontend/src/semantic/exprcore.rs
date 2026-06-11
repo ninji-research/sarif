@@ -334,6 +334,28 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &[],
             dispatch_simple: false,
         }),
+        "list_from" => Some(BuiltinEntry {
+            name: "list_from",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_from-arity",
+            type_error_code: "semantic.list_from-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_from(array)`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
+        "list_sort_by_field" => Some(BuiltinEntry {
+            name: "list_sort_by_field",
+            runtime_code: Some("semantic.list-runtime-context"),
+            arity_error_code: "semantic.list_sort_by_field-arity",
+            type_error_code: "semantic.list_sort_by_field-type",
+            result_ty: Type::Error,
+            call_hint: "Call `list_sort_by_field(list, len, \"field\")`.",
+            arg_types: &[],
+            arg_helps: &[],
+            dispatch_simple: false,
+        }),
         "list_sort_by_text_field" => Some(BuiltinEntry {
             name: "list_sort_by_text_field",
             runtime_code: Some("semantic.list-runtime-context"),
@@ -1707,6 +1729,192 @@ pub(super) fn infer_call_expr(
         }
         return ExprInfo {
             ty: args[0].ty.clone(),
+            calls,
+        };
+    }
+
+    if expr.callee == "list_from" && !functions.contains_key("list_from") {
+        require_runtime_builtin_context(
+            "semantic.list-runtime-context",
+            "list_from",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if !caller_effects.contains(&Effect::Alloc) {
+            diagnostics.push(Diagnostic::new(
+                "semantic.alloc-effect",
+                format!("builtin `list_from` requires `alloc` effect in `{fn_name}`"),
+                expr.span,
+                Some("Add `effect alloc` to the function signature.".to_owned()),
+            ));
+        }
+        if args.len() != 1 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_from-arity",
+                format!(
+                    "builtin `list_from` expects 1 argument but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `list_from(array)`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let mut list_ok = false;
+        let mut element_ty = Type::Error;
+        match &args[0].ty {
+            Type::Array(element, _) => {
+                list_ok = true;
+                element_ty = (**element).clone();
+            }
+            Type::Error => {}
+            _ => {
+                diagnostics.push(Diagnostic::new(
+                    "semantic.list_from-type",
+                    format!(
+                        "builtin `list_from` first argument must be an Array, found `{}`",
+                        args[0].ty.render(),
+                    ),
+                    expr.span,
+                    Some("Pass an array.".to_owned()),
+                ));
+            }
+        }
+        return ExprInfo {
+            ty: if list_ok {
+                Type::List(Box::new(element_ty))
+            } else {
+                Type::Error
+            },
+            calls,
+        };
+    }
+
+    if expr.callee == "list_sort_by_field" && !functions.contains_key("list_sort_by_field") {
+        require_runtime_builtin_context(
+            "semantic.list-runtime-context",
+            "list_sort_by_field",
+            expr.span,
+            diagnostics,
+            context,
+        );
+        if args.len() != 3 {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_field-arity",
+                format!(
+                    "builtin `list_sort_by_field` expects 3 arguments but got {}",
+                    args.len()
+                ),
+                expr.span,
+                Some("Call `list_sort_by_field(vec, len, \"field\")`.".to_owned()),
+            ));
+            return ExprInfo {
+                ty: Type::Error,
+                calls,
+            };
+        }
+        let mut list_ok = false;
+        match &args[0].ty {
+            Type::List(element) => {
+                if let Type::Named(name) = &**element {
+                    list_ok = true;
+                    if let Some(fields) = struct_layouts.get(name) {
+                        match &expr.args[2] {
+                            Expr::String(field_name) => {
+                                if let Some((_, field_ty)) =
+                                    fields.iter().find(|(field, _)| field == &field_name.value)
+                                {
+                                    if *field_ty != Type::Text
+                                        && *field_ty != Type::I32
+                                        && *field_ty != Type::F64
+                                    {
+                                        diagnostics.push(Diagnostic::new(
+                                            "semantic.list_sort_by_field-type",
+                                            format!(
+                                                "builtin `list_sort_by_field` field `{name}.{}` must have type `Text`, `I32`, or `F64`, found `{}`",
+                                                field_name.value,
+                                                field_ty.render(),
+                                            ),
+                                            expr.span,
+                                            Some("Sort by a Text, I32, or F64 field.".to_owned()),
+                                        ));
+                                    }
+                                } else {
+                                    diagnostics.push(Diagnostic::new(
+                                        "semantic.list_sort_by_field-field",
+                                        format!(
+                                            "record `{name}` has no field `{}`",
+                                            field_name.value
+                                        ),
+                                        expr.span,
+                                        Some("Use one of the declared Text, I32, or F64 field names.".to_owned()),
+                                    ));
+                                }
+                            }
+                            _ => diagnostics.push(Diagnostic::new(
+                                "semantic.list_sort_by_field-field",
+                                "builtin `list_sort_by_field` requires a string literal field name"
+                                    .to_owned(),
+                                expr.span,
+                                Some("Pass a field name like `\"id\"`.".to_owned()),
+                            )),
+                        }
+                    }
+                } else if args[0].ty != Type::Error {
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.list_sort_by_field-type",
+                        format!(
+                            "builtin `list_sort_by_field` first argument must be List[record], found `{}`",
+                            args[0].ty.render(),
+                        ),
+                        expr.span,
+                        Some("Pass a list of records with a Text, I32, or F64 field.".to_owned()),
+                    ));
+                }
+            }
+            Type::Error => {}
+            _ => diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_field-type",
+                format!(
+                    "builtin `list_sort_by_field` first argument must be List[record], found `{}`",
+                    args[0].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a list of records with a Text, I32, or F64 field.".to_owned()),
+            )),
+        }
+        if args[1].ty != Type::I32 && args[1].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_field-type",
+                format!(
+                    "builtin `list_sort_by_field` second argument must be I32, found `{}`",
+                    args[1].ty.render(),
+                ),
+                expr.span,
+                Some("Pass the used length as an integer.".to_owned()),
+            ));
+        }
+        if args[2].ty != Type::Text && args[2].ty != Type::Error {
+            diagnostics.push(Diagnostic::new(
+                "semantic.list_sort_by_field-type",
+                format!(
+                    "builtin `list_sort_by_field` third argument must be Text, found `{}`",
+                    args[2].ty.render(),
+                ),
+                expr.span,
+                Some("Pass a Text field name.".to_owned()),
+            ));
+        }
+        return ExprInfo {
+            ty: if list_ok {
+                args[0].ty.clone()
+            } else {
+                Type::Error
+            },
             calls,
         };
     }
@@ -3301,8 +3509,10 @@ fn contains_forbidden_comptime_effect(expr: &crate::hir::Expr) -> bool {
                     | "text_builder_append_slice"
                     | "text_builder_append_i32"
                     | "text_builder_finish"
+                    | "list_from"
                     | "list_push"
                     | "list_sort_text"
+                    | "list_sort_by_field"
                     | "list_sort_by_text_field"
                     | "text_index_new"
                     | "text_index_get"

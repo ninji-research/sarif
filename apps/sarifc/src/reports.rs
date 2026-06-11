@@ -118,11 +118,39 @@ fn collect_package_names(loaded: &LoadedSource) -> String {
     }
     names.join("\n")
 }
-
 pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
     loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap check failed")?;
     let program = bootstrap_tools_program()?;
     let package_names = collect_package_names(loaded);
+    let mut accumulated_fn_sigs = String::new();
+    for segment in &loaded.segments {
+        let sigs_output = run_function(
+            program,
+            "collect_fn_sigs_text",
+            &[
+                RuntimeValue::Text(segment.source.clone()),
+                RuntimeValue::Text(accumulated_fn_sigs.clone()),
+            ],
+        )
+        .map_err(|error| {
+            let message = match error {
+                RuntimeError::Message(m) => m,
+                RuntimeError::EffectUnwind {
+                    effect, operation, ..
+                } => format!("unhandled effect {effect}.{operation}"),
+            };
+            format!("runtime error collecting fn sigs: {message}")
+        })?;
+        accumulated_fn_sigs = match sigs_output {
+            RuntimeValue::Text(text) => text,
+            other => {
+                return Err(format!(
+                    "collect_fn_sigs_text must return Text, found {}",
+                    other.render()
+                ));
+            }
+        };
+    }
     let mut all_diagnostics = String::new();
     for segment in &loaded.segments {
         let check_output = run_function(
@@ -131,6 +159,7 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
             &[
                 RuntimeValue::Text(segment.source.clone()),
                 RuntimeValue::Text(package_names.clone()),
+                RuntimeValue::Text(accumulated_fn_sigs.clone()),
             ],
         )
         .map_err(|error| {
@@ -161,7 +190,6 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
         Err(all_diagnostics)
     }
 }
-
 pub fn render_bootstrap_doc(loaded: &LoadedSource) -> Result<String, String> {
     loaded.ensure_no_diagnostics(
         &LoadedSource::blocking_diagnostics(

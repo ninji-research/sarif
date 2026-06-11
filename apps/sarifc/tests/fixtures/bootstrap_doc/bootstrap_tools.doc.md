@@ -345,7 +345,7 @@
 
 ### fn make_block_outline
 
-- signature: `fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry) -> BlockOutline`
+- signature: `fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry, sixth: OptionalBlockItemEntry, seventh: OptionalBlockItemEntry, eighth: OptionalBlockItemEntry, ninth: OptionalBlockItemEntry, tenth: OptionalBlockItemEntry, eleventh: OptionalBlockItemEntry, twelfth: OptionalBlockItemEntry, thirteenth: OptionalBlockItemEntry, fourteenth: OptionalBlockItemEntry, fifteenth: OptionalBlockItemEntry, sixteenth: OptionalBlockItemEntry) -> BlockOutline`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2001,18 +2001,6 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
-### fn contains_blocked_effect
-
-- signature: `fn contains_blocked_effect(source: Text, span: OptionalSpan) -> Bool`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn fn_has_blocked_effect
-
-- signature: `fn fn_has_blocked_effect(source: Text, shape: FnHeaderShape) -> Bool`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
 ### fn extract_const_value_from_span
 
 - signature: `fn extract_const_value_from_span(source: Text, item_start: I32, item_end: I32) -> Text`
@@ -2022,12 +2010,6 @@
 ### fn struct_body_contains_affine
 
 - signature: `fn struct_body_contains_affine(source: Text, body_start: I32, body_end: I32) -> Bool`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn outline_doc_text_from
-
-- signature: `fn outline_doc_text_from(source: Text, state: ParseState) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2067,24 +2049,6 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
-### fn collect_all_names_from
-
-- signature: `fn collect_all_names_from(source: Text, state: ParseState, names: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn collect_all_names
-
-- signature: `fn collect_all_names(source: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn check_duplicate_defs_from
-
-- signature: `fn check_duplicate_defs_from(source: Text, state: ParseState, names: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
 ### fn is_builtin_fn
 
 - signature: `fn is_builtin_fn(name: Text) -> Bool`
@@ -2109,12 +2073,6 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
-### fn check_body_calls_from
-
-- signature: `fn check_body_calls_from(source: Text, state: ParseState, known: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
 ### fn span_text_safe
 
 - signature: `fn span_text_safe(source: Text, span: OptionalSpan) -> Text`
@@ -2124,12 +2082,6 @@
 ### fn extract_type_text
 
 - signature: `fn extract_type_text(type_text: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn is_builtin_type
-
-- signature: `fn is_builtin_type(name: Text) -> Bool`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2154,12 +2106,6 @@
 ### fn collect_struct_field_layout
 
 - signature: `fn collect_struct_field_layout(body: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn collect_struct_types
-
-- signature: `fn collect_struct_types(source: Text, state: ParseState) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2343,9 +2289,9 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
-### fn check_fn_return_type
+### fn check_fn_return_type_from_shape
 
-- signature: `fn check_fn_return_type(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
+- signature: `fn check_fn_return_type_from_shape(source: Text, body_outline: BlockOutline, return_span: OptionalSpan, params_span: OptionalSpan, body_span: OptionalSpan, consts: Text, fns: Text, known: Text) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
@@ -2397,39 +2343,63 @@
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
-### fn check_const_types_from
+### fn check_all_from
 
-- signature: `fn check_const_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn check_fn_types_from
-
-- signature: `fn check_fn_types_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn collect_const_types
-
-- signature: `fn collect_const_types(source: Text, state: ParseState) -> Text`
-- ownership: `consumes affine arguments`
-- rt status: `profile-compatible`
-
-### fn collect_fn_sigs_from
-
-- signature: `fn collect_fn_sigs_from(source: Text, state: ParseState) -> Text`
+- signature: `fn check_all_from(source: Text, state: ParseState, consts: Text, fns: Text, known: Text) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
 ### fn check_text
 
-- signature: `fn check_text(source: Text, package_names: Text) -> Text`
+- signature: `fn check_text(source: Text, package_names: Text, package_fn_sigs: Text) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_affine_ownership_type
+
+- signature: `fn is_affine_ownership_type(ty: Text) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn count_affine_param_uses_in_body
+
+- signature: `fn count_affine_param_uses_in_body(source: Text, param_name: Text, body_start: I32, body_end: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn is_name_byte
+
+- signature: `fn is_name_byte(b: I32) -> Bool`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn find_open_paren_before
+
+- signature: `fn find_open_paren_before(source: Text, before_pos: I32) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn extract_params_text
+
+- signature: `fn extract_params_text(source: Text, fn_name_end: I32, body_start: I32) -> Text`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn check_fn_ownership
+
+- signature: `fn check_fn_ownership(source: Text, fn_name_start: I32, fn_name_end: I32, body_start: I32, body_end: I32) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 
 ### fn bool_score
 
 - signature: `fn bool_score(value: Bool) -> I32`
+- ownership: `consumes affine arguments`
+- rt status: `profile-compatible`
+
+### fn collect_fn_sigs_text
+
+- signature: `fn collect_fn_sigs_text(source: Text, package_fn_sigs: Text) -> Text`
 - ownership: `consumes affine arguments`
 - rt status: `profile-compatible`
 

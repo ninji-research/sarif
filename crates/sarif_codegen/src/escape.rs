@@ -152,6 +152,7 @@ impl Env<'_> {
             Inst::TextBuilderNew { dest }
             | Inst::TextIndexNew { dest }
             | Inst::ListNew { dest, .. }
+            | Inst::ListFrom { dest, .. }
             | Inst::ListPush { dest, .. }
             | Inst::TextConcat { dest, .. }
             | Inst::TextIntern { dest, .. }
@@ -174,6 +175,7 @@ impl Env<'_> {
             | Inst::TextIndexKeys { dest, .. }
             | Inst::ListSortText { dest, .. }
             | Inst::ListSortRecordTextField { dest, .. }
+            | Inst::ListSortRecordField { dest, .. }
             | Inst::ListSet { dest, .. }
             | Inst::TextBuilderFinish { dest, .. }
             | Inst::Perform { dest, .. }

@@ -543,12 +543,14 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::EnumToI32 { dest, .. }
                 | Inst::EnumToText { dest, .. }
                 | Inst::ListNew { dest, .. }
+                | Inst::ListFrom { dest, .. }
                 | Inst::ListLen { dest, .. }
                 | Inst::ListGet { dest, .. }
                 | Inst::ListSet { dest, .. }
                 | Inst::ListPush { dest, .. }
                 | Inst::ListSortText { dest, .. }
                 | Inst::ListSortRecordTextField { dest, .. }
+                | Inst::ListSortRecordField { dest, .. }
                 | Inst::Add { dest, .. }
                 | Inst::Sub { dest, .. }
                 | Inst::Mul { dest, .. }
@@ -1276,6 +1278,118 @@ impl<'a> WasmEmitter<'a> {
                         field_desc.kind, function.name
                     )));
                 }
+                let offset = i64::from(field_desc.offset);
+                writeln!(output, "    local.get ${}", wasm_id(*list))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.get ${}", wasm_id(*len))
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    i64.const {offset}")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_list_sort_record_text_field")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+            }
+            Inst::ListFrom { dest, array, len } => {
+                let WasmValueKind::Record(record_name) =
+                    kinds.get(array).cloned().ok_or_else(|| {
+                        WasmError::new(format!(
+                            "wasm list_from array {} kind not found in `{}`",
+                            array.render(),
+                            function.name
+                        ))
+                    })?
+                else {
+                    return Err(WasmError::new(format!(
+                        "wasm list_from array {} is not a record in `{}`",
+                        array.render(),
+                        function.name
+                    )));
+                };
+                let record = self.records.get(record_name.as_str()).ok_or_else(|| {
+                    WasmError::new(format!("missing wasm record metadata for `{record_name}`"))
+                })?;
+
+                writeln!(output, "    i64.const {}", *len)
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    i64.const 0").expect("writing to a string cannot fail");
+                writeln!(output, "    call $__sarif_list_new")
+                    .expect("writing to a string cannot fail");
+                writeln!(output, "    local.set ${}", wasm_id(*dest))
+                    .expect("writing to a string cannot fail");
+
+                for i in 0..*len {
+                    writeln!(output, "    local.get ${}", wasm_id(*dest))
+                        .expect("writing to a string cannot fail");
+                    writeln!(output, "    i64.const {i}").expect("writing to a string cannot fail");
+
+                    // Load field f{i}
+                    let field_name = format!("f{i}");
+                    let field = record
+                        .fields
+                        .iter()
+                        .find(|f| f.name == field_name)
+                        .ok_or_else(|| {
+                            WasmError::new(format!(
+                                "record `{record_name}` has no field `{field_name}` in `{}`",
+                                function.name
+                            ))
+                        })?;
+                    writeln!(output, "    local.get ${}", wasm_id(*array))
+                        .expect("writing to a string cannot fail");
+                    writeln!(output, "    i32.wrap_i64").expect("writing to a string cannot fail");
+
+                    let offset = field.offset;
+                    match wasm_type_from_kind_result(&field.kind) {
+                        Some(WasmType::I64) | None => {
+                            writeln!(output, "    i64.load offset={offset}")
+                                .expect("writing to a string cannot fail");
+                        }
+                        Some(WasmType::F64) => {
+                            writeln!(output, "    f64.load offset={offset}")
+                                .expect("writing to a string cannot fail");
+                            writeln!(output, "    i64.reinterpret_f64")
+                                .expect("writing to a string cannot fail");
+                        }
+                    }
+
+                    writeln!(output, "    call $__sarif_list_set")
+                        .expect("writing to a string cannot fail");
+                    writeln!(output, "    drop").expect("writing to a string cannot fail");
+                }
+            }
+            Inst::ListSortRecordField {
+                dest,
+                list,
+                len,
+                field,
+            } => {
+                let Some(WasmValueKind::List(element)) = kinds.get(list) else {
+                    return Err(WasmError::new(format!(
+                        "wasm list_sort_by_field input {} is not a list in `{}`",
+                        list.render(),
+                        function.name
+                    )));
+                };
+                let WasmValueKind::Record(record_name) = element.as_ref() else {
+                    return Err(WasmError::new(format!(
+                        "wasm list_sort_by_field requires List[record], found `{:?}` in `{}`",
+                        element, function.name
+                    )));
+                };
+                let record = self.records.get(record_name.as_str()).ok_or_else(|| {
+                    WasmError::new(format!("missing wasm record metadata for `{record_name}`"))
+                })?;
+                let field_desc = record
+                    .fields
+                    .iter()
+                    .find(|candidate| candidate.name == *field)
+                    .ok_or_else(|| {
+                        WasmError::new(format!(
+                            "record `{record_name}` has no wasm field `{field}` in `{}`",
+                            function.name
+                        ))
+                    })?;
                 let offset = i64::from(field_desc.offset);
                 writeln!(output, "    local.get ${}", wasm_id(*list))
                     .expect("writing to a string cannot fail");
@@ -2225,8 +2339,9 @@ pub(crate) fn collect_inst_kinds(
             Inst::ListSet { dest, list, .. }
             | Inst::ListPush { dest, list, .. }
             | Inst::ListSortText { dest, list, .. }
-            | Inst::ListSortRecordTextField { dest, list, .. } => {
-                // ListSet returns the same type as the list
+            | Inst::ListSortRecordTextField { dest, list, .. }
+            | Inst::ListSortRecordField { dest, list, .. } => {
+                // ListSet/sort returns the same type as the list
                 let Some(kind) = kinds.get(list).cloned() else {
                     return Err(WasmError::new(format!(
                         "wasm list mutation input {} has unknown kind in `{}`",
@@ -2235,6 +2350,26 @@ pub(crate) fn collect_inst_kinds(
                     )));
                 };
                 kinds.insert(*dest, kind);
+            }
+            Inst::ListFrom { dest, array, .. } => {
+                // The array is a Record; its element kind is the record's field kind.
+                // We look up the record in `structs` to find f0's kind.
+                let Some(WasmValueKind::Record(record_name)) = kinds.get(array).cloned() else {
+                    return Err(WasmError::new(format!(
+                        "wasm list_from input {} is not a record in `{}`",
+                        array.render(),
+                        function.name
+                    )));
+                };
+                // Find the struct definition and look up f0
+                let elem_kind = structs
+                    .iter()
+                    .find(|s| s.name == record_name)
+                    .and_then(|s| s.fields.first())
+                    .map(|f| wasm_value_kind_from_name(&f.ty, structs, enums))
+                    .transpose()?
+                    .unwrap_or(WasmValueKind::I32);
+                kinds.insert(*dest, WasmValueKind::List(Box::new(elem_kind)));
             }
             Inst::Perform { dest, .. } | Inst::Handle { dest, .. } => {
                 kinds.insert(*dest, WasmValueKind::Unit);
