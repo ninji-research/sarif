@@ -220,238 +220,155 @@ fn typecheck_hir_module(module: HirModuleData) -> Text {
     
     let mut known_types = "I32\nF64\nBool\nText\nBytes\nUnit\nTextIndex\nTextBuilder\nFile\nList";
     
-    let mut i = 1;
+    let mut i = 0;
     let enums_list = module.enums;
-    while i <= enums_list.len and i <= 16 {
-        let opt = if i == 1 { enums_list.e1 }
-             else if i == 2 { enums_list.e2 }
-             else if i == 3 { enums_list.e3 }
-             else if i == 4 { enums_list.e4 }
-             else if i == 5 { enums_list.e5 }
-             else if i == 6 { enums_list.e6 }
-             else if i == 7 { enums_list.e7 }
-             else if i == 8 { enums_list.e8 }
-             else if i == 9 { enums_list.e9 }
-             else if i == 10 { enums_list.e10 }
-             else if i == 11 { enums_list.e11 }
-             else if i == 12 { enums_list.e12 }
-             else if i == 13 { enums_list.e13 }
-             else if i == 14 { enums_list.e14 }
-             else if i == 15 { enums_list.e15 }
-             else { enums_list.e16 };
-        if opt.present {
-            let e = opt.e;
-            known_types = add_name_to_table(known_types, e.name);
-            let mut vi = 1;
-            while vi <= e.variants.len {
-                let vopt = if vi == 1 { e.variants.v1 }
-                     else if vi == 2 { e.variants.v2 }
-                     else if vi == 3 { e.variants.v3 }
-                     else if vi == 4 { e.variants.v4 }
-                     else if vi == 5 { e.variants.v5 }
-                     else if vi == 6 { e.variants.v6 }
-                     else if vi == 7 { e.variants.v7 }
-                     else if vi == 8 { e.variants.v8 }
-                     else if vi == 9 { e.variants.v9 }
-                     else if vi == 10 { e.variants.v10 }
-                     else if vi == 11 { e.variants.v11 }
-                     else if vi == 12 { e.variants.v12 }
-                     else if vi == 13 { e.variants.v13 }
-                     else if vi == 14 { e.variants.v14 }
-                     else if vi == 15 { e.variants.v15 }
-                     else { e.variants.v16 };
-                if vopt.present {
-                    let v = vopt.variant;
-                    if v.payload.present {
-                        let e2 = check_type_ref_exists(v.payload.ty, known_types);
-                        if not is_empty_text(e2) {
-                            diags = text_concat(diags, e2);
-                        };
+    while i < enums_list.len {
+        let e = list_get(enums_list.items, i);
+        known_types = add_name_to_table(known_types, e.name);
+        let mut vi = 1;
+        while vi <= e.variants.len {
+            let vopt = if vi == 1 { e.variants.v1 }
+                 else if vi == 2 { e.variants.v2 }
+                 else if vi == 3 { e.variants.v3 }
+                 else if vi == 4 { e.variants.v4 }
+                 else if vi == 5 { e.variants.v5 }
+                 else if vi == 6 { e.variants.v6 }
+                 else if vi == 7 { e.variants.v7 }
+                 else if vi == 8 { e.variants.v8 }
+                 else if vi == 9 { e.variants.v9 }
+                 else if vi == 10 { e.variants.v10 }
+                 else if vi == 11 { e.variants.v11 }
+                 else if vi == 12 { e.variants.v12 }
+                 else if vi == 13 { e.variants.v13 }
+                 else if vi == 14 { e.variants.v14 }
+                 else if vi == 15 { e.variants.v15 }
+                 else { e.variants.v16 };
+            if vopt.present {
+                let v = vopt.variant;
+                if v.payload.present {
+                    let e2 = check_type_ref_exists(v.payload.ty, known_types);
+                    if not is_empty_text(e2) {
+                        diags = text_concat(diags, e2);
                     };
                 };
-                vi = vi + 1;
             };
+            vi = vi + 1;
         };
         i = i + 1;
     };
-    if i <= enums_list.len {
-        diags = text_concat(diags, "error: too many enum definitions (only 16 supported)\n");
-    };
     
-    i = 1;
+    i = 0;
     let consts_list = module.consts;
-    while i <= consts_list.len and i <= 16 {
-        let opt = if i == 1 { consts_list.c1 }
-             else if i == 2 { consts_list.c2 }
-             else if i == 3 { consts_list.c3 }
-             else if i == 4 { consts_list.c4 }
-             else if i == 5 { consts_list.c5 }
-             else if i == 6 { consts_list.c6 }
-             else if i == 7 { consts_list.c7 }
-             else if i == 8 { consts_list.c8 }
-             else if i == 9 { consts_list.c9 }
-             else if i == 10 { consts_list.c10 }
-             else if i == 11 { consts_list.c11 }
-             else if i == 12 { consts_list.c12 }
-             else if i == 13 { consts_list.c13 }
-             else if i == 14 { consts_list.c14 }
-             else if i == 15 { consts_list.c15 }
-             else { consts_list.c16 };
-        if opt.present {
-            known_types = add_name_to_table(known_types, opt.c.name);
-            let e2 = check_type_ref_exists(opt.c.ty, known_types);
-            if not is_empty_text(e2) {
-                diags = text_concat(diags, e2);
-            };
+    while i < consts_list.len {
+        let c = list_get(consts_list.items, i);
+        known_types = add_name_to_table(known_types, c.name);
+        let e2 = check_type_ref_exists(c.ty, known_types);
+        if not is_empty_text(e2) {
+            diags = text_concat(diags, e2);
         };
         i = i + 1;
     };
-    if i <= consts_list.len {
-        diags = text_concat(diags, "error: too many const definitions (only 16 supported)\n");
-    };
     
-    i = 1;
+    i = 0;
     let structs_list = module.structs;
-    while i <= structs_list.len and i <= 16 {
-        let opt = if i == 1 { structs_list.s1 }
-             else if i == 2 { structs_list.s2 }
-             else if i == 3 { structs_list.s3 }
-             else if i == 4 { structs_list.s4 }
-             else if i == 5 { structs_list.s5 }
-             else if i == 6 { structs_list.s6 }
-             else if i == 7 { structs_list.s7 }
-             else if i == 8 { structs_list.s8 }
-             else if i == 9 { structs_list.s9 }
-             else if i == 10 { structs_list.s10 }
-             else if i == 11 { structs_list.s11 }
-             else if i == 12 { structs_list.s12 }
-             else if i == 13 { structs_list.s13 }
-             else if i == 14 { structs_list.s14 }
-             else if i == 15 { structs_list.s15 }
-             else { structs_list.s16 };
-        if opt.present {
-            let s = opt.s;
-            known_types = add_name_to_table(known_types, s.name);
-            let mut fi = 1;
-            while fi <= s.fields.len {
-                let fopt = if fi == 1 { s.fields.f1 }
-                     else if fi == 2 { s.fields.f2 }
-                     else if fi == 3 { s.fields.f3 }
-                     else if fi == 4 { s.fields.f4 }
-                     else if fi == 5 { s.fields.f5 }
-                     else if fi == 6 { s.fields.f6 }
-                     else if fi == 7 { s.fields.f7 }
-                     else if fi == 8 { s.fields.f8 }
-                     else if fi == 9 { s.fields.f9 }
-                     else if fi == 10 { s.fields.f10 }
-                     else if fi == 11 { s.fields.f11 }
-                     else if fi == 12 { s.fields.f12 }
-                     else if fi == 13 { s.fields.f13 }
-                     else if fi == 14 { s.fields.f14 }
-                     else if fi == 15 { s.fields.f15 }
-                     else { s.fields.f16 };
-                if fopt.present {
-                    let e2 = check_type_ref_exists(fopt.field.ty, known_types);
-                    if not is_empty_text(e2) {
-                        diags = text_concat(diags, e2);
-                    };
-                };
-                fi = fi + 1;
-            };
-        };
-        i = i + 1;
-    };
-    if i <= structs_list.len {
-        diags = text_concat(diags, "error: too many struct definitions (only 16 supported)\n");
-    };
-    
-    i = 1;
-    let fns_list = module.funcs;
-    while i <= fns_list.len and i <= 16 {
-        let opt = if i == 1 { fns_list.f1 }
-             else if i == 2 { fns_list.f2 }
-             else if i == 3 { fns_list.f3 }
-             else if i == 4 { fns_list.f4 }
-             else if i == 5 { fns_list.f5 }
-             else if i == 6 { fns_list.f6 }
-             else if i == 7 { fns_list.f7 }
-             else if i == 8 { fns_list.f8 }
-             else if i == 9 { fns_list.f9 }
-             else if i == 10 { fns_list.f10 }
-             else if i == 11 { fns_list.f11 }
-             else if i == 12 { fns_list.f12 }
-             else if i == 13 { fns_list.f13 }
-             else if i == 14 { fns_list.f14 }
-             else if i == 15 { fns_list.f15 }
-             else { fns_list.f16 };
-        if opt.present {
-            let f = opt.f;
-            let mut pi = 1;
-            while pi <= f.params.len {
-                let popt = if pi == 1 { f.params.p1 }
-                     else if pi == 2 { f.params.p2 }
-                     else if pi == 3 { f.params.p3 }
-                     else if pi == 4 { f.params.p4 }
-                     else if pi == 5 { f.params.p5 }
-                     else if pi == 6 { f.params.p6 }
-                     else if pi == 7 { f.params.p7 }
-                     else if pi == 8 { f.params.p8 }
-                     else if pi == 9 { f.params.p9 }
-                     else if pi == 10 { f.params.p10 }
-                     else if pi == 11 { f.params.p11 }
-                     else if pi == 12 { f.params.p12 }
-                     else if pi == 13 { f.params.p13 }
-                     else if pi == 14 { f.params.p14 }
-                     else if pi == 15 { f.params.p15 }
-                     else { f.params.p16 };
-                if popt.present {
-                    let e2 = check_type_ref_exists(popt.param.ty, known_types);
-                    if not is_empty_text(e2) {
-                        diags = text_concat(diags, e2);
-                    };
-                };
-                pi = pi + 1;
-            };
-            if f.ret.present {
-                let e2 = check_type_ref_exists(f.ret.ty, known_types);
+    while i < structs_list.len {
+        let s = list_get(structs_list.items, i);
+        known_types = add_name_to_table(known_types, s.name);
+        let mut fi = 1;
+        while fi <= s.fields.len {
+            let fopt = if fi == 1 { s.fields.f1 }
+                 else if fi == 2 { s.fields.f2 }
+                 else if fi == 3 { s.fields.f3 }
+                 else if fi == 4 { s.fields.f4 }
+                 else if fi == 5 { s.fields.f5 }
+                 else if fi == 6 { s.fields.f6 }
+                 else if fi == 7 { s.fields.f7 }
+                 else if fi == 8 { s.fields.f8 }
+                 else if fi == 9 { s.fields.f9 }
+                 else if fi == 10 { s.fields.f10 }
+                 else if fi == 11 { s.fields.f11 }
+                 else if fi == 12 { s.fields.f12 }
+                 else if fi == 13 { s.fields.f13 }
+                 else if fi == 14 { s.fields.f14 }
+                 else if fi == 15 { s.fields.f15 }
+                 else { s.fields.f16 };
+            if fopt.present {
+                let e2 = check_type_ref_exists(fopt.field.ty, known_types);
                 if not is_empty_text(e2) {
                     diags = text_concat(diags, e2);
                 };
             };
-            let mut effects_seen = "";
-            let mut fi = 1;
-            while fi <= f.fx.len {
-                let fxopt = if fi == 1 { f.fx.fx1 }
-                     else if fi == 2 { f.fx.fx2 }
-                     else if fi == 3 { f.fx.fx3 }
-                     else if fi == 4 { f.fx.fx4 }
-                     else if fi == 5 { f.fx.fx5 }
-                     else if fi == 6 { f.fx.fx6 }
-                     else if fi == 7 { f.fx.fx7 }
-                     else if fi == 8 { f.fx.fx8 }
-                     else if fi == 9 { f.fx.fx9 }
-                     else if fi == 10 { f.fx.fx10 }
-                     else if fi == 11 { f.fx.fx11 }
-                     else if fi == 12 { f.fx.fx12 }
-                     else if fi == 13 { f.fx.fx13 }
-                     else if fi == 14 { f.fx.fx14 }
-                     else if fi == 15 { f.fx.fx15 }
-                     else { f.fx.fx16 };
-                if fxopt.present {
-                    let name = fxopt.name;
-                    if is_empty_text(effects_seen) {
-                        effects_seen = name;
-                    } else {
-                        diags = text_concat(diags, text_concat("warning: duplicate effect `", text_concat(name, "`\n")));
-                    };
-                };
-                fi = fi + 1;
-            };
+            fi = fi + 1;
         };
         i = i + 1;
     };
-    if i <= fns_list.len {
-        diags = text_concat(diags, "error: too many function definitions (only 16 supported)\n");
+    
+    i = 0;
+    let fns_list = module.funcs;
+    while i < fns_list.len {
+        let f = list_get(fns_list.items, i);
+        let mut pi = 1;
+        while pi <= f.params.len {
+            let popt = if pi == 1 { f.params.p1 }
+                 else if pi == 2 { f.params.p2 }
+                 else if pi == 3 { f.params.p3 }
+                 else if pi == 4 { f.params.p4 }
+                 else if pi == 5 { f.params.p5 }
+                 else if pi == 6 { f.params.p6 }
+                 else if pi == 7 { f.params.p7 }
+                 else if pi == 8 { f.params.p8 }
+                 else if pi == 9 { f.params.p9 }
+                 else if pi == 10 { f.params.p10 }
+                 else if pi == 11 { f.params.p11 }
+                 else if pi == 12 { f.params.p12 }
+                 else if pi == 13 { f.params.p13 }
+                 else if pi == 14 { f.params.p14 }
+                 else if pi == 15 { f.params.p15 }
+                 else { f.params.p16 };
+            if popt.present {
+                let e2 = check_type_ref_exists(popt.param.ty, known_types);
+                if not is_empty_text(e2) {
+                    diags = text_concat(diags, e2);
+                };
+            };
+            pi = pi + 1;
+        };
+        if f.ret.present {
+            let e2 = check_type_ref_exists(f.ret.ty, known_types);
+            if not is_empty_text(e2) {
+                diags = text_concat(diags, e2);
+            };
+        };
+        let mut effects_seen = "";
+        let mut fi = 1;
+        while fi <= f.fx.len {
+            let fxopt = if fi == 1 { f.fx.fx1 }
+                 else if fi == 2 { f.fx.fx2 }
+                 else if fi == 3 { f.fx.fx3 }
+                 else if fi == 4 { f.fx.fx4 }
+                 else if fi == 5 { f.fx.fx5 }
+                 else if fi == 6 { f.fx.fx6 }
+                 else if fi == 7 { f.fx.fx7 }
+                 else if fi == 8 { f.fx.fx8 }
+                 else if fi == 9 { f.fx.fx9 }
+                 else if fi == 10 { f.fx.fx10 }
+                 else if fi == 11 { f.fx.fx11 }
+                 else if fi == 12 { f.fx.fx12 }
+                 else if fi == 13 { f.fx.fx13 }
+                 else if fi == 14 { f.fx.fx14 }
+                 else if fi == 15 { f.fx.fx15 }
+                 else { f.fx.fx16 };
+            if fxopt.present {
+                let name = fxopt.name;
+                if is_empty_text(effects_seen) {
+                    effects_seen = name;
+                } else {
+                    diags = text_concat(diags, text_concat("warning: duplicate effect `", text_concat(name, "`\n")));
+                };
+            };
+            fi = fi + 1;
+        };
+        i = i + 1;
     };
     
     diags

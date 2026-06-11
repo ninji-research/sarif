@@ -9,12 +9,12 @@
     local.tee $header
     local.get $capacity
     i32.store offset=0
+    local.get $header
     local.get $capacity
     i32.const 3
     i32.shl
     call $alloc
     local.tee $data
-    local.get $header
     i32.store offset=4
     local.get $fill
     i32.wrap_i64

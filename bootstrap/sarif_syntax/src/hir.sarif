@@ -260,22 +260,7 @@ struct HirStruct {
 
 struct HirConstList {
     len: I32,
-    c1: OptionalHirConst,
-    c2: OptionalHirConst,
-    c3: OptionalHirConst,
-    c4: OptionalHirConst,
-    c5: OptionalHirConst,
-    c6: OptionalHirConst,
-    c7: OptionalHirConst,
-    c8: OptionalHirConst,
-    c9: OptionalHirConst,
-    c10: OptionalHirConst,
-    c11: OptionalHirConst,
-    c12: OptionalHirConst,
-    c13: OptionalHirConst,
-    c14: OptionalHirConst,
-    c15: OptionalHirConst,
-    c16: OptionalHirConst,
+    items: List[HirConst],
 }
 
 struct OptionalHirConst {
@@ -285,22 +270,7 @@ struct OptionalHirConst {
 
 struct HirFnList2 {
     len: I32,
-    f1: OptionalHirFn2,
-    f2: OptionalHirFn2,
-    f3: OptionalHirFn2,
-    f4: OptionalHirFn2,
-    f5: OptionalHirFn2,
-    f6: OptionalHirFn2,
-    f7: OptionalHirFn2,
-    f8: OptionalHirFn2,
-    f9: OptionalHirFn2,
-    f10: OptionalHirFn2,
-    f11: OptionalHirFn2,
-    f12: OptionalHirFn2,
-    f13: OptionalHirFn2,
-    f14: OptionalHirFn2,
-    f15: OptionalHirFn2,
-    f16: OptionalHirFn2,
+    items: List[HirFn],
 }
 
 struct OptionalHirFn2 {
@@ -310,22 +280,7 @@ struct OptionalHirFn2 {
 
 struct HirEnumList {
     len: I32,
-    e1: OptionalHirEnum,
-    e2: OptionalHirEnum,
-    e3: OptionalHirEnum,
-    e4: OptionalHirEnum,
-    e5: OptionalHirEnum,
-    e6: OptionalHirEnum,
-    e7: OptionalHirEnum,
-    e8: OptionalHirEnum,
-    e9: OptionalHirEnum,
-    e10: OptionalHirEnum,
-    e11: OptionalHirEnum,
-    e12: OptionalHirEnum,
-    e13: OptionalHirEnum,
-    e14: OptionalHirEnum,
-    e15: OptionalHirEnum,
-    e16: OptionalHirEnum,
+    items: List[HirEnum],
 }
 
 struct OptionalHirEnum {
@@ -335,22 +290,7 @@ struct OptionalHirEnum {
 
 struct HirStructList {
     len: I32,
-    s1: OptionalHirStruct,
-    s2: OptionalHirStruct,
-    s3: OptionalHirStruct,
-    s4: OptionalHirStruct,
-    s5: OptionalHirStruct,
-    s6: OptionalHirStruct,
-    s7: OptionalHirStruct,
-    s8: OptionalHirStruct,
-    s9: OptionalHirStruct,
-    s10: OptionalHirStruct,
-    s11: OptionalHirStruct,
-    s12: OptionalHirStruct,
-    s13: OptionalHirStruct,
-    s14: OptionalHirStruct,
-    s15: OptionalHirStruct,
-    s16: OptionalHirStruct,
+    items: List[HirStruct],
 }
 
 struct OptionalHirStruct {
@@ -715,48 +655,48 @@ fn hir_const_new(name: Text) -> HirConst {
     HirConst { name: name, ty: hir_type_ref_i32(), value: hir_expr_id_0(), span: hir_span_new(0, 0) }
 }
 
-fn hir_const_list_new() -> HirConstList {
-    HirConstList { len: 0, c1: hir_optional_const_false(), c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false(), c6: hir_optional_const_false(), c7: hir_optional_const_false(), c8: hir_optional_const_false(), c9: hir_optional_const_false(), c10: hir_optional_const_false(), c11: hir_optional_const_false(), c12: hir_optional_const_false(), c13: hir_optional_const_false(), c14: hir_optional_const_false(), c15: hir_optional_const_false(), c16: hir_optional_const_false() }
+fn hir_const_list_new() -> HirConstList effects [alloc] {
+    HirConstList { len: 0, items: list_new(0, hir_const_new("")) }
 }
 
-fn hir_const_list_with(c: HirConst) -> HirConstList {
-    HirConstList { len: 1, c1: OptionalHirConst { present: true, c: c }, c2: hir_optional_const_false(), c3: hir_optional_const_false(), c4: hir_optional_const_false(), c5: hir_optional_const_false(), c6: hir_optional_const_false(), c7: hir_optional_const_false(), c8: hir_optional_const_false(), c9: hir_optional_const_false(), c10: hir_optional_const_false(), c11: hir_optional_const_false(), c12: hir_optional_const_false(), c13: hir_optional_const_false(), c14: hir_optional_const_false(), c15: hir_optional_const_false(), c16: hir_optional_const_false() }
+fn hir_const_list_with(c: HirConst) -> HirConstList effects [alloc] {
+    HirConstList { len: 1, items: list_new(1, c) }
 }
 
 fn hir_optional_const_false() -> OptionalHirConst {
     OptionalHirConst { present: false, c: hir_const_new("") }
 }
 
-fn hir_fn_list_2_new() -> HirFnList2 {
-    HirFnList2 { len: 0, f1: hir_optional_fn_2_false(), f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false(), f6: hir_optional_fn_2_false(), f7: hir_optional_fn_2_false(), f8: hir_optional_fn_2_false(), f9: hir_optional_fn_2_false(), f10: hir_optional_fn_2_false(), f11: hir_optional_fn_2_false(), f12: hir_optional_fn_2_false(), f13: hir_optional_fn_2_false(), f14: hir_optional_fn_2_false(), f15: hir_optional_fn_2_false(), f16: hir_optional_fn_2_false() }
+fn hir_fn_list_2_new() -> HirFnList2 effects [alloc] {
+    HirFnList2 { len: 0, items: list_new(0, hir_fn_new("")) }
 }
 
-fn hir_fn_list_2_with(f: HirFn) -> HirFnList2 {
-    HirFnList2 { len: 1, f1: OptionalHirFn2 { present: true, f: f }, f2: hir_optional_fn_2_false(), f3: hir_optional_fn_2_false(), f4: hir_optional_fn_2_false(), f5: hir_optional_fn_2_false(), f6: hir_optional_fn_2_false(), f7: hir_optional_fn_2_false(), f8: hir_optional_fn_2_false(), f9: hir_optional_fn_2_false(), f10: hir_optional_fn_2_false(), f11: hir_optional_fn_2_false(), f12: hir_optional_fn_2_false(), f13: hir_optional_fn_2_false(), f14: hir_optional_fn_2_false(), f15: hir_optional_fn_2_false(), f16: hir_optional_fn_2_false() }
+fn hir_fn_list_2_with(f: HirFn) -> HirFnList2 effects [alloc] {
+    HirFnList2 { len: 1, items: list_new(1, f) }
 }
 
 fn hir_optional_fn_2_false() -> OptionalHirFn2 {
     OptionalHirFn2 { present: false, f: hir_fn_new("") }
 }
 
-fn hir_enum_list_new() -> HirEnumList {
-    HirEnumList { len: 0, e1: hir_optional_enum_false(), e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false(), e6: hir_optional_enum_false(), e7: hir_optional_enum_false(), e8: hir_optional_enum_false(), e9: hir_optional_enum_false(), e10: hir_optional_enum_false(), e11: hir_optional_enum_false(), e12: hir_optional_enum_false(), e13: hir_optional_enum_false(), e14: hir_optional_enum_false(), e15: hir_optional_enum_false(), e16: hir_optional_enum_false() }
+fn hir_enum_list_new() -> HirEnumList effects [alloc] {
+    HirEnumList { len: 0, items: list_new(0, hir_enum_new("")) }
 }
 
-fn hir_enum_list_with(e: HirEnum) -> HirEnumList {
-    HirEnumList { len: 1, e1: OptionalHirEnum { present: true, e: e }, e2: hir_optional_enum_false(), e3: hir_optional_enum_false(), e4: hir_optional_enum_false(), e5: hir_optional_enum_false(), e6: hir_optional_enum_false(), e7: hir_optional_enum_false(), e8: hir_optional_enum_false(), e9: hir_optional_enum_false(), e10: hir_optional_enum_false(), e11: hir_optional_enum_false(), e12: hir_optional_enum_false(), e13: hir_optional_enum_false(), e14: hir_optional_enum_false(), e15: hir_optional_enum_false(), e16: hir_optional_enum_false() }
+fn hir_enum_list_with(e: HirEnum) -> HirEnumList effects [alloc] {
+    HirEnumList { len: 1, items: list_new(1, e) }
 }
 
 fn hir_optional_enum_false() -> OptionalHirEnum {
     OptionalHirEnum { present: false, e: hir_enum_new("") }
 }
 
-fn hir_struct_list_new() -> HirStructList {
-    HirStructList { len: 0, s1: hir_optional_struct_false(), s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false(), s6: hir_optional_struct_false(), s7: hir_optional_struct_false(), s8: hir_optional_struct_false(), s9: hir_optional_struct_false(), s10: hir_optional_struct_false(), s11: hir_optional_struct_false(), s12: hir_optional_struct_false(), s13: hir_optional_struct_false(), s14: hir_optional_struct_false(), s15: hir_optional_struct_false(), s16: hir_optional_struct_false() }
+fn hir_struct_list_new() -> HirStructList effects [alloc] {
+    HirStructList { len: 0, items: list_new(0, hir_struct_new("")) }
 }
 
-fn hir_struct_list_with(s: HirStruct) -> HirStructList {
-    HirStructList { len: 1, s1: OptionalHirStruct { present: true, s: s }, s2: hir_optional_struct_false(), s3: hir_optional_struct_false(), s4: hir_optional_struct_false(), s5: hir_optional_struct_false(), s6: hir_optional_struct_false(), s7: hir_optional_struct_false(), s8: hir_optional_struct_false(), s9: hir_optional_struct_false(), s10: hir_optional_struct_false(), s11: hir_optional_struct_false(), s12: hir_optional_struct_false(), s13: hir_optional_struct_false(), s14: hir_optional_struct_false(), s15: hir_optional_struct_false(), s16: hir_optional_struct_false() }
+fn hir_struct_list_with(s: HirStruct) -> HirStructList effects [alloc] {
+    HirStructList { len: 1, items: list_new(1, s) }
 }
 
 fn hir_optional_struct_false() -> OptionalHirStruct {
@@ -795,280 +735,28 @@ fn hir_item_kind_effect() -> HirItemKind {
     HirItemKind.Effect
 }
 
-fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList {
+fn hir_const_list_push(list: HirConstList, c: HirConst) -> HirConstList effects [alloc] {
     let next = list.len + 1;
-    if list.len == 0 {
-        HirConstList { len: next, c1: OptionalHirConst { present: true, c: c }, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-    } else {
-        if list.len == 1 {
-            HirConstList { len: next, c1: list.c1, c2: OptionalHirConst { present: true, c: c }, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-        } else {
-            if list.len == 2 {
-                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: OptionalHirConst { present: true, c: c }, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-            } else {
-                if list.len == 3 {
-                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: OptionalHirConst { present: true, c: c }, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                } else {
-                    if list.len == 4 {
-                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: OptionalHirConst { present: true, c: c }, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                    } else {
-                        if list.len == 5 {
-                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: OptionalHirConst { present: true, c: c }, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                        } else {
-                            if list.len == 6 {
-                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: OptionalHirConst { present: true, c: c }, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: OptionalHirConst { present: true, c: c }, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: OptionalHirConst { present: true, c: c }, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: OptionalHirConst { present: true, c: c }, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: OptionalHirConst { present: true, c: c }, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: OptionalHirConst { present: true, c: c }, c13: list.c13, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: OptionalHirConst { present: true, c: c }, c14: list.c14, c15: list.c15, c16: list.c16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: OptionalHirConst { present: true, c: c }, c15: list.c15, c16: list.c16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: OptionalHirConst { present: true, c: c }, c16: list.c16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirConstList { len: next, c1: list.c1, c2: list.c2, c3: list.c3, c4: list.c4, c5: list.c5, c6: list.c6, c7: list.c7, c8: list.c8, c9: list.c9, c10: list.c10, c11: list.c11, c12: list.c12, c13: list.c13, c14: list.c14, c15: list.c15, c16: OptionalHirConst { present: true, c: c } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let items = list_push(list.items, list.len, c);
+    HirConstList { len: next, items: items }
 }
 
-fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2 {
+fn hir_fn_list_2_push(list: HirFnList2, f: HirFn) -> HirFnList2 effects [alloc] {
     let next = list.len + 1;
-    if list.len == 0 {
-        HirFnList2 { len: next, f1: OptionalHirFn2 { present: true, f: f }, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-    } else {
-        if list.len == 1 {
-            HirFnList2 { len: next, f1: list.f1, f2: OptionalHirFn2 { present: true, f: f }, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-        } else {
-            if list.len == 2 {
-                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: OptionalHirFn2 { present: true, f: f }, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-            } else {
-                if list.len == 3 {
-                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: OptionalHirFn2 { present: true, f: f }, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                } else {
-                    if list.len == 4 {
-                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: OptionalHirFn2 { present: true, f: f }, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                    } else {
-                        if list.len == 5 {
-                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: OptionalHirFn2 { present: true, f: f }, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                        } else {
-                            if list.len == 6 {
-                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: OptionalHirFn2 { present: true, f: f }, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: OptionalHirFn2 { present: true, f: f }, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: OptionalHirFn2 { present: true, f: f }, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: OptionalHirFn2 { present: true, f: f }, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: OptionalHirFn2 { present: true, f: f }, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: OptionalHirFn2 { present: true, f: f }, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: OptionalHirFn2 { present: true, f: f }, f14: list.f14, f15: list.f15, f16: list.f16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: OptionalHirFn2 { present: true, f: f }, f15: list.f15, f16: list.f16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: OptionalHirFn2 { present: true, f: f }, f16: list.f16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirFnList2 { len: next, f1: list.f1, f2: list.f2, f3: list.f3, f4: list.f4, f5: list.f5, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: OptionalHirFn2 { present: true, f: f } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let items = list_push(list.items, list.len, f);
+    HirFnList2 { len: next, items: items }
 }
 
-fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList {
+fn hir_enum_list_push(list: HirEnumList, e: HirEnum) -> HirEnumList effects [alloc] {
     let next = list.len + 1;
-    if list.len == 0 {
-        HirEnumList { len: next, e1: OptionalHirEnum { present: true, e: e }, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-    } else {
-        if list.len == 1 {
-            HirEnumList { len: next, e1: list.e1, e2: OptionalHirEnum { present: true, e: e }, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-        } else {
-            if list.len == 2 {
-                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: OptionalHirEnum { present: true, e: e }, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-            } else {
-                if list.len == 3 {
-                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: OptionalHirEnum { present: true, e: e }, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                } else {
-                    if list.len == 4 {
-                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: OptionalHirEnum { present: true, e: e }, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                    } else {
-                        if list.len == 5 {
-                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: OptionalHirEnum { present: true, e: e }, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                        } else {
-                            if list.len == 6 {
-                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: OptionalHirEnum { present: true, e: e }, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: OptionalHirEnum { present: true, e: e }, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: OptionalHirEnum { present: true, e: e }, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: OptionalHirEnum { present: true, e: e }, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: OptionalHirEnum { present: true, e: e }, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: OptionalHirEnum { present: true, e: e }, e13: list.e13, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: OptionalHirEnum { present: true, e: e }, e14: list.e14, e15: list.e15, e16: list.e16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: OptionalHirEnum { present: true, e: e }, e15: list.e15, e16: list.e16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: OptionalHirEnum { present: true, e: e }, e16: list.e16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirEnumList { len: next, e1: list.e1, e2: list.e2, e3: list.e3, e4: list.e4, e5: list.e5, e6: list.e6, e7: list.e7, e8: list.e8, e9: list.e9, e10: list.e10, e11: list.e11, e12: list.e12, e13: list.e13, e14: list.e14, e15: list.e15, e16: OptionalHirEnum { present: true, e: e } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let items = list_push(list.items, list.len, e);
+    HirEnumList { len: next, items: items }
 }
 
-fn hir_struct_list_push(list: HirStructList, s: HirStruct) -> HirStructList {
+fn hir_struct_list_push(list: HirStructList, s: HirStruct) -> HirStructList effects [alloc] {
     let next = list.len + 1;
-    if list.len == 0 {
-        HirStructList { len: next, s1: OptionalHirStruct { present: true, s: s }, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-    } else {
-        if list.len == 1 {
-            HirStructList { len: next, s1: list.s1, s2: OptionalHirStruct { present: true, s: s }, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-        } else {
-            if list.len == 2 {
-                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: OptionalHirStruct { present: true, s: s }, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-            } else {
-                if list.len == 3 {
-                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: OptionalHirStruct { present: true, s: s }, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                } else {
-                    if list.len == 4 {
-                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: OptionalHirStruct { present: true, s: s }, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                    } else {
-                        if list.len == 5 {
-                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: OptionalHirStruct { present: true, s: s }, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                        } else {
-                            if list.len == 6 {
-                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: OptionalHirStruct { present: true, s: s }, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                            } else {
-                                if list.len == 7 {
-                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: OptionalHirStruct { present: true, s: s }, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                } else {
-                                    if list.len == 8 {
-                                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: OptionalHirStruct { present: true, s: s }, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                    } else {
-                                        if list.len == 9 {
-                                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: OptionalHirStruct { present: true, s: s }, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                        } else {
-                                            if list.len == 10 {
-                                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: OptionalHirStruct { present: true, s: s }, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                            } else {
-                                                if list.len == 11 {
-                                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: OptionalHirStruct { present: true, s: s }, s13: list.s13, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                                } else {
-                                                    if list.len == 12 {
-                                                        HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: OptionalHirStruct { present: true, s: s }, s14: list.s14, s15: list.s15, s16: list.s16 }
-                                                    } else {
-                                                        if list.len == 13 {
-                                                            HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: OptionalHirStruct { present: true, s: s }, s15: list.s15, s16: list.s16 }
-                                                        } else {
-                                                            if list.len == 14 {
-                                                                HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: OptionalHirStruct { present: true, s: s }, s16: list.s16 }
-                                                            } else {
-                                                                if list.len == 15 {
-                                                                    HirStructList { len: next, s1: list.s1, s2: list.s2, s3: list.s3, s4: list.s4, s5: list.s5, s6: list.s6, s7: list.s7, s8: list.s8, s9: list.s9, s10: list.s10, s11: list.s11, s12: list.s12, s13: list.s13, s14: list.s14, s15: list.s15, s16: OptionalHirStruct { present: true, s: s } }
-                                                                } else {
-                                                                    list
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let items = list_push(list.items, list.len, s);
+    HirStructList { len: next, items: items }
 }
 
 fn hir_fn_set_params(f: HirFn, params: HirParamList) -> HirFn {
@@ -1180,11 +868,11 @@ fn hir_optional_diag_false() -> OptionalHirDiag {
     OptionalHirDiag { present: false, diag: HirLoweringDiag { kind: HirLoweringDiagKind.Generic, msg: "" } }
 }
 
-fn hir_module_new() -> HirModuleData {
+fn hir_module_new() -> HirModuleData effects [alloc] {
     HirModuleData { consts: hir_const_list_new(), funcs: hir_fn_list_2_new(), enums: hir_enum_list_new(), structs: hir_struct_list_new(), exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
 }
 
-fn hir_module_lower(report: ModuleReport) -> HirLowering {
+fn hir_module_lower(report: ModuleReport) -> HirLowering effects [alloc] {
     let module = if report.ok {
         hir_build_module_from_outline(report.outline, report.fn_outline, report.events, "")
     } else {
@@ -1193,21 +881,19 @@ fn hir_module_lower(report: ModuleReport) -> HirLowering {
     hir_module_to_lowering(module)
 }
 
-fn hir_lower_top_level(source: Text) -> HirLowering {
+fn hir_lower_top_level(source: Text) -> HirLowering effects [alloc] {
     let report = parse_module_report(source);
     let module = hir_module_from_report(report, source);
     hir_module_to_lowering(module)
 }
 
-fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData {
+fn hir_module_from_report(report: ModuleReport, source: Text) -> HirModuleData effects [alloc] {
     if not report.ok {
         hir_module_new()
     } else {
         let module = hir_build_module_from_outline(report.outline, report.fn_outline, report.events, source);
         let enriched_funcs = hir_enrich_fn_list(module.funcs, report.fn_outline, source);
-        let enriched_structs = hir_enrich_structs_from_outline(module.structs, report.outline, source);
-        let enriched_enums = hir_enrich_enums_from_outline(module.enums, report.outline, source);
-        HirModuleData { consts: module.consts, funcs: enriched_funcs, enums: enriched_enums, structs: enriched_structs, exprs: module.exprs, bodies: module.bodies }
+        HirModuleData { consts: module.consts, funcs: enriched_funcs, enums: module.enums, structs: module.structs, exprs: module.exprs, bodies: module.bodies }
     }
 }
 
@@ -1227,7 +913,7 @@ fn hir_name_from_span(span: OptionalSpan, source: Text) -> Text {
     }
 }
 
-fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData {
+fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline, events: EventStream, source: Text) -> HirModuleData effects [alloc] {
     let e1 = top_level_entry_at(outline, 0);
     let e2 = top_level_entry_at(outline, 1);
     let e3 = top_level_entry_at(outline, 2);
@@ -1248,16 +934,66 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
     let f3 = if e3.present and e3.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f2, hir_fn_new(n3)) } else { f2 };
     let f4 = if e4.present and e4.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f3, hir_fn_new(n4)) } else { f3 };
     let f5 = if e5.present and e5.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f4, hir_fn_new(n5)) } else { f4 };
-    let en1 = if e1.present and e1.entry.kind == TopLevelKind.Enum { hir_enum_list_with(hir_enum_new(n1)) } else { hir_enum_list_new() };
-    let en2 = if e2.present and e2.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en1, hir_enum_new(n2)) } else { en1 };
-    let en3 = if e3.present and e3.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en2, hir_enum_new(n3)) } else { en2 };
-    let en4 = if e4.present and e4.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en3, hir_enum_new(n4)) } else { en3 };
-    let en5 = if e5.present and e5.entry.kind == TopLevelKind.Enum { hir_enum_list_push(en4, hir_enum_new(n5)) } else { en4 };
-    let s1 = if e1.present and e1.entry.kind == TopLevelKind.Struct { hir_struct_list_with(hir_struct_new(n1)) } else { hir_struct_list_new() };
-    let s2 = if e2.present and e2.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s1, hir_struct_new(n2)) } else { s1 };
-    let s3 = if e3.present and e3.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s2, hir_struct_new(n3)) } else { s2 };
-    let s4 = if e4.present and e4.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s3, hir_struct_new(n4)) } else { s3 };
-    let s5 = if e5.present and e5.entry.kind == TopLevelKind.Struct { hir_struct_list_push(s4, hir_struct_new(n5)) } else { s4 };
+    let en1 = if e1.present and e1.entry.kind == TopLevelKind.Enum {
+        let e1_fresh_en = top_level_entry_at(outline, 0);
+        let span_en1 = e1_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en1.start, span_en1.end);
+        hir_enum_list_with(HirEnum { name: n1, variants: variants, span: hir_span_new(0, 0) })
+    } else { hir_enum_list_new() };
+    let en2 = if e2.present and e2.entry.kind == TopLevelKind.Enum {
+        let e2_fresh_en = top_level_entry_at(outline, 1);
+        let span_en2 = e2_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en2.start, span_en2.end);
+        hir_enum_list_push(en1, HirEnum { name: n2, variants: variants, span: hir_span_new(0, 0) })
+    } else { en1 };
+    let en3 = if e3.present and e3.entry.kind == TopLevelKind.Enum {
+        let e3_fresh_en = top_level_entry_at(outline, 2);
+        let span_en3 = e3_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en3.start, span_en3.end);
+        hir_enum_list_push(en2, HirEnum { name: n3, variants: variants, span: hir_span_new(0, 0) })
+    } else { en2 };
+    let en4 = if e4.present and e4.entry.kind == TopLevelKind.Enum {
+        let e4_fresh_en = top_level_entry_at(outline, 3);
+        let span_en4 = e4_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en4.start, span_en4.end);
+        hir_enum_list_push(en3, HirEnum { name: n4, variants: variants, span: hir_span_new(0, 0) })
+    } else { en3 };
+    let en5 = if e5.present and e5.entry.kind == TopLevelKind.Enum {
+        let e5_fresh_en = top_level_entry_at(outline, 4);
+        let span_en5 = e5_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en5.start, span_en5.end);
+        hir_enum_list_push(en4, HirEnum { name: n5, variants: variants, span: hir_span_new(0, 0) })
+    } else { en4 };
+    let s1 = if e1.present and e1.entry.kind == TopLevelKind.Struct {
+        let e1_fresh_s = top_level_entry_at(outline, 0);
+        let span_s1 = e1_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s1.start, span_s1.end);
+        hir_struct_list_with(HirStruct { name: n1, fields: fields, span: hir_span_new(0, 0) })
+    } else { hir_struct_list_new() };
+    let s2 = if e2.present and e2.entry.kind == TopLevelKind.Struct {
+        let e2_fresh_s = top_level_entry_at(outline, 1);
+        let span_s2 = e2_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s2.start, span_s2.end);
+        hir_struct_list_push(s1, HirStruct { name: n2, fields: fields, span: hir_span_new(0, 0) })
+    } else { s1 };
+    let s3 = if e3.present and e3.entry.kind == TopLevelKind.Struct {
+        let e3_fresh_s = top_level_entry_at(outline, 2);
+        let span_s3 = e3_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s3.start, span_s3.end);
+        hir_struct_list_push(s2, HirStruct { name: n3, fields: fields, span: hir_span_new(0, 0) })
+    } else { s2 };
+    let s4 = if e4.present and e4.entry.kind == TopLevelKind.Struct {
+        let e4_fresh_s = top_level_entry_at(outline, 3);
+        let span_s4 = e4_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s4.start, span_s4.end);
+        hir_struct_list_push(s3, HirStruct { name: n4, fields: fields, span: hir_span_new(0, 0) })
+    } else { s3 };
+    let s5 = if e5.present and e5.entry.kind == TopLevelKind.Struct {
+        let e5_fresh_s = top_level_entry_at(outline, 4);
+        let span_s5 = e5_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s5.start, span_s5.end);
+        hir_struct_list_push(s4, HirStruct { name: n5, fields: fields, span: hir_span_new(0, 0) })
+    } else { s4 };
     HirModuleData { consts: c5, funcs: f5, enums: en5, structs: s5, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
 }
 
@@ -1441,62 +1177,26 @@ fn hir_enrich_single_fn(f: HirFn, shape: FnHeaderShape, source: Text) -> HirFn {
     f_final
 }
 
-fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> HirFnList2 {
+fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> HirFnList2 effects [alloc] {
+    let mut enriched = list_new(0, hir_fn_new(""));
+    let mut i = 0;
     let mut fn_idx = 0;
-    let f1_opt = list.f1;
-    let f1_new = if f1_opt.present {
-        if fn_outline_entry_at(fn_outline, fn_idx).present {
-            let shape = fn_outline_entry_at(fn_outline, fn_idx).entry.shape;
-            let enriched = hir_enrich_single_fn(f1_opt.f, shape, source);
-            OptionalHirFn2 { present: true, f: enriched }
-        } else { f1_opt }
-    } else { f1_opt };
-    if f1_opt.present { fn_idx = fn_idx + 1; };
-    let f2_opt = list.f2;
-    let f2_new = if f2_opt.present {
-        if fn_outline_entry_at(fn_outline, fn_idx).present {
-            let shape = fn_outline_entry_at(fn_outline, fn_idx).entry.shape;
-            let enriched = hir_enrich_single_fn(f2_opt.f, shape, source);
-            OptionalHirFn2 { present: true, f: enriched }
-        } else { f2_opt }
-    } else { f2_opt };
-    if f2_opt.present { fn_idx = fn_idx + 1; };
-    let f3_opt = list.f3;
-    let f3_new = if f3_opt.present {
-        if fn_outline_entry_at(fn_outline, fn_idx).present {
-            let shape = fn_outline_entry_at(fn_outline, fn_idx).entry.shape;
-            let enriched = hir_enrich_single_fn(f3_opt.f, shape, source);
-            OptionalHirFn2 { present: true, f: enriched }
-        } else { f3_opt }
-    } else { f3_opt };
-    if f3_opt.present { fn_idx = fn_idx + 1; };
-    let f4_opt = list.f4;
-    let f4_new = if f4_opt.present {
-        if fn_outline_entry_at(fn_outline, fn_idx).present {
-            let shape = fn_outline_entry_at(fn_outline, fn_idx).entry.shape;
-            let enriched = hir_enrich_single_fn(f4_opt.f, shape, source);
-            OptionalHirFn2 { present: true, f: enriched }
-        } else { f4_opt }
-    } else { f4_opt };
-    if f4_opt.present { fn_idx = fn_idx + 1; };
-    let f5_opt = list.f5;
-    let f5_new = if f5_opt.present {
-        if fn_outline_entry_at(fn_outline, fn_idx).present {
-            let shape = fn_outline_entry_at(fn_outline, fn_idx).entry.shape;
-            let enriched = hir_enrich_single_fn(f5_opt.f, shape, source);
-            OptionalHirFn2 { present: true, f: enriched }
-        } else { f5_opt }
-    } else { f5_opt };
-    HirFnList2 { len: list.len, f1: f1_new, f2: f2_new, f3: f3_new, f4: f4_new, f5: f5_new, f6: list.f6, f7: list.f7, f8: list.f8, f9: list.f9, f10: list.f10, f11: list.f11, f12: list.f12, f13: list.f13, f14: list.f14, f15: list.f15, f16: list.f16 }
+    while i < list.len {
+        let f = list_get(list.items, i);
+        let opt_entry = fn_outline_entry_at(fn_outline, fn_idx);
+        let enriched_f = if opt_entry.present {
+            let shape = opt_entry.entry.shape;
+            hir_enrich_single_fn(f, shape, source)
+        } else {
+            f
+        };
+        enriched = list_push(enriched, i, enriched_f);
+        fn_idx = fn_idx + 1;
+        i = i + 1;
+    };
+    HirFnList2 { len: list.len, items: enriched }
 }
 
-fn hir_enrich_struct_payload(s: HirStruct, fields: HirFieldList) -> HirStruct {
-    HirStruct { name: s.name, fields: fields, span: s.span }
-}
-
-fn hir_enrich_enum_payload(e: HirEnum, variants: HirVariantList) -> HirEnum {
-    HirEnum { name: e.name, variants: variants, span: e.span }
-}
 
 fn hir_find_open_brace(text: Text, start: I32, end: I32) -> I32 {
     text_find_byte_range(text, start, end, 123)
@@ -1712,218 +1412,6 @@ fn hir_extract_variants_from_span(source: Text, span_start: I32, span_end: I32) 
     }
 }
 
-fn hir_enrich_structs_from_outline(structs: HirStructList, outline: TopLevelOutline, source: Text) -> HirStructList {
-    let mut si = 0;
-    let out0 = structs;
-    let e0 = top_level_entry_at(outline, 0);
-    let out1 = if e0.present and e0.entry.kind == TopLevelKind.Struct {
-        let fields = hir_extract_fields_from_span(source, e0.entry.span.start, e0.entry.span.end);
-        if si == 0 and out0.s1.present {
-            si = si + 1;
-            HirStructList { len: out0.len, s1: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out0.s1.s, fields) }, s2: out0.s2, s3: out0.s3, s4: out0.s4, s5: out0.s5, s6: out0.s6, s7: out0.s7, s8: out0.s8, s9: out0.s9, s10: out0.s10, s11: out0.s11, s12: out0.s12, s13: out0.s13, s14: out0.s14, s15: out0.s15, s16: out0.s16 }
-        } else if si == 1 and out0.s2.present {
-            si = si + 1;
-            HirStructList { len: out0.len, s1: out0.s1, s2: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out0.s2.s, fields) }, s3: out0.s3, s4: out0.s4, s5: out0.s5, s6: out0.s6, s7: out0.s7, s8: out0.s8, s9: out0.s9, s10: out0.s10, s11: out0.s11, s12: out0.s12, s13: out0.s13, s14: out0.s14, s15: out0.s15, s16: out0.s16 }
-        } else if si == 2 and out0.s3.present {
-            si = si + 1;
-            HirStructList { len: out0.len, s1: out0.s1, s2: out0.s2, s3: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out0.s3.s, fields) }, s4: out0.s4, s5: out0.s5, s6: out0.s6, s7: out0.s7, s8: out0.s8, s9: out0.s9, s10: out0.s10, s11: out0.s11, s12: out0.s12, s13: out0.s13, s14: out0.s14, s15: out0.s15, s16: out0.s16 }
-        } else if si == 3 and out0.s4.present {
-            si = si + 1;
-            HirStructList { len: out0.len, s1: out0.s1, s2: out0.s2, s3: out0.s3, s4: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out0.s4.s, fields) }, s5: out0.s5, s6: out0.s6, s7: out0.s7, s8: out0.s8, s9: out0.s9, s10: out0.s10, s11: out0.s11, s12: out0.s12, s13: out0.s13, s14: out0.s14, s15: out0.s15, s16: out0.s16 }
-        } else if si == 4 and out0.s5.present {
-            si = si + 1;
-            HirStructList { len: out0.len, s1: out0.s1, s2: out0.s2, s3: out0.s3, s4: out0.s4, s5: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out0.s5.s, fields) }, s6: out0.s6, s7: out0.s7, s8: out0.s8, s9: out0.s9, s10: out0.s10, s11: out0.s11, s12: out0.s12, s13: out0.s13, s14: out0.s14, s15: out0.s15, s16: out0.s16 }
-        } else { out0 }
-    } else { out0 };
-    let e1 = top_level_entry_at(outline, 1);
-    let out2 = if e1.present and e1.entry.kind == TopLevelKind.Struct {
-        let fields = hir_extract_fields_from_span(source, e1.entry.span.start, e1.entry.span.end);
-        if si == 0 and out1.s1.present {
-            si = si + 1;
-            HirStructList { len: out1.len, s1: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out1.s1.s, fields) }, s2: out1.s2, s3: out1.s3, s4: out1.s4, s5: out1.s5, s6: out1.s6, s7: out1.s7, s8: out1.s8, s9: out1.s9, s10: out1.s10, s11: out1.s11, s12: out1.s12, s13: out1.s13, s14: out1.s14, s15: out1.s15, s16: out1.s16 }
-        } else if si == 1 and out1.s2.present {
-            si = si + 1;
-            HirStructList { len: out1.len, s1: out1.s1, s2: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out1.s2.s, fields) }, s3: out1.s3, s4: out1.s4, s5: out1.s5, s6: out1.s6, s7: out1.s7, s8: out1.s8, s9: out1.s9, s10: out1.s10, s11: out1.s11, s12: out1.s12, s13: out1.s13, s14: out1.s14, s15: out1.s15, s16: out1.s16 }
-        } else if si == 2 and out1.s3.present {
-            si = si + 1;
-            HirStructList { len: out1.len, s1: out1.s1, s2: out1.s2, s3: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out1.s3.s, fields) }, s4: out1.s4, s5: out1.s5, s6: out1.s6, s7: out1.s7, s8: out1.s8, s9: out1.s9, s10: out1.s10, s11: out1.s11, s12: out1.s12, s13: out1.s13, s14: out1.s14, s15: out1.s15, s16: out1.s16 }
-        } else if si == 3 and out1.s4.present {
-            si = si + 1;
-            HirStructList { len: out1.len, s1: out1.s1, s2: out1.s2, s3: out1.s3, s4: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out1.s4.s, fields) }, s5: out1.s5, s6: out1.s6, s7: out1.s7, s8: out1.s8, s9: out1.s9, s10: out1.s10, s11: out1.s11, s12: out1.s12, s13: out1.s13, s14: out1.s14, s15: out1.s15, s16: out1.s16 }
-        } else if si == 4 and out1.s5.present {
-            si = si + 1;
-            HirStructList { len: out1.len, s1: out1.s1, s2: out1.s2, s3: out1.s3, s4: out1.s4, s5: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out1.s5.s, fields) }, s6: out1.s6, s7: out1.s7, s8: out1.s8, s9: out1.s9, s10: out1.s10, s11: out1.s11, s12: out1.s12, s13: out1.s13, s14: out1.s14, s15: out1.s15, s16: out1.s16 }
-        } else { out1 }
-    } else { out1 };
-    let e2 = top_level_entry_at(outline, 2);
-    let out3 = if e2.present and e2.entry.kind == TopLevelKind.Struct {
-        let fields = hir_extract_fields_from_span(source, e2.entry.span.start, e2.entry.span.end);
-        if si == 0 and out2.s1.present {
-            si = si + 1;
-            HirStructList { len: out2.len, s1: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out2.s1.s, fields) }, s2: out2.s2, s3: out2.s3, s4: out2.s4, s5: out2.s5, s6: out2.s6, s7: out2.s7, s8: out2.s8, s9: out2.s9, s10: out2.s10, s11: out2.s11, s12: out2.s12, s13: out2.s13, s14: out2.s14, s15: out2.s15, s16: out2.s16 }
-        } else if si == 1 and out2.s2.present {
-            si = si + 1;
-            HirStructList { len: out2.len, s1: out2.s1, s2: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out2.s2.s, fields) }, s3: out2.s3, s4: out2.s4, s5: out2.s5, s6: out2.s6, s7: out2.s7, s8: out2.s8, s9: out2.s9, s10: out2.s10, s11: out2.s11, s12: out2.s12, s13: out2.s13, s14: out2.s14, s15: out2.s15, s16: out2.s16 }
-        } else if si == 2 and out2.s3.present {
-            si = si + 1;
-            HirStructList { len: out2.len, s1: out2.s1, s2: out2.s2, s3: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out2.s3.s, fields) }, s4: out2.s4, s5: out2.s5, s6: out2.s6, s7: out2.s7, s8: out2.s8, s9: out2.s9, s10: out2.s10, s11: out2.s11, s12: out2.s12, s13: out2.s13, s14: out2.s14, s15: out2.s15, s16: out2.s16 }
-        } else if si == 3 and out2.s4.present {
-            si = si + 1;
-            HirStructList { len: out2.len, s1: out2.s1, s2: out2.s2, s3: out2.s3, s4: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out2.s4.s, fields) }, s5: out2.s5, s6: out2.s6, s7: out2.s7, s8: out2.s8, s9: out2.s9, s10: out2.s10, s11: out2.s11, s12: out2.s12, s13: out2.s13, s14: out2.s14, s15: out2.s15, s16: out2.s16 }
-        } else if si == 4 and out2.s5.present {
-            si = si + 1;
-            HirStructList { len: out2.len, s1: out2.s1, s2: out2.s2, s3: out2.s3, s4: out2.s4, s5: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out2.s5.s, fields) }, s6: out2.s6, s7: out2.s7, s8: out2.s8, s9: out2.s9, s10: out2.s10, s11: out2.s11, s12: out2.s12, s13: out2.s13, s14: out2.s14, s15: out2.s15, s16: out2.s16 }
-        } else { out2 }
-    } else { out2 };
-    let e3 = top_level_entry_at(outline, 3);
-    let out4 = if e3.present and e3.entry.kind == TopLevelKind.Struct {
-        let fields = hir_extract_fields_from_span(source, e3.entry.span.start, e3.entry.span.end);
-        if si == 0 and out3.s1.present {
-            si = si + 1;
-            HirStructList { len: out3.len, s1: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out3.s1.s, fields) }, s2: out3.s2, s3: out3.s3, s4: out3.s4, s5: out3.s5, s6: out3.s6, s7: out3.s7, s8: out3.s8, s9: out3.s9, s10: out3.s10, s11: out3.s11, s12: out3.s12, s13: out3.s13, s14: out3.s14, s15: out3.s15, s16: out3.s16 }
-        } else if si == 1 and out3.s2.present {
-            si = si + 1;
-            HirStructList { len: out3.len, s1: out3.s1, s2: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out3.s2.s, fields) }, s3: out3.s3, s4: out3.s4, s5: out3.s5, s6: out3.s6, s7: out3.s7, s8: out3.s8, s9: out3.s9, s10: out3.s10, s11: out3.s11, s12: out3.s12, s13: out3.s13, s14: out3.s14, s15: out3.s15, s16: out3.s16 }
-        } else if si == 2 and out3.s3.present {
-            si = si + 1;
-            HirStructList { len: out3.len, s1: out3.s1, s2: out3.s2, s3: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out3.s3.s, fields) }, s4: out3.s4, s5: out3.s5, s6: out3.s6, s7: out3.s7, s8: out3.s8, s9: out3.s9, s10: out3.s10, s11: out3.s11, s12: out3.s12, s13: out3.s13, s14: out3.s14, s15: out3.s15, s16: out3.s16 }
-        } else if si == 3 and out3.s4.present {
-            si = si + 1;
-            HirStructList { len: out3.len, s1: out3.s1, s2: out3.s2, s3: out3.s3, s4: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out3.s4.s, fields) }, s5: out3.s5, s6: out3.s6, s7: out3.s7, s8: out3.s8, s9: out3.s9, s10: out3.s10, s11: out3.s11, s12: out3.s12, s13: out3.s13, s14: out3.s14, s15: out3.s15, s16: out3.s16 }
-        } else if si == 4 and out3.s5.present {
-            si = si + 1;
-            HirStructList { len: out3.len, s1: out3.s1, s2: out3.s2, s3: out3.s3, s4: out3.s4, s5: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out3.s5.s, fields) }, s6: out3.s6, s7: out3.s7, s8: out3.s8, s9: out3.s9, s10: out3.s10, s11: out3.s11, s12: out3.s12, s13: out3.s13, s14: out3.s14, s15: out3.s15, s16: out3.s16 }
-        } else { out3 }
-    } else { out3 };
-    let e4 = top_level_entry_at(outline, 4);
-    let out5 = if e4.present and e4.entry.kind == TopLevelKind.Struct {
-        let fields = hir_extract_fields_from_span(source, e4.entry.span.start, e4.entry.span.end);
-        if si == 0 and out4.s1.present {
-            si = si + 1;
-            HirStructList { len: out4.len, s1: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out4.s1.s, fields) }, s2: out4.s2, s3: out4.s3, s4: out4.s4, s5: out4.s5, s6: out4.s6, s7: out4.s7, s8: out4.s8, s9: out4.s9, s10: out4.s10, s11: out4.s11, s12: out4.s12, s13: out4.s13, s14: out4.s14, s15: out4.s15, s16: out4.s16 }
-        } else if si == 1 and out4.s2.present {
-            si = si + 1;
-            HirStructList { len: out4.len, s1: out4.s1, s2: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out4.s2.s, fields) }, s3: out4.s3, s4: out4.s4, s5: out4.s5, s6: out4.s6, s7: out4.s7, s8: out4.s8, s9: out4.s9, s10: out4.s10, s11: out4.s11, s12: out4.s12, s13: out4.s13, s14: out4.s14, s15: out4.s15, s16: out4.s16 }
-        } else if si == 2 and out4.s3.present {
-            si = si + 1;
-            HirStructList { len: out4.len, s1: out4.s1, s2: out4.s2, s3: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out4.s3.s, fields) }, s4: out4.s4, s5: out4.s5, s6: out4.s6, s7: out4.s7, s8: out4.s8, s9: out4.s9, s10: out4.s10, s11: out4.s11, s12: out4.s12, s13: out4.s13, s14: out4.s14, s15: out4.s15, s16: out4.s16 }
-        } else if si == 3 and out4.s4.present {
-            si = si + 1;
-            HirStructList { len: out4.len, s1: out4.s1, s2: out4.s2, s3: out4.s3, s4: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out4.s4.s, fields) }, s5: out4.s5, s6: out4.s6, s7: out4.s7, s8: out4.s8, s9: out4.s9, s10: out4.s10, s11: out4.s11, s12: out4.s12, s13: out4.s13, s14: out4.s14, s15: out4.s15, s16: out4.s16 }
-        } else if si == 4 and out4.s5.present {
-            si = si + 1;
-            HirStructList { len: out4.len, s1: out4.s1, s2: out4.s2, s3: out4.s3, s4: out4.s4, s5: OptionalHirStruct { present: true, s: hir_enrich_struct_payload(out4.s5.s, fields) }, s6: out4.s6, s7: out4.s7, s8: out4.s8, s9: out4.s9, s10: out4.s10, s11: out4.s11, s12: out4.s12, s13: out4.s13, s14: out4.s14, s15: out4.s15, s16: out4.s16 }
-        } else { out4 }
-    } else { out4 };
-    out5
-}
-
-fn hir_enrich_enums_from_outline(enums: HirEnumList, outline: TopLevelOutline, source: Text) -> HirEnumList {
-    let mut ei = 0;
-    let out0 = enums;
-    let e0 = top_level_entry_at(outline, 0);
-    let out1 = if e0.present and e0.entry.kind == TopLevelKind.Enum {
-        let variants = hir_extract_variants_from_span(source, e0.entry.span.start, e0.entry.span.end);
-        if ei == 0 and out0.e1.present {
-            ei = ei + 1;
-            HirEnumList { len: out0.len, e1: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out0.e1.e, variants) }, e2: out0.e2, e3: out0.e3, e4: out0.e4, e5: out0.e5, e6: out0.e6, e7: out0.e7, e8: out0.e8, e9: out0.e9, e10: out0.e10, e11: out0.e11, e12: out0.e12, e13: out0.e13, e14: out0.e14, e15: out0.e15, e16: out0.e16 }
-        } else if ei == 1 and out0.e2.present {
-            ei = ei + 1;
-            HirEnumList { len: out0.len, e1: out0.e1, e2: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out0.e2.e, variants) }, e3: out0.e3, e4: out0.e4, e5: out0.e5, e6: out0.e6, e7: out0.e7, e8: out0.e8, e9: out0.e9, e10: out0.e10, e11: out0.e11, e12: out0.e12, e13: out0.e13, e14: out0.e14, e15: out0.e15, e16: out0.e16 }
-        } else if ei == 2 and out0.e3.present {
-            ei = ei + 1;
-            HirEnumList { len: out0.len, e1: out0.e1, e2: out0.e2, e3: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out0.e3.e, variants) }, e4: out0.e4, e5: out0.e5, e6: out0.e6, e7: out0.e7, e8: out0.e8, e9: out0.e9, e10: out0.e10, e11: out0.e11, e12: out0.e12, e13: out0.e13, e14: out0.e14, e15: out0.e15, e16: out0.e16 }
-        } else if ei == 3 and out0.e4.present {
-            ei = ei + 1;
-            HirEnumList { len: out0.len, e1: out0.e1, e2: out0.e2, e3: out0.e3, e4: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out0.e4.e, variants) }, e5: out0.e5, e6: out0.e6, e7: out0.e7, e8: out0.e8, e9: out0.e9, e10: out0.e10, e11: out0.e11, e12: out0.e12, e13: out0.e13, e14: out0.e14, e15: out0.e15, e16: out0.e16 }
-        } else if ei == 4 and out0.e5.present {
-            ei = ei + 1;
-            HirEnumList { len: out0.len, e1: out0.e1, e2: out0.e2, e3: out0.e3, e4: out0.e4, e5: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out0.e5.e, variants) }, e6: out0.e6, e7: out0.e7, e8: out0.e8, e9: out0.e9, e10: out0.e10, e11: out0.e11, e12: out0.e12, e13: out0.e13, e14: out0.e14, e15: out0.e15, e16: out0.e16 }
-        } else { out0 }
-    } else { out0 };
-    let e1 = top_level_entry_at(outline, 1);
-    let out2 = if e1.present and e1.entry.kind == TopLevelKind.Enum {
-        let variants = hir_extract_variants_from_span(source, e1.entry.span.start, e1.entry.span.end);
-        if ei == 0 and out1.e1.present {
-            ei = ei + 1;
-            HirEnumList { len: out1.len, e1: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out1.e1.e, variants) }, e2: out1.e2, e3: out1.e3, e4: out1.e4, e5: out1.e5, e6: out1.e6, e7: out1.e7, e8: out1.e8, e9: out1.e9, e10: out1.e10, e11: out1.e11, e12: out1.e12, e13: out1.e13, e14: out1.e14, e15: out1.e15, e16: out1.e16 }
-        } else if ei == 1 and out1.e2.present {
-            ei = ei + 1;
-            HirEnumList { len: out1.len, e1: out1.e1, e2: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out1.e2.e, variants) }, e3: out1.e3, e4: out1.e4, e5: out1.e5, e6: out1.e6, e7: out1.e7, e8: out1.e8, e9: out1.e9, e10: out1.e10, e11: out1.e11, e12: out1.e12, e13: out1.e13, e14: out1.e14, e15: out1.e15, e16: out1.e16 }
-        } else if ei == 2 and out1.e3.present {
-            ei = ei + 1;
-            HirEnumList { len: out1.len, e1: out1.e1, e2: out1.e2, e3: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out1.e3.e, variants) }, e4: out1.e4, e5: out1.e5, e6: out1.e6, e7: out1.e7, e8: out1.e8, e9: out1.e9, e10: out1.e10, e11: out1.e11, e12: out1.e12, e13: out1.e13, e14: out1.e14, e15: out1.e15, e16: out1.e16 }
-        } else if ei == 3 and out1.e4.present {
-            ei = ei + 1;
-            HirEnumList { len: out1.len, e1: out1.e1, e2: out1.e2, e3: out1.e3, e4: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out1.e4.e, variants) }, e5: out1.e5, e6: out1.e6, e7: out1.e7, e8: out1.e8, e9: out1.e9, e10: out1.e10, e11: out1.e11, e12: out1.e12, e13: out1.e13, e14: out1.e14, e15: out1.e15, e16: out1.e16 }
-        } else if ei == 4 and out1.e5.present {
-            ei = ei + 1;
-            HirEnumList { len: out1.len, e1: out1.e1, e2: out1.e2, e3: out1.e3, e4: out1.e4, e5: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out1.e5.e, variants) }, e6: out1.e6, e7: out1.e7, e8: out1.e8, e9: out1.e9, e10: out1.e10, e11: out1.e11, e12: out1.e12, e13: out1.e13, e14: out1.e14, e15: out1.e15, e16: out1.e16 }
-        } else { out1 }
-    } else { out1 };
-    let e2 = top_level_entry_at(outline, 2);
-    let out3 = if e2.present and e2.entry.kind == TopLevelKind.Enum {
-        let variants = hir_extract_variants_from_span(source, e2.entry.span.start, e2.entry.span.end);
-        if ei == 0 and out2.e1.present {
-            ei = ei + 1;
-            HirEnumList { len: out2.len, e1: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out2.e1.e, variants) }, e2: out2.e2, e3: out2.e3, e4: out2.e4, e5: out2.e5, e6: out2.e6, e7: out2.e7, e8: out2.e8, e9: out2.e9, e10: out2.e10, e11: out2.e11, e12: out2.e12, e13: out2.e13, e14: out2.e14, e15: out2.e15, e16: out2.e16 }
-        } else if ei == 1 and out2.e2.present {
-            ei = ei + 1;
-            HirEnumList { len: out2.len, e1: out2.e1, e2: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out2.e2.e, variants) }, e3: out2.e3, e4: out2.e4, e5: out2.e5, e6: out2.e6, e7: out2.e7, e8: out2.e8, e9: out2.e9, e10: out2.e10, e11: out2.e11, e12: out2.e12, e13: out2.e13, e14: out2.e14, e15: out2.e15, e16: out2.e16 }
-        } else if ei == 2 and out2.e3.present {
-            ei = ei + 1;
-            HirEnumList { len: out2.len, e1: out2.e1, e2: out2.e2, e3: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out2.e3.e, variants) }, e4: out2.e4, e5: out2.e5, e6: out2.e6, e7: out2.e7, e8: out2.e8, e9: out2.e9, e10: out2.e10, e11: out2.e11, e12: out2.e12, e13: out2.e13, e14: out2.e14, e15: out2.e15, e16: out2.e16 }
-        } else if ei == 3 and out2.e4.present {
-            ei = ei + 1;
-            HirEnumList { len: out2.len, e1: out2.e1, e2: out2.e2, e3: out2.e3, e4: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out2.e4.e, variants) }, e5: out2.e5, e6: out2.e6, e7: out2.e7, e8: out2.e8, e9: out2.e9, e10: out2.e10, e11: out2.e11, e12: out2.e12, e13: out2.e13, e14: out2.e14, e15: out2.e15, e16: out2.e16 }
-        } else if ei == 4 and out2.e5.present {
-            ei = ei + 1;
-            HirEnumList { len: out2.len, e1: out2.e1, e2: out2.e2, e3: out2.e3, e4: out2.e4, e5: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out2.e5.e, variants) }, e6: out2.e6, e7: out2.e7, e8: out2.e8, e9: out2.e9, e10: out2.e10, e11: out2.e11, e12: out2.e12, e13: out2.e13, e14: out2.e14, e15: out2.e15, e16: out2.e16 }
-        } else { out2 }
-    } else { out2 };
-    let e3 = top_level_entry_at(outline, 3);
-    let out4 = if e3.present and e3.entry.kind == TopLevelKind.Enum {
-        let variants = hir_extract_variants_from_span(source, e3.entry.span.start, e3.entry.span.end);
-        if ei == 0 and out3.e1.present {
-            ei = ei + 1;
-            HirEnumList { len: out3.len, e1: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out3.e1.e, variants) }, e2: out3.e2, e3: out3.e3, e4: out3.e4, e5: out3.e5, e6: out3.e6, e7: out3.e7, e8: out3.e8, e9: out3.e9, e10: out3.e10, e11: out3.e11, e12: out3.e12, e13: out3.e13, e14: out3.e14, e15: out3.e15, e16: out3.e16 }
-        } else if ei == 1 and out3.e2.present {
-            ei = ei + 1;
-            HirEnumList { len: out3.len, e1: out3.e1, e2: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out3.e2.e, variants) }, e3: out3.e3, e4: out3.e4, e5: out3.e5, e6: out3.e6, e7: out3.e7, e8: out3.e8, e9: out3.e9, e10: out3.e10, e11: out3.e11, e12: out3.e12, e13: out3.e13, e14: out3.e14, e15: out3.e15, e16: out3.e16 }
-        } else if ei == 2 and out3.e3.present {
-            ei = ei + 1;
-            HirEnumList { len: out3.len, e1: out3.e1, e2: out3.e2, e3: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out3.e3.e, variants) }, e4: out3.e4, e5: out3.e5, e6: out3.e6, e7: out3.e7, e8: out3.e8, e9: out3.e9, e10: out3.e10, e11: out3.e11, e12: out3.e12, e13: out3.e13, e14: out3.e14, e15: out3.e15, e16: out3.e16 }
-        } else if ei == 3 and out3.e4.present {
-            ei = ei + 1;
-            HirEnumList { len: out3.len, e1: out3.e1, e2: out3.e2, e3: out3.e3, e4: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out3.e4.e, variants) }, e5: out3.e5, e6: out3.e6, e7: out3.e7, e8: out3.e8, e9: out3.e9, e10: out3.e10, e11: out3.e11, e12: out3.e12, e13: out3.e13, e14: out3.e14, e15: out3.e15, e16: out3.e16 }
-        } else if ei == 4 and out3.e5.present {
-            ei = ei + 1;
-            HirEnumList { len: out3.len, e1: out3.e1, e2: out3.e2, e3: out3.e3, e4: out3.e4, e5: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out3.e5.e, variants) }, e6: out3.e6, e7: out3.e7, e8: out3.e8, e9: out3.e9, e10: out3.e10, e11: out3.e11, e12: out3.e12, e13: out3.e13, e14: out3.e14, e15: out3.e15, e16: out3.e16 }
-        } else { out3 }
-    } else { out3 };
-    let e4 = top_level_entry_at(outline, 4);
-    let out5 = if e4.present and e4.entry.kind == TopLevelKind.Enum {
-        let variants = hir_extract_variants_from_span(source, e4.entry.span.start, e4.entry.span.end);
-        if ei == 0 and out4.e1.present {
-            ei = ei + 1;
-            HirEnumList { len: out4.len, e1: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out4.e1.e, variants) }, e2: out4.e2, e3: out4.e3, e4: out4.e4, e5: out4.e5, e6: out4.e6, e7: out4.e7, e8: out4.e8, e9: out4.e9, e10: out4.e10, e11: out4.e11, e12: out4.e12, e13: out4.e13, e14: out4.e14, e15: out4.e15, e16: out4.e16 }
-        } else if ei == 1 and out4.e2.present {
-            ei = ei + 1;
-            HirEnumList { len: out4.len, e1: out4.e1, e2: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out4.e2.e, variants) }, e3: out4.e3, e4: out4.e4, e5: out4.e5, e6: out4.e6, e7: out4.e7, e8: out4.e8, e9: out4.e9, e10: out4.e10, e11: out4.e11, e12: out4.e12, e13: out4.e13, e14: out4.e14, e15: out4.e15, e16: out4.e16 }
-        } else if ei == 2 and out4.e3.present {
-            ei = ei + 1;
-            HirEnumList { len: out4.len, e1: out4.e1, e2: out4.e2, e3: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out4.e3.e, variants) }, e4: out4.e4, e5: out4.e5, e6: out4.e6, e7: out4.e7, e8: out4.e8, e9: out4.e9, e10: out4.e10, e11: out4.e11, e12: out4.e12, e13: out4.e13, e14: out4.e14, e15: out4.e15, e16: out4.e16 }
-        } else if ei == 3 and out4.e4.present {
-            ei = ei + 1;
-            HirEnumList { len: out4.len, e1: out4.e1, e2: out4.e2, e3: out4.e3, e4: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out4.e4.e, variants) }, e5: out4.e5, e6: out4.e6, e7: out4.e7, e8: out4.e8, e9: out4.e9, e10: out4.e10, e11: out4.e11, e12: out4.e12, e13: out4.e13, e14: out4.e14, e15: out4.e15, e16: out4.e16 }
-        } else if ei == 4 and out4.e5.present {
-            ei = ei + 1;
-            HirEnumList { len: out4.len, e1: out4.e1, e2: out4.e2, e3: out4.e3, e4: out4.e4, e5: OptionalHirEnum { present: true, e: hir_enrich_enum_payload(out4.e5.e, variants) }, e6: out4.e6, e7: out4.e7, e8: out4.e8, e9: out4.e9, e10: out4.e10, e11: out4.e11, e12: out4.e12, e13: out4.e13, e14: out4.e14, e15: out4.e15, e16: out4.e16 }
-        } else { out4 }
-    } else { out4 };
-    out5
-}
-
 fn hir_span_from_optional(span: OptionalSpan) -> Span {
     if span.present {
         span.span
@@ -1931,6 +1419,7 @@ fn hir_span_from_optional(span: OptionalSpan) -> Span {
         hir_span_new(0, 0)
     }
 }
+
 
 fn hir_optional_item_false() -> OptionalHirItem {
     OptionalHirItem { present: false, item: hir_item_new(HirItemKind.Fn, "", hir_span_new(0, 0)) }
@@ -1940,7 +1429,7 @@ fn hir_optional_item_true(item: HirItem) -> OptionalHirItem {
     OptionalHirItem { present: true, item: item }
 }
 
-fn hir_module_to_lowering(module: HirModuleData) -> HirLowering {
+fn hir_module_to_lowering(module: HirModuleData) -> HirLowering effects [alloc] {
     HirLowering { module: module, expr_pool: hir_expr_pool_new(), body_pool: hir_body_pool_new(), fns: hir_fn_list_2_new(), enums: hir_enum_list_new(), structs: hir_struct_list_new(), diags: hir_diag_list_new() }
 }
 
@@ -1949,7 +1438,7 @@ fn is_empty_text(source: Text) -> Bool {
     length == 0
 }
 
-fn hir_selfcheck() -> I32 {
+fn hir_selfcheck() -> I32 effects [alloc] {
     let source = "struct Pair { first: I32, second: F64 }\nenum Option { none, some(Text) }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32, y: Bool) -> F64 { 0.0 }\n";
     let report1 = parse_module_report(source);
     if report1.ok {

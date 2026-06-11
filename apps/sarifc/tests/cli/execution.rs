@@ -270,6 +270,14 @@ fn run_supports_mutable_locals() {
 }
 
 #[test]
+fn run_allows_shadowing_builtin_functions() {
+    assert_run_parity(
+        "fn text_len(s: Text) -> I32 { 99 }\nfn main() -> I32 { text_len(\"hello\") }",
+        "99",
+    );
+}
+
+#[test]
 fn run_accepts_expression_bodied_functions() {
     assert_run_parity(
         "fn add(left: I32, right: I32) -> I32 = left + right;\nfn main() -> I32 = add(20, 22);",

@@ -75,93 +75,51 @@ fn find_last_byte(source: Text, needle: I32, end_pos: I32) -> I32 {
 fn analyze_borrow_escape(module: HirModuleData) -> Text {
     let mut diags = "";
     let fns = module.funcs;
-    
-    let mut i = 1;
-    while i <= fns.len and i <= 16 {
-        let opt = if i == 1 { fns.f1 }
-             else if i == 2 { fns.f2 }
-             else if i == 3 { fns.f3 }
-             else if i == 4 { fns.f4 }
-             else if i == 5 { fns.f5 }
-             else if i == 6 { fns.f6 }
-             else if i == 7 { fns.f7 }
-             else if i == 8 { fns.f8 }
-             else if i == 9 { fns.f9 }
-             else if i == 10 { fns.f10 }
-             else if i == 11 { fns.f11 }
-             else if i == 12 { fns.f12 }
-             else if i == 13 { fns.f13 }
-             else if i == 14 { fns.f14 }
-             else if i == 15 { fns.f15 }
-             else { fns.f16 };
-        if opt.present {
-            let f = opt.f;
-            let mut param_seen = "";
-            let mut pi = 1;
-            while pi <= f.params.len {
-                let popt = if pi == 1 { f.params.p1 }
-                     else if pi == 2 { f.params.p2 }
-                     else if pi == 3 { f.params.p3 }
-                     else if pi == 4 { f.params.p4 }
-                     else if pi == 5 { f.params.p5 }
-                     else if pi == 6 { f.params.p6 }
-                     else if pi == 7 { f.params.p7 }
-                     else if pi == 8 { f.params.p8 }
-                     else if pi == 9 { f.params.p9 }
-                     else if pi == 10 { f.params.p10 }
-                     else if pi == 11 { f.params.p11 }
-                     else if pi == 12 { f.params.p12 }
-                     else if pi == 13 { f.params.p13 }
-                     else if pi == 14 { f.params.p14 }
-                     else if pi == 15 { f.params.p15 }
-                     else { f.params.p16 };
-                if popt.present {
-                    let p = popt.param;
-                    if not is_text_empty(p.name) {
-                        if is_text_empty(param_seen) {
-                            param_seen = p.name;
-                        } else if p.name == param_seen {
-                            diags = text_concat(diags, text_concat("warning: duplicate parameter name `", text_concat(p.name, "`\n")));
-                        };
+    let mut i = 0;
+    while i < fns.len {
+        let f = list_get(fns.items, i);
+        let mut param_seen = "";
+        let mut pi = 1;
+        while pi <= f.params.len {
+            let popt = if pi == 1 { f.params.p1 }
+                 else if pi == 2 { f.params.p2 }
+                 else if pi == 3 { f.params.p3 }
+                 else if pi == 4 { f.params.p4 }
+                 else if pi == 5 { f.params.p5 }
+                 else if pi == 6 { f.params.p6 }
+                 else if pi == 7 { f.params.p7 }
+                 else if pi == 8 { f.params.p8 }
+                 else if pi == 9 { f.params.p9 }
+                 else if pi == 10 { f.params.p10 }
+                 else if pi == 11 { f.params.p11 }
+                 else if pi == 12 { f.params.p12 }
+                 else if pi == 13 { f.params.p13 }
+                 else if pi == 14 { f.params.p14 }
+                 else if pi == 15 { f.params.p15 }
+                 else { f.params.p16 };
+            if popt.present {
+                let p = popt.param;
+                if not is_text_empty(p.name) {
+                    if is_text_empty(param_seen) {
+                        param_seen = p.name;
+                    } else if p.name == param_seen {
+                        diags = text_concat(diags, text_concat("warning: duplicate parameter name `", text_concat(p.name, "`\n")));
                     };
                 };
-                pi = pi + 1;
             };
+            pi = pi + 1;
         };
         i = i + 1;
     };
-    if i <= fns.len {
-        diags = text_concat(diags, "error: too many function definitions (only 16 supported)\n");
-    };
     
-    let mut ci = 1;
+    let mut ci = 0;
     let consts = module.consts;
-    while ci <= consts.len and ci <= 16 {
-        let opt = if ci == 1 { consts.c1 }
-             else if ci == 2 { consts.c2 }
-             else if ci == 3 { consts.c3 }
-             else if ci == 4 { consts.c4 }
-             else if ci == 5 { consts.c5 }
-             else if ci == 6 { consts.c6 }
-             else if ci == 7 { consts.c7 }
-             else if ci == 8 { consts.c8 }
-             else if ci == 9 { consts.c9 }
-             else if ci == 10 { consts.c10 }
-             else if ci == 11 { consts.c11 }
-             else if ci == 12 { consts.c12 }
-             else if ci == 13 { consts.c13 }
-             else if ci == 14 { consts.c14 }
-             else if ci == 15 { consts.c15 }
-             else { consts.c16 };
-        if opt.present {
-            if is_text_empty(opt.c.name) {
-                diags = text_concat(diags, "error: unnamed constant\n");
-            };
+    while ci < consts.len {
+        let c = list_get(consts.items, ci);
+        if is_text_empty(c.name) {
+            diags = text_concat(diags, "error: unnamed constant\n");
         };
         ci = ci + 1;
-    };
-    if ci <= consts.len {
-        diags = text_concat(diags, "error: too many const definitions (only 16 supported)\n");
     };
     
     diags

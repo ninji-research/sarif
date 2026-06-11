@@ -3029,12 +3029,12 @@ pub(crate) fn emit_runtime_sections(
     f.instruction(&Instruction::LocalTee(3));
     f.instruction(&Instruction::LocalGet(2));
     f.instruction(&Instruction::I32Store(memarg(0)));
+    f.instruction(&Instruction::LocalGet(3));
     f.instruction(&Instruction::LocalGet(2));
     f.instruction(&Instruction::I32Const(3));
     f.instruction(&Instruction::I32Shl);
     f.instruction(&Instruction::Call(co(1)));
     f.instruction(&Instruction::LocalTee(4));
-    f.instruction(&Instruction::LocalGet(3));
     f.instruction(&Instruction::I32Store(memarg(4)));
     f.instruction(&Instruction::LocalGet(1));
     f.instruction(&Instruction::I32WrapI64);

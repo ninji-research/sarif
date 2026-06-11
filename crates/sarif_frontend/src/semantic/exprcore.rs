@@ -4718,38 +4718,3 @@ pub(super) fn infer_expr(
     )
 }
 
-pub fn is_builtin_name(name: &str) -> bool {
-    builtin_entry(name).is_some()
-        || matches!(
-            name,
-            "len"
-                | "const_assert"
-                | "tcp_send"
-                | "text_builder_new"
-                | "list_new"
-                | "list_len"
-                | "list_get"
-                | "list_set"
-                | "list_push"
-                | "list_sort_text"
-                | "list_from"
-                | "list_sort_by_field"
-                | "list_sort_by_text_field"
-                | "text_index_new"
-                | "text_index_get"
-                | "text_index_set"
-                | "text_index_get_or_insert"
-                | "text_index_contains"
-                | "text_index_keys"
-                | "text_find_byte_range"
-                | "bytes_find_byte_range"
-                | "bytes_field_end"
-                | "bytes_next_field"
-                | "text_line_end"
-                | "text_next_line"
-                | "text_field_end"
-                | "text_next_field"
-                | "enum_to_i32"
-                | "enum_to_text"
-        )
-}

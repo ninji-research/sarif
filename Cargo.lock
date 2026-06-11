@@ -754,6 +754,7 @@ dependencies = [
  "sarif_syntax",
  "sarif_tools",
  "toml",
+ "wasmparser 0.249.0",
  "wasmtime",
 ]
 

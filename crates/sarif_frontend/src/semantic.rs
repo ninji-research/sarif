@@ -1144,14 +1144,10 @@ fn creates_list() -> List[F64] {
     }
 
     #[test]
-    fn rejects_redefinition_of_builtins() {
+    fn allows_redefinition_of_builtins() {
         let analysis = analyze_source("fn text_len() -> I32 { 0 }");
         assert!(
-            analysis
-                .diagnostics
-                .iter()
-                .any(|diag| diag.code == "semantic.duplicate-item"
-                    && diag.message.contains("builtin")),
+            analysis.diagnostics.is_empty(),
             "{:#?}",
             analysis.diagnostics
         );

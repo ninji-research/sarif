@@ -24,6 +24,7 @@ toml.workspace = true
 
 [dev-dependencies]
 wasmtime.workspace = true
+wasmparser.workspace = true
 
 [lints]
 workspace = true
