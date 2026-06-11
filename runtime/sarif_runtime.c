@@ -819,6 +819,8 @@ static int sarif_compare_record_text_field_handles(uint64_t left, uint64_t right
 }
 
 static uint64_t sarif_sort_text_field_offset = 0;
+static uint64_t sarif_sort_i32_field_offset = 0;
+static uint64_t sarif_sort_f64_field_offset = 0;
 
 static int sarif_qsort_compare_text_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
@@ -834,6 +836,50 @@ static int sarif_qsort_compare_record_text_field_handles(const void* left, const
         right_handle,
         sarif_sort_text_field_offset
     );
+}
+
+static int sarif_qsort_compare_record_i32_field_handles(const void* left, const void* right) {
+    const uint64_t left_handle = *(const uint64_t*)left;
+    const uint64_t right_handle = *(const uint64_t*)right;
+    const unsigned char* left_record = (const unsigned char*)left_handle;
+    const unsigned char* right_record = (const unsigned char*)right_handle;
+    if (left_record == right_record) {
+        return 0;
+    }
+    if (left_record == NULL) {
+        return right_record == NULL ? 0 : -1;
+    }
+    if (right_record == NULL) {
+        return 1;
+    }
+    int64_t left_val = (int64_t)sarif_load_u64(left_record, sarif_sort_i32_field_offset);
+    int64_t right_val = (int64_t)sarif_load_u64(right_record, sarif_sort_i32_field_offset);
+    if (left_val < right_val) return -1;
+    if (left_val > right_val) return 1;
+    return 0;
+}
+
+static int sarif_qsort_compare_record_f64_field_handles(const void* left, const void* right) {
+    const uint64_t left_handle = *(const uint64_t*)left;
+    const uint64_t right_handle = *(const uint64_t*)right;
+    const unsigned char* left_record = (const unsigned char*)left_handle;
+    const unsigned char* right_record = (const unsigned char*)right_handle;
+    if (left_record == right_record) {
+        return 0;
+    }
+    if (left_record == NULL) {
+        return right_record == NULL ? 0 : -1;
+    }
+    if (right_record == NULL) {
+        return 1;
+    }
+    double left_val;
+    double right_val;
+    memcpy(&left_val, left_record + sarif_sort_f64_field_offset, sizeof(double));
+    memcpy(&right_val, right_record + sarif_sort_f64_field_offset, sizeof(double));
+    if (left_val < right_val) return -1;
+    if (left_val > right_val) return 1;
+    return 0;
 }
 
 void* sarif_list_sort_text(void* list_ptr, int64_t len) {
@@ -876,6 +922,54 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
             (size_t)used,
             sizeof(uint64_t),
             sarif_qsort_compare_record_text_field_handles
+        );
+    }
+    return list;
+}
+
+void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) {
+    SarifList* list = (SarifList*)list_ptr;
+    uint64_t used = 0;
+    uint64_t field_offset = 0;
+    if (list == NULL || (list->values == NULL && list->len > 0) || len < 0 || offset < 0) {
+        return NULL;
+    }
+    used = (uint64_t)len;
+    field_offset = (uint64_t)offset;
+    if (used > list->len) {
+        return NULL;
+    }
+    if (used > 1) {
+        sarif_sort_i32_field_offset = field_offset;
+        qsort(
+            list->values,
+            (size_t)used,
+            sizeof(uint64_t),
+            sarif_qsort_compare_record_i32_field_handles
+        );
+    }
+    return list;
+}
+
+void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) {
+    SarifList* list = (SarifList*)list_ptr;
+    uint64_t used = 0;
+    uint64_t field_offset = 0;
+    if (list == NULL || (list->values == NULL && list->len > 0) || len < 0 || offset < 0) {
+        return NULL;
+    }
+    used = (uint64_t)len;
+    field_offset = (uint64_t)offset;
+    if (used > list->len) {
+        return NULL;
+    }
+    if (used > 1) {
+        sarif_sort_f64_field_offset = field_offset;
+        qsort(
+            list->values,
+            (size_t)used,
+            sizeof(uint64_t),
+            sarif_qsort_compare_record_f64_field_handles
         );
     }
     return list;

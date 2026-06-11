@@ -13,6 +13,16 @@ fn record_field_offset(
     Some(u32::try_from(idx).unwrap_or(0).checked_mul(8).unwrap_or(0))
 }
 
+fn record_field_kind(
+    structs: &[crate::StructType],
+    record_name: &str,
+    field_name: &str,
+) -> Option<String> {
+    let record = structs.iter().find(|s| s.name == record_name)?;
+    let field = record.fields.iter().find(|f| f.name == field_name)?;
+    Some(field.ty.clone())
+}
+
 fn enum_variant_tag(enums: &[crate::EnumType], enum_name: &str, variant_name: &str) -> Option<u64> {
     let enum_ty = enums.iter().find(|e| e.name == enum_name)?;
     let tag = enum_ty
@@ -96,6 +106,12 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern void* sarif_list_sort_text(void* list, int64_t len);")?;
     out.line(
         "extern void* sarif_list_sort_by_text_field(void* list, int64_t len, int64_t offset);",
+    )?;
+    out.line(
+        "extern void* sarif_list_sort_by_i32_field(void* list, int64_t len, int64_t offset);",
+    )?;
+    out.line(
+        "extern void* sarif_list_sort_by_f64_field(void* list, int64_t len, int64_t offset);",
     )?;
     out.line("extern void* sarif_text_builder_new(void);")?;
     out.line("extern void* sarif_text_builder_append(void* builder, const unsigned char* text);")?;
@@ -1395,23 +1411,25 @@ fn emit_inst(
             len,
             field,
         } => {
-            // Generalised sort: delegates to sarif_list_sort_by_text_field for now
-            // (works correctly for Text fields; I32/F64 fields fall back to
-            // byte-level ordering which is semantically correct for I32 since
-            // sarif stores integers as uint64_t, and acceptable as a placeholder
-            // for F64). A dedicated runtime helper can be added later.
-            let offset = match value_kinds.get(list) {
-                Some(CodegenValueKind::List(elem)) => match &**elem {
-                    CodegenValueKind::Record(record_name) => {
-                        record_field_offset(structs, record_name, field).unwrap_or(0)
+            let mut offset = 0;
+            let mut sort_fn = "sarif_list_sort_by_text_field";
+            if let Some(CodegenValueKind::List(elem)) = value_kinds.get(list) {
+                if let CodegenValueKind::Record(record_name) = &**elem {
+                    offset = record_field_offset(structs, record_name, field).unwrap_or(0);
+                    if let Some(field_ty) = record_field_kind(structs, record_name, field) {
+                        sort_fn = match field_ty.as_str() {
+                            "Text" => "sarif_list_sort_by_text_field",
+                            "I32" => "sarif_list_sort_by_i32_field",
+                            "F64" => "sarif_list_sort_by_f64_field",
+                            _ => "sarif_list_sort_by_text_field",
+                        };
                     }
-                    _ => 0,
-                },
-                _ => 0,
-            };
+                }
+            }
             out.line(&format!(
-                "v{} = (uint64_t)sarif_list_sort_by_text_field((void*){}, (int64_t){}, {}u);",
+                "v{} = (uint64_t){}((void*){}, (int64_t){}, {}u);",
                 dest.0,
+                sort_fn,
                 vref(list),
                 vref(len),
                 offset

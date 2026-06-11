@@ -442,9 +442,105 @@ pub unsafe extern "C" fn sarif_list_sort_text(list: i64, logical_len: i64) -> i6
 pub unsafe extern "C" fn sarif_list_sort_by_text_field(
     list: i64,
     logical_len: i64,
-    _field_idx: i64,
+    field_offset: i64,
 ) -> i64 {
-    unsafe { sarif_list_sort_text(list, logical_len) }
+    unsafe {
+        if list == 0 {
+            return 0;
+        }
+        let list = list as *mut SarifList;
+        let n = logical_len as usize;
+        if n <= 1 {
+            return list as i64;
+        }
+        let slice = unsafe { std::slice::from_raw_parts_mut((*list).values, n) };
+        slice.sort_by(|&a, &b| {
+            if a == b {
+                return std::cmp::Ordering::Equal;
+            }
+            if a == 0 {
+                return std::cmp::Ordering::Less;
+            }
+            if b == 0 {
+                return std::cmp::Ordering::Greater;
+            }
+            let text_a = unsafe { *((a as *const u8).add(field_offset as usize) as *const u64) };
+            let text_b = unsafe { *((b as *const u8).add(field_offset as usize) as *const u64) };
+            let cmp = unsafe { sarif_text_cmp(text_a as i64, text_b as i64) };
+            cmp.cmp(&0)
+        });
+        list as i64
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_list_sort_by_i32_field(
+    list: i64,
+    logical_len: i64,
+    field_offset: i64,
+) -> i64 {
+    unsafe {
+        if list == 0 {
+            return 0;
+        }
+        let list = list as *mut SarifList;
+        let n = logical_len as usize;
+        if n <= 1 {
+            return list as i64;
+        }
+        let slice = unsafe { std::slice::from_raw_parts_mut((*list).values, n) };
+        slice.sort_by(|&a, &b| {
+            if a == b {
+                return std::cmp::Ordering::Equal;
+            }
+            if a == 0 {
+                return std::cmp::Ordering::Less;
+            }
+            if b == 0 {
+                return std::cmp::Ordering::Greater;
+            }
+            let val_a = unsafe { *((a as *const u8).add(field_offset as usize) as *const i64) };
+            let val_b = unsafe { *((b as *const u8).add(field_offset as usize) as *const i64) };
+            val_a.cmp(&val_b)
+        });
+        list as i64
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_list_sort_by_f64_field(
+    list: i64,
+    logical_len: i64,
+    field_offset: i64,
+) -> i64 {
+    unsafe {
+        if list == 0 {
+            return 0;
+        }
+        let list = list as *mut SarifList;
+        let n = logical_len as usize;
+        if n <= 1 {
+            return list as i64;
+        }
+        let slice = unsafe { std::slice::from_raw_parts_mut((*list).values, n) };
+        slice.sort_by(|&a, &b| {
+            if a == b {
+                return std::cmp::Ordering::Equal;
+            }
+            if a == 0 {
+                return std::cmp::Ordering::Less;
+            }
+            if b == 0 {
+                return std::cmp::Ordering::Greater;
+            }
+            let val_a = unsafe { *((a as *const u8).add(field_offset as usize) as *const f64) };
+            let val_b = unsafe { *((b as *const u8).add(field_offset as usize) as *const f64) };
+            val_a
+                .partial_cmp(&val_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        list as i64
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1679,6 +1775,14 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
         (
             "sarif_list_sort_by_text_field",
             sarif_list_sort_by_text_field as *const u8,
+        ),
+        (
+            "sarif_list_sort_by_i32_field",
+            sarif_list_sort_by_i32_field as *const u8,
+        ),
+        (
+            "sarif_list_sort_by_f64_field",
+            sarif_list_sort_by_f64_field as *const u8,
         ),
         ("sarif_text_index_new", sarif_text_index_new as *const u8),
         ("sarif_text_index_get", sarif_text_index_get as *const u8),

@@ -1306,6 +1306,8 @@ pub struct RuntimeHelperIds {
     pub list_push_id: FuncId,
     pub list_sort_text_id: Option<FuncId>,
     pub list_sort_by_text_field_id: Option<FuncId>,
+    pub list_sort_by_i32_field_id: Option<FuncId>,
+    pub list_sort_by_f64_field_id: Option<FuncId>,
     pub text_concat_id: FuncId,
     pub text_intern_id: FuncId,
     pub text_slice_id: FuncId,
@@ -1394,6 +1396,8 @@ pub fn declare_runtime_helpers<M: Module>(
         list_push_id: declare_list_push(module, backend)?,
         list_sort_text_id: Some(declare_list_sort_text(module, backend)?),
         list_sort_by_text_field_id: Some(declare_list_sort_by_text_field(module, backend)?),
+        list_sort_by_i32_field_id: Some(declare_list_sort_by_i32_field(module, backend)?),
+        list_sort_by_f64_field_id: Some(declare_list_sort_by_f64_field(module, backend)?),
         text_concat_id: declare_text_concat(module, backend)?,
         text_intern_id: declare_text_intern(module, backend)?,
         text_slice_id: declare_text_slice(module, backend)?,
@@ -1542,6 +1546,8 @@ pub fn lower_inst<M: Module>(
         list_push_id,
         list_sort_text_id,
         list_sort_by_text_field_id,
+        list_sort_by_i32_field_id,
+        list_sort_by_f64_field_id,
         text_concat_id,
         text_intern_id,
         text_slice_id,
@@ -2452,8 +2458,8 @@ pub fn lower_inst<M: Module>(
             // Dispatch to appropriate sort function based on field kind
             let sort_id = match field_desc.kind {
                 NativeValueKind::Text => list_sort_by_text_field_id.expect("sort declared"),
-                // For I32/F64 fields fall back to text sort for now
-                // TODO: add __sarif_list_sort_record_i32_field / _f64_field to runtime
+                NativeValueKind::I32 => list_sort_by_i32_field_id.expect("sort declared"),
+                NativeValueKind::F64 => list_sort_by_f64_field_id.expect("sort declared"),
                 _ => list_sort_by_text_field_id.expect("sort declared"),
             };
             let helper = module.declare_func_in_func(sort_id, builder.func);
@@ -4792,6 +4798,34 @@ pub fn declare_list_sort_by_text_field<M: Module>(
         "sarif_list_sort_by_text_field",
         backend,
         "list sort by text field helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_list_sort_by_i32_field<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_list_sort_by_i32_field",
+        backend,
+        "list sort by i32 field helper",
+        &[types::I64, types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_list_sort_by_f64_field<M: Module>(
+    module: &mut M,
+    backend: &str,
+) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_list_sort_by_f64_field",
+        backend,
+        "list sort by f64 field helper",
         &[types::I64, types::I64, types::I64],
         &[types::I64],
     )

@@ -1284,6 +1284,41 @@ fn stable_build_executes_list_sort_text_program() {
 
 #[cfg(feature = "native-build")]
 #[test]
+fn stable_build_executes_list_from_and_sort_by_field_programs() {
+    let path = temp_source(
+        "struct Row { name: Text, pos_y: I32 }\n\
+         fn main() -> Text effects [alloc] {\n\
+         let r1 = Row { name: \"b\", pos_y: 20 };\n\
+         let r2 = Row { name: \"c\", pos_y: 30 };\n\
+         let r3 = Row { name: \"a\", pos_y: 10 };\n\
+         let l = list_from([r1, r2, r3]);\n\
+         let l_sorted = list_sort_by_field(l, list_len(l), \"pos_y\");\n\
+         list_get(l_sorted, 0).name\n\
+         }",
+    );
+    let binary_path = super::support::temp_artifact("list_from_sort_field_build", "bin");
+    let build = run_sarif(&[
+        "build",
+        path.to_str().expect("utf-8 path"),
+        "--print-main",
+        "-o",
+        binary_path.to_str().expect("utf-8 path"),
+    ]);
+
+    assert!(
+        build.status.success(),
+        "list_from and sort_by_field program should build on the native target: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let native = Command::new(&binary_path)
+        .output()
+        .expect("built binary should run");
+    assert_eq!(native.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&native.stdout).trim_end(), "a");
+}
+
+#[cfg(feature = "native-build")]
+#[test]
 fn stable_build_without_text_builder_links_successfully() {
     let path = temp_source("fn main() -> I32 { 42 }");
     let binary_path = super::support::temp_artifact("no_text_builder", "bin");
