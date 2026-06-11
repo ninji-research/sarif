@@ -4,6 +4,7 @@ use crate::hir::{EffectRef, Module};
 use crate::ownership::ParamUsage;
 use sarif_syntax::Diagnostic;
 
+use super::exprcore::is_builtin_name;
 use super::typecheck::{check_type_exists, type_from_ref};
 use super::{
     ConstSignature, EnumVariantInfo, FunctionSignature, Type, best_match, suggestion_help,
@@ -79,13 +80,19 @@ pub fn resolve_module(
                     || functions.contains_key(&const_item.name)
                     || enum_variants.contains_key(&const_item.name)
                     || struct_layouts.contains_key(&const_item.name)
+                    || is_builtin_name(&const_item.name)
                 {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.duplicate-item",
+                    let message = if is_builtin_name(&const_item.name) {
+                        format!("item `{}` conflicts with a builtin name", const_item.name)
+                    } else {
                         format!(
                             "item `{}` is already declared in this module",
                             const_item.name
-                        ),
+                        )
+                    };
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.duplicate-item",
+                        message,
                         const_item.span,
                         Some("Use a unique name for this constant.".to_owned()),
                     ));
@@ -110,13 +117,19 @@ pub fn resolve_module(
                     || consts.contains_key(&function.name)
                     || enum_variants.contains_key(&function.name)
                     || struct_layouts.contains_key(&function.name)
+                    || is_builtin_name(&function.name)
                 {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.duplicate-item",
+                    let message = if is_builtin_name(&function.name) {
+                        format!("item `{}` conflicts with a builtin name", function.name)
+                    } else {
                         format!(
                             "item `{}` is already declared in this module",
                             function.name
-                        ),
+                        )
+                    };
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.duplicate-item",
+                        message,
                         function.span,
                         Some("Use a unique name for this function.".to_owned()),
                     ));
@@ -257,6 +270,28 @@ pub fn resolve_module(
                 );
             }
             crate::hir::Item::Enum(enum_item) => {
+                if enum_variants.contains_key(&enum_item.name)
+                    || struct_layouts.contains_key(&enum_item.name)
+                    || consts.contains_key(&enum_item.name)
+                    || functions.contains_key(&enum_item.name)
+                    || is_builtin_name(&enum_item.name)
+                {
+                    let message = if is_builtin_name(&enum_item.name) {
+                        format!("item `{}` conflicts with a builtin name", enum_item.name)
+                    } else {
+                        format!(
+                            "item `{}` is already declared in this module",
+                            enum_item.name
+                        )
+                    };
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.duplicate-item",
+                        message,
+                        enum_item.span,
+                        Some("Use a unique name for this enum.".to_owned()),
+                    ));
+                    continue;
+                }
                 let mut variants = Vec::new();
                 let mut used_discriminants: BTreeSet<u32> = BTreeSet::new();
                 let mut next_auto = 0u32;
@@ -300,6 +335,28 @@ pub fn resolve_module(
                 enum_variants.insert(enum_item.name.clone(), variants);
             }
             crate::hir::Item::Struct(struct_item) => {
+                if struct_layouts.contains_key(&struct_item.name)
+                    || enum_variants.contains_key(&struct_item.name)
+                    || consts.contains_key(&struct_item.name)
+                    || functions.contains_key(&struct_item.name)
+                    || is_builtin_name(&struct_item.name)
+                {
+                    let message = if is_builtin_name(&struct_item.name) {
+                        format!("item `{}` conflicts with a builtin name", struct_item.name)
+                    } else {
+                        format!(
+                            "item `{}` is already declared in this module",
+                            struct_item.name
+                        )
+                    };
+                    diagnostics.push(Diagnostic::new(
+                        "semantic.duplicate-item",
+                        message,
+                        struct_item.span,
+                        Some("Use a unique name for this struct.".to_owned()),
+                    ));
+                    continue;
+                }
                 let mut fields = Vec::new();
                 let mut layout = Vec::new();
                 for field in &struct_item.fields {

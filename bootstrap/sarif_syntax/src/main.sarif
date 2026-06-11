@@ -1548,23 +1548,6 @@ fn scan_string(source: Text, offset: I32, len: I32) -> I32 {
     end
 }
 
-fn text_eq_range(source: Text, start: I32, end: I32, expected: Text) -> Bool {
-    let expected_len = text_len(expected);
-    if end - start != expected_len {
-        false
-    } else {
-        let mut equal = true;
-        repeat i in expected_len {
-            if equal {
-                if text_byte(source, start + i) != text_byte(expected, i) {
-                    equal = false;
-                };
-            };
-        };
-        equal
-    }
-}
-
 fn make_single(kind: TokenKind, offset: I32) -> Token {
     make_token(kind, offset, offset + 1)
 }
@@ -2972,10 +2955,6 @@ fn syntax_selfcheck() -> I32 {
 
 fn parse_f64(source: Text) -> F64 {
     0.0
-}
-
-fn text_from_f64_fixed(value: F64, digits: I32) -> Text {
-    ""
 }
 
 fn mir_prog_new() -> MirProg {

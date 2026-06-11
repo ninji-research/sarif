@@ -201,7 +201,9 @@ pub fn analyze(
     for item in &module.items {
         match item {
             crate::hir::Item::Const(const_item) => {
-                let signature = consts.get(&const_item.name).expect("const signature");
+                let Some(signature) = consts.get(&const_item.name) else {
+                    continue;
+                };
                 let info = infer_expr(
                     &const_item.value,
                     &HashMap::new(),
@@ -253,7 +255,9 @@ pub fn analyze(
                 }));
             }
             crate::hir::Item::Function(function) => {
-                let signature = functions.get(&function.name).expect("function signature");
+                let Some(signature) = functions.get(&function.name) else {
+                    continue;
+                };
                 let mut locals = HashMap::new();
                 for name in &signature.const_params {
                     locals.insert(name.clone(), Type::I32);
@@ -460,7 +464,9 @@ pub fn analyze(
                 }));
             }
             crate::hir::Item::Enum(enum_item) => {
-                let variants = enum_variants.get(&enum_item.name).expect("enum variants");
+                let Some(variants) = enum_variants.get(&enum_item.name) else {
+                    continue;
+                };
                 let has_affine = variants.iter().any(|v| {
                     v.payload
                         .as_ref()
@@ -493,7 +499,9 @@ pub fn analyze(
                 }));
             }
             crate::hir::Item::Struct(struct_item) => {
-                let fields = struct_fields.get(&struct_item.name).expect("struct fields");
+                let Some(fields) = struct_fields.get(&struct_item.name) else {
+                    continue;
+                };
                 let ownership_status =
                     if struct_is_affine(&struct_item.name, &struct_fields, &enum_variants) {
                         "contains affine fields"
@@ -523,7 +531,9 @@ pub fn analyze(
     for item in &module.items {
         match item {
             crate::hir::Item::Function(function) => {
-                let signature = functions.get(&function.name).expect("function signature");
+                let Some(signature) = functions.get(&function.name) else {
+                    continue;
+                };
                 if profile == Profile::Total {
                     if !signature.effects.is_empty() {
                         diagnostics.push(Diagnostic::new(
@@ -616,7 +626,9 @@ pub fn analyze(
             }
             crate::hir::Item::Enum(enum_item) => {
                 if profile == Profile::Rt {
-                    let variants = enum_variants.get(&enum_item.name).expect("enum variants");
+                    let Some(variants) = enum_variants.get(&enum_item.name) else {
+                        continue;
+                    };
                     for variant in variants {
                         if let Some(payload) = &variant.payload
                             && !type_is_rt_safe(payload, &struct_fields)
@@ -641,9 +653,9 @@ pub fn analyze(
             }
             crate::hir::Item::Struct(struct_item) => {
                 if profile == Profile::Rt {
-                    let layout = struct_layouts
-                        .get(&struct_item.name)
-                        .expect("struct layout");
+                    let Some(layout) = struct_layouts.get(&struct_item.name) else {
+                        continue;
+                    };
                     for (name, ty) in layout {
                         if !type_is_rt_safe(ty, &struct_fields) {
                             diagnostics.push(Diagnostic::new(
@@ -1126,6 +1138,20 @@ fn creates_list() -> List[F64] {
                 .diagnostics
                 .iter()
                 .any(|diag| diag.code == "semantic.unknown-type"),
+            "{:#?}",
+            analysis.diagnostics
+        );
+    }
+
+    #[test]
+    fn rejects_redefinition_of_builtins() {
+        let analysis = analyze_source("fn text_len() -> I32 { 0 }");
+        assert!(
+            analysis
+                .diagnostics
+                .iter()
+                .any(|diag| diag.code == "semantic.duplicate-item"
+                    && diag.message.contains("builtin")),
             "{:#?}",
             analysis.diagnostics
         );
