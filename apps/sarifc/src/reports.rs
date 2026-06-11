@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 #[cfg(feature = "codegen")]
-use sarif_codegen::{Program, RuntimeError, RuntimeValue, run_function};
+use sarif_codegen::{Program, RuntimeError, RuntimeValue, run_function_native as run_function};
 use sarif_frontend::diagnostics::render_diagnostics;
 use sarif_frontend::semantic::Profile;
 use sarif_syntax::{Diagnostic, Span};

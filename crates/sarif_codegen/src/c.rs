@@ -1413,17 +1413,17 @@ fn emit_inst(
         } => {
             let mut offset = 0;
             let mut sort_fn = "sarif_list_sort_by_text_field";
-            if let Some(CodegenValueKind::List(elem)) = value_kinds.get(list) {
-                if let CodegenValueKind::Record(record_name) = &**elem {
-                    offset = record_field_offset(structs, record_name, field).unwrap_or(0);
-                    if let Some(field_ty) = record_field_kind(structs, record_name, field) {
-                        sort_fn = match field_ty.as_str() {
-                            "Text" => "sarif_list_sort_by_text_field",
-                            "I32" => "sarif_list_sort_by_i32_field",
-                            "F64" => "sarif_list_sort_by_f64_field",
-                            _ => "sarif_list_sort_by_text_field",
-                        };
-                    }
+            if let Some(CodegenValueKind::List(elem)) = value_kinds.get(list)
+                && let CodegenValueKind::Record(record_name) = &**elem
+            {
+                offset = record_field_offset(structs, record_name, field).unwrap_or(0);
+                if let Some(field_ty) = record_field_kind(structs, record_name, field) {
+                    sort_fn = match field_ty.as_str() {
+                        "Text" => "sarif_list_sort_by_text_field",
+                        "I32" => "sarif_list_sort_by_i32_field",
+                        "F64" => "sarif_list_sort_by_f64_field",
+                        _ => "sarif_list_sort_by_text_field",
+                    };
                 }
             }
             out.line(&format!(

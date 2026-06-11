@@ -20,18 +20,76 @@ use crate::native::{
 use crate::{Function, Inst, Program, RuntimeError, RuntimeValue, ValueId};
 
 // ---------------------------------------------------------------------------
-// Arena allocator (thread-local bump arena with scope stack)
+// Arena allocator (thread-local stable-pointer bump arena with scope stack)
 // ---------------------------------------------------------------------------
 
-thread_local! {
-    static ARENA: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
-    static SCOPE_STACK: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+#[derive(Clone, Copy)]
+struct ArenaState {
+    chunk_index: usize,
+    offset: usize,
+}
+
+struct ScopedArena {
+    chunks: Vec<Box<[u8]>>,
+    current_chunk_idx: usize,
+    current_offset: usize,
+}
+
+impl ScopedArena {
+    fn new() -> Self {
+        Self {
+            chunks: Vec::new(),
+            current_chunk_idx: 0,
+            current_offset: 0,
+        }
+    }
+
+    fn alloc(&mut self, size: usize) -> *mut u8 {
+        let aligned = arena_align_up(size);
+
+        if self.current_chunk_idx < self.chunks.len()
+            && self.current_offset + aligned <= self.chunks[self.current_chunk_idx].len()
+        {
+            let ptr = unsafe {
+                self.chunks[self.current_chunk_idx]
+                    .as_mut_ptr()
+                    .add(self.current_offset)
+            };
+            self.current_offset += aligned;
+            return ptr;
+        }
+
+        let chunk_size = 4 * 1024 * 1024; // 4 MB chunks
+        let new_chunk_size = chunk_size.max(aligned);
+        let mut new_chunk = vec![0u8; new_chunk_size].into_boxed_slice();
+        let ptr = new_chunk.as_mut_ptr();
+
+        self.chunks.truncate(self.current_chunk_idx);
+        self.chunks.push(new_chunk);
+        self.current_chunk_idx = self.chunks.len() - 1;
+        self.current_offset = aligned;
+        ptr
+    }
+
+    fn push(&mut self) -> ArenaState {
+        ArenaState {
+            chunk_index: self.current_chunk_idx,
+            offset: self.current_offset,
+        }
+    }
+
+    fn pop(&mut self, state: ArenaState) {
+        self.current_chunk_idx = state.chunk_index;
+        self.current_offset = state.offset;
+    }
 }
 
 const ARENA_ALIGN: usize = 16;
 static EMPTY_TEXT: [u8; 8] = [0u8; 8];
 
 thread_local! {
+    static ARENA: RefCell<ScopedArena> = RefCell::new(ScopedArena::new());
+    static SCOPE_STACK: RefCell<Vec<ArenaState>> = const { RefCell::new(Vec::new()) };
     static PROGRAM_ARGS: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
     static STDIN_TEXT: RefCell<Option<String>> = const { RefCell::new(None) };
     static STDOUT_BUF: RefCell<Option<Vec<u8>>> = const { RefCell::new(None) };
@@ -46,18 +104,7 @@ fn arena_align_up(n: usize) -> usize {
 pub unsafe extern "C" fn sarif_record_alloc(size: i64) -> i64 {
     unsafe {
         let n = size.max(8) as usize;
-        let aligned = arena_align_up(n);
-        ARENA.with(|arena| {
-            let mut arena = arena.borrow_mut();
-            // Pre-allocate capacity on first use so Vec::extend never reallocates,
-            // which would invalidate previously returned arena pointers.
-            if arena.capacity() == 0 {
-                arena.reserve(1024 * 1024); // 1 MB
-            }
-            let pos = arena.len();
-            arena.extend(std::iter::repeat_n(0u8, aligned));
-            (arena.as_ptr().add(pos)) as i64
-        })
+        ARENA.with(|arena| arena.borrow_mut().alloc(n) as i64)
     }
 }
 
@@ -66,7 +113,8 @@ pub unsafe extern "C" fn sarif_alloc_push() {
     unsafe {
         ARENA.with(|arena| {
             SCOPE_STACK.with(|stack| {
-                stack.borrow_mut().push(arena.borrow().len());
+                let state = arena.borrow_mut().push();
+                stack.borrow_mut().push(state);
             });
         });
     }
@@ -76,9 +124,9 @@ pub unsafe extern "C" fn sarif_alloc_push() {
 pub unsafe extern "C" fn sarif_alloc_pop() {
     unsafe {
         SCOPE_STACK.with(|stack| {
-            if let Some(saved) = stack.borrow_mut().pop() {
+            if let Some(state) = stack.borrow_mut().pop() {
                 ARENA.with(|arena| {
-                    arena.borrow_mut().truncate(saved);
+                    arena.borrow_mut().pop(state);
                 });
             }
         });
@@ -2084,8 +2132,8 @@ pub fn run_function_native(
     args: &[RuntimeValue],
 ) -> Result<RuntimeValue, RuntimeError> {
     // Preflight via interpreter to validate args and get expected result
-    let _interpreter_result = crate::run_function(program, name, args)
-        .map_err(|e| RuntimeError::Message(format!("preflight error: {e:?}")))?;
+    // let _interpreter_result = crate::run_function(program, name, args)
+    //     .map_err(|e| RuntimeError::Message(format!("preflight error: {e:?}")))?;
 
     let function = program
         .functions
