@@ -1,3 +1,4 @@
+// bootstrap
 fn symbol_table_has_name(table: Text, name: Text) -> Bool {
     if is_empty_text(table) {
         false

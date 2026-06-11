@@ -4717,4 +4717,3 @@ pub(super) fn infer_expr(
         context,
     )
 }
-

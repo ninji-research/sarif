@@ -1,3 +1,4 @@
+// bootstrap
 fn main() -> I32 effects [alloc] {
     syntax_selfcheck() + hir_selfcheck()
 }

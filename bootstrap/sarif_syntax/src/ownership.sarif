@@ -1,3 +1,4 @@
+// bootstrap
 fn is_text_empty(s: Text) -> Bool {
     text_len(s) == 0
 }

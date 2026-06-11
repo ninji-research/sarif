@@ -1,3 +1,4 @@
+// bootstrap
 enum HirExprKind {
     Name,
     Integer,
@@ -919,21 +920,65 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
     let e3 = top_level_entry_at(outline, 2);
     let e4 = top_level_entry_at(outline, 3);
     let e5 = top_level_entry_at(outline, 4);
+    let e6 = top_level_entry_at(outline, 5);
+    let e7 = top_level_entry_at(outline, 6);
+    let e8 = top_level_entry_at(outline, 7);
+    let e9 = top_level_entry_at(outline, 8);
+    let e10 = top_level_entry_at(outline, 9);
+    let e11 = top_level_entry_at(outline, 10);
+    let e12 = top_level_entry_at(outline, 11);
+    let e13 = top_level_entry_at(outline, 12);
+    let e14 = top_level_entry_at(outline, 13);
+    let e15 = top_level_entry_at(outline, 14);
+    let e16 = top_level_entry_at(outline, 15);
     let n1 = hir_name_from_span(e1.entry.name_span, source);
     let n2 = hir_name_from_span(e2.entry.name_span, source);
     let n3 = hir_name_from_span(e3.entry.name_span, source);
     let n4 = hir_name_from_span(e4.entry.name_span, source);
     let n5 = hir_name_from_span(e5.entry.name_span, source);
+    let n6 = hir_name_from_span(e6.entry.name_span, source);
+    let n7 = hir_name_from_span(e7.entry.name_span, source);
+    let n8 = hir_name_from_span(e8.entry.name_span, source);
+    let n9 = hir_name_from_span(e9.entry.name_span, source);
+    let n10 = hir_name_from_span(e10.entry.name_span, source);
+    let n11 = hir_name_from_span(e11.entry.name_span, source);
+    let n12 = hir_name_from_span(e12.entry.name_span, source);
+    let n13 = hir_name_from_span(e13.entry.name_span, source);
+    let n14 = hir_name_from_span(e14.entry.name_span, source);
+    let n15 = hir_name_from_span(e15.entry.name_span, source);
+    let n16 = hir_name_from_span(e16.entry.name_span, source);
     let c1 = if e1.present and e1.entry.kind == TopLevelKind.Const { hir_const_list_with(hir_const_new(n1)) } else { hir_const_list_new() };
     let c2 = if e2.present and e2.entry.kind == TopLevelKind.Const { hir_const_list_push(c1, hir_const_new(n2)) } else { c1 };
     let c3 = if e3.present and e3.entry.kind == TopLevelKind.Const { hir_const_list_push(c2, hir_const_new(n3)) } else { c2 };
     let c4 = if e4.present and e4.entry.kind == TopLevelKind.Const { hir_const_list_push(c3, hir_const_new(n4)) } else { c3 };
     let c5 = if e5.present and e5.entry.kind == TopLevelKind.Const { hir_const_list_push(c4, hir_const_new(n5)) } else { c4 };
+    let c6 = if e6.present and e6.entry.kind == TopLevelKind.Const { hir_const_list_push(c5, hir_const_new(n6)) } else { c5 };
+    let c7 = if e7.present and e7.entry.kind == TopLevelKind.Const { hir_const_list_push(c6, hir_const_new(n7)) } else { c6 };
+    let c8 = if e8.present and e8.entry.kind == TopLevelKind.Const { hir_const_list_push(c7, hir_const_new(n8)) } else { c7 };
+    let c9 = if e9.present and e9.entry.kind == TopLevelKind.Const { hir_const_list_push(c8, hir_const_new(n9)) } else { c8 };
+    let c10 = if e10.present and e10.entry.kind == TopLevelKind.Const { hir_const_list_push(c9, hir_const_new(n10)) } else { c9 };
+    let c11 = if e11.present and e11.entry.kind == TopLevelKind.Const { hir_const_list_push(c10, hir_const_new(n11)) } else { c10 };
+    let c12 = if e12.present and e12.entry.kind == TopLevelKind.Const { hir_const_list_push(c11, hir_const_new(n12)) } else { c11 };
+    let c13 = if e13.present and e13.entry.kind == TopLevelKind.Const { hir_const_list_push(c12, hir_const_new(n13)) } else { c12 };
+    let c14 = if e14.present and e14.entry.kind == TopLevelKind.Const { hir_const_list_push(c13, hir_const_new(n14)) } else { c13 };
+    let c15 = if e15.present and e15.entry.kind == TopLevelKind.Const { hir_const_list_push(c14, hir_const_new(n15)) } else { c14 };
+    let c16 = if e16.present and e16.entry.kind == TopLevelKind.Const { hir_const_list_push(c15, hir_const_new(n16)) } else { c15 };
     let f1 = if e1.present and e1.entry.kind == TopLevelKind.Fn { hir_fn_list_2_with(hir_fn_new(n1)) } else { hir_fn_list_2_new() };
     let f2 = if e2.present and e2.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f1, hir_fn_new(n2)) } else { f1 };
     let f3 = if e3.present and e3.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f2, hir_fn_new(n3)) } else { f2 };
     let f4 = if e4.present and e4.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f3, hir_fn_new(n4)) } else { f3 };
     let f5 = if e5.present and e5.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f4, hir_fn_new(n5)) } else { f4 };
+    let f6 = if e6.present and e6.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f5, hir_fn_new(n6)) } else { f5 };
+    let f7 = if e7.present and e7.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f6, hir_fn_new(n7)) } else { f6 };
+    let f8 = if e8.present and e8.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f7, hir_fn_new(n8)) } else { f7 };
+    let f9 = if e9.present and e9.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f8, hir_fn_new(n9)) } else { f8 };
+    let f10 = if e10.present and e10.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f9, hir_fn_new(n10)) } else { f9 };
+    let f11 = if e11.present and e11.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f10, hir_fn_new(n11)) } else { f10 };
+    let f12 = if e12.present and e12.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f11, hir_fn_new(n12)) } else { f11 };
+    let f13 = if e13.present and e13.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f12, hir_fn_new(n13)) } else { f12 };
+    let f14 = if e14.present and e14.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f13, hir_fn_new(n14)) } else { f13 };
+    let f15 = if e15.present and e15.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f14, hir_fn_new(n15)) } else { f14 };
+    let f16 = if e16.present and e16.entry.kind == TopLevelKind.Fn { hir_fn_list_2_push(f15, hir_fn_new(n16)) } else { f15 };
     let en1 = if e1.present and e1.entry.kind == TopLevelKind.Enum {
         let e1_fresh_en = top_level_entry_at(outline, 0);
         let span_en1 = e1_fresh_en.entry.span;
@@ -964,6 +1009,72 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
         let variants = hir_extract_variants_from_span(source, span_en5.start, span_en5.end);
         hir_enum_list_push(en4, HirEnum { name: n5, variants: variants, span: hir_span_new(0, 0) })
     } else { en4 };
+    let en6 = if e6.present and e6.entry.kind == TopLevelKind.Enum {
+        let e6_fresh_en = top_level_entry_at(outline, 5);
+        let span_en6 = e6_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en6.start, span_en6.end);
+        hir_enum_list_push(en5, HirEnum { name: n6, variants: variants, span: hir_span_new(0, 0) })
+    } else { en5 };
+    let en7 = if e7.present and e7.entry.kind == TopLevelKind.Enum {
+        let e7_fresh_en = top_level_entry_at(outline, 6);
+        let span_en7 = e7_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en7.start, span_en7.end);
+        hir_enum_list_push(en6, HirEnum { name: n7, variants: variants, span: hir_span_new(0, 0) })
+    } else { en6 };
+    let en8 = if e8.present and e8.entry.kind == TopLevelKind.Enum {
+        let e8_fresh_en = top_level_entry_at(outline, 7);
+        let span_en8 = e8_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en8.start, span_en8.end);
+        hir_enum_list_push(en7, HirEnum { name: n8, variants: variants, span: hir_span_new(0, 0) })
+    } else { en7 };
+    let en9 = if e9.present and e9.entry.kind == TopLevelKind.Enum {
+        let e9_fresh_en = top_level_entry_at(outline, 8);
+        let span_en9 = e9_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en9.start, span_en9.end);
+        hir_enum_list_push(en8, HirEnum { name: n9, variants: variants, span: hir_span_new(0, 0) })
+    } else { en8 };
+    let en10 = if e10.present and e10.entry.kind == TopLevelKind.Enum {
+        let e10_fresh_en = top_level_entry_at(outline, 9);
+        let span_en10 = e10_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en10.start, span_en10.end);
+        hir_enum_list_push(en9, HirEnum { name: n10, variants: variants, span: hir_span_new(0, 0) })
+    } else { en9 };
+    let en11 = if e11.present and e11.entry.kind == TopLevelKind.Enum {
+        let e11_fresh_en = top_level_entry_at(outline, 10);
+        let span_en11 = e11_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en11.start, span_en11.end);
+        hir_enum_list_push(en10, HirEnum { name: n11, variants: variants, span: hir_span_new(0, 0) })
+    } else { en10 };
+    let en12 = if e12.present and e12.entry.kind == TopLevelKind.Enum {
+        let e12_fresh_en = top_level_entry_at(outline, 11);
+        let span_en12 = e12_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en12.start, span_en12.end);
+        hir_enum_list_push(en11, HirEnum { name: n12, variants: variants, span: hir_span_new(0, 0) })
+    } else { en11 };
+    let en13 = if e13.present and e13.entry.kind == TopLevelKind.Enum {
+        let e13_fresh_en = top_level_entry_at(outline, 12);
+        let span_en13 = e13_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en13.start, span_en13.end);
+        hir_enum_list_push(en12, HirEnum { name: n13, variants: variants, span: hir_span_new(0, 0) })
+    } else { en12 };
+    let en14 = if e14.present and e14.entry.kind == TopLevelKind.Enum {
+        let e14_fresh_en = top_level_entry_at(outline, 13);
+        let span_en14 = e14_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en14.start, span_en14.end);
+        hir_enum_list_push(en13, HirEnum { name: n14, variants: variants, span: hir_span_new(0, 0) })
+    } else { en13 };
+    let en15 = if e15.present and e15.entry.kind == TopLevelKind.Enum {
+        let e15_fresh_en = top_level_entry_at(outline, 14);
+        let span_en15 = e15_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en15.start, span_en15.end);
+        hir_enum_list_push(en14, HirEnum { name: n15, variants: variants, span: hir_span_new(0, 0) })
+    } else { en14 };
+    let en16 = if e16.present and e16.entry.kind == TopLevelKind.Enum {
+        let e16_fresh_en = top_level_entry_at(outline, 15);
+        let span_en16 = e16_fresh_en.entry.span;
+        let variants = hir_extract_variants_from_span(source, span_en16.start, span_en16.end);
+        hir_enum_list_push(en15, HirEnum { name: n16, variants: variants, span: hir_span_new(0, 0) })
+    } else { en15 };
     let s1 = if e1.present and e1.entry.kind == TopLevelKind.Struct {
         let e1_fresh_s = top_level_entry_at(outline, 0);
         let span_s1 = e1_fresh_s.entry.span;
@@ -994,7 +1105,73 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
         let fields = hir_extract_fields_from_span(source, span_s5.start, span_s5.end);
         hir_struct_list_push(s4, HirStruct { name: n5, fields: fields, span: hir_span_new(0, 0) })
     } else { s4 };
-    HirModuleData { consts: c5, funcs: f5, enums: en5, structs: s5, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
+    let s6 = if e6.present and e6.entry.kind == TopLevelKind.Struct {
+        let e6_fresh_s = top_level_entry_at(outline, 5);
+        let span_s6 = e6_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s6.start, span_s6.end);
+        hir_struct_list_push(s5, HirStruct { name: n6, fields: fields, span: hir_span_new(0, 0) })
+    } else { s5 };
+    let s7 = if e7.present and e7.entry.kind == TopLevelKind.Struct {
+        let e7_fresh_s = top_level_entry_at(outline, 6);
+        let span_s7 = e7_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s7.start, span_s7.end);
+        hir_struct_list_push(s6, HirStruct { name: n7, fields: fields, span: hir_span_new(0, 0) })
+    } else { s6 };
+    let s8 = if e8.present and e8.entry.kind == TopLevelKind.Struct {
+        let e8_fresh_s = top_level_entry_at(outline, 7);
+        let span_s8 = e8_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s8.start, span_s8.end);
+        hir_struct_list_push(s7, HirStruct { name: n8, fields: fields, span: hir_span_new(0, 0) })
+    } else { s7 };
+    let s9 = if e9.present and e9.entry.kind == TopLevelKind.Struct {
+        let e9_fresh_s = top_level_entry_at(outline, 8);
+        let span_s9 = e9_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s9.start, span_s9.end);
+        hir_struct_list_push(s8, HirStruct { name: n9, fields: fields, span: hir_span_new(0, 0) })
+    } else { s8 };
+    let s10 = if e10.present and e10.entry.kind == TopLevelKind.Struct {
+        let e10_fresh_s = top_level_entry_at(outline, 9);
+        let span_s10 = e10_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s10.start, span_s10.end);
+        hir_struct_list_push(s9, HirStruct { name: n10, fields: fields, span: hir_span_new(0, 0) })
+    } else { s9 };
+    let s11 = if e11.present and e11.entry.kind == TopLevelKind.Struct {
+        let e11_fresh_s = top_level_entry_at(outline, 10);
+        let span_s11 = e11_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s11.start, span_s11.end);
+        hir_struct_list_push(s10, HirStruct { name: n11, fields: fields, span: hir_span_new(0, 0) })
+    } else { s10 };
+    let s12 = if e12.present and e12.entry.kind == TopLevelKind.Struct {
+        let e12_fresh_s = top_level_entry_at(outline, 11);
+        let span_s12 = e12_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s12.start, span_s12.end);
+        hir_struct_list_push(s11, HirStruct { name: n12, fields: fields, span: hir_span_new(0, 0) })
+    } else { s11 };
+    let s13 = if e13.present and e13.entry.kind == TopLevelKind.Struct {
+        let e13_fresh_s = top_level_entry_at(outline, 12);
+        let span_s13 = e13_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s13.start, span_s13.end);
+        hir_struct_list_push(s12, HirStruct { name: n13, fields: fields, span: hir_span_new(0, 0) })
+    } else { s12 };
+    let s14 = if e14.present and e14.entry.kind == TopLevelKind.Struct {
+        let e14_fresh_s = top_level_entry_at(outline, 13);
+        let span_s14 = e14_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s14.start, span_s14.end);
+        hir_struct_list_push(s13, HirStruct { name: n14, fields: fields, span: hir_span_new(0, 0) })
+    } else { s13 };
+    let s15 = if e15.present and e15.entry.kind == TopLevelKind.Struct {
+        let e15_fresh_s = top_level_entry_at(outline, 14);
+        let span_s15 = e15_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s15.start, span_s15.end);
+        hir_struct_list_push(s14, HirStruct { name: n15, fields: fields, span: hir_span_new(0, 0) })
+    } else { s14 };
+    let s16 = if e16.present and e16.entry.kind == TopLevelKind.Struct {
+        let e16_fresh_s = top_level_entry_at(outline, 15);
+        let span_s16 = e16_fresh_s.entry.span;
+        let fields = hir_extract_fields_from_span(source, span_s16.start, span_s16.end);
+        hir_struct_list_push(s15, HirStruct { name: n16, fields: fields, span: hir_span_new(0, 0) })
+    } else { s15 };
+    HirModuleData { consts: c16, funcs: f16, enums: en16, structs: s16, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
 }
 
 

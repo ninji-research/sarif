@@ -120,10 +120,13 @@ fn collect_package_names(loaded: &LoadedSource) -> String {
 }
 pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
     loaded.ensure_no_diagnostics(&loaded.ast_diagnostics(), "bootstrap check failed")?;
+    eprintln!("DEBUG: Loading bootstrap tools program...");
     let program = bootstrap_tools_program()?;
+    eprintln!("DEBUG: Loaded bootstrap tools program.");
     let package_names = collect_package_names(loaded);
     let mut accumulated_fn_sigs = String::new();
     for segment in &loaded.segments {
+        eprintln!("DEBUG: Collecting fn sigs for {}...", segment.path);
         let sigs_output = run_function(
             program,
             "collect_fn_sigs_text",
@@ -153,6 +156,7 @@ pub fn render_bootstrap_check(loaded: &LoadedSource) -> Result<String, String> {
     }
     let mut all_diagnostics = String::new();
     for segment in &loaded.segments {
+        eprintln!("DEBUG: Checking segment {}...", segment.path);
         let check_output = run_function(
             program,
             "check_text",

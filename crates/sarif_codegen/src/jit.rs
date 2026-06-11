@@ -64,9 +64,14 @@ impl ScopedArena {
         let mut new_chunk = vec![0u8; new_chunk_size].into_boxed_slice();
         let ptr = new_chunk.as_mut_ptr();
 
-        self.chunks.truncate(self.current_chunk_idx);
-        self.chunks.push(new_chunk);
-        self.current_chunk_idx = self.chunks.len() - 1;
+        if self.chunks.is_empty() {
+            self.chunks.push(new_chunk);
+            self.current_chunk_idx = 0;
+        } else {
+            self.chunks.truncate(self.current_chunk_idx + 1);
+            self.chunks.push(new_chunk);
+            self.current_chunk_idx = self.chunks.len() - 1;
+        }
         self.current_offset = aligned;
         ptr
     }
