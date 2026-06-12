@@ -116,6 +116,39 @@ Do not wrap those handles in a mutable record and repeatedly assign the record. 
 
 See `examples/affine_state.sarif` for a complete list/index state example.
 
+## Uniform Function Call Syntax (UFCS)
+
+Sarif supports a lightweight uniform function call syntax: a method-like call `receiver.method_name(args...)` desugars at the parser/HIR level to a regular function call `method_name(receiver, args...)`. This is purely syntactic sugar — there is no trait system, dynamic dispatch, or type-based overload resolution. The function `method_name` must be a regular top-level function in scope.
+
+```sarif
+struct Pair { left: I32, right: I32 }
+
+fn double(x: I32) -> I32 { x + x }
+fn get_left(p: Pair) -> I32 { p.left }
+
+fn test_ufcs() -> I32 {
+    let v = 21;
+    let out = v.double();   // desugars to double(v)
+    out
+}
+
+fn main() -> I32 {
+    let p = Pair { left: 10, right: 20 };
+    let v = p.get_left();   // field access p.left, then call get_left(v)
+    v
+}
+```
+
+This provides ergonomic dot-call syntax without introducing ad-hoc polymorphism or dispatch complexity. All method calls are resolved as static free-function calls.
+
+## Package Structure and Import Semantics
+
+Sarif's package system is intentionally minimal. A package is defined by a `Sarif.toml` manifest with a `sources` list of `.sarif` files. All source files listed in `sources` are concatenated into a single flat namespace — they share one module scope. There are **no sub-modules or file-level encapsulation** within a package; a function, const, enum, or struct declared in any source file is directly visible everywhere in that package without any import statement.
+
+The `from Module import ...` syntax **only works across package boundaries**. The `Module` name refers to another package (located via `--import-path`), not a file within the current package. Within a package, all items are automatically visible everywhere — the `import` keyword is redundant and has no effect for intra-package references.
+
+For true encapsulation, split code into separate packages (each with its own `Sarif.toml`) and import between them using `from other_pkg import name`. The `--import-path` CLI flag adds search directories for finding imported package manifests or standalone `.sarif` files.
+
 ## Profiles
 
 - `Core`: maintained base language
@@ -133,4 +166,4 @@ The maintained stage-0 language does not yet provide:
 - async tasks
 - channels
 - sockets
-- a maintained package/import system beyond the current simple package boundary
+- a maintained package/import system beyond the current simple package boundary (documented above; cross-package imports work but the system is intentionally minimal)

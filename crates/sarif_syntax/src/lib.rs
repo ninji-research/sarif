@@ -28,6 +28,7 @@ pub struct Diagnostic {
     pub message: String,
     pub span: Span,
     pub help: Option<String>,
+    pub origin_span: Option<Span>,
 }
 
 impl Diagnostic {
@@ -43,6 +44,7 @@ impl Diagnostic {
             message: message.into(),
             span,
             help,
+            origin_span: None,
         }
     }
 }

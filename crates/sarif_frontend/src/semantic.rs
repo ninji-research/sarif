@@ -1147,8 +1147,8 @@ fn creates_list() -> List[F64] {
     fn allows_redefinition_of_builtins() {
         let analysis = analyze_source("fn text_len() -> I32 { 0 }");
         assert!(
-            analysis.diagnostics.is_empty(),
-            "{:#?}",
+            analysis.diagnostics.iter().any(|d| d.code == "semantic.builtin-shadow"),
+            "expected builtin-shadow warning, got: {:#?}",
             analysis.diagnostics
         );
     }

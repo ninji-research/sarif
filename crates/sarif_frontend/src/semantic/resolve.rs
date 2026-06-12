@@ -2,11 +2,12 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::hir::{EffectRef, Module};
 use crate::ownership::ParamUsage;
-use sarif_syntax::Diagnostic;
+use sarif_syntax::{Diagnostic, Span};
 
 use super::typecheck::{check_type_exists, type_from_ref};
 use super::{
     ConstSignature, EnumVariantInfo, FunctionSignature, Type, best_match, suggestion_help,
+    exprcore::is_builtin_name,
 };
 
 #[derive(Clone, Debug)]
@@ -30,6 +31,7 @@ pub fn resolve_module(
     let mut enum_variants = BTreeMap::<String, Vec<EnumVariantInfo>>::new();
     let mut struct_fields = BTreeMap::<String, Vec<Type>>::new();
     let mut struct_layouts = BTreeMap::<String, Vec<(String, Type)>>::new();
+    let mut decl_origin: BTreeMap<String, (&'static str, Span)> = BTreeMap::new();
     let mut known_types = BTreeSet::from([
         "I32".to_owned(),
         "I64".to_owned(),
@@ -74,22 +76,34 @@ pub fn resolve_module(
 
     for item in &module.items {
         match item {
-            crate::hir::Item::Const(const_item) => {
-                if consts.contains_key(&const_item.name)
-                    || functions.contains_key(&const_item.name)
-                    || enum_variants.contains_key(&const_item.name)
-                    || struct_layouts.contains_key(&const_item.name)
-                {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.duplicate-item",
-                        format!(
-                            "item `{}` is already declared in this module",
-                            const_item.name
-                        ),
-                        const_item.span,
-                        Some("Use a unique name for this constant.".to_owned()),
-                    ));
-                }
+crate::hir::Item::Const(const_item) => {
+    if is_builtin_name(&const_item.name) {
+        diagnostics.push(Diagnostic {
+            code: "semantic.builtin-shadow",
+            message: format!("item `{}` shadows a builtin name", const_item.name),
+            span: const_item.span,
+            help: Some("Consider using a different name.".to_owned()),
+            origin_span: None,
+        });
+    }
+    let prev = decl_origin.get(&const_item.name).copied();
+    if consts.contains_key(&const_item.name)
+        || functions.contains_key(&const_item.name)
+        || enum_variants.contains_key(&const_item.name)
+        || struct_layouts.contains_key(&const_item.name)
+    {
+        diagnostics.push(Diagnostic {
+            code: "semantic.duplicate-item",
+            message: format!(
+                "item `{}` is already declared in this module{}",
+                const_item.name,
+                prev.map(|(kind, _)| format!(" as {kind}")).unwrap_or_default()
+            ),
+            span: const_item.span,
+            help: Some("Use a unique name for this constant.".to_owned()),
+            origin_span: prev.map(|(_, span)| span),
+        });
+    }
                 check_type_exists(
                     diagnostics,
                     &known_types,
@@ -98,30 +112,43 @@ pub fn resolve_module(
                     const_item.ty.span,
                     "type",
                 );
-                consts.insert(
-                    const_item.name.clone(),
-                    ConstSignature {
-                        ty: type_from_ref(&const_item.ty, &BTreeSet::new()),
-                    },
-                );
+consts.insert(
+    const_item.name.clone(),
+    ConstSignature {
+        ty: type_from_ref(&const_item.ty, &BTreeSet::new()),
+    },
+);
+decl_origin.insert(const_item.name.clone(), ("const", const_item.span));
             }
-            crate::hir::Item::Function(function) => {
-                if functions.contains_key(&function.name)
-                    || consts.contains_key(&function.name)
-                    || enum_variants.contains_key(&function.name)
-                    || struct_layouts.contains_key(&function.name)
-                {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.duplicate-item",
-                        format!(
-                            "item `{}` is already declared in this module",
-                            function.name
-                        ),
-                        function.span,
-                        Some("Use a unique name for this function.".to_owned()),
-                    ));
-                    continue;
-                }
+crate::hir::Item::Function(function) => {
+    if is_builtin_name(&function.name) {
+        diagnostics.push(Diagnostic {
+            code: "semantic.builtin-shadow",
+            message: format!("item `{}` shadows a builtin name", function.name),
+            span: function.span,
+            help: Some("Consider using a different name.".to_owned()),
+            origin_span: None,
+        });
+    }
+    let prev = decl_origin.get(&function.name).copied();
+    if functions.contains_key(&function.name)
+        || consts.contains_key(&function.name)
+        || enum_variants.contains_key(&function.name)
+        || struct_layouts.contains_key(&function.name)
+    {
+        diagnostics.push(Diagnostic {
+            code: "semantic.duplicate-item",
+            message: format!(
+                "item `{}` is already declared in this module{}",
+                function.name,
+                prev.map(|(kind, _)| format!(" as {kind}")).unwrap_or_default()
+            ),
+            span: function.span,
+            help: Some("Use a unique name for this function.".to_owned()),
+            origin_span: prev.map(|(_, span)| span),
+        });
+        continue;
+    }
 
                 let mut generic_params = BTreeSet::<String>::new();
                 for param in &function.type_params {
@@ -239,38 +266,51 @@ pub fn resolve_module(
                     }
                 }
 
-                functions.insert(
-                    function.name.clone(),
-                    FunctionSignature {
-                        const_params: collect_const_params_from_function(function, &generic_params),
-                        param_usages: vec![ParamUsage::borrow_only(); params.len()],
-                        params,
-                        return_type: function
-                            .return_type
-                            .as_ref()
-                            .map_or(Type::Unit, |return_type| {
-                                type_from_ref(return_type, &generic_params)
-                            }),
-                        effects,
-                        span: function.span,
-                    },
-                );
+functions.insert(
+    function.name.clone(),
+    FunctionSignature {
+        const_params: collect_const_params_from_function(function, &generic_params),
+        param_usages: vec![ParamUsage::borrow_only(); params.len()],
+        params,
+        return_type: function
+            .return_type
+            .as_ref()
+            .map_or(Type::Unit, |return_type| {
+                type_from_ref(return_type, &generic_params)
+            }),
+        effects,
+        span: function.span,
+    },
+);
+decl_origin.insert(function.name.clone(), ("function", function.span));
             }
             crate::hir::Item::Enum(enum_item) => {
+                if is_builtin_name(&enum_item.name) {
+                    diagnostics.push(Diagnostic {
+                        code: "semantic.builtin-shadow",
+                        message: format!("item `{}` shadows a builtin name", enum_item.name),
+                        span: enum_item.span,
+                        help: Some("Consider using a different name.".to_owned()),
+                        origin_span: None,
+                    });
+                }
+                let prev = decl_origin.get(&enum_item.name).copied();
                 if enum_variants.contains_key(&enum_item.name)
                     || struct_layouts.contains_key(&enum_item.name)
                     || consts.contains_key(&enum_item.name)
                     || functions.contains_key(&enum_item.name)
                 {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.duplicate-item",
-                        format!(
-                            "item `{}` is already declared in this module",
-                            enum_item.name
+                    diagnostics.push(Diagnostic {
+                        code: "semantic.duplicate-item",
+                        message: format!(
+                            "item `{}` is already declared in this module{}",
+                            enum_item.name,
+                            prev.map(|(kind, _)| format!(" as {kind}")).unwrap_or_default()
                         ),
-                        enum_item.span,
-                        Some("Use a unique name for this enum.".to_owned()),
-                    ));
+                        span: enum_item.span,
+                        help: Some("Use a unique name for this enum.".to_owned()),
+                        origin_span: prev.map(|(_, span)| span),
+                    });
                     continue;
                 }
                 let mut variants = Vec::new();
@@ -314,22 +354,35 @@ pub fn resolve_module(
                     });
                 }
                 enum_variants.insert(enum_item.name.clone(), variants);
+                decl_origin.insert(enum_item.name.clone(), ("enum", enum_item.span));
             }
             crate::hir::Item::Struct(struct_item) => {
+                if is_builtin_name(&struct_item.name) {
+                    diagnostics.push(Diagnostic {
+                        code: "semantic.builtin-shadow",
+                        message: format!("item `{}` shadows a builtin name", struct_item.name),
+                        span: struct_item.span,
+                        help: Some("Consider using a different name.".to_owned()),
+                        origin_span: None,
+                    });
+                }
+                let prev = decl_origin.get(&struct_item.name).copied();
                 if struct_layouts.contains_key(&struct_item.name)
                     || enum_variants.contains_key(&struct_item.name)
                     || consts.contains_key(&struct_item.name)
                     || functions.contains_key(&struct_item.name)
                 {
-                    diagnostics.push(Diagnostic::new(
-                        "semantic.duplicate-item",
-                        format!(
-                            "item `{}` is already declared in this module",
-                            struct_item.name
+                    diagnostics.push(Diagnostic {
+                        code: "semantic.duplicate-item",
+                        message: format!(
+                            "item `{}` is already declared in this module{}",
+                            struct_item.name,
+                            prev.map(|(kind, _)| format!(" as {kind}")).unwrap_or_default()
                         ),
-                        struct_item.span,
-                        Some("Use a unique name for this struct.".to_owned()),
-                    ));
+                        span: struct_item.span,
+                        help: Some("Use a unique name for this struct.".to_owned()),
+                        origin_span: prev.map(|(_, span)| span),
+                    });
                     continue;
                 }
                 let mut fields = Vec::new();
@@ -349,6 +402,7 @@ pub fn resolve_module(
                 }
                 struct_fields.insert(struct_item.name.clone(), fields);
                 struct_layouts.insert(struct_item.name.clone(), layout);
+                decl_origin.insert(struct_item.name.clone(), ("struct", struct_item.span));
             }
             crate::hir::Item::Effect(_) => {}
             crate::hir::Item::Import(import) => {
@@ -504,17 +558,23 @@ pub fn resolve_module(
             }
             crate::hir::Item::ExternBlock(block) => {
                 for f in &block.functions {
+                    let prev = decl_origin.get(&f.name).copied();
                     if functions.contains_key(&f.name)
                         || consts.contains_key(&f.name)
                         || enum_variants.contains_key(&f.name)
                         || struct_layouts.contains_key(&f.name)
                     {
-                        diagnostics.push(Diagnostic::new(
-                            "semantic.duplicate-item",
-                            format!("item `{}` is already declared in this module", f.name),
-                            f.span,
-                            Some("Use a unique name for this extern function.".to_owned()),
-                        ));
+                        diagnostics.push(Diagnostic {
+                            code: "semantic.duplicate-item",
+                            message: format!(
+                                "item `{}` is already declared in this module{}",
+                                f.name,
+                                prev.map(|(kind, _)| format!(" as {kind}")).unwrap_or_default()
+                            ),
+                            span: f.span,
+                            help: Some("Use a unique name for this extern function.".to_owned()),
+                            origin_span: prev.map(|(_, span)| span),
+                        });
                         continue;
                     }
 
@@ -559,6 +619,7 @@ pub fn resolve_module(
                             span: f.span,
                         },
                     );
+                    decl_origin.insert(f.name.clone(), ("extern", f.span));
                 }
             }
         }

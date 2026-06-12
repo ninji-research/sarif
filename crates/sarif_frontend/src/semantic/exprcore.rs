@@ -841,6 +841,10 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
     }
 }
 
+pub(crate) fn is_builtin_name(name: &str) -> bool {
+    builtin_entry(name).is_some()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn infer_fixed_builtin_expr(
     expr: &crate::hir::CallExpr,

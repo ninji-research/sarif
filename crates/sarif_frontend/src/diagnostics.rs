@@ -8,7 +8,8 @@ pub fn render_diagnostics(file_name: &str, source: &str, diagnostics: &[Diagnost
 
     for diagnostic in diagnostics {
         let is_alloc_escape_warning = diagnostic.code == "semantic.alloc-escape";
-        let report_kind = if is_alloc_escape_warning {
+        let is_builtin_shadow = diagnostic.code == "semantic.builtin-shadow";
+        let report_kind = if is_alloc_escape_warning || is_builtin_shadow {
             ReportKind::Warning
         } else {
             ReportKind::Error
@@ -23,6 +24,16 @@ pub fn render_diagnostics(file_name: &str, source: &str, diagnostics: &[Diagnost
                     .with_message(diagnostic.message.clone())
                     .with_color(Color::Red),
             );
+
+        if let Some(origin) = diagnostic.origin_span {
+            let o_start = origin.start;
+            let o_end = origin.end.max(o_start);
+            report = report.with_label(
+                Label::new((file_name, o_start..o_end))
+                    .with_message("first declared here")
+                    .with_color(Color::Blue),
+            );
+        }
 
         if let Some(help) = &diagnostic.help {
             report = report.with_help(help.clone());

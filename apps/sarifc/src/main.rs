@@ -206,6 +206,9 @@ impl LoadedSource {
                 if d.code == "semantic.import-not-found"
                     || d.code == "semantic.import-name-not-found"
                 {
+                    return true;
+                }
+                if d.code == "semantic.builtin-shadow" {
                     return false;
                 }
                 if profile == Profile::Rt {
@@ -535,7 +538,7 @@ fn run_program(_command: command::Command) -> ExitCode {
 fn build_program(command: &command::Command) -> Result<(), String> {
     #[cfg(feature = "native-build")]
     sarif_codegen::native_set_debug(command.debug);
-    let loaded = LoadedSource::load(&command.path)?;
+    let loaded = LoadedSource::load_with_import_paths(&command.path, &command.import_paths)?;
     let all_diagnostics = loaded.mir_diagnostics(command.profile);
     if command.format.as_deref() == Some("sarif") {
         let sarif_json = reports::render_sarif_json(&loaded, &all_diagnostics, command.profile);

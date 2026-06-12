@@ -290,15 +290,43 @@ fn render_segment_diagnostic(
     diagnostic: &Diagnostic,
 ) -> String {
     if let Some((segment, span)) = map_diagnostic_to_segment(segments, diagnostic.span) {
-        let mapped = Diagnostic::new(
-            diagnostic.code,
-            diagnostic.message.clone(),
+        let mut origin_span = None;
+        let mut origin_help = None;
+        if let Some(os) = diagnostic.origin_span {
+            if let Some((origin_seg, adjusted)) = map_diagnostic_to_segment(segments, os) {
+                if origin_seg.path == segment.path {
+                    origin_span = Some(adjusted);
+                } else {
+                    let (line, _) = get_line_col(&origin_seg.source, adjusted.start);
+                    origin_help = Some(format!(
+                        "previously declared in {}:{}",
+                        origin_seg.path, line
+                    ));
+                }
+            }
+        }
+        let msg = if let Some(ref help) = origin_help {
+            format!("{}\n  {}", diagnostic.message, help)
+        } else {
+            diagnostic.message.clone()
+        };
+        let mapped = Diagnostic {
+            code: diagnostic.code,
+            message: msg,
             span,
-            diagnostic.help.clone(),
-        );
+            help: diagnostic.help.clone(),
+            origin_span,
+        };
         render_diagnostics(&segment.path, &segment.source, &[mapped])
     } else {
-        render_diagnostics(display_path, source, std::slice::from_ref(diagnostic))
+        let mapped = Diagnostic {
+            code: diagnostic.code,
+            message: diagnostic.message.clone(),
+            span: diagnostic.span,
+            help: diagnostic.help.clone(),
+            origin_span: diagnostic.origin_span,
+        };
+        render_diagnostics(display_path, source, &[mapped])
     }
 }
 

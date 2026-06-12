@@ -1035,8 +1035,7 @@ impl<'a> Parser<'a> {
                 let looks_like_type_name = lexeme
                     .as_bytes()
                     .first()
-                    .is_some_and(u8::is_ascii_uppercase)
-                    && lexeme.as_bytes().iter().any(u8::is_ascii_lowercase);
+                    .is_some_and(u8::is_ascii_uppercase);
                 children.push(Element::Token(token));
                 if lexeme == "result" {
                     Node::new(NodeKind::ExprContractResult, children)
