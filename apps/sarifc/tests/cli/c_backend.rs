@@ -1,9 +1,8 @@
 use super::support::{
     bootstrap_syntax_dir, const_control_flow_example, multi_file_package_dir,
     multi_file_package_manifest, package_dir, package_manifest, run_sarif, temp_output,
-    temp_source, temp_package,
+    temp_package, temp_source,
 };
-use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -824,29 +823,49 @@ fn c_build_import_syntax() {
         "[package]\nname = \"math-pkg\"\nversion = \"0.1.0\"\nsources = [\"math.sarif\"]\n",
         &[("math.sarif", "fn add(a: I32, b: I32) -> I32 { a + b }\n")],
     );
-    
+
     let main_pkg = temp_package(
         "[package]\nname = \"main-pkg\"\nversion = \"0.1.0\"\nsources = [\"src/main.sarif\"]\n",
-        &[("src/main.sarif", "from math import add\nfn main() -> I32 { 1 }\n")],
+        &[(
+            "src/main.sarif",
+            "from math import add\nfn main() -> I32 { 1 }\n",
+        )],
     );
-    
+
     let math_pkg_canon = math_pkg.canonicalize().unwrap();
     eprintln!("math_pkg_canon: {}", math_pkg_canon.display());
-    eprintln!("math_pkg_canon/math.sarif exists: {}", math_pkg_canon.join("math.sarif").exists());
+    eprintln!(
+        "math_pkg_canon/math.sarif exists: {}",
+        math_pkg_canon.join("math.sarif").exists()
+    );
     eprintln!("main_pkg: {}", main_pkg.display());
-    eprintln!("main_pkg/src/main.sarif exists: {}", main_pkg.join("src/main.sarif").exists());
-    eprintln!("main_pkg/Sarif.toml exists: {}", main_pkg.join("Sarif.toml").exists());
-    
-    let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().to_string();
+    eprintln!(
+        "main_pkg/src/main.sarif exists: {}",
+        main_pkg.join("src/main.sarif").exists()
+    );
+    eprintln!(
+        "main_pkg/Sarif.toml exists: {}",
+        main_pkg.join("Sarif.toml").exists()
+    );
+
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+        .to_string();
     let binary = {
         let binary_path = temp_output(&format!("import_syntax_{unique}"), "bin");
         let build = run_sarif(&[
             "build",
             main_pkg.to_str().unwrap(),
-            "--target", "c",
-            "--profile", "core",
-            "--import-path", math_pkg_canon.to_str().unwrap(),
-            "-o", binary_path.to_str().unwrap(),
+            "--target",
+            "c",
+            "--profile",
+            "core",
+            "--import-path",
+            math_pkg_canon.to_str().unwrap(),
+            "-o",
+            binary_path.to_str().unwrap(),
         ]);
         eprintln!("build stderr: {}", String::from_utf8_lossy(&build.stderr));
         assert!(

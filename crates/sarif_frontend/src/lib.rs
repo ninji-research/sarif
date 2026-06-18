@@ -4,8 +4,7 @@
     clippy::missing_panics_doc,
     clippy::useless_let_if_seq,
     clippy::match_same_arms,
-    clippy::or_fun_call,
-    clippy::option_if_let_else
+    clippy::or_fun_call
 )]
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};

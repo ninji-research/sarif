@@ -177,11 +177,9 @@ pub(super) fn parse_array_type_name(name: &str, generic_params: &BTreeSet<String
     let split = split?;
     let element = inner[..split].trim();
     let len = inner[split + 1..].trim();
-    let len = if let Ok(len) = len.parse::<u32>() {
-        ConstExpr::Literal(len)
-    } else {
-        ConstExpr::Param(len.to_owned())
-    };
+    let len = len
+        .parse::<u32>()
+        .map_or_else(|_| ConstExpr::Param(len.to_owned()), ConstExpr::Literal);
     let element = parse_type_name(element, generic_params)?;
     Some(Type::Array(Box::new(element), len))
 }
@@ -195,10 +193,10 @@ pub(super) fn render_signature(function: &Function) -> String {
             function
                 .type_params
                 .iter()
-                .map(|param| match &param.kind {
-                    Some(kind) => format!("{}: {kind}", param.name),
-                    None => param.name.clone(),
-                })
+                .map(|param| param.kind.as_ref().map_or_else(
+                    || param.name.clone(),
+                    |kind| format!("{}: {kind}", param.name),
+                ))
                 .collect::<Vec<_>>()
                 .join(", "),
         )

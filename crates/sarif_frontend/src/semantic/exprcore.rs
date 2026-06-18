@@ -841,7 +841,7 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
     }
 }
 
-pub(crate) fn is_builtin_name(name: &str) -> bool {
+pub fn is_builtin_name(name: &str) -> bool {
     builtin_entry(name).is_some()
 }
 
@@ -3773,17 +3773,16 @@ pub(super) fn infer_contract_result_expr(
             Some("Use local bindings or parameters instead.".to_owned()),
         ));
     }
-    if let Some(ty) = locals.get("result") {
-        ExprInfo {
-            ty: ty.clone(),
-            calls: Vec::new(),
-        }
-    } else {
-        ExprInfo {
+    locals.get("result").map_or_else(
+        || ExprInfo {
             ty: Type::Error,
             calls: Vec::new(),
-        }
-    }
+        },
+        |ty| ExprInfo {
+            ty: ty.clone(),
+            calls: Vec::new(),
+        },
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

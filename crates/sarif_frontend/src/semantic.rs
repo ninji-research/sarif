@@ -737,7 +737,9 @@ pub(super) fn infer_expr(
             ty: Type::Bool,
             calls: Vec::new(),
         },
-        Expr::Name(expr) => {
+        Expr::Name(expr) =>
+        {
+            #[allow(clippy::option_if_let_else)]
             if let Some(ty) = locals.get(&expr.name) {
                 ExprInfo {
                     ty: ty.clone(),
@@ -1147,7 +1149,10 @@ fn creates_list() -> List[F64] {
     fn allows_redefinition_of_builtins() {
         let analysis = analyze_source("fn text_len() -> I32 { 0 }");
         assert!(
-            analysis.diagnostics.iter().any(|d| d.code == "semantic.builtin-shadow"),
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "semantic.builtin-shadow"),
             "expected builtin-shadow warning, got: {:#?}",
             analysis.diagnostics
         );

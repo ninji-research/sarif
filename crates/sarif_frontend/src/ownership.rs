@@ -765,10 +765,10 @@ impl ParamUsage {
         if self
             .move_fields
             .iter()
-            .any(|existing| path_starts_with(existing, &path) || path_starts_with(&path, existing))
+            .any(|existing| existing.starts_with(&path) || path.starts_with(existing))
         {
             self.move_fields
-                .retain(|existing| !path_starts_with(existing, &path) || existing == &path);
+                .retain(|existing| !existing.starts_with(&path) || existing == &path);
             if !self.move_fields.iter().any(|existing| existing == &path) {
                 self.move_fields.push(path);
             }
@@ -809,10 +809,6 @@ impl UsageContext {
             Self::MovePaths(paths) => project_paths_field(paths, field_name),
         }
     }
-}
-
-fn path_starts_with(path: &[String], prefix: &[String]) -> bool {
-    path.starts_with(prefix)
 }
 
 #[allow(clippy::too_many_arguments)]

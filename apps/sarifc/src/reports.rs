@@ -292,24 +292,23 @@ fn render_segment_diagnostic(
     if let Some((segment, span)) = map_diagnostic_to_segment(segments, diagnostic.span) {
         let mut origin_span = None;
         let mut origin_help = None;
-        if let Some(os) = diagnostic.origin_span {
-            if let Some((origin_seg, adjusted)) = map_diagnostic_to_segment(segments, os) {
-                if origin_seg.path == segment.path {
-                    origin_span = Some(adjusted);
-                } else {
-                    let (line, _) = get_line_col(&origin_seg.source, adjusted.start);
-                    origin_help = Some(format!(
-                        "previously declared in {}:{}",
-                        origin_seg.path, line
-                    ));
-                }
+        if let Some(os) = diagnostic.origin_span
+            && let Some((origin_seg, adjusted)) = map_diagnostic_to_segment(segments, os)
+        {
+            if origin_seg.path == segment.path {
+                origin_span = Some(adjusted);
+            } else {
+                let (line, _) = get_line_col(&origin_seg.source, adjusted.start);
+                origin_help = Some(format!(
+                    "previously declared in {}:{}",
+                    origin_seg.path, line
+                ));
             }
         }
-        let msg = if let Some(ref help) = origin_help {
-            format!("{}\n  {}", diagnostic.message, help)
-        } else {
-            diagnostic.message.clone()
-        };
+        let msg = origin_help.as_ref().map_or_else(
+            || diagnostic.message.clone(),
+            |help| format!("{}\n  {}", diagnostic.message, help),
+        );
         let mapped = Diagnostic {
             code: diagnostic.code,
             message: msg,
