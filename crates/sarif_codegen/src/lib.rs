@@ -1967,7 +1967,9 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    enum_variants.extend(imported_info.enum_variants.clone());
+    for (name, variants) in imported_info.enum_variants.clone() {
+        enum_variants.entry(name).or_insert(variants);
+    }
     let mut struct_fields = module
         .items
         .iter()
@@ -1983,7 +1985,9 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    struct_fields.extend(imported_info.struct_fields.clone());
+    for (name, fields) in imported_info.struct_fields.clone() {
+        struct_fields.entry(name).or_insert(fields);
+    }
     let mut struct_layouts = module
         .items
         .iter()
@@ -1999,7 +2003,9 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    struct_layouts.extend(imported_info.struct_layouts.clone());
+    for (name, layouts) in imported_info.struct_layouts.clone() {
+        struct_layouts.entry(name).or_insert(layouts);
+    }
     let function_items = module
         .items
         .iter()
@@ -2020,7 +2026,9 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
             )
         })
         .collect::<BTreeMap<_, _>>();
-    function_returns.extend(imported_info.function_returns.clone());
+    for (name, ret) in imported_info.function_returns.clone() {
+        function_returns.entry(name).or_insert(ret);
+    }
     let evaluated_consts = evaluate_const_values(
         &consts,
         &function_items,

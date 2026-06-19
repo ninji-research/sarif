@@ -33,9 +33,11 @@ Sarif keeps one declaration order:
 - named `struct`
 - named `enum`
 - fixed arrays `[T; N]`
-- repeat fixed-array literals `[value; N]` for duplicate-safe fixed-array elements
+- repeat fixed-array literals `[value; N]` to produce `N` independent element values
 - const-generic array length names such as `N` are available as immutable `I32` values inside the same generic function body and contracts
 - `TextBuilder` through maintained runtime builtins
+  - `write(text)` convenience builtin (shorthand for `perform SystemIO.stdout_write(...)`)
+  - `write_builder(builder)` convenience builtin for writing `TextBuilder` output (shorthand for `perform SystemIO.stdout_write(...)`)
 - `List[T]` through maintained runtime builtins
 
 ## Maintained Stage-0 Control Flow
@@ -99,7 +101,7 @@ Sarif keeps one declaration order:
 - `text_from_f64_fixed(value: F64, digits: I32) -> Text`
 - `parse_f64(text: Text) -> F64`
 
-`TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. Misses return `-1`; `text_index_get_or_insert(...)` returns the existing slot or inserts `next`; and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
+`TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. `text_index_contains(...)` returns whether a key is present as `Bool`; misses from `text_index_get(...)` return `-1`; `text_index_get_or_insert(...)` returns the existing slot or inserts `next`; and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
 
 ## Stage-0 Affine State Pattern
 
@@ -134,7 +136,7 @@ fn test_ufcs() -> I32 {
 
 fn main() -> I32 {
     let p = Pair { left: 10, right: 20 };
-    let v = p.get_left();   // field access p.left, then call get_left(v)
+    let v = p.get_left();   // desugars to get_left(p)
     v
 }
 ```
@@ -152,10 +154,10 @@ For true encapsulation, split code into separate packages (each with its own `Sa
 ## Profiles
 
 - `Core`: maintained base language
-- `Total`: stricter profile intended to remove partiality and unbounded execution
-- `RT`: stricter profile intended to bound resource use and preserve predictability
+- `Total`: implemented stricter profile aimed at removing partiality and unbounded execution
+- `RT`: implemented stricter profile aimed at bounding resource use and preserving predictability
 
-The current compiler does not yet provide a complete production-ready `Total` or `RT` authority path. Those remain maintained design directions, not completed release surfaces.
+The current compiler implements and validates `Total` and `RT`. Their authority guarantees and broader production hardening are still evolving, so users should treat them as supported but not yet fully stabilized.
 
 ## Explicit Current Boundary
 

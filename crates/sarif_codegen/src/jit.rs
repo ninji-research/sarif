@@ -1135,7 +1135,7 @@ pub unsafe extern "C" fn sarif_text_from_f64_fixed(value: f64, digits: i64) -> i
         let s = if d == 0 {
             format!("{:.0}", value)
         } else {
-            format!("{:.d$}", value, d = d)
+            format!("{:.precision$}", value, precision = d)
         };
         let s_bytes = s.as_bytes();
         let len = s_bytes.len() as u64;

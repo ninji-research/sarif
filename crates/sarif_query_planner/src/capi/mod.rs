@@ -53,7 +53,7 @@ pub extern "C" fn sarif_column_text(result: *mut SarifResult, col: c_long) -> *c
     let res = unsafe { &*result };
     let idx: usize = col.try_into().unwrap_or(0);
     res.column_text(idx).map_or(ptr::null(), |s| {
-        CString::new(s.as_str()).unwrap().into_raw()
+        CString::new(s.as_str()).map_or(ptr::null(), |cstr| cstr.into_raw())
     })
 }
 
@@ -138,7 +138,7 @@ mod tests {
         let result_ptr = sarif_execute(plan_ptr);
         assert!(!result_ptr.is_null());
         unsafe {
-            let result = &*result_ptr;
+            let result = result_ptr.as_ref().unwrap();
             assert_eq!(result.column_count(), 0);
             assert_eq!(result.row_count(), 0);
             drop(Box::from_raw(result_ptr));

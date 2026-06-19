@@ -11,7 +11,13 @@ fn test_prepare_query_with_where() {
     let optimized = plan.optimized.expect("should have optimized plan");
     assert!(!optimized.statements.is_empty());
 
-    let _ = std::fs::remove_file(path);
+    if let Err(e) = std::fs::remove_file(path) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::NotFound,
+            "failed to remove test db {path}: {e}"
+        );
+    }
 }
 
 #[test]
@@ -25,7 +31,13 @@ fn test_prepare_query_with_limit() {
     let optimized = plan.optimized.unwrap();
     assert!(!optimized.statements.is_empty());
 
-    let _ = std::fs::remove_file(path);
+    if let Err(e) = std::fs::remove_file(path) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::NotFound,
+            "failed to remove test db {path}: {e}"
+        );
+    }
 }
 
 #[test]
@@ -46,7 +58,13 @@ fn test_query_no_table_yields_generated_code() {
         panic!("expected select statement");
     }
 
-    let _ = std::fs::remove_file(path);
+    if let Err(e) = std::fs::remove_file(path) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::NotFound,
+            "failed to remove test db {path}: {e}"
+        );
+    }
 }
 
 #[test]
@@ -64,7 +82,13 @@ fn test_prepare_query_invalid_sql() {
     let result = prepare_query(&db, "INSERT INTO users VALUES (1)");
     assert!(result.is_err());
 
-    let _ = std::fs::remove_file(path);
+    if let Err(e) = std::fs::remove_file(path) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::NotFound,
+            "failed to remove test db {path}: {e}"
+        );
+    }
 }
 
 #[test]
@@ -85,7 +109,13 @@ fn test_full_pipeline_sql_to_optimized_plan() {
         assert!(code.contains("USERS"));
     }
 
-    let _ = std::fs::remove_file(path);
+    if let Err(e) = std::fs::remove_file(path) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::NotFound,
+            "failed to remove test db {path}: {e}"
+        );
+    }
 }
 
 #[test]
@@ -103,5 +133,11 @@ fn test_query_with_order_by_and_limit_generates_both_sections() {
         assert!(code.contains("fn query_execute"));
     }
 
-    let _ = std::fs::remove_file(path);
+    if let Err(e) = std::fs::remove_file(path) {
+        assert_eq!(
+            e.kind(),
+            std::io::ErrorKind::NotFound,
+            "failed to remove test db {path}: {e}"
+        );
+    }
 }
