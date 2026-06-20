@@ -236,7 +236,9 @@ static struct SarifAllocScope* sarif_alloc_push_scope(void) {
         return &sarif_scope_stack[sarif_scope_depth++];
     }
     struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
-    if (n == NULL) sarif_fatal_error("out of memory in sarif_alloc_push_scope");
+    if (n == NULL) {
+        sarif_fatal_error("out of memory in sarif_alloc_push_scope");
+    }
     n->next = sarif_scope_overflow;
     sarif_scope_overflow = n;
     return &n->scope;
@@ -357,7 +359,10 @@ static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
 }
 
 static unsigned char* sarif_intern_alloc(uint64_t size) {
-    size_t aligned = (size + 7u) & ~(size_t)7u;
+    if (size > UINT64_MAX - 7u) {
+        sarif_fatal_error("size overflow in string interning pool alignment");
+    }
+    size_t aligned = (size_t)((size + 7u) & ~(uint64_t)7u);
     if (sarif_intern_chunk == NULL || aligned > sarif_intern_chunk->cap - sarif_intern_chunk->used) {
         size_t chunk_size = sizeof(struct SarifInternChunk) + SARIF_INTERN_CHUNK_SIZE;
         if (chunk_size < sizeof(struct SarifInternChunk) + aligned) {
@@ -1444,8 +1449,12 @@ static void* sarif_slice_blob(const unsigned char* blob, uint64_t start, uint64_
     cs = start < len ? start : len;
     ce = end < len ? end : len;
     if (utf8_aware) {
-        while (cs < len && sarif_is_utf8_continuation(blob[8 + cs])) cs++;
-        while (ce > 0 && ce < len && sarif_is_utf8_continuation(blob[8 + ce])) ce--;
+        while (cs < len && sarif_is_utf8_continuation(blob[8 + cs])) {
+            cs++;
+        }
+        while (ce > 0 && ce < len && sarif_is_utf8_continuation(blob[8 + ce])) {
+            ce--;
+        }
         if (ce <= cs) return sarif_empty_text;
     } else {
         if (ce <= cs) return sarif_empty_text;
@@ -1592,8 +1601,12 @@ int64_t sarif_parse_i32_range(const unsigned char* text, int64_t start, int64_t 
     index = start > 0 ? (uint64_t)start < len ? (uint64_t)start : len : 0;
     len = end > 0 ? (uint64_t)end < len ? (uint64_t)end : len : 0;
     bytes = text + 8;
-    while (index < len && bytes[index] == ' ') index += 1;
-    while (len > index && bytes[len - 1] == ' ') len -= 1;
+    while (index < len && bytes[index] == ' ') {
+        index += 1;
+    }
+    while (len > index && bytes[len - 1] == ' ') {
+        len -= 1;
+    }
     return sarif_parse_i32_core(bytes, index, len);
 }
 
