@@ -2408,8 +2408,8 @@ int64_t sarif_dir_list(const unsigned char* path_handle) {
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         total_len += strlen(entry->d_name);
-        count++;
         if (count > 0) total_len += 1;
+        count++;
     }
     rewinddir(dir);
     unsigned char* result = sarif_text_alloc(total_len);
