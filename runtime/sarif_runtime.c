@@ -2376,12 +2376,13 @@ struct SarifEffectHandler {
     sarif_effect_handler_t handler;
 };
 
+extern const struct SarifEffectHandler sarif_effect_table[];
+extern const size_t sarif_effect_table_len;
+
 static const struct SarifEffectHandler* sarif_find_handler(
     const char* effect, const char* operation,
     sarif_effect_handler_t* out_handler
 ) {
-    extern const struct SarifEffectHandler sarif_effect_table[];
-    extern const size_t sarif_effect_table_len;
     for (size_t i = 0; i < sarif_effect_table_len; i++) {
         if (sarif_str_eq(sarif_effect_table[i].effect, effect) &&
             sarif_str_eq(sarif_effect_table[i].operation, operation)) {
