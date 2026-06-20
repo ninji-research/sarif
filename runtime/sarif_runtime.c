@@ -2340,8 +2340,8 @@ void* sarif_bytes_to_text(const unsigned char* bytes) {
     return result;
 }
 
-unsigned char* sarif_text_to_bytes(const char* text) {
-    const unsigned char* bytes = (const unsigned char*)text;
+unsigned char* sarif_text_to_bytes(const unsigned char* text) {
+    const unsigned char* bytes = text;
     if (bytes == NULL) return NULL;
     if (sarif_bytes_is_view(bytes)) {
         uint64_t len = sarif_bytes_view_len(bytes);
