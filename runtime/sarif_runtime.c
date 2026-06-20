@@ -278,7 +278,7 @@ static void sarif_alloc_pop_scope(void) {
 void sarif_alloc_push(void) {
     struct SarifAllocScope* scope = sarif_alloc_push_scope();
     if (scope == NULL) {
-        return;
+        sarif_fatal_error("sarif_alloc_push_scope returned NULL");
     }
     pthread_mutex_lock(&sarif_record_mutex);
     scope->chunk = sarif_record_current;
