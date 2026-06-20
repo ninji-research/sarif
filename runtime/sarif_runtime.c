@@ -40,6 +40,11 @@ static unsigned char sarif_empty_text[8] = {0};
 #define UTF8_CONTINUATION_MASK 0x80u
 #define UTF8_DATA_MASK 0x3fu
 
+/* Fast-path bounds for formatting integral doubles when precision == 0.
+ * We restrict this optimization to a conservative ±1e12 range so integer
+ * conversion remains efficient and predictable, while avoiding edge cases
+ * and potential precision pitfalls at very large magnitudes.
+ */
 #define SARIF_F64_FIXED_FASTPATH_MIN (-1000000000000.0)
 #define SARIF_F64_FIXED_FASTPATH_MAX (1000000000000.0)
 
