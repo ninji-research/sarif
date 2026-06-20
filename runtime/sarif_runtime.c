@@ -414,7 +414,6 @@ static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uin
         idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
     }
     sarif_fatal_error("string interning table overflow");
-    return NULL;
 }
 
 // Intern a runtime text value into the persistent pool.
