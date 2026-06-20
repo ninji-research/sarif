@@ -33,7 +33,7 @@ Sarif keeps one declaration order:
 - named `struct`
 - named `enum`
 - fixed arrays `[T; N]`
-- repeat fixed-array literals `[value; N]` to produce `N` distinct element value slots (no implicit shared reference/aliasing between array elements)
+- repeat fixed-array literals use the syntax `[value; N]`. This produces `N` distinct element value slots (no implicit shared reference/aliasing between array elements).
 - const-generic array length names such as `N` are compile-time integer const parameters (not runtime variables). They may be referenced inside the same generic function body and contracts where integer constants are allowed.
 - `TextBuilder` through maintained runtime builtins
   - `write(text)` convenience builtin (shorthand for `perform SystemIO.stdout_write(...)`)
