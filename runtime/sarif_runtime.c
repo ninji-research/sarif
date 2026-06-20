@@ -1678,7 +1678,15 @@ void* sarif_stdin_text(void) {
         return sarif_stdin_cache;
     }
 
-    while ((read = fread(chunk, 1u, sizeof(chunk), stdin)) != 0u) {
+    while (1) {
+        if (len > SIZE_MAX - sizeof(chunk)) {
+            free(buffer);
+            return NULL;
+        }
+        read = fread(chunk, 1u, sizeof(chunk), stdin);
+        if (read == 0u) {
+            break;
+        }
         if (read > SIZE_MAX - len) {
             free(buffer);
             return NULL;
