@@ -1108,6 +1108,11 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     if (index == NULL || index->entries == NULL) {
         return 0;
     }
+    /* Rehash when load factor reaches 75% (len/cap >= 0.75), expressed as
+     * len * 4 >= cap * 3 to avoid floating-point arithmetic. For linear
+     * probing, this threshold is a common balance: it keeps probe chains short
+     * enough for expected O(1) operations while avoiding excessive memory use.
+     */
     if (index->len * 4 < index->cap * 3) {
         return 1;
     }
