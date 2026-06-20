@@ -1610,7 +1610,7 @@ static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t ind
 }
 
 static int64_t sarif_parse_i32_core(const unsigned char* bytes, uint64_t index, uint64_t len) {
-    int64_t value = 0;
+    int32_t value = 0;
     if (!sarif_parse_i32_core_checked(bytes, index, len, &value)) return 0;
     return value;
 }
