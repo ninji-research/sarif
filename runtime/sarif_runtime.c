@@ -24,6 +24,7 @@ static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
 static pthread_mutex_t sarif_env_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sarif_scope_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
