@@ -1,6 +1,6 @@
 # Sarif Language Specification
 
-This document describes the maintained stage-0 language surface that the current compiler accepts today.
+This document describes the maintained stage-0 language surface that the current compiler accepts.
 
 ## Core Rules
 
@@ -33,8 +33,8 @@ Sarif keeps one declaration order:
 - named `struct`
 - named `enum`
 - fixed arrays `[T; N]`
-- repeat fixed-array literals `[value; N]` to produce `N` independent element values
-- const-generic array length names such as `N` are compile-time integer const parameters (not runtime variables) and may be referenced inside the same generic function body and contracts where integer constants are allowed
+- repeat fixed-array literals `[value; N]` to produce `N` distinct element value slots (no implicit shared reference/aliasing between array elements)
+- const-generic array length names such as `N` are compile-time integer const parameters (not runtime variables). They may be referenced inside the same generic function body and contracts where integer constants are allowed.
 - `TextBuilder` through maintained runtime builtins
   - `write(text)` convenience builtin (shorthand for `perform SystemIO.stdout_write(...)`)
   - `write_builder(builder)` convenience builtin for writing `TextBuilder` output (shorthand for `perform SystemIO.stdout_write(...)`)
@@ -146,7 +146,7 @@ This provides ergonomic dot-call syntax without introducing ad-hoc polymorphism 
 
 ## Package Structure and Import Semantics
 
-Sarif's package system is intentionally minimal. A package is defined by a `Sarif.toml` manifest with a `sources` list of `.sarif` files. All source files listed in `sources` are concatenated into a single flat namespace — they share one module scope. There are **no sub-modules or file-level encapsulation** within a package; a function, const, enum, or struct declared in any source file is directly visible everywhere in that package without any import statement.
+Sarif's package system is intentionally minimal. A package is defined by a `Sarif.toml` manifest with a `sources` list of `.sarif` files. The language semantics treat all listed source files as contributing declarations to one package-level flat namespace (that is, "concatenated" is conceptual, not a requirement to literally paste file text together). Declaration visibility is package-wide rather than file-scoped, so items declared in any listed file are visible throughout the package regardless of which file they appear in. If multiple top-level declarations use the same name in the same namespace, this is a compile-time name-collision error. There are **no sub-modules or file-level encapsulation** within a package; a function, const, enum, or struct declared in any source file is directly visible everywhere in that package without any import statement.
 
 The `from Module import ...` syntax **only works across package boundaries**. The `Module` name refers to another package (located via `--import-path`), not a file within the current package. Within a package, all items are automatically visible everywhere — the `import` keyword is redundant and has no effect for intra-package references.
 
@@ -158,7 +158,7 @@ For true encapsulation, split code into separate packages (each with its own `Sa
 - `Total`: implemented stricter profile aimed at removing partiality and unbounded execution
 - `RT`: implemented stricter profile aimed at bounding resource use and preserving predictability
 
-The current compiler implements and validates `Total` and `RT`. Their authority guarantees and broader production hardening are still evolving, so users should treat them as supported but not yet fully stabilized.
+The current compiler implements and validates `Total` and `RT`. Their stability commitments, enforcement guarantees, and broader production hardening are still evolving, so users should treat them as supported but not yet fully stabilized.
 
 ## Explicit Current Boundary
 
