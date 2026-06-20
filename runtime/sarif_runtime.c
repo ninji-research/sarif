@@ -40,8 +40,6 @@ int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
 
 uint64_t sarif_text_len(const unsigned char* text);
 
-uint64_t sarif_text_len(const unsigned char* text);
-
 static int sarif_write_all(const unsigned char* bytes, uint64_t len) {
     if (len == 0) {
         return 0;

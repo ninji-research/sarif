@@ -454,8 +454,7 @@ fn infer_inst_kinds(
             | Inst::DirCurrent { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
             }
-            Inst::TextToBytes { dest, .. }
-            | Inst::BytesMaterialize { dest, .. } => {
+            Inst::TextToBytes { dest, .. } | Inst::BytesMaterialize { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdinBytes { dest }
