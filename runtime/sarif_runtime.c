@@ -1154,7 +1154,7 @@ void* sarif_text_index_new(void) {
         return NULL;
     }
     index->len = 0;
-    index->cap = 16;
+    index->cap = 64;
     index->entries = calloc(index->cap, sizeof(SarifTextIndexEntry));
     if (index->entries == NULL) {
         free(index);
