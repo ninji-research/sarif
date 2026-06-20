@@ -278,7 +278,7 @@ static void sarif_alloc_pop_scope(void) {
 void sarif_alloc_push(void) {
     struct SarifAllocScope* scope = sarif_alloc_push_scope();
     if (scope == NULL) {
-        return;
+        sarif_fatal_error("sarif_alloc_push_scope returned NULL");
     }
     pthread_mutex_lock(&sarif_record_mutex);
     scope->chunk = sarif_record_current;
@@ -739,7 +739,7 @@ void* sarif_text_builder_finish(void* raw_builder) {
 static SarifList sarif_empty_list = { 0, NULL };
 
 void* sarif_list_new(int64_t len, uint64_t fill) {
-  SarifList* vec = NULL;
+  SarifList* list = NULL;
   uint64_t index = 0;
   if (len < 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
     return NULL;
@@ -747,28 +747,28 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
   if ((size_t)len == 0) {
     return &sarif_empty_list;
   }
-  vec = malloc(sizeof(SarifList));
-  if (vec == NULL) {
+  list = malloc(sizeof(SarifList));
+  if (list == NULL) {
     return NULL;
   }
-  vec->len = (uint64_t)len;
+  list->len = (uint64_t)len;
   if (fill == 0) {
-    vec->values = calloc((size_t)len, sizeof(uint64_t));
-    if (vec->values == NULL) {
-      free(vec);
+    list->values = calloc((size_t)len, sizeof(uint64_t));
+    if (list->values == NULL) {
+      free(list);
       return NULL;
     }
   } else {
-    vec->values = malloc((size_t)len * sizeof(uint64_t));
-    if (vec->values == NULL) {
-      free(vec);
+    list->values = malloc((size_t)len * sizeof(uint64_t));
+    if (list->values == NULL) {
+      free(list);
       return NULL;
     }
-    for (index = 0; index < vec->len; index += 1) {
-      vec->values[index] = fill;
+    for (index = 0; index < list->len; index += 1) {
+      list->values[index] = fill;
     }
   }
-  return vec;
+  return list;
 }
 
 void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
@@ -1108,6 +1108,11 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     if (index == NULL || index->entries == NULL) {
         return 0;
     }
+    /* Rehash when load factor reaches 75% (len/cap >= 0.75), expressed as
+     * len * 4 >= cap * 3 to avoid floating-point arithmetic. For linear
+     * probing, this threshold is a common balance: it keeps probe chains short
+     * enough for expected O(1) operations while avoiding excessive memory use.
+     */
     if (index->len * 4 < index->cap * 3) {
         return 1;
     }
@@ -2164,7 +2169,10 @@ static void sarif_ignore_sigpipe_once(void) {
 }
 
 static void sarif_init_sigpipe_handling_if_needed(void) {
-    (void)pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
+    int rc = pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
+    if (rc != 0) {
+        fprintf(stderr, "SARIF RUNTIME WARNING: pthread_once for SIGPIPE initialization failed: %s\n", strerror(rc));
+    }
 }
 #else
 static void sarif_init_sigpipe_handling_if_needed(void) {
@@ -2640,7 +2648,6 @@ static int sarif_runtime_check(void) {
   uint64_t i = 0;
   struct SarifRecordChunk* chunk = NULL;
   struct SarifInternBucket* bucket = NULL;
-  (void)i;
   for (i = 0; i < SARIF_SCOPE_STACK_CAP; i++) {
     if (sarif_scope_stack[i].chunk != NULL) {
       chunk = sarif_scope_stack[i].chunk;
