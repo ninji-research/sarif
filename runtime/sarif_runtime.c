@@ -719,11 +719,11 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
       free(vec);
       return NULL;
     }
-        for (index = 0; index < vec->len; index += 1) {
-            vec->values[index] = fill;
-        }
+    for (index = 0; index < vec->len; index += 1) {
+      vec->values[index] = fill;
     }
-    return vec;
+  }
+  return vec;
 }
 
 void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
@@ -2337,7 +2337,7 @@ int64_t sarif_env_keys(void) {
     for (int i = 0; environ[i] != NULL; i++) {
         char* eq = strchr(environ[i], '=');
         total_len += (eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]));
-        if (environ[i + 1] != NULL) total_len += 1;
+        if (i > 0) total_len += 1;
     }
     unsigned char* result = sarif_text_alloc(total_len);
     if (result == NULL) {
@@ -2346,14 +2346,14 @@ int64_t sarif_env_keys(void) {
     }
     uint64_t offset = 0;
     for (int i = 0; environ[i] != NULL; i++) {
+        if (i > 0) {
+            result[8 + offset] = '\n';
+            offset += 1;
+        }
         char* eq = strchr(environ[i], '=');
         uint64_t name_len = eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]);
         memcpy(result + 8 + offset, environ[i], name_len);
         offset += name_len;
-        if (environ[i + 1] != NULL) {
-            result[8 + offset] = '\n';
-            offset += 1;
-        }
     }
     pthread_mutex_unlock(&sarif_env_mutex);
     return (int64_t)result;
@@ -2408,8 +2408,8 @@ int64_t sarif_dir_list(const unsigned char* path_handle) {
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         total_len += strlen(entry->d_name);
-        count++;
         if (count > 0) total_len += 1;
+        count++;
     }
     rewinddir(dir);
     unsigned char* result = sarif_text_alloc(total_len);
