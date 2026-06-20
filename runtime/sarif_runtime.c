@@ -2378,7 +2378,7 @@ int64_t sarif_perform_effect(const char* effect, const char* operation,
         return 0;
     }
     sarif_effect_handler_t handler = NULL;
-    if (sarif_find_handler(effect, operation, &handler)) {
+    if (sarif_find_handler(effect, operation, &handler) != NULL) {
         uint64_t args[8];
         args[0] = arg0; args[1] = arg1; args[2] = arg2; args[3] = arg3;
         return handler(args, nargs);
