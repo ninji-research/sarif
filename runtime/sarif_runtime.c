@@ -43,6 +43,16 @@ static unsigned char sarif_empty_text[8] = {0};
 static const double SARIF_F64_FIXED_FASTPATH_MIN = -1000000000000.0;
 static const double SARIF_F64_FIXED_FASTPATH_MAX =  1000000000000.0;
 
+static int sarif_should_use_integer_fastpath(double value, int precision) {
+    int is_finite_value = isfinite(value);
+    int is_in_fastpath_range = is_finite_value &&
+        value >= SARIF_F64_FIXED_FASTPATH_MIN &&
+        value <= SARIF_F64_FIXED_FASTPATH_MAX;
+    int is_integral_value = is_in_fastpath_range &&
+        value == (double)(int64_t)value;
+    return precision == 0 && is_integral_value;
+}
+
 static int sarif_write_text_blob(const unsigned char* text, int newline);
 static int __attribute__((unused)) sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
@@ -1487,16 +1497,7 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
         precision = digits > 1000 ? 1000 : (int)digits;
     }
     // Fast path for integer values - avoid snprintf overhead
-    // Note: isfinite() must come before the comparison to avoid UB when value is NaN/Inf
-    int is_zero_precision = (precision == 0);
-    int is_finite_value = isfinite(value);
-    int is_in_fastpath_range = is_finite_value &&
-        value >= SARIF_F64_FIXED_FASTPATH_MIN &&
-        value <= SARIF_F64_FIXED_FASTPATH_MAX;
-    int is_integral_value = is_in_fastpath_range &&
-        value == (double)(int64_t)value;
-    int can_use_integer_fastpath = is_zero_precision && is_integral_value;
-    if (can_use_integer_fastpath) {
+    if (sarif_should_use_integer_fastpath(value, precision)) {
         int64_t int_part = (int64_t)value;
         char scratch[32];
         int idx = 32;
