@@ -2268,7 +2268,8 @@ uint64_t sarif_tcp_recv(uint64_t fd, int64_t max_len) {
 }
 
 int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
-    if (fd == 0 || data_handle == NULL) return -1;
+    if (data_handle == NULL) return -1;
+    if (fd > (uint64_t)INT_MAX) return -1;
     uint64_t len = sarif_load_u64(data_handle, 0);
     if (len == 0) return 0;
     sarif_init_sigpipe_handling_if_needed();
