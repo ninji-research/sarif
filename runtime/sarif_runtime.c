@@ -202,7 +202,11 @@ void* sarif_record_alloc(uint64_t size) {
 
     pthread_mutex_lock(&sarif_record_mutex);
 
-    if (size == 0 || size > (uint64_t)SIZE_MAX) {
+    if (size == 0) {
+        result = sarif_empty_text;
+        goto done;
+    }
+    if (size > (uint64_t)SIZE_MAX) {
         goto done;
     }
     aligned = (size_t)size;
