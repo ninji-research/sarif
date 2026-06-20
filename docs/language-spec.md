@@ -102,7 +102,12 @@ Sarif keeps one declaration order:
 - `parse_f64(text: Text) -> F64`
 - `text_index_contains(index: TextIndex, key: Text) -> Bool`
 
-`TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup. `text_index_contains(...)` returns whether a key is present as `Bool`; misses from `text_index_get(...)` return `-1`; `text_index_get_or_insert(...)` returns the existing slot or inserts `next`; and `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
+`TextIndex` is the maintained dense text-keyed indexing primitive for stage-0 aggregation and lookup.
+
+- `text_index_contains(...)` returns whether a key is present as `Bool`.
+- Misses from `text_index_get(...)` return `-1`.
+- `text_index_get_or_insert(...)` returns the existing slot or inserts `next`.
+- `text_index_set(...)` mutates the maintained slot-backed handle in place while returning the handle for expression-level composition.
 
 ## Stage-0 Affine State Pattern
 
