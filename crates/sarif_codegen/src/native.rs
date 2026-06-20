@@ -634,14 +634,22 @@ fn infer_inst_kinds(
                         (None, Some(right)) => {
                             kinds.insert(*dest, right);
                         }
-                        (None, None) => {}
+                        (None, None) => {
+                            kinds.insert(*dest, NativeValueKind::Unit);
+                        }
                     }
                 } else if then_falls {
                     if let Some(kind) = then_kind {
                         kinds.insert(*dest, kind);
+                    } else {
+                        kinds.insert(*dest, NativeValueKind::Unit);
                     }
-                } else if else_falls && let Some(kind) = else_kind {
-                    kinds.insert(*dest, kind);
+                } else if else_falls {
+                    if let Some(kind) = else_kind {
+                        kinds.insert(*dest, kind);
+                    } else {
+                        kinds.insert(*dest, NativeValueKind::Unit);
+                    }
                 }
             }
             Inst::While {
