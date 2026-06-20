@@ -719,11 +719,11 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
       free(vec);
       return NULL;
     }
-        for (index = 0; index < vec->len; index += 1) {
-            vec->values[index] = fill;
-        }
+    for (index = 0; index < vec->len; index += 1) {
+      vec->values[index] = fill;
     }
-    return vec;
+  }
+  return vec;
 }
 
 void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
