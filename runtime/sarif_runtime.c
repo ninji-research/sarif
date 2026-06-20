@@ -2164,7 +2164,10 @@ static void sarif_ignore_sigpipe_once(void) {
 }
 
 static void sarif_init_sigpipe_handling_if_needed(void) {
-    (void)pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
+    int rc = pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
+    if (rc != 0) {
+        fprintf(stderr, "SARIF RUNTIME WARNING: pthread_once for SIGPIPE initialization failed: %s\n", strerror(rc));
+    }
 }
 #else
 static void sarif_init_sigpipe_handling_if_needed(void) {
