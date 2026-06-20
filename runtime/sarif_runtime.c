@@ -2096,7 +2096,8 @@ uint64_t sarif_file_mmap(const unsigned char* path_handle) {
     if (addr == MAP_FAILED) {
         return (uint64_t)NULL;
     }
-    uint64_t file_data_len = *(uint64_t*)addr;
+    uint64_t file_data_len = 0;
+    memcpy(&file_data_len, addr, sizeof(file_data_len));
     if (file_data_len + 8 > size) {
         munmap(addr, size);
         return (uint64_t)NULL;
