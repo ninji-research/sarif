@@ -2337,7 +2337,7 @@ int64_t sarif_env_keys(void) {
     for (int i = 0; environ[i] != NULL; i++) {
         char* eq = strchr(environ[i], '=');
         total_len += (eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]));
-        if (environ[i + 1] != NULL) total_len += 1;
+        if (i > 0) total_len += 1;
     }
     unsigned char* result = sarif_text_alloc(total_len);
     if (result == NULL) {
@@ -2346,14 +2346,14 @@ int64_t sarif_env_keys(void) {
     }
     uint64_t offset = 0;
     for (int i = 0; environ[i] != NULL; i++) {
+        if (i > 0) {
+            result[8 + offset] = '\n';
+            offset += 1;
+        }
         char* eq = strchr(environ[i], '=');
         uint64_t name_len = eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]);
         memcpy(result + 8 + offset, environ[i], name_len);
         offset += name_len;
-        if (environ[i + 1] != NULL) {
-            result[8 + offset] = '\n';
-            offset += 1;
-        }
     }
     pthread_mutex_unlock(&sarif_env_mutex);
     return (int64_t)result;
