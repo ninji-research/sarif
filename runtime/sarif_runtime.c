@@ -2090,7 +2090,23 @@ int64_t sarif_file_is_valid(uint64_t handle) {
 #define MSG_NOSIGNAL 0
 #endif
 
+#if !defined(MSG_NOSIGNAL) || (MSG_NOSIGNAL == 0)
+static pthread_once_t sarif_sigpipe_once = PTHREAD_ONCE_INIT;
+
+static void sarif_ignore_sigpipe_once(void) {
+    signal(SIGPIPE, SIG_IGN);
+}
+
+static void sarif_init_sigpipe_handling_if_needed(void) {
+    (void)pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
+}
+#else
+static void sarif_init_sigpipe_handling_if_needed(void) {
+}
+#endif
+
 uint64_t sarif_file_mmap(const unsigned char* path_handle) {
+    sarif_init_sigpipe_handling_if_needed();
     if (path_handle == NULL) {
         return (uint64_t)NULL;
     }
