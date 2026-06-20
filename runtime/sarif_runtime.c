@@ -2680,7 +2680,9 @@ int main(int argc, char** argv) {
   sarif_argv = argv;
   /* Intentionally use full buffering for stdout; with NULL and size 0, the C
      runtime allocates a buffer and chooses an implementation-appropriate size. */
-  setvbuf(stdout, NULL, _IOFBF, 0);
+  if (setvbuf(stdout, NULL, _IOFBF, 0) != 0) {
+    fprintf(stderr, "SARIF RUNTIME WARNING: failed to configure stdout buffering: %s\n", strerror(errno));
+  }
   if (sarif_runtime_check() != 0) {
     fprintf(stderr, "SARIF RUNTIME CHECK FAILED\n");
     return 1;
