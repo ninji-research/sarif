@@ -994,6 +994,9 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         return NULL;
     }
     if (used > 1) {
+        if (pthread_mutex_lock(&sarif_sort_mutex) != 0) {
+            return NULL;
+        }
         sarif_sort_text_field_offset = field_offset;
         qsort(
             list->values,
@@ -1001,6 +1004,9 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
             sizeof(uint64_t),
             sarif_qsort_compare_record_text_field_handles
         );
+        if (pthread_mutex_unlock(&sarif_sort_mutex) != 0) {
+            return NULL;
+        }
     }
     return list;
 }
