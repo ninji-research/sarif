@@ -12,6 +12,12 @@
 #include <time.h>
 #include <pthread.h>
 
+#if defined(__APPLE__)
+extern char*** _NSGetEnviron(void);
+#else
+extern char** environ;
+#endif
+
 #ifndef SARIF_MAIN_KIND
 #define SARIF_MAIN_KIND 0
 #endif
@@ -25,6 +31,7 @@ static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
 static pthread_mutex_t sarif_env_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t sarif_scope_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sarif_text_index_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
@@ -1112,8 +1119,10 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
      * (len/cap < 0.75), expressed as len * 4 < cap * 3 to avoid
      * floating-point arithmetic. Rehash once that condition is not met
      * (len * 4 >= cap * 3). This table uses open addressing with linear
-     * probing (idx = (idx + 1) % cap) for collision resolution; at this
-     * threshold probe chains stay short enough for expected O(1)
+     * probing (idx = (idx + 1) % cap) for collision resolution; rehashing
+     * at 75% also guarantees the table never becomes completely full, so
+     * probing always encounters an empty slot and cannot loop forever.
+     * At this threshold probe chains stay short enough for expected O(1)
      * operations while avoiding excessive memory use.
      */
     if (index->len * 4 < index->cap * 3) {
@@ -1147,11 +1156,14 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
 ) {
     uint64_t idx = 0;
     uint64_t start = 0;
+    SarifTextIndexEntry* result = NULL;
+    pthread_mutex_lock(&sarif_text_index_mutex);
     if (found != NULL) {
         *found = 0;
     }
     if (index == NULL || index->entries == NULL || index->cap == 0) {
-        return NULL;
+        result = NULL;
+        goto done;
     }
     idx = hash % index->cap;
     start = idx;
@@ -1163,14 +1175,19 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
             if (found != NULL) {
                 *found = 1;
             }
-            return &index->entries[idx];
+            result = &index->entries[idx];
+            goto done;
         }
         idx = (idx + 1) % index->cap;
         if (idx == start) {
-            return NULL;
+            result = NULL;
+            goto done;
         }
     }
-    return &index->entries[idx];
+    result = &index->entries[idx];
+done:
+    pthread_mutex_unlock(&sarif_text_index_mutex);
+    return result;
 }
 
 static uint32_t sarif_text_hash_handle(uint64_t key) {
@@ -2361,11 +2378,7 @@ unsigned char* sarif_text_to_bytes(const unsigned char* text) {
 }
 
 static int sarif_str_eq(const char* a, const char* b) {
-    while (*a && *b) {
-        if (*a != *b) return 0;
-        a++; b++;
-    }
-    return *a == *b;
+    return strcmp(a, b) == 0;
 }
 
 typedef int64_t (*sarif_effect_handler_t)(uint64_t* args, int32_t nargs);
@@ -2376,12 +2389,13 @@ struct SarifEffectHandler {
     sarif_effect_handler_t handler;
 };
 
+extern const struct SarifEffectHandler sarif_effect_table[];
+extern const size_t sarif_effect_table_len;
+
 static const struct SarifEffectHandler* sarif_find_handler(
     const char* effect, const char* operation,
     sarif_effect_handler_t* out_handler
 ) {
-    extern const struct SarifEffectHandler sarif_effect_table[];
-    extern const size_t sarif_effect_table_len;
     for (size_t i = 0; i < sarif_effect_table_len; i++) {
         if (sarif_str_eq(sarif_effect_table[i].effect, effect) &&
             sarif_str_eq(sarif_effect_table[i].operation, operation)) {
@@ -2480,10 +2494,8 @@ int64_t sarif_env_remove(const unsigned char* key_handle) {
 
 int64_t sarif_env_keys(void) {
 #if defined(__APPLE__)
-    extern char*** _NSGetEnviron(void);
     char** envp = *_NSGetEnviron();
 #else
-    extern char** environ;
     char** envp = environ;
 #endif
     uint64_t total_len = 0;
@@ -2656,6 +2668,7 @@ static int sarif_runtime_check(void) {
     uint64_t i = 0;
     struct SarifRecordChunk* chunk = NULL;
     struct SarifInternBucket* bucket = NULL;
+    (void)i;
     for (i = 0; i < SARIF_SCOPE_STACK_CAP; i++) {
         if (sarif_scope_stack[i].chunk != NULL) {
             chunk = sarif_scope_stack[i].chunk;

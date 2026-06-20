@@ -175,6 +175,7 @@ pub struct EnumVariantType {
 pub struct StructType {
     pub name: String,
     pub fields: Vec<StructField>,
+    pub repr: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -2116,6 +2117,7 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
                             ty: field.ty.path.clone(),
                         })
                         .collect(),
+                    repr: None,
                 });
             }
             Item::ExternBlock(block) => {
@@ -2146,6 +2148,7 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
                     ty: generated.element_ty.clone(),
                 })
                 .collect(),
+            repr: None,
         });
     }
 

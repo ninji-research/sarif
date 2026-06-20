@@ -103,7 +103,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern int64_t sarif_file_is_valid(uint64_t handle);")?;
     out.line("extern uint64_t sarif_file_mmap(const unsigned char* path);")?;
     out.line("extern void* sarif_bytes_to_text(const unsigned char* bytes);")?;
-    out.line("extern unsigned char* sarif_text_to_bytes(const char* text);")?;
+    out.line("extern unsigned char* sarif_text_to_bytes(const unsigned char* text);")?;
     out.line("extern void* sarif_list_sort_text(void* list, int64_t len);")?;
     out.line(
         "extern void* sarif_list_sort_by_text_field(void* list, int64_t len, int64_t offset);",
@@ -988,7 +988,7 @@ fn emit_inst(
         }
         Inst::TextToBytes { dest, text } => {
             out.line(&format!(
-                "v{} = (uint64_t)sarif_text_to_bytes((const char*){});",
+                "v{} = (uint64_t)sarif_text_to_bytes((const unsigned char*){});",
                 dest.0,
                 vref(text)
             ))?;

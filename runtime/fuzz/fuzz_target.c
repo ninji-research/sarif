@@ -14,6 +14,10 @@ void sarif_user_main(void) {}
 // Undefine main so our code below doesn't get the renamed symbol.
 #undef main
 
+// Stub declarations of the effect table needed by the runtime.
+const struct SarifEffectHandler sarif_effect_table[1] = { {NULL, NULL, NULL} };
+const size_t sarif_effect_table_len = 0;
+
 // ---------------------------------------------------------------------------
 // Helper functions for constructing test inputs from fuzz data.
 // ---------------------------------------------------------------------------
@@ -58,7 +62,7 @@ static double extract_f64(const uint8_t* data, size_t len, size_t offset) {
 // ---------------------------------------------------------------------------
 
 static void cleanup_list(void* list_ptr) {
-    if (list_ptr) {
+    if (list_ptr && list_ptr != &sarif_empty_list) {
         SarifList* list = (SarifList*)list_ptr;
         free(list->values);
         free(list);
@@ -162,12 +166,30 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             break;
         }
         case 5: {
-            int64_t initial_len = (int64_t)(extract_u64(payload, payload_len, 0, 0) & 0xff);
-            void* list = sarif_list_new(initial_len, extract_u64(payload, payload_len, 8, 0));
+            // Create a list with valid text handles from the fuzzer payload.
+            unsigned char* texts[8] = {NULL};
+            size_t segment = payload_len / 8;
+            for (int i = 0; i < 8; i++) {
+                if (segment > 0) {
+                    texts[i] = make_text(payload + i * segment, segment, 64);
+                } else {
+                    texts[i] = sarif_text_alloc(0);
+                }
+            }
+            void* list = sarif_list_new(8, 0);
             if (list) {
-                int64_t push_len = (int64_t)(extract_u64(payload, payload_len, 16, 0) & 0xff);
-                sarif_list_push(list, push_len, extract_u64(payload, payload_len, 24, 0));
-                sarif_list_sort_text(list, push_len);
+                SarifList* l = (SarifList*)list;
+                for (int i = 0; i < 8; i++) {
+                    l->values[i] = (uint64_t)(uintptr_t)texts[i];
+                }
+                unsigned char* extra_text = make_text(payload, payload_len, 64);
+                void* updated = sarif_list_push(list, 8, (uint64_t)(uintptr_t)extra_text);
+                if (updated) {
+                    list = updated;
+                    sarif_list_sort_text(list, 9);
+                } else {
+                    sarif_list_sort_text(list, 8);
+                }
             }
             cleanup_list(list);
             break;
