@@ -1642,7 +1642,7 @@ static int sarif_parse_i32_validated(const unsigned char* bytes, uint64_t index,
 
 static int64_t sarif_parse_i32_core(const unsigned char* bytes, uint64_t index, uint64_t len) {
     int32_t value = 0;
-    if (!sarif_parse_i32_core_checked(bytes, index, len, &value)) return 0;
+    if (!sarif_parse_i32_validated(bytes, index, len, &value)) return 0;
     return value;
 }
 
@@ -2154,8 +2154,13 @@ static void sarif_ignore_sigpipe_once(void) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = SIG_IGN;
-    (void)sigemptyset(&sa.sa_mask);
-    (void)sigaction(SIGPIPE, &sa, NULL);
+    if (sigemptyset(&sa.sa_mask) != 0) {
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed while preparing SIGPIPE handler: %s\n", strerror(errno));
+        return;
+    }
+    if (sigaction(SIGPIPE, &sa, NULL) != 0) {
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigaction(SIGPIPE, SIG_IGN) failed: %s\n", strerror(errno));
+    }
 }
 
 static void sarif_init_sigpipe_handling_if_needed(void) {
@@ -2378,7 +2383,7 @@ int64_t sarif_perform_effect(const char* effect, const char* operation,
         return 0;
     }
     sarif_effect_handler_t handler = NULL;
-    if (sarif_find_handler(effect, operation, &handler)) {
+    if (sarif_find_handler(effect, operation, &handler) != NULL) {
         uint64_t args[8];
         args[0] = arg0; args[1] = arg1; args[2] = arg2; args[3] = arg3;
         return handler(args, nargs);
@@ -2680,7 +2685,9 @@ int main(int argc, char** argv) {
   sarif_argv = argv;
   /* Intentionally use full buffering for stdout; with NULL and size 0, the C
      runtime allocates a buffer and chooses an implementation-appropriate size. */
-  setvbuf(stdout, NULL, _IOFBF, 0);
+  if (setvbuf(stdout, NULL, _IOFBF, 0) != 0) {
+    fprintf(stderr, "SARIF RUNTIME WARNING: failed to configure stdout buffering: %s\n", strerror(errno));
+  }
   if (sarif_runtime_check() != 0) {
     fprintf(stderr, "SARIF RUNTIME CHECK FAILED\n");
     return 1;
