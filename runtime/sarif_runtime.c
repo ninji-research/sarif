@@ -909,10 +909,14 @@ static int sarif_qsort_compare_text_handles(const void* left, const void* right)
 static int sarif_qsort_compare_record_text_field_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
     const uint64_t right_handle = *(const uint64_t*)right;
+    uint64_t offset = 0;
+    pthread_mutex_lock(&sarif_sort_mutex);
+    offset = sarif_sort_text_field_offset;
+    pthread_mutex_unlock(&sarif_sort_mutex);
     return sarif_compare_record_text_field_handles(
         left_handle,
         right_handle,
-        sarif_sort_text_field_offset
+        offset
     );
 }
 
