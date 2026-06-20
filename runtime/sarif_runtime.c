@@ -2270,6 +2270,7 @@ int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
     if (fd == 0 || data_handle == NULL) return -1;
     uint64_t len = sarif_load_u64(data_handle, 0);
     if (len == 0) return 0;
+    sarif_init_sigpipe_handling_if_needed();
     ssize_t n = send((int)fd, data_handle + 8, (size_t)len, MSG_NOSIGNAL);
     if (n < 0) return -1;
     return (int64_t)n;
