@@ -236,7 +236,9 @@ static struct SarifAllocScope* sarif_alloc_push_scope(void) {
         return &sarif_scope_stack[sarif_scope_depth++];
     }
     struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
-    if (n == NULL) sarif_fatal_error("out of memory in sarif_alloc_push_scope");
+    if (n == NULL) {
+        sarif_fatal_error("out of memory in sarif_alloc_push_scope");
+    }
     n->next = sarif_scope_overflow;
     sarif_scope_overflow = n;
     return &n->scope;
