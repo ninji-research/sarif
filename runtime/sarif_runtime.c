@@ -1896,9 +1896,14 @@ uint64_t sarif_file_open(const unsigned char* path_handle, const unsigned char* 
     }
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     uint64_t mode_len = sarif_load_u64(mode_handle, 0);
-    char path[1024];
-    char mode[16];
-    if (path_len >= 1024 || mode_len >= 16) {
+    if (path_len == 0 || mode_len == 0 || path_len > (uint64_t)(SIZE_MAX - 1) || mode_len > (uint64_t)(SIZE_MAX - 1)) {
+        return 0;
+    }
+    char* path = (char*)malloc((size_t)path_len + 1);
+    char* mode = (char*)malloc((size_t)mode_len + 1);
+    if (path == NULL || mode == NULL) {
+        free(path);
+        free(mode);
         return 0;
     }
     memcpy(path, path_handle + 8, (size_t)path_len);
@@ -1906,6 +1911,8 @@ uint64_t sarif_file_open(const unsigned char* path_handle, const unsigned char* 
     memcpy(mode, mode_handle + 8, (size_t)mode_len);
     mode[mode_len] = '\0';
     FILE* f = fopen(path, mode);
+    free(path);
+    free(mode);
     return (uint64_t)(uintptr_t)f;
 }
 
