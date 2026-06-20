@@ -2278,7 +2278,8 @@ int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
 }
 
 void sarif_tcp_close(uint64_t fd) {
-    if (fd != 0) close((int)fd);
+    int sock = (int)fd;
+    if (sock >= 0) close(sock);
 }
 
 uint64_t sarif_bytes_len(const unsigned char* bytes) {
