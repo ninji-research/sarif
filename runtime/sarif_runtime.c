@@ -1108,11 +1108,13 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     if (index == NULL || index->entries == NULL) {
         return 0;
     }
-    /* Rehash when load factor reaches 75% (len/cap >= 0.75), expressed as
-     * len * 4 >= cap * 3 to avoid floating-point arithmetic. This table uses
-     * open addressing with linear probing (idx = (idx + 1) % cap) for
-     * collision resolution; at this threshold probe chains stay short enough
-     * for expected O(1) operations while avoiding excessive memory use.
+    /* Keep current capacity while load factor is below 75%
+     * (len/cap < 0.75), expressed as len * 4 < cap * 3 to avoid
+     * floating-point arithmetic. Rehash once that condition is not met
+     * (len * 4 >= cap * 3). This table uses open addressing with linear
+     * probing (idx = (idx + 1) % cap) for collision resolution; at this
+     * threshold probe chains stay short enough for expected O(1)
+     * operations while avoiding excessive memory use.
      */
     if (index->len * 4 < index->cap * 3) {
         return 1;
@@ -2162,7 +2164,7 @@ static void sarif_ignore_sigpipe_once(void) {
     sa.sa_handler = SIG_IGN;
     sa.sa_flags = 0;
     if (sigemptyset(&sa.sa_mask) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed while preparing SIGPIPE handler: %s\n", strerror(errno));
+        fprintf(stderr, "SARIF RUNTIME WARNING: Failed to initialize signal mask for SIGPIPE handler (sigemptyset): %s\n", strerror(errno));
         return;
     }
     if (sigaction(SIGPIPE, &sa, NULL) != 0) {
@@ -2340,8 +2342,8 @@ void* sarif_bytes_to_text(const unsigned char* bytes) {
     return result;
 }
 
-unsigned char* sarif_text_to_bytes(const char* text) {
-    const unsigned char* bytes = (const unsigned char*)text;
+unsigned char* sarif_text_to_bytes(const unsigned char* text) {
+    const unsigned char* bytes = text;
     if (bytes == NULL) return NULL;
     if (sarif_bytes_is_view(bytes)) {
         uint64_t len = sarif_bytes_view_len(bytes);
@@ -2651,46 +2653,46 @@ void sarif_clock_sleep(int64_t ms) {
 }
 
 static int sarif_runtime_check(void) {
-  uint64_t i = 0;
-  struct SarifRecordChunk* chunk = NULL;
-  struct SarifInternBucket* bucket = NULL;
-  for (i = 0; i < SARIF_SCOPE_STACK_CAP; i++) {
-    if (sarif_scope_stack[i].chunk != NULL) {
-      chunk = sarif_scope_stack[i].chunk;
-      while (chunk != NULL) {
-        if (chunk->used > chunk->cap) {
-          return -1;
+    uint64_t i = 0;
+    struct SarifRecordChunk* chunk = NULL;
+    struct SarifInternBucket* bucket = NULL;
+    for (i = 0; i < SARIF_SCOPE_STACK_CAP; i++) {
+        if (sarif_scope_stack[i].chunk != NULL) {
+            chunk = sarif_scope_stack[i].chunk;
+            while (chunk != NULL) {
+                if (chunk->used > chunk->cap) {
+                    return -1;
+                }
+                chunk = chunk->next;
+            }
         }
-        chunk = chunk->next;
-      }
     }
-  }
-  if (sarif_scope_depth >= SARIF_SCOPE_STACK_CAP && sarif_scope_overflow != NULL) {
-    chunk = sarif_scope_overflow->scope.chunk;
-    while (chunk != NULL) {
-      if (chunk->used > chunk->cap) {
-        return -2;
-      }
-      chunk = chunk->next;
+    if (sarif_scope_depth >= SARIF_SCOPE_STACK_CAP && sarif_scope_overflow != NULL) {
+        chunk = sarif_scope_overflow->scope.chunk;
+        while (chunk != NULL) {
+            if (chunk->used > chunk->cap) {
+                return -2;
+            }
+            chunk = chunk->next;
+        }
     }
-  }
-  for (i = 0; i < SARIF_INTERN_BUCKET_COUNT; i++) {
-    bucket = &sarif_intern_table[i];
-    if (bucket->hash != 0) {
-      if (bucket->text == NULL) {
-        return -3;
-      }
-      uint64_t interned_len = 0;
-      memcpy(&interned_len, bucket->text, sizeof(uint64_t));
-      if (interned_len > SIZE_MAX - 8) {
-        return -5;
-      }
+    for (i = 0; i < SARIF_INTERN_BUCKET_COUNT; i++) {
+        bucket = &sarif_intern_table[i];
+        if (bucket->hash != 0) {
+            if (bucket->text == NULL) {
+                return -3;
+            }
+            uint64_t interned_len = 0;
+            memcpy(&interned_len, bucket->text, sizeof(uint64_t));
+            if (interned_len > SIZE_MAX - 8) {
+                return -5;
+            }
+        }
     }
-  }
-  if (sarif_record_current != NULL && sarif_record_current->used > sarif_record_current->cap) {
-    return -4;
-  }
-  return 0;
+    if (sarif_record_current != NULL && sarif_record_current->used > sarif_record_current->cap) {
+        return -4;
+    }
+    return 0;
 }
 
 int main(int argc, char** argv) {
