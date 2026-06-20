@@ -2512,7 +2512,7 @@ int64_t sarif_dir_remove(const unsigned char* path_handle) {
     int result = rmdir(path);
     free(path);
     if (result == 0) return 1;
-    return (errno == ENOENT) ? 1 : 0;
+    return 0;
 }
 
 int64_t sarif_dir_list(const unsigned char* path_handle) {
