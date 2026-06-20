@@ -2376,12 +2376,18 @@ int64_t sarif_env_remove(const unsigned char* key_handle) {
 }
 
 int64_t sarif_env_keys(void) {
+#if defined(__APPLE__)
+    extern char*** _NSGetEnviron(void);
+    char** envp = *_NSGetEnviron();
+#else
     extern char** environ;
+    char** envp = environ;
+#endif
     uint64_t total_len = 0;
     pthread_mutex_lock(&sarif_env_mutex);
-    for (int i = 0; environ[i] != NULL; i++) {
-        char* eq = strchr(environ[i], '=');
-        total_len += (eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]));
+    for (int i = 0; envp[i] != NULL; i++) {
+        char* eq = strchr(envp[i], '=');
+        total_len += (eq ? (uint64_t)(eq - envp[i]) : strlen(envp[i]));
         if (i > 0) total_len += 1;
     }
     unsigned char* result = sarif_text_alloc(total_len);
@@ -2390,14 +2396,14 @@ int64_t sarif_env_keys(void) {
         return (int64_t)sarif_empty_text;
     }
     uint64_t offset = 0;
-    for (int i = 0; environ[i] != NULL; i++) {
+    for (int i = 0; envp[i] != NULL; i++) {
         if (i > 0) {
             result[8 + offset] = '\n';
             offset += 1;
         }
-        char* eq = strchr(environ[i], '=');
-        uint64_t name_len = eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]);
-        memcpy(result + 8 + offset, environ[i], name_len);
+        char* eq = strchr(envp[i], '=');
+        uint64_t name_len = eq ? (uint64_t)(eq - envp[i]) : strlen(envp[i]);
+        memcpy(result + 8 + offset, envp[i], name_len);
         offset += name_len;
     }
     pthread_mutex_unlock(&sarif_env_mutex);
