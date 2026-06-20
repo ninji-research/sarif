@@ -1998,9 +1998,20 @@ int64_t sarif_file_size(uint64_t handle) {
         return -1;
     }
     long current = ftell(f);
-    fseek(f, 0, SEEK_END);
+    if (current < 0) {
+        return -1;
+    }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        return -1;
+    }
     long size = ftell(f);
-    fseek(f, current, SEEK_SET);
+    if (size < 0) {
+        (void)fseek(f, current, SEEK_SET);
+        return -1;
+    }
+    if (fseek(f, current, SEEK_SET) != 0) {
+        return -1;
+    }
     return (int64_t)size;
 }
 
@@ -2359,7 +2370,7 @@ int64_t sarif_dir_create(const unsigned char* path_handle) {
     path[path_len] = '\0';
     int result = mkdir(path, 0755);
     free(path);
-    return (result == 0 || errno == EEXIST) ? 1 : 0;
+    return (result == 0) ? 1 : (errno == EEXIST ? 1 : 0);
 }
 
 int64_t sarif_dir_remove(const unsigned char* path_handle) {
@@ -2373,7 +2384,8 @@ int64_t sarif_dir_remove(const unsigned char* path_handle) {
     path[path_len] = '\0';
     int result = rmdir(path);
     free(path);
-    return (result == 0 || errno == ENOENT) ? 1 : 0;
+    if (result == 0) return 1;
+    return (errno == ENOENT) ? 1 : 0;
 }
 
 int64_t sarif_dir_list(const unsigned char* path_handle) {
@@ -2420,6 +2432,9 @@ int64_t sarif_dir_exists(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
     char* path = (char*)malloc(path_len + 1);
+    if (path == NULL) {
+        return 0;
+    }
     memcpy(path, path_data, path_len);
     path[path_len] = '\0';
     struct stat st;
@@ -2433,6 +2448,10 @@ int64_t sarif_dir_current(void) {
     if (cwd == NULL) return (int64_t)sarif_empty_text;
     uint64_t len = strlen(cwd);
     unsigned char* result = sarif_text_alloc(len);
+    if (result == NULL) {
+        free(cwd);
+        return (int64_t)sarif_empty_text;
+    }
     memcpy(result + 8, cwd, len);
     free(cwd);
     return (int64_t)result;
