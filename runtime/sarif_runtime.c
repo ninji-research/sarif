@@ -1575,7 +1575,7 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     return result;
 }
 
-static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t index, uint64_t len, int64_t* out_value) {
+static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t index, uint64_t len, int32_t* out_value) {
     uint64_t limit;
     int negative = 0;
     int64_t value = 0;
@@ -1599,7 +1599,7 @@ static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t ind
         value = (int64_t)next;
         index += 1;
     }
-    *out_value = negative ? -value : value;
+    *out_value = (int32_t)(negative ? -value : value);
     return 1;
 }
 
