@@ -1592,8 +1592,12 @@ int64_t sarif_parse_i32_range(const unsigned char* text, int64_t start, int64_t 
     index = start > 0 ? (uint64_t)start < len ? (uint64_t)start : len : 0;
     len = end > 0 ? (uint64_t)end < len ? (uint64_t)end : len : 0;
     bytes = text + 8;
-    while (index < len && bytes[index] == ' ') index += 1;
-    while (len > index && bytes[len - 1] == ' ') len -= 1;
+    while (index < len && bytes[index] == ' ') {
+        index += 1;
+    }
+    while (len > index && bytes[len - 1] == ' ') {
+        len -= 1;
+    }
     return sarif_parse_i32_core(bytes, index, len);
 }
 
