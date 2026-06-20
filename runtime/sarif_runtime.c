@@ -1058,7 +1058,9 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
         return NULL;
     }
     if (used > 1) {
-        pthread_mutex_lock(&sarif_sort_mutex);
+        if (pthread_mutex_lock(&sarif_sort_mutex) != 0) {
+            return NULL;
+        }
         sarif_sort_f64_field_offset = field_offset;
         qsort(
             list->values,
@@ -1066,7 +1068,9 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
             sizeof(uint64_t),
             sarif_qsort_compare_record_f64_field_handles
         );
-        pthread_mutex_unlock(&sarif_sort_mutex);
+        if (pthread_mutex_unlock(&sarif_sort_mutex) != 0) {
+            return NULL;
+        }
     }
     return list;
 }
@@ -2362,6 +2366,9 @@ static const struct SarifEffectHandler* sarif_find_handler(
 int64_t sarif_perform_effect(const char* effect, const char* operation,
     uint64_t arg0, uint64_t arg1,
     uint64_t arg2, uint64_t arg3, int32_t nargs) {
+    if (nargs < 0 || nargs > 4) {
+        return 0;
+    }
     sarif_effect_handler_t handler = NULL;
     if (sarif_find_handler(effect, operation, &handler)) {
         uint64_t args[8];
