@@ -2047,21 +2047,27 @@ int64_t sarif_file_size(uint64_t handle) {
 int64_t sarif_file_exists(const unsigned char* path_handle) {
     if (path_handle == NULL) return 0;
     uint64_t len = sarif_load_u64(path_handle, 0);
-    char path[1024];
-    if (len >= 1024) return 0;
+    if (len > (uint64_t)(SIZE_MAX - 1)) return 0;
+    char* path = (char*)malloc((size_t)len + 1);
+    if (path == NULL) return 0;
     memcpy(path, path_handle + 8, (size_t)len);
     path[len] = '\0';
-    return access(path, F_OK) == 0 ? 1 : 0;
+    int64_t result = access(path, F_OK) == 0 ? 1 : 0;
+    free(path);
+    return result;
 }
 
 int64_t sarif_file_remove(const unsigned char* path_handle) {
     if (path_handle == NULL) return 0;
     uint64_t len = sarif_load_u64(path_handle, 0);
-    char path[1024];
-    if (len >= 1024) return 0;
+    if (len > (uint64_t)(SIZE_MAX - 1)) return 0;
+    char* path = (char*)malloc((size_t)len + 1);
+    if (path == NULL) return 0;
     memcpy(path, path_handle + 8, (size_t)len);
     path[len] = '\0';
-    return remove(path) == 0 ? 1 : 0;
+    int64_t result = remove(path) == 0 ? 1 : 0;
+    free(path);
+    return result;
 }
 
 int64_t sarif_file_is_valid(uint64_t handle) {
