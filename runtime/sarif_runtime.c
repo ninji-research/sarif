@@ -2433,6 +2433,10 @@ int64_t sarif_dir_current(void) {
     if (cwd == NULL) return (int64_t)sarif_empty_text;
     uint64_t len = strlen(cwd);
     unsigned char* result = sarif_text_alloc(len);
+    if (result == NULL) {
+        free(cwd);
+        return (int64_t)sarif_empty_text;
+    }
     memcpy(result + 8, cwd, len);
     free(cwd);
     return (int64_t)result;
