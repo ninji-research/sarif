@@ -414,7 +414,6 @@ static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uin
         idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
     }
     sarif_fatal_error("string interning table overflow");
-    return NULL;
 }
 
 // Intern a runtime text value into the persistent pool.
@@ -2090,7 +2089,23 @@ int64_t sarif_file_is_valid(uint64_t handle) {
 #define MSG_NOSIGNAL 0
 #endif
 
+#if !defined(MSG_NOSIGNAL) || (MSG_NOSIGNAL == 0)
+static pthread_once_t sarif_sigpipe_once = PTHREAD_ONCE_INIT;
+
+static void sarif_ignore_sigpipe_once(void) {
+    signal(SIGPIPE, SIG_IGN);
+}
+
+static void sarif_init_sigpipe_handling_if_needed(void) {
+    (void)pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
+}
+#else
+static void sarif_init_sigpipe_handling_if_needed(void) {
+}
+#endif
+
 uint64_t sarif_file_mmap(const unsigned char* path_handle) {
+    sarif_init_sigpipe_handling_if_needed();
     if (path_handle == NULL) {
         return (uint64_t)NULL;
     }
@@ -2139,7 +2154,10 @@ uint64_t sarif_tcp_listen(int64_t port) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return 0;
     int one = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
+        close(fd);
+        return 0;
+    }
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -2376,12 +2394,18 @@ int64_t sarif_env_remove(const unsigned char* key_handle) {
 }
 
 int64_t sarif_env_keys(void) {
+#if defined(__APPLE__)
+    extern char*** _NSGetEnviron(void);
+    char** envp = *_NSGetEnviron();
+#else
     extern char** environ;
+    char** envp = environ;
+#endif
     uint64_t total_len = 0;
     pthread_mutex_lock(&sarif_env_mutex);
-    for (int i = 0; environ[i] != NULL; i++) {
-        char* eq = strchr(environ[i], '=');
-        total_len += (eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]));
+    for (int i = 0; envp[i] != NULL; i++) {
+        char* eq = strchr(envp[i], '=');
+        total_len += (eq ? (uint64_t)(eq - envp[i]) : strlen(envp[i]));
         if (i > 0) total_len += 1;
     }
     unsigned char* result = sarif_text_alloc(total_len);
@@ -2390,14 +2414,14 @@ int64_t sarif_env_keys(void) {
         return (int64_t)sarif_empty_text;
     }
     uint64_t offset = 0;
-    for (int i = 0; environ[i] != NULL; i++) {
+    for (int i = 0; envp[i] != NULL; i++) {
         if (i > 0) {
             result[8 + offset] = '\n';
             offset += 1;
         }
-        char* eq = strchr(environ[i], '=');
-        uint64_t name_len = eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]);
-        memcpy(result + 8 + offset, environ[i], name_len);
+        char* eq = strchr(envp[i], '=');
+        uint64_t name_len = eq ? (uint64_t)(eq - envp[i]) : strlen(envp[i]);
+        memcpy(result + 8 + offset, envp[i], name_len);
         offset += name_len;
     }
     pthread_mutex_unlock(&sarif_env_mutex);
