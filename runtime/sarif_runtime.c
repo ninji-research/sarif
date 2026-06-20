@@ -2154,8 +2154,13 @@ static void sarif_ignore_sigpipe_once(void) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = SIG_IGN;
-    (void)sigemptyset(&sa.sa_mask);
-    (void)sigaction(SIGPIPE, &sa, NULL);
+    if (sigemptyset(&sa.sa_mask) != 0) {
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed while preparing SIGPIPE handler: %s\n", strerror(errno));
+        return;
+    }
+    if (sigaction(SIGPIPE, &sa, NULL) != 0) {
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigaction(SIGPIPE, SIG_IGN) failed: %s\n", strerror(errno));
+    }
 }
 
 static void sarif_init_sigpipe_handling_if_needed(void) {
