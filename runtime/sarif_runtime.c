@@ -362,7 +362,11 @@ static unsigned char* sarif_intern_alloc(uint64_t size) {
     if (size > UINT64_MAX - 7u) {
         sarif_fatal_error("size overflow in string interning pool alignment");
     }
-    size_t aligned = (size_t)((size + 7u) & ~(uint64_t)7u);
+    uint64_t aligned_u64 = (size + 7u) & ~(uint64_t)7u;
+    if (aligned_u64 < size) {
+        sarif_fatal_error("size overflow in string interning pool alignment");
+    }
+    size_t aligned = (size_t)aligned_u64;
     if (sarif_intern_chunk == NULL || aligned > sarif_intern_chunk->cap - sarif_intern_chunk->used) {
         size_t chunk_size = sizeof(struct SarifInternChunk) + SARIF_INTERN_CHUNK_SIZE;
         if (chunk_size < sizeof(struct SarifInternChunk) + aligned) {
@@ -2047,21 +2051,27 @@ int64_t sarif_file_size(uint64_t handle) {
 int64_t sarif_file_exists(const unsigned char* path_handle) {
     if (path_handle == NULL) return 0;
     uint64_t len = sarif_load_u64(path_handle, 0);
-    char path[1024];
-    if (len >= 1024) return 0;
+    if (len > (uint64_t)(SIZE_MAX - 1)) return 0;
+    char* path = (char*)malloc((size_t)len + 1);
+    if (path == NULL) return 0;
     memcpy(path, path_handle + 8, (size_t)len);
     path[len] = '\0';
-    return access(path, F_OK) == 0 ? 1 : 0;
+    int64_t result = access(path, F_OK) == 0 ? 1 : 0;
+    free(path);
+    return result;
 }
 
 int64_t sarif_file_remove(const unsigned char* path_handle) {
     if (path_handle == NULL) return 0;
     uint64_t len = sarif_load_u64(path_handle, 0);
-    char path[1024];
-    if (len >= 1024) return 0;
+    if (len > (uint64_t)(SIZE_MAX - 1)) return 0;
+    char* path = (char*)malloc((size_t)len + 1);
+    if (path == NULL) return 0;
     memcpy(path, path_handle + 8, (size_t)len);
     path[len] = '\0';
-    return remove(path) == 0 ? 1 : 0;
+    int64_t result = remove(path) == 0 ? 1 : 0;
+    free(path);
+    return result;
 }
 
 int64_t sarif_file_is_valid(uint64_t handle) {
@@ -2085,14 +2095,19 @@ uint64_t sarif_file_mmap(const unsigned char* path_handle) {
         return (uint64_t)NULL;
     }
     uint64_t path_len = sarif_load_u64(path_handle, 0);
-    char path[1024];
-    if (path_len >= 1024) {
+    if (path_len > (uint64_t)(SIZE_MAX - 1)) {
         return (uint64_t)NULL;
     }
-    memcpy(path, path_handle + 8, (size_t)path_len);
-    path[path_len] = '\0';
+    size_t path_size = (size_t)path_len;
+    char* path = (char*)malloc(path_size + 1);
+    if (path == NULL) {
+        return (uint64_t)NULL;
+    }
+    memcpy(path, path_handle + 8, path_size);
+    path[path_size] = '\0';
 
     int fd = open(path, O_RDONLY);
+    free(path);
     if (fd < 0) {
         return (uint64_t)NULL;
     }
