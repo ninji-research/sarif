@@ -1,4 +1,3 @@
-// bootstrap
 fn is_text_empty(s: Text) -> Bool {
     text_len(s) == 0
 }
@@ -24,7 +23,10 @@ fn find_byte_index(source: Text, byte: I32, index: I32) -> I32 {
 }
 
 fn is_layout_byte(byte: I32) -> Bool {
-    byte == 9 or byte == 10 or byte == 13 or byte == 32
+    byte == 9 or
+    byte == 10 or
+    byte == 13 or
+    byte == 32
 }
 
 fn trim_start_index(source: Text, index: I32) -> I32 {

@@ -1,4 +1,3 @@
-// bootstrap
 struct Span {
     start: I32,
     end: I32,
@@ -643,7 +642,7 @@ fn make_event_stream(total_count: I32, truncated: Bool, first: OptionalSyntaxEve
 }
 
 fn make_block_outline(total_count: I32, truncated: Bool, first: OptionalBlockItemEntry, second: OptionalBlockItemEntry, third: OptionalBlockItemEntry, fourth: OptionalBlockItemEntry, fifth: OptionalBlockItemEntry, sixth: OptionalBlockItemEntry, seventh: OptionalBlockItemEntry, eighth: OptionalBlockItemEntry, ninth: OptionalBlockItemEntry, tenth: OptionalBlockItemEntry, eleventh: OptionalBlockItemEntry, twelfth: OptionalBlockItemEntry, thirteenth: OptionalBlockItemEntry, fourteenth: OptionalBlockItemEntry, fifteenth: OptionalBlockItemEntry, sixteenth: OptionalBlockItemEntry) -> BlockOutline {
-BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
+    BlockOutline { total_count: total_count, truncated: truncated, first: first, second: second, third: third, fourth: fourth, fifth: fifth, sixth: sixth, seventh: seventh, eighth: eighth, ninth: ninth, tenth: tenth, eleventh: eleventh, twelfth: twelfth, thirteenth: thirteenth, fourteenth: fourteenth, fifteenth: fifteenth, sixteenth: sixteenth }
 }
 
 fn missing_block_item_entry() -> OptionalBlockItemEntry {
@@ -651,76 +650,76 @@ fn missing_block_item_entry() -> OptionalBlockItemEntry {
 }
 
 fn block_outline_new() -> BlockOutline {
-make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
+    make_block_outline(0, false, missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry(), missing_block_item_entry())
 }
 
 fn block_outline_push(outline: BlockOutline, entry: OptionalBlockItemEntry) -> BlockOutline {
-let next_count = outline.total_count + 1;
-if outline.total_count == 0 {
-make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 1 {
-make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 2 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 3 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 4 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 5 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, entry, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 6 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, entry, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 7 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, entry, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 8 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, entry, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 9 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, entry, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 10 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, entry, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 11 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, entry, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 12 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, entry, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 13 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, entry, outline.fifteenth, outline.sixteenth)
-} else {
-if outline.total_count == 14 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, entry, outline.sixteenth)
-} else {
-if outline.total_count == 15 {
-make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, entry)
-} else {
-make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
+    let next_count = outline.total_count + 1;
+    if outline.total_count == 0 {
+    make_block_outline(next_count, outline.truncated, entry, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 1 {
+    make_block_outline(next_count, outline.truncated, outline.first, entry, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 2 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, entry, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 3 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, entry, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 4 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, entry, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 5 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, entry, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 6 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, entry, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 7 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, entry, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 8 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, entry, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 9 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, entry, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 10 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, entry, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 11 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, entry, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 12 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, entry, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 13 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, entry, outline.fifteenth, outline.sixteenth)
+    } else {
+    if outline.total_count == 14 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, entry, outline.sixteenth)
+    } else {
+    if outline.total_count == 15 {
+    make_block_outline(next_count, outline.truncated, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, entry)
+    } else {
+    make_block_outline(next_count, true, outline.first, outline.second, outline.third, outline.fourth, outline.fifth, outline.sixth, outline.seventh, outline.eighth, outline.ninth, outline.tenth, outline.eleventh, outline.twelfth, outline.thirteenth, outline.fourteenth, outline.fifteenth, outline.sixteenth)
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
 }
 
 fn missing_syntax_event() -> OptionalSyntaxEvent {
@@ -1009,71 +1008,71 @@ fn fn_outline_entry_at(outline: FnOutline, index: I32) -> OptionalFnOutlineEntry
 }
 
 fn block_item_entry_at(outline: BlockOutline, index: I32) -> OptionalBlockItemEntry {
-if index == 0 {
-outline.first
-} else {
-if index == 1 {
-outline.second
-} else {
-if index == 2 {
-outline.third
-} else {
-if index == 3 {
-outline.fourth
-} else {
-if index == 4 {
-outline.fifth
-} else {
-if index == 5 {
-outline.sixth
-} else {
-if index == 6 {
-outline.seventh
-} else {
-if index == 7 {
-outline.eighth
-} else {
-if index == 8 {
-outline.ninth
-} else {
-if index == 9 {
-outline.tenth
-} else {
-if index == 10 {
-outline.eleventh
-} else {
-if index == 11 {
-outline.twelfth
-} else {
-if index == 12 {
-outline.thirteenth
-} else {
-if index == 13 {
-outline.fourteenth
-} else {
-if index == 14 {
-outline.fifteenth
-} else {
-if index == 15 {
-outline.sixteenth
-} else {
-missing_block_item_entry()
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
+    if index == 0 {
+    outline.first
+    } else {
+    if index == 1 {
+    outline.second
+    } else {
+    if index == 2 {
+    outline.third
+    } else {
+    if index == 3 {
+    outline.fourth
+    } else {
+    if index == 4 {
+    outline.fifth
+    } else {
+    if index == 5 {
+    outline.sixth
+    } else {
+    if index == 6 {
+    outline.seventh
+    } else {
+    if index == 7 {
+    outline.eighth
+    } else {
+    if index == 8 {
+    outline.ninth
+    } else {
+    if index == 9 {
+    outline.tenth
+    } else {
+    if index == 10 {
+    outline.eleventh
+    } else {
+    if index == 11 {
+    outline.twelfth
+    } else {
+    if index == 12 {
+    outline.thirteenth
+    } else {
+    if index == 13 {
+    outline.fourteenth
+    } else {
+    if index == 14 {
+    outline.fifteenth
+    } else {
+    if index == 15 {
+    outline.sixteenth
+    } else {
+    missing_block_item_entry()
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    }
 }
 
 fn syntax_event_at(stream: EventStream, index: I32) -> OptionalSyntaxEvent {
@@ -1814,7 +1813,7 @@ fn lex_symbol(source: Text, offset: I32, len: I32, b: I32) -> Token {
                 make_double(TokenKind.SlashEq, offset)
             } else {
                 make_single(TokenKind.Slash, offset)
-}
+    }
         },
          37 => {
             if next_is(source, offset, len, 61) {
@@ -2912,7 +2911,7 @@ fn classify_expr_kind(source: Text, state: ParseState) -> ExprKind {
             ExprKind.Name
         },
     }
-}
+    }
 }
 
 fn parse_block_with_outline(source: Text, state: ParseState) -> FnItemParse {
@@ -3066,10 +3065,15 @@ fn parse_module_report(source: Text) -> ModuleReport {
 }
 
 fn syntax_selfcheck() -> I32 {
-    let sample = "struct Pair { left: I32, right: [I32; 2], }\nenum OptionText { none, some(Text), }\nconst answer: I32 = 40 + 2;\nfn build(start: I32) -> Token { let token = Token { kind: TokenKind.Ident, start: start, end: start + 1, offset: start + 1 }; token }\nfn pick(pair: Pair) -> Pair effects [alloc] requires answer == 42 ensures true { let value = pair; if not false and answer == 42 or false { value } else { pair } }\n";
+    let sample = "struct Pair { left: I32, right: [I32;
+    2], }\nenum OptionText { none, some(Text), }\nconst answer: I32 = 40 + 2;
+    \nfn build(start: I32) -> Token { let token = Token { kind: TokenKind.Ident, start: start, end: start + 1, offset: start + 1 };
+    token }\nfn pick(pair: Pair) -> Pair effects [alloc] requires answer == 42 ensures true { let value = pair;
+    if not false and answer == 42 or false { value } else { pair } }\n";
     let sample_ok = report_matches_sample(parse_module_report(sample));
     let empty_ok = report_matches_empty_module(parse_module_report("fn main() {}"));
-    let broken_ok = parse_module_report("fn broken() { let value = ; }").ok == false;
+    let broken_ok = parse_module_report("fn broken() { let value = ;
+    }").ok == false;
     if sample_ok and empty_ok and broken_ok {
         report_score(parse_module_report(sample))
     } else {

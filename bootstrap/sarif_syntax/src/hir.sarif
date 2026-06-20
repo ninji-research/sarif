@@ -1,4 +1,3 @@
-// bootstrap
 enum HirExprKind {
     Name,
     Integer,
@@ -1174,8 +1173,6 @@ fn hir_build_module_from_outline(outline: TopLevelOutline, fn_outline: FnOutline
     HirModuleData { consts: c16, funcs: f16, enums: en16, structs: s16, exprs: hir_expr_pool_new(), bodies: hir_body_pool_new() }
 }
 
-
-
 fn hir_parse_type_ref_from_name(name: Text) -> HirTypeRef {
     if name == "I32" { hir_type_ref_i32() }
     else if name == "F64" { hir_type_ref_f64() }
@@ -1199,7 +1196,12 @@ fn hir_parse_type_ref_from_name(name: Text) -> HirTypeRef {
     else { hir_type_ref_named(name) }
 }
 
-fn hir_is_ws(b: I32) -> Bool { b == 32 or b == 9 or b == 10 or b == 13 }
+fn hir_is_ws(b: I32) -> Bool {
+    b == 32 or
+    b == 9 or
+    b == 10 or
+    b == 13
+}
 
 fn hir_trim_text(text: Text) -> Text {
     let len = text_len(text);
@@ -1208,16 +1210,20 @@ fn hir_trim_text(text: Text) -> Text {
         let mut start = 0;
         let mut keep_going = true;
         while start < len and keep_going {
-            if hir_is_ws(text_byte(text, start)) { start = start + 1; }
-            else { keep_going = false; };
+            if hir_is_ws(text_byte(text, start)) { start = start + 1;
+            }
+            else { keep_going = false;
+            };
         };
         if start == len { "" }
         else {
             let mut end = len;
             keep_going = true;
             while end > start and keep_going {
-                if hir_is_ws(text_byte(text, end - 1)) { end = end - 1; }
-                else { keep_going = false; };
+                if hir_is_ws(text_byte(text, end - 1)) { end = end - 1;
+                }
+                else { keep_going = false;
+                };
             };
             text_slice(text, start, end)
         }
@@ -1332,8 +1338,10 @@ fn hir_strip_return_arrow(text: Text) -> Text {
         let mut start = 2;
         let mut go = true;
         while start < len and go {
-            if hir_is_ws(text_byte(text, start)) { start = start + 1; }
-            else { go = false; };
+            if hir_is_ws(text_byte(text, start)) { start = start + 1;
+            }
+            else { go = false;
+            };
         };
         if start >= len { "" }
         else { text_slice(text, start, len) }
@@ -1373,7 +1381,6 @@ fn hir_enrich_fn_list(list: HirFnList2, fn_outline: FnOutline, source: Text) -> 
     };
     HirFnList2 { len: list.len, items: enriched }
 }
-
 
 fn hir_find_open_brace(text: Text, start: I32, end: I32) -> I32 {
     text_find_byte_range(text, start, end, 123)
@@ -1597,7 +1604,6 @@ fn hir_span_from_optional(span: OptionalSpan) -> Span {
     }
 }
 
-
 fn hir_optional_item_false() -> OptionalHirItem {
     OptionalHirItem { present: false, item: hir_item_new(HirItemKind.Fn, "", hir_span_new(0, 0)) }
 }
@@ -1616,7 +1622,8 @@ fn is_empty_text(source: Text) -> Bool {
 }
 
 fn hir_selfcheck() -> I32 effects [alloc] {
-    let source = "struct Pair { first: I32, second: F64 }\nenum Option { none, some(Text) }\nconst answer: I32 = 42;\nfn main() -> I32 { 0 }\nfn build(x: I32, y: Bool) -> F64 { 0.0 }\n";
+    let source = "struct Pair { first: I32, second: F64 }\nenum Option { none, some(Text) }\nconst answer: I32 = 42;
+    \nfn main() -> I32 { 0 }\nfn build(x: I32, y: Bool) -> F64 { 0.0 }\n";
     let report1 = parse_module_report(source);
     if report1.ok {
         let module1 = hir_module_from_report(report1, source);

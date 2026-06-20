@@ -1,4 +1,3 @@
-// bootstrap
 fn type_name_from_ref(ty: HirTypeRef) -> Text {
     if ty.kind == HirTypeKind.I32 { "I32" }
     else if ty.kind == HirTypeKind.F64 { "F64" }
