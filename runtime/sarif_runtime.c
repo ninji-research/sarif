@@ -31,6 +31,13 @@ static unsigned char sarif_empty_text[8] = {0};
 
 #define SARIF_BYTES_VIEW_TAG (1ULL << 63)
 
+#define UTF8_CONT_PREFIX_1BYTE 0x00u
+#define UTF8_CONT_PREFIX_2BYTE 0xc0u
+#define UTF8_CONT_PREFIX_3BYTE 0xe0u
+#define UTF8_CONT_PREFIX_4BYTE 0xf0u
+#define UTF8_CONTINUATION_MASK 0x80u
+#define UTF8_DATA_MASK 0x3fu
+
 static const double SARIF_F64_FIXED_FASTPATH_MIN = -1000000000000.0;
 static const double SARIF_F64_FIXED_FASTPATH_MAX =  1000000000000.0;
 
@@ -550,24 +557,24 @@ void* sarif_text_builder_append_codepoint(void* raw_builder, int64_t codepoint) 
         return NULL;
     }
     if (codepoint <= 0x7f) {
-        encoded[0] = (unsigned char)codepoint;
+        encoded[0] = (unsigned char)(UTF8_CONT_PREFIX_1BYTE | (uint64_t)codepoint);
         encoded_len = 1;
     } else if (codepoint <= 0x7ff) {
-        encoded[0] = (unsigned char)(0xc0u | ((uint64_t)codepoint >> 6));
-        encoded[1] = (unsigned char)(0x80u | ((uint64_t)codepoint & 0x3fu));
+        encoded[0] = (unsigned char)(UTF8_CONT_PREFIX_2BYTE | ((uint64_t)codepoint >> 6));
+        encoded[1] = (unsigned char)(UTF8_CONTINUATION_MASK | ((uint64_t)codepoint & UTF8_DATA_MASK));
         encoded_len = 2;
     } else if (codepoint >= 0xd800 && codepoint <= 0xdfff) {
         return NULL;
     } else if (codepoint <= 0xffff) {
-        encoded[0] = (unsigned char)(0xe0u | ((uint64_t)codepoint >> 12));
-        encoded[1] = (unsigned char)(0x80u | (((uint64_t)codepoint >> 6) & 0x3fu));
-        encoded[2] = (unsigned char)(0x80u | ((uint64_t)codepoint & 0x3fu));
+        encoded[0] = (unsigned char)(UTF8_CONT_PREFIX_3BYTE | ((uint64_t)codepoint >> 12));
+        encoded[1] = (unsigned char)(UTF8_CONTINUATION_MASK | (((uint64_t)codepoint >> 6) & UTF8_DATA_MASK));
+        encoded[2] = (unsigned char)(UTF8_CONTINUATION_MASK | ((uint64_t)codepoint & UTF8_DATA_MASK));
         encoded_len = 3;
     } else {
-        encoded[0] = (unsigned char)(0xf0u | ((uint64_t)codepoint >> 18));
-        encoded[1] = (unsigned char)(0x80u | (((uint64_t)codepoint >> 12) & 0x3fu));
-        encoded[2] = (unsigned char)(0x80u | (((uint64_t)codepoint >> 6) & 0x3fu));
-        encoded[3] = (unsigned char)(0x80u | ((uint64_t)codepoint & 0x3fu));
+        encoded[0] = (unsigned char)(UTF8_CONT_PREFIX_4BYTE | ((uint64_t)codepoint >> 18));
+        encoded[1] = (unsigned char)(UTF8_CONTINUATION_MASK | (((uint64_t)codepoint >> 12) & UTF8_DATA_MASK));
+        encoded[2] = (unsigned char)(UTF8_CONTINUATION_MASK | (((uint64_t)codepoint >> 6) & UTF8_DATA_MASK));
+        encoded[3] = (unsigned char)(UTF8_CONTINUATION_MASK | ((uint64_t)codepoint & UTF8_DATA_MASK));
         encoded_len = 4;
     }
     builder = sarif_text_builder_reserve(builder, encoded_len);
@@ -628,20 +635,18 @@ void* sarif_text_builder_append_slice(
 static int sarif_format_i64(char* scratch, int64_t value) {
     int index = 20;
     uint64_t magnitude;
-    if (value < 0) {
-        scratch[--index] = (char)('0' + (-(value % 10)));
-        magnitude = (uint64_t)(-(value / 10));
-        while (magnitude != 0) {
-            scratch[--index] = (char)('0' + (magnitude % 10));
-            magnitude /= 10;
-        }
-        scratch[--index] = '-';
+    int negative = (value < 0);
+    if (negative) {
+        magnitude = 0 - (uint64_t)value;
     } else {
         magnitude = (uint64_t)value;
-        do {
-            scratch[--index] = (char)('0' + (magnitude % 10));
-            magnitude /= 10;
-        } while (magnitude != 0);
+    }
+    do {
+        scratch[--index] = (char)('0' + (magnitude % 10));
+        magnitude /= 10;
+    } while (magnitude != 0);
+    if (negative) {
+        scratch[--index] = '-';
     }
     return 20 - index;
 }
@@ -1481,7 +1486,15 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     }
     // Fast path for integer values - avoid snprintf overhead
     // Note: isfinite() must come before the comparison to avoid UB when value is NaN/Inf
-    if (precision == 0 && isfinite(value) && value >= SARIF_F64_FIXED_FASTPATH_MIN && value <= SARIF_F64_FIXED_FASTPATH_MAX && value == (double)(int64_t)value) {
+    int is_zero_precision = (precision == 0);
+    int is_finite_value = isfinite(value);
+    int is_in_fastpath_range = is_finite_value &&
+        value >= SARIF_F64_FIXED_FASTPATH_MIN &&
+        value <= SARIF_F64_FIXED_FASTPATH_MAX;
+    int is_integral_value = is_in_fastpath_range &&
+        value == (double)(int64_t)value;
+    int can_use_integer_fastpath = is_zero_precision && is_integral_value;
+    if (can_use_integer_fastpath) {
         int64_t int_part = (int64_t)value;
         char scratch[32];
         int idx = 32;
