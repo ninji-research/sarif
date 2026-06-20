@@ -739,7 +739,7 @@ void* sarif_text_builder_finish(void* raw_builder) {
 static SarifList sarif_empty_list = { 0, NULL };
 
 void* sarif_list_new(int64_t len, uint64_t fill) {
-  SarifList* vec = NULL;
+  SarifList* list = NULL;
   uint64_t index = 0;
   if (len < 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
     return NULL;
@@ -747,28 +747,28 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
   if ((size_t)len == 0) {
     return &sarif_empty_list;
   }
-  vec = malloc(sizeof(SarifList));
-  if (vec == NULL) {
+  list = malloc(sizeof(SarifList));
+  if (list == NULL) {
     return NULL;
   }
-  vec->len = (uint64_t)len;
+  list->len = (uint64_t)len;
   if (fill == 0) {
-    vec->values = calloc((size_t)len, sizeof(uint64_t));
-    if (vec->values == NULL) {
-      free(vec);
+    list->values = calloc((size_t)len, sizeof(uint64_t));
+    if (list->values == NULL) {
+      free(list);
       return NULL;
     }
   } else {
-    vec->values = malloc((size_t)len * sizeof(uint64_t));
-    if (vec->values == NULL) {
-      free(vec);
+    list->values = malloc((size_t)len * sizeof(uint64_t));
+    if (list->values == NULL) {
+      free(list);
       return NULL;
     }
-    for (index = 0; index < vec->len; index += 1) {
-      vec->values[index] = fill;
+    for (index = 0; index < list->len; index += 1) {
+      list->values[index] = fill;
     }
   }
-  return vec;
+  return list;
 }
 
 void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
