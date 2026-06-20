@@ -314,6 +314,9 @@ pub unsafe extern "C" fn sarif_bytes_byte(ptr: i64, index: i64) -> i64 {
             return 0;
         }
         let len = text_len(ptr);
+        if len == 0 {
+            return 0;
+        }
         let idx = index.max(0).min(len as i64 - 1) as usize;
         i64::from(*text_data(ptr).add(idx))
     }
@@ -819,6 +822,9 @@ pub unsafe extern "C" fn sarif_text_index_get(index: i64, key: i64) -> i64 {
         }
         let idx = index as *mut SarifTextIndex;
         let cap = (*idx).cap as usize;
+        if cap == 0 || !cap.is_power_of_two() {
+            return 0;
+        }
         let h = text_index_hash(key as u64);
         let mask = cap - 1;
         let mut i = (h as usize) & mask;
@@ -844,6 +850,9 @@ pub unsafe extern "C" fn sarif_text_index_contains(index: i64, key: i64) -> i64 
         }
         let idx = index as *mut SarifTextIndex;
         let cap = (*idx).cap as usize;
+        if cap == 0 || !cap.is_power_of_two() {
+            return 0;
+        }
         let h = text_index_hash(key as u64);
         let mask = cap - 1;
         let mut i = (h as usize) & mask;
@@ -906,6 +915,9 @@ pub unsafe extern "C" fn sarif_text_index_get_or_insert(
         let idx = index as *mut SarifTextIndex;
         loop {
             let cap = (*idx).cap as usize;
+            if cap == 0 || !cap.is_power_of_two() {
+                return 0;
+            }
             let h = text_index_hash(key as u64);
             let mask = cap - 1;
             let mut i = (h as usize) & mask;
@@ -954,6 +966,9 @@ pub unsafe extern "C" fn sarif_text_index_set(index: i64, key: i64, value: i64) 
         let idx = index as *mut SarifTextIndex;
         loop {
             let cap = (*idx).cap as usize;
+            if cap == 0 || !cap.is_power_of_two() {
+                return index;
+            }
             let h = text_index_hash(key as u64);
             let mask = cap - 1;
             let mut i = (h as usize) & mask;

@@ -137,7 +137,6 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern int64_t sarif_parse_i32_range(const unsigned char* text, int64_t start, int64_t end);")?;
     out.line("extern void sarif_alloc_push(void);")?;
     out.line("extern void sarif_alloc_pop(void);")?;
-    out.line("extern double sarif_f64_from_i32(int64_t value);")?;
     out.line("")?;
 
     out.line(
@@ -1448,7 +1447,7 @@ fn emit_inst(
             // Create a list from a fixed-size record-struct with fields f0, f1, ...
             // Step 1: allocate the list with sarif_list_new(len, 0)
             out.line(&format!(
-                "v{} = (uint64_t)sarif_list_new((int64_t){}lld, 0llu);",
+                "v{} = (uint64_t)sarif_list_new((int64_t){}, 0llu);",
                 dest.0, len
             ))?;
             // Step 2: set each element from the array struct field

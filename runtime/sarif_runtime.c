@@ -31,6 +31,9 @@ static unsigned char sarif_empty_text[8] = {0};
 
 #define SARIF_BYTES_VIEW_TAG (1ULL << 63)
 
+static const double SARIF_F64_FIXED_FASTPATH_MIN = -1000000000000.0;
+static const double SARIF_F64_FIXED_FASTPATH_MAX =  1000000000000.0;
+
 static int sarif_write_text_blob(const unsigned char* text, int newline);
 static int __attribute__((unused)) sarif_write_i64(int64_t value, int newline);
 int64_t sarif_text_cmp(const unsigned char* left, const unsigned char* right);
@@ -1480,7 +1483,7 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     }
     // Fast path for integer values - avoid snprintf overhead
     // Note: isfinite() must come before the comparison to avoid UB when value is NaN/Inf
-    if (precision == 0 && isfinite(value) && value >= -1000000000000.0 && value <= 1000000000000.0 && value == (double)(int64_t)value) {
+    if (precision == 0 && isfinite(value) && value >= SARIF_F64_FIXED_FASTPATH_MIN && value <= SARIF_F64_FIXED_FASTPATH_MAX && value == (double)(int64_t)value) {
         int64_t int_part = (int64_t)value;
         char scratch[32];
         int idx = 32;
@@ -2434,7 +2437,8 @@ static int sarif_runtime_check(void) {
       }
       uint64_t interned_len = 0;
       memcpy(&interned_len, bucket->text, sizeof(uint64_t));
-      if (interned_len > SIZE_MAX - 8 || bucket->text[8 + interned_len] == 0) {
+      if (interned_len > SIZE_MAX - 8) {
+        return -5;
       }
     }
   }

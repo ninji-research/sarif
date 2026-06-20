@@ -645,6 +645,33 @@ fn main() -> I32 effects [alloc] { enum_to_i32(Color.Next {}) }",
     }
 
     #[test]
+    fn multiple_negative_enum_discriminants_auto_increment_correctly() {
+        let mir = lower_source(
+            "\
+enum Color {
+    ExplicitZero = 0,
+    NegativeOne = -1,
+    NegativeTwo = -2,
+    Next,
+}
+fn main() -> I32 effects [alloc] { enum_to_i32(Color.Next {}) }",
+        );
+        assert!(
+            mir.diagnostics.is_empty(),
+            "lowering should succeed: {:#?}",
+            mir.diagnostics,
+        );
+        let result = crate::run_main(&mir.program).unwrap();
+        // With collision-avoidance semantics used by lowering:
+        // ExplicitZero = 0, NegativeOne = 1, NegativeTwo = 2, Next = 3.
+        assert_eq!(
+            result,
+            crate::RuntimeValue::Int(3),
+            "Next should auto-increment to 3 after multiple negative discriminants"
+        );
+    }
+
+    #[test]
     fn positive_enum_discriminants_still_work() {
         let mir = lower_source(
             "\
