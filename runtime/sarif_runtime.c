@@ -176,6 +176,7 @@ extern void sarif_user_main(void);
 
 static SarifRecordChunk* sarif_record_chunks = NULL;
 static SarifRecordChunk* sarif_record_current = NULL;
+static pthread_mutex_t sarif_record_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static size_t sarif_record_next_chunk_cap(size_t aligned) {
     size_t target = SARIF_RECORD_ARENA_CHUNK_MIN_SIZE;
@@ -348,6 +349,7 @@ struct SarifInternChunk {
 
 static struct SarifInternBucket sarif_intern_table[SARIF_INTERN_BUCKET_COUNT];
 static struct SarifInternChunk* sarif_intern_chunk = NULL;
+static pthread_mutex_t sarif_intern_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
     uint64_t h = 14695981039346656037ULL;
