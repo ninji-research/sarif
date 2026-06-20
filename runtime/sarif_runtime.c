@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <time.h>
+#include <pthread.h>
 
 #ifndef SARIF_MAIN_KIND
 #define SARIF_MAIN_KIND 0
@@ -22,6 +23,7 @@
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
+static pthread_mutex_t sarif_env_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
@@ -2250,16 +2252,28 @@ int64_t sarif_env_get(const unsigned char* key_handle) {
     uint64_t key_len = sarif_load_u64(key_handle, 0);
     const unsigned char* key_data = key_handle + 8;
     char* key = (char*)malloc(key_len + 1);
+    if (key == NULL) {
+        return (int64_t)sarif_empty_text;
+    }
     memcpy(key, key_data, key_len);
     key[key_len] = '\0';
+    pthread_mutex_lock(&sarif_env_mutex);
     const char* val = getenv(key);
-    free(key);
     if (val == NULL) {
+        pthread_mutex_unlock(&sarif_env_mutex);
+        free(key);
         return (int64_t)sarif_empty_text;
     }
     uint64_t val_len = strlen(val);
     unsigned char* result = sarif_text_alloc(val_len);
+    if (result == NULL) {
+        pthread_mutex_unlock(&sarif_env_mutex);
+        free(key);
+        return (int64_t)sarif_empty_text;
+    }
     memcpy(result + 8, val, val_len);
+    pthread_mutex_unlock(&sarif_env_mutex);
+    free(key);
     return (int64_t)result;
 }
 
@@ -2269,37 +2283,56 @@ int64_t sarif_env_set(const unsigned char* key_handle, const unsigned char* valu
     uint64_t val_len = sarif_load_u64(value_handle, 0);
     const unsigned char* val_data = value_handle + 8;
     char* key = (char*)malloc(key_len + 1);
+    if (key == NULL) {
+        return 0;
+    }
     memcpy(key, key_data, key_len);
     key[key_len] = '\0';
     char* val = (char*)malloc(val_len + 1);
+    if (val == NULL) {
+        free(key);
+        return 0;
+    }
     memcpy(val, val_data, val_len);
     val[val_len] = '\0';
-    setenv(key, val, 1);
+    pthread_mutex_lock(&sarif_env_mutex);
+    int rc = setenv(key, val, 1);
+    pthread_mutex_unlock(&sarif_env_mutex);
     free(key);
     free(val);
-    return 1;
+    return rc == 0 ? 1 : 0;
 }
 
 int64_t sarif_env_remove(const unsigned char* key_handle) {
     uint64_t key_len = sarif_load_u64(key_handle, 0);
     const unsigned char* key_data = key_handle + 8;
     char* key = (char*)malloc(key_len + 1);
+    if (key == NULL) {
+        return 0;
+    }
     memcpy(key, key_data, key_len);
     key[key_len] = '\0';
-    unsetenv(key);
+    pthread_mutex_lock(&sarif_env_mutex);
+    int rc = unsetenv(key);
+    pthread_mutex_unlock(&sarif_env_mutex);
     free(key);
-    return 1;
+    return rc == 0 ? 1 : 0;
 }
 
 int64_t sarif_env_keys(void) {
     extern char** environ;
     uint64_t total_len = 0;
+    pthread_mutex_lock(&sarif_env_mutex);
     for (int i = 0; environ[i] != NULL; i++) {
         char* eq = strchr(environ[i], '=');
         total_len += (eq ? (uint64_t)(eq - environ[i]) : strlen(environ[i]));
         if (environ[i + 1] != NULL) total_len += 1;
     }
     unsigned char* result = sarif_text_alloc(total_len);
+    if (result == NULL) {
+        pthread_mutex_unlock(&sarif_env_mutex);
+        return (int64_t)sarif_empty_text;
+    }
     uint64_t offset = 0;
     for (int i = 0; environ[i] != NULL; i++) {
         char* eq = strchr(environ[i], '=');
@@ -2311,6 +2344,7 @@ int64_t sarif_env_keys(void) {
             offset += 1;
         }
     }
+    pthread_mutex_unlock(&sarif_env_mutex);
     return (int64_t)result;
 }
 
@@ -2318,6 +2352,9 @@ int64_t sarif_dir_create(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
     char* path = (char*)malloc(path_len + 1);
+    if (path == NULL) {
+        return 0;
+    }
     memcpy(path, path_data, path_len);
     path[path_len] = '\0';
     int result = mkdir(path, 0755);
@@ -2329,6 +2366,9 @@ int64_t sarif_dir_remove(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
     char* path = (char*)malloc(path_len + 1);
+    if (path == NULL) {
+        return 0;
+    }
     memcpy(path, path_data, path_len);
     path[path_len] = '\0';
     int result = rmdir(path);
@@ -2340,6 +2380,9 @@ int64_t sarif_dir_list(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
     char* path = (char*)malloc(path_len + 1);
+    if (path == NULL) {
+        return (int64_t)sarif_empty_text;
+    }
     memcpy(path, path_data, path_len);
     path[path_len] = '\0';
     DIR* dir = opendir(path);
