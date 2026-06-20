@@ -33,7 +33,8 @@ Sarif keeps one declaration order:
 - named `struct`
 - named `enum`
 - fixed arrays `[T; N]`
-- repeat fixed-array literals use the syntax `[value; N]`. This produces `N` distinct element value slots (no implicit shared reference/aliasing between array elements).
+- repeat fixed-array literals use the syntax `[value; N]`.
+  This produces `N` distinct element value slots (no implicit shared reference/aliasing between array elements).
 - const-generic array length names such as `N` are compile-time integer const parameters (not runtime variables). They may be referenced inside the same generic function body and contracts where integer constants are allowed.
 - `TextBuilder` through maintained runtime builtins
   - `write(text)` convenience builtin (shorthand for `perform SystemIO.stdout_write(...)`)
@@ -49,7 +50,10 @@ Sarif keeps one declaration order:
 - `while`
 - `repeat n`
 - `repeat i in n`
-- `for i in lo..hi` for half-open integer ranges. If `lo < hi`, iteration proceeds from `lo` up to (but not including) `hi`; if `lo > hi`, iteration proceeds from `lo` down to (but not including) `hi`; if `lo == hi`, the body does not run.
+- `for i in lo..hi` for half-open integer ranges:
+  - if `lo < hi`, iteration proceeds from `lo` up to (but not including) `hi`
+  - if `lo > hi`, iteration proceeds from `lo` down to (but not including) `hi`		
+  - if `lo == hi`, the body does not run
 - `with_arena { ... }` for scoped memory allocation (automatic alloc push/pop)
 - implicit tail-expression returns
 
@@ -154,7 +158,7 @@ This provides ergonomic dot-call syntax without introducing ad-hoc polymorphism 
 Sarif's package system is intentionally minimal:
 
 - A package is defined by a `Sarif.toml` manifest with a `sources` list of `.sarif` files.
-- The language semantics treat all listed source files as contributing declarations to one package-level flat namespace (that is, "concatenated" is conceptual, not a requirement to literally paste file text together).
+- The language semantics treat all listed source files as contributing declarations to one package-level flat namespace. "Concatenated" is conceptual, not a requirement to literally paste file text together.
 - Declaration visibility is package-wide rather than file-scoped, so items declared in any listed file are visible throughout the package regardless of which file they appear in.
 - If multiple top-level declarations use the same name in the same namespace, this is a compile-time name-collision error.
 - There are **no sub-modules or file-level encapsulation** within a package; a function, const, enum, or struct declared in any source file is directly visible everywhere in that package without any import statement.
