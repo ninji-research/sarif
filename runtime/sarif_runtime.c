@@ -2114,7 +2114,11 @@ int64_t sarif_file_is_valid(uint64_t handle) {
 static pthread_once_t sarif_sigpipe_once = PTHREAD_ONCE_INIT;
 
 static void sarif_ignore_sigpipe_once(void) {
-    signal(SIGPIPE, SIG_IGN);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    (void)sigemptyset(&sa.sa_mask);
+    (void)sigaction(SIGPIPE, &sa, NULL);
 }
 
 static void sarif_init_sigpipe_handling_if_needed(void) {
