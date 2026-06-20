@@ -1109,9 +1109,10 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
         return 0;
     }
     /* Rehash when load factor reaches 75% (len/cap >= 0.75), expressed as
-     * len * 4 >= cap * 3 to avoid floating-point arithmetic. For linear
-     * probing, this threshold is a common balance: it keeps probe chains short
-     * enough for expected O(1) operations while avoiding excessive memory use.
+     * len * 4 >= cap * 3 to avoid floating-point arithmetic. This table uses
+     * open addressing with linear probing (idx = (idx + 1) % cap) for
+     * collision resolution; at this threshold probe chains stay short enough
+     * for expected O(1) operations while avoiding excessive memory use.
      */
     if (index->len * 4 < index->cap * 3) {
         return 1;
@@ -2159,6 +2160,7 @@ static void sarif_ignore_sigpipe_once(void) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = SIG_IGN;
+    sa.sa_flags = 0;
     if (sigemptyset(&sa.sa_mask) != 0) {
         fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed while preparing SIGPIPE handler: %s\n", strerror(errno));
         return;
@@ -2258,7 +2260,7 @@ uint64_t sarif_tcp_accept(uint64_t server_fd) {
 }
 
 uint64_t sarif_tcp_recv(uint64_t fd, int64_t max_len) {
-    if (fd == 0 || max_len <= 0) return (uint64_t)NULL;
+    if (max_len <= 0) return (uint64_t)NULL;
     unsigned char* bytes = sarif_bytes_alloc((uint64_t)max_len);
     if (bytes == NULL) return (uint64_t)NULL;
     ssize_t n = recv((int)fd, bytes + 8, (size_t)max_len, 0);
@@ -2268,7 +2270,8 @@ uint64_t sarif_tcp_recv(uint64_t fd, int64_t max_len) {
 }
 
 int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
-    if (fd == 0 || data_handle == NULL) return -1;
+    if (data_handle == NULL) return -1;
+    if (fd > (uint64_t)INT_MAX) return -1;
     uint64_t len = sarif_load_u64(data_handle, 0);
     if (len == 0) return 0;
     sarif_init_sigpipe_handling_if_needed();
@@ -2278,7 +2281,8 @@ int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
 }
 
 void sarif_tcp_close(uint64_t fd) {
-    if (fd != 0) close((int)fd);
+    int sock = (int)fd;
+    if (sock >= 0) close(sock);
 }
 
 uint64_t sarif_bytes_len(const unsigned char* bytes) {
