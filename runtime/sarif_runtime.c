@@ -2461,6 +2461,9 @@ int64_t sarif_dir_change(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
     char* path = (char*)malloc(path_len + 1);
+    if (path == NULL) {
+        return 0;
+    }
     memcpy(path, path_data, path_len);
     path[path_len] = '\0';
     int result = chdir(path);
