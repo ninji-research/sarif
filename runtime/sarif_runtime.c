@@ -1444,8 +1444,12 @@ static void* sarif_slice_blob(const unsigned char* blob, uint64_t start, uint64_
     cs = start < len ? start : len;
     ce = end < len ? end : len;
     if (utf8_aware) {
-        while (cs < len && sarif_is_utf8_continuation(blob[8 + cs])) cs++;
-        while (ce > 0 && ce < len && sarif_is_utf8_continuation(blob[8 + ce])) ce--;
+        while (cs < len && sarif_is_utf8_continuation(blob[8 + cs])) {
+            cs++;
+        }
+        while (ce > 0 && ce < len && sarif_is_utf8_continuation(blob[8 + ce])) {
+            ce--;
+        }
         if (ce <= cs) return sarif_empty_text;
     } else {
         if (ce <= cs) return sarif_empty_text;
