@@ -2166,7 +2166,6 @@ static void sarif_init_sigpipe_handling_if_needed(void) {
 #endif
 
 uint64_t sarif_file_mmap(const unsigned char* path_handle) {
-    sarif_init_sigpipe_handling_if_needed();
     if (path_handle == NULL) {
         return (uint64_t)NULL;
     }
