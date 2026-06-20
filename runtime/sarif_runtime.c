@@ -1998,9 +1998,20 @@ int64_t sarif_file_size(uint64_t handle) {
         return -1;
     }
     long current = ftell(f);
-    fseek(f, 0, SEEK_END);
+    if (current < 0) {
+        return -1;
+    }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        return -1;
+    }
     long size = ftell(f);
-    fseek(f, current, SEEK_SET);
+    if (size < 0) {
+        (void)fseek(f, current, SEEK_SET);
+        return -1;
+    }
+    if (fseek(f, current, SEEK_SET) != 0) {
+        return -1;
+    }
     return (int64_t)size;
 }
 
