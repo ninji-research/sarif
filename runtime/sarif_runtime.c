@@ -40,8 +40,8 @@ static unsigned char sarif_empty_text[8] = {0};
 #define UTF8_CONTINUATION_MASK 0x80u
 #define UTF8_DATA_MASK 0x3fu
 
-static const double SARIF_F64_FIXED_FASTPATH_MIN = -1000000000000.0;
-static const double SARIF_F64_FIXED_FASTPATH_MAX =  1000000000000.0;
+#define SARIF_F64_FIXED_FASTPATH_MIN (-1000000000000.0)
+#define SARIF_F64_FIXED_FASTPATH_MAX (1000000000000.0)
 
 static int sarif_should_use_integer_fastpath(double value, int precision) {
     int is_finite_value = isfinite(value);
