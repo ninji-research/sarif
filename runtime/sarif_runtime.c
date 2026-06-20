@@ -2640,7 +2640,6 @@ static int sarif_runtime_check(void) {
   uint64_t i = 0;
   struct SarifRecordChunk* chunk = NULL;
   struct SarifInternBucket* bucket = NULL;
-  (void)i;
   for (i = 0; i < SARIF_SCOPE_STACK_CAP; i++) {
     if (sarif_scope_stack[i].chunk != NULL) {
       chunk = sarif_scope_stack[i].chunk;
