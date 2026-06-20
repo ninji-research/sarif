@@ -2370,7 +2370,9 @@ int64_t sarif_dir_create(const unsigned char* path_handle) {
     path[path_len] = '\0';
     int result = mkdir(path, 0755);
     free(path);
-    return (result == 0) ? 1 : (errno == EEXIST ? 1 : 0);
+    if (result == 0) return 1;
+    if (errno == EEXIST) return 1;
+    return 0;
 }
 
 int64_t sarif_dir_remove(const unsigned char* path_handle) {
@@ -2407,7 +2409,7 @@ int64_t sarif_dir_list(const unsigned char* path_handle) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
         total_len += strlen(entry->d_name);
         count++;
-        if (count > 1) total_len += 1;
+        if (count > 0) total_len += 1;
     }
     rewinddir(dir);
     unsigned char* result = sarif_text_alloc(total_len);
@@ -2461,6 +2463,9 @@ int64_t sarif_dir_change(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
     char* path = (char*)malloc(path_len + 1);
+    if (path == NULL) {
+        return 0;
+    }
     memcpy(path, path_data, path_len);
     path[path_len] = '\0';
     int result = chdir(path);
