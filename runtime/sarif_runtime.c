@@ -893,6 +893,7 @@ static int sarif_compare_record_text_field_handles(uint64_t left, uint64_t right
 static uint64_t sarif_sort_text_field_offset = 0;
 static uint64_t sarif_sort_i32_field_offset = 0;
 static uint64_t sarif_sort_f64_field_offset = 0;
+static pthread_mutex_t sarif_sort_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int sarif_qsort_compare_text_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
