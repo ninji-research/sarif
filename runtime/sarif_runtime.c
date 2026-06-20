@@ -399,6 +399,7 @@ static unsigned char* sarif_intern_alloc(uint64_t size) {
 }
 
 static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uint64_t len) {
+    pthread_mutex_lock(&sarif_intern_mutex);
     uint64_t hash = sarif_intern_hash(data, len);
     if (hash == 0) {
         hash = 1;
@@ -414,16 +415,19 @@ static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uin
             }
             b->hash = hash;
             b->text = interned;
+            pthread_mutex_unlock(&sarif_intern_mutex);
             return interned;
         }
         if (b->hash == hash) {
             uint64_t existing_len = sarif_load_u64(b->text, 0);
             if (existing_len == len && memcmp(b->text + 8, data, (size_t)len) == 0) {
+                pthread_mutex_unlock(&sarif_intern_mutex);
                 return b->text;
             }
         }
         idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
     }
+    pthread_mutex_unlock(&sarif_intern_mutex);
     sarif_fatal_error("string interning table overflow");
 }
 
