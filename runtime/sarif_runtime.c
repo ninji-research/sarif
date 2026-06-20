@@ -40,6 +40,11 @@ static unsigned char sarif_empty_text[8] = {0};
 #define UTF8_CONTINUATION_MASK 0x80u
 #define UTF8_DATA_MASK 0x3fu
 
+/* Fast-path bounds for formatting integral doubles when precision == 0.
+ * We restrict this optimization to a conservative ±1e12 range so integer
+ * conversion remains efficient and predictable, while avoiding edge cases
+ * and potential precision pitfalls at very large magnitudes.
+ */
 #define SARIF_F64_FIXED_FASTPATH_MIN (-1000000000000.0)
 #define SARIF_F64_FIXED_FASTPATH_MAX (1000000000000.0)
 
@@ -893,6 +898,7 @@ static int sarif_compare_record_text_field_handles(uint64_t left, uint64_t right
 static uint64_t sarif_sort_text_field_offset = 0;
 static uint64_t sarif_sort_i32_field_offset = 0;
 static uint64_t sarif_sort_f64_field_offset = 0;
+static pthread_mutex_t sarif_sort_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int sarif_qsort_compare_text_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
@@ -1575,7 +1581,7 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     return result;
 }
 
-static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t index, uint64_t len, int64_t* out_value) {
+static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t index, uint64_t len, int32_t* out_value) {
     uint64_t limit;
     int negative = 0;
     int64_t value = 0;
@@ -1599,7 +1605,7 @@ static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t ind
         value = (int64_t)next;
         index += 1;
     }
-    *out_value = negative ? -value : value;
+    *out_value = (int32_t)(negative ? -value : value);
     return 1;
 }
 
@@ -2114,7 +2120,11 @@ int64_t sarif_file_is_valid(uint64_t handle) {
 static pthread_once_t sarif_sigpipe_once = PTHREAD_ONCE_INIT;
 
 static void sarif_ignore_sigpipe_once(void) {
-    signal(SIGPIPE, SIG_IGN);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = SIG_IGN;
+    (void)sigemptyset(&sa.sa_mask);
+    (void)sigaction(SIGPIPE, &sa, NULL);
 }
 
 static void sarif_init_sigpipe_handling_if_needed(void) {
@@ -2631,6 +2641,8 @@ static int sarif_runtime_check(void) {
 int main(int argc, char** argv) {
   sarif_argc = argc;
   sarif_argv = argv;
+  /* Intentionally use full buffering for stdout; with NULL and size 0, the C
+     runtime allocates a buffer and chooses an implementation-appropriate size. */
   setvbuf(stdout, NULL, _IOFBF, 0);
   if (sarif_runtime_check() != 0) {
     fprintf(stderr, "SARIF RUNTIME CHECK FAILED\n");
