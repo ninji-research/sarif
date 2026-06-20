@@ -925,6 +925,10 @@ static int sarif_qsort_compare_record_i32_field_handles(const void* left, const 
     const uint64_t right_handle = *(const uint64_t*)right;
     const unsigned char* left_record = (const unsigned char*)left_handle;
     const unsigned char* right_record = (const unsigned char*)right_handle;
+    uint64_t offset = 0;
+    pthread_mutex_lock(&sarif_sort_mutex);
+    offset = sarif_sort_i32_field_offset;
+    pthread_mutex_unlock(&sarif_sort_mutex);
     if (left_record == right_record) {
         return 0;
     }
@@ -934,8 +938,8 @@ static int sarif_qsort_compare_record_i32_field_handles(const void* left, const 
     if (right_record == NULL) {
         return 1;
     }
-    int64_t left_val = (int64_t)sarif_load_u64(left_record, sarif_sort_i32_field_offset);
-    int64_t right_val = (int64_t)sarif_load_u64(right_record, sarif_sort_i32_field_offset);
+    int64_t left_val = (int64_t)sarif_load_u64(left_record, offset);
+    int64_t right_val = (int64_t)sarif_load_u64(right_record, offset);
     if (left_val < right_val) return -1;
     if (left_val > right_val) return 1;
     return 0;
