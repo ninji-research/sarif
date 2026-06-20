@@ -1058,7 +1058,9 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
         return NULL;
     }
     if (used > 1) {
-        pthread_mutex_lock(&sarif_sort_mutex);
+        if (pthread_mutex_lock(&sarif_sort_mutex) != 0) {
+            return NULL;
+        }
         sarif_sort_f64_field_offset = field_offset;
         qsort(
             list->values,
@@ -1066,7 +1068,9 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
             sizeof(uint64_t),
             sarif_qsort_compare_record_f64_field_handles
         );
-        pthread_mutex_unlock(&sarif_sort_mutex);
+        if (pthread_mutex_unlock(&sarif_sort_mutex) != 0) {
+            return NULL;
+        }
     }
     return list;
 }
