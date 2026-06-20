@@ -24,6 +24,7 @@ static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
 static pthread_mutex_t sarif_env_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sarif_scope_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
@@ -1611,7 +1612,7 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     return result;
 }
 
-static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t index, uint64_t len, int32_t* out_value) {
+static int sarif_parse_i32_validated(const unsigned char* bytes, uint64_t index, uint64_t len, int32_t* out_value) {
     uint64_t limit;
     int negative = 0;
     int64_t value = 0;
@@ -2166,7 +2167,6 @@ static void sarif_init_sigpipe_handling_if_needed(void) {
 #endif
 
 uint64_t sarif_file_mmap(const unsigned char* path_handle) {
-    sarif_init_sigpipe_handling_if_needed();
     if (path_handle == NULL) {
         return (uint64_t)NULL;
     }
