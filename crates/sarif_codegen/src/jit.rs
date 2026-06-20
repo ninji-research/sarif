@@ -1687,6 +1687,19 @@ pub unsafe extern "C" fn sarif_bytes_to_text(bytes: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_text_to_bytes(text: i64) -> i64 {
+    unsafe {
+        if text == 0 {
+            return 0;
+        }
+        let len = text_len(text) as usize;
+        let result = alloc_text(len as u64);
+        std::ptr::copy_nonoverlapping(text_data(text), text_data_mut(result), len);
+        result
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_text_data_for_insts(idx: i64) -> i64 {
     TEXT_DATA_TABLE.with(|table| {
         let table = table.borrow();
@@ -1883,6 +1896,7 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
         ("sarif_clock_now", sarif_clock_now as *const u8),
         ("sarif_clock_sleep", sarif_clock_sleep as *const u8),
         ("sarif_bytes_to_text", sarif_bytes_to_text as *const u8),
+        ("sarif_text_to_bytes", sarif_text_to_bytes as *const u8),
         (
             "sarif_text_data_for_insts",
             sarif_text_data_for_insts as *const u8,

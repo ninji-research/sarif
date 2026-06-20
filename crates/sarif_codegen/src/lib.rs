@@ -475,6 +475,10 @@ pub enum Inst {
         dest: ValueId,
         bytes: ValueId,
     },
+    TextToBytes {
+        dest: ValueId,
+        text: ValueId,
+    },
     BytesMaterialize {
         dest: ValueId,
         bytes: ValueId,
@@ -1156,6 +1160,9 @@ impl Inst {
             }
             Self::BytesToText { dest, bytes } => {
                 format!("{} = bytes-to-text {}", dest.render(), bytes.render())
+            }
+            Self::TextToBytes { dest, text } => {
+                format!("{} = text-to-bytes {}", dest.render(), text.render())
             }
             Self::BytesMaterialize { dest, bytes } => {
                 format!("{} = bytes-materialize {}", dest.render(), bytes.render())
@@ -3873,6 +3880,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::Handle { .. }
             | Inst::FileOpen { .. }
             | Inst::BytesToText { .. }
+            | Inst::TextToBytes { .. }
             | Inst::BytesMaterialize { .. }
             | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }
@@ -4269,6 +4277,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             "bytes_to_text" if self.builtin_is_available("bytes_to_text") => {
                 self.lower_bytes_to_text_expr(expr)
+            }
+            "text_to_bytes" if self.builtin_is_available("text_to_bytes") => {
+                self.lower_text_to_bytes_expr(expr)
             }
             "bytes_materialize" if self.builtin_is_available("bytes_materialize") => {
                 self.lower_bytes_materialize_expr(expr)
@@ -4724,6 +4735,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
             "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
             "bytes_to_text" if self.builtin_is_available("bytes_to_text") => LowerType::Text,
+            "text_to_bytes" if self.builtin_is_available("text_to_bytes") => LowerType::Bytes,
             "bytes_materialize" if self.builtin_is_available("bytes_materialize") => {
                 LowerType::Bytes
             }
@@ -7824,6 +7836,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_text_to_bytes_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let text = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::TextToBytes { dest, text });
+        dest
+    }
+
     fn lower_bytes_materialize_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg) = expr.args.first() else {
             return self.emit_unit_value();
@@ -10359,6 +10381,14 @@ impl<'a> Interpreter<'a> {
                         _ => return Err(RuntimeError::new("expected Bytes")),
                     };
                     values[dest.0 as usize] = RuntimeValue::Text(text);
+                }
+                Inst::TextToBytes { dest, text } => {
+                    let text_val = extract_value(values, *text)?;
+                    let bytes = match &text_val {
+                        RuntimeValue::Text(t) => t.as_bytes().to_vec(),
+                        _ => return Err(RuntimeError::new("expected Text")),
+                    };
+                    values[dest.0 as usize] = RuntimeValue::Bytes(bytes);
                 }
                 Inst::BytesMaterialize { dest, bytes } => {
                     let bytes_val = extract_value(values, *bytes)?;

@@ -103,6 +103,7 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("extern int64_t sarif_file_is_valid(uint64_t handle);")?;
     out.line("extern uint64_t sarif_file_mmap(const unsigned char* path);")?;
     out.line("extern void* sarif_bytes_to_text(const unsigned char* bytes);")?;
+    out.line("extern unsigned char* sarif_text_to_bytes(const char* text);")?;
     out.line("extern void* sarif_list_sort_text(void* list, int64_t len);")?;
     out.line(
         "extern void* sarif_list_sort_by_text_field(void* list, int64_t len, int64_t offset);",
@@ -401,6 +402,7 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TextSlice { dest, .. } => Some(*dest),
         Inst::BytesSlice { dest, .. } => Some(*dest),
         Inst::BytesToText { dest, .. } => Some(*dest),
+        Inst::TextToBytes { dest, .. } => Some(*dest),
         Inst::BytesMaterialize { dest, .. } => Some(*dest),
         Inst::TextFromF64Fixed { dest, .. } => Some(*dest),
         Inst::F64FromI32 { dest, .. } => Some(*dest),
@@ -983,6 +985,13 @@ fn emit_inst(
                 "v{} = (uint64_t)sarif_bytes_to_text((const unsigned char*){});",
                 dest.0,
                 vref(bytes)
+            ))?;
+        }
+        Inst::TextToBytes { dest, text } => {
+            out.line(&format!(
+                "v{} = (uint64_t)sarif_text_to_bytes((const char*){});",
+                dest.0,
+                vref(text)
             ))?;
         }
         Inst::BytesMaterialize { dest, bytes } => {
@@ -2123,6 +2132,9 @@ fn infer_inst_kind_c(
         | Inst::BytesToText { dest, .. }
         | Inst::TextFromF64Fixed { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Text);
+        }
+        Inst::TextToBytes { dest, .. } => {
+            kinds.insert(*dest, CodegenValueKind::Bytes);
         }
         Inst::BytesMaterialize { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Bytes);

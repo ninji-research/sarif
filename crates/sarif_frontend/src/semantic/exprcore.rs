@@ -191,6 +191,17 @@ fn builtin_entry(name: &str) -> Option<BuiltinEntry> {
             arg_helps: &["Pass a Bytes argument."],
             dispatch_simple: true,
         }),
+        "text_to_bytes" => Some(BuiltinEntry {
+            name: "text_to_bytes",
+            runtime_code: None,
+            arity_error_code: "semantic.text_to_bytes-arity",
+            type_error_code: "semantic.text_to_bytes-type",
+            result_ty: Type::Bytes,
+            call_hint: "Call `text_to_bytes(text)` with exactly one Text argument.",
+            arg_types: &[Type::Text],
+            arg_helps: &["Pass a Text argument."],
+            dispatch_simple: true,
+        }),
         "bytes_materialize" => Some(BuiltinEntry {
             name: "bytes_materialize",
             runtime_code: None,

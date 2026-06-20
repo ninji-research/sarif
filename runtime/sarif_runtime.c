@@ -2158,6 +2158,24 @@ void* sarif_bytes_to_text(const unsigned char* bytes) {
     return result;
 }
 
+unsigned char* sarif_text_to_bytes(const char* text) {
+    const unsigned char* bytes = (const unsigned char*)text;
+    if (bytes == NULL) return NULL;
+    if (sarif_bytes_is_view(bytes)) {
+        uint64_t len = sarif_bytes_view_len(bytes);
+        const unsigned char* data = sarif_bytes_view_data(bytes);
+        unsigned char* result = sarif_bytes_alloc(len);
+        if (result == NULL) return NULL;
+        if (len != 0) memcpy(result + 8, data, (size_t)len);
+        return result;
+    }
+    uint64_t len = sarif_load_u64(bytes, 0);
+    unsigned char* result = sarif_bytes_alloc(len);
+    if (result == NULL) return NULL;
+    if (len != 0) memcpy(result + 8, bytes + 8, (size_t)len);
+    return result;
+}
+
 static int sarif_str_eq(const char* a, const char* b) {
     while (*a && *b) {
         if (*a != *b) return 0;

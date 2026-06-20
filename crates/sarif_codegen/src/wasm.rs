@@ -623,6 +623,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::AllocPush
                 | Inst::AllocPop
                 | Inst::BytesToText { .. }
+                | Inst::TextToBytes { .. }
                 | Inst::FileOpen { .. }
                 | Inst::FileIsValid { .. }
                 | Inst::FileRead { .. }
@@ -1736,6 +1737,11 @@ impl<'a> WasmEmitter<'a> {
                     "wasm backend does not support bytes-to-text conversion",
                 ));
             }
+            Inst::TextToBytes { .. } => {
+                return Err(WasmError::new(
+                    "wasm backend does not support text-to-bytes conversion",
+                ));
+            }
             Inst::BytesMaterialize { dest, bytes } => {
                 writeln!(output, "    local.get ${}", wasm_id(*bytes))
                     .expect("writing to a string cannot fail");
@@ -2543,6 +2549,7 @@ pub(crate) fn collect_inst_kinds(
             Inst::StoreLocal { .. }
             | Inst::Assert { .. }
             | Inst::BytesToText { .. }
+            | Inst::TextToBytes { .. }
             | Inst::FileOpen { .. }
             | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }

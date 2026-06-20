@@ -1308,6 +1308,7 @@ fn collect_locals_binary(
             | Inst::AllocPush
             | Inst::AllocPop
             | Inst::BytesToText { .. }
+            | Inst::TextToBytes { .. }
             | Inst::FileOpen { .. }
             | Inst::FileIsValid { .. }
             | Inst::FileRead { .. }
@@ -2782,6 +2783,11 @@ fn emit_inst_binary(
         Inst::BytesToText { .. } => {
             return Err(WasmError::new(
                 "wasm backend does not support bytes-to-text conversion",
+            ));
+        }
+        Inst::TextToBytes { .. } => {
+            return Err(WasmError::new(
+                "wasm backend does not support text-to-bytes conversion",
             ));
         }
         Inst::FileOpen { .. }

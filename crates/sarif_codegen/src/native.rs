@@ -454,7 +454,8 @@ fn infer_inst_kinds(
             | Inst::DirCurrent { dest } => {
                 kinds.insert(*dest, NativeValueKind::Text);
             }
-            Inst::BytesMaterialize { dest, .. } => {
+            Inst::TextToBytes { dest, .. }
+            | Inst::BytesMaterialize { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::Bytes);
             }
             Inst::StdinBytes { dest }
@@ -1356,6 +1357,7 @@ pub struct RuntimeHelperIds {
     pub tcp_send_id: FuncId,
     pub tcp_close_id: FuncId,
     pub bytes_to_text_id: FuncId,
+    pub text_to_bytes_id: FuncId,
     pub text_eq_id: FuncId,
     pub text_cmp_id: FuncId,
     pub env_get_id: FuncId,
@@ -1447,6 +1449,7 @@ pub fn declare_runtime_helpers<M: Module>(
         tcp_send_id: declare_tcp_send(module, backend)?,
         tcp_close_id: declare_tcp_close(module, backend)?,
         bytes_to_text_id: declare_bytes_to_text(module, backend)?,
+        text_to_bytes_id: declare_text_to_bytes(module, backend)?,
         text_eq_id: declare_text_eq(module, backend)?,
         text_cmp_id: declare_text_cmp(module, backend)?,
         env_get_id: declare_env_get(module, backend)?,
@@ -1598,6 +1601,7 @@ pub fn lower_inst<M: Module>(
         tcp_send_id,
         tcp_close_id,
         bytes_to_text_id,
+        text_to_bytes_id,
         text_eq_id,
         text_cmp_id,
         env_get_id,
@@ -3009,6 +3013,20 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
+        Inst::TextToBytes { dest, text } => {
+            let text_val = native_value(values, *text, function, "text_to_bytes text", backend)?;
+            let helper = module.declare_func_in_func(text_to_bytes_id, builder.func);
+            let ptr = call_helper(
+                builder,
+                helper,
+                &[text_val],
+                "text to bytes",
+                function,
+                backend,
+            )?;
+            values.insert(*dest, NativeValueRepr::Native(ptr));
+            Ok(true)
+        }
         Inst::BytesMaterialize { dest, bytes } => {
             let bytes_val =
                 native_value(values, *bytes, function, "bytes_materialize bytes", backend)?;
@@ -4360,6 +4378,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::MakeRecord { dest, .. }
             | Inst::FileOpen { dest, .. }
             | Inst::BytesToText { dest, .. }
+            | Inst::TextToBytes { dest, .. }
             | Inst::BytesMaterialize { dest, .. }
             | Inst::FileIsValid { dest, .. }
             | Inst::FileRead { dest, .. }
@@ -5537,6 +5556,17 @@ pub fn declare_bytes_to_text<M: Module>(module: &mut M, backend: &str) -> Result
         "sarif_bytes_to_text",
         backend,
         "bytes to text helper",
+        &[types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_text_to_bytes<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_text_to_bytes",
+        backend,
+        "text to bytes helper",
         &[types::I64],
         &[types::I64],
     )
