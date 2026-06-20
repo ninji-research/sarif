@@ -1311,6 +1311,7 @@ pub struct RuntimeHelperIds {
     pub stdout_write_builder_id: Option<FuncId>,
     pub text_index_helpers: TextIndexHelperIds,
     pub list_new_id: FuncId,
+    pub list_from_raw_id: FuncId,
     pub list_push_id: FuncId,
     pub list_sort_text_id: Option<FuncId>,
     pub list_sort_by_text_field_id: Option<FuncId>,
@@ -1401,6 +1402,7 @@ pub fn declare_runtime_helpers<M: Module>(
             keys_id: Some(declare_text_index_keys(module, backend)?),
         },
         list_new_id: declare_list_new(module, backend)?,
+        list_from_raw_id: declare_list_from_raw(module, backend)?,
         list_push_id: declare_list_push(module, backend)?,
         list_sort_text_id: Some(declare_list_sort_text(module, backend)?),
         list_sort_by_text_field_id: Some(declare_list_sort_by_text_field(module, backend)?),
@@ -1551,6 +1553,7 @@ pub fn lower_inst<M: Module>(
         stdout_write_builder_id,
         text_index_helpers,
         list_new_id,
+        list_from_raw_id,
         list_push_id,
         list_sort_text_id,
         list_sort_by_text_field_id,
@@ -2365,63 +2368,20 @@ pub fn lower_inst<M: Module>(
             Ok(true)
         }
         Inst::ListFrom { dest, array, len } => {
-            // Build a list from a fixed-size array (represented as a Record with fields f0..fN).
-            // Strategy: create a list of size `len` using the first element as seed,
-            // then overwrite remaining slots from subsequent record fields.
-            //
-            // Since the record fields were individually lowered as ValueIds before this
-            // instruction, but we only have the packed Record ValueId here, we need a
-            // different approach: we use __sarif_list_new(len, v_f0) then set each slot.
-            //
-            // However `array` here is a packed RuntimeValue::Record, not individual slots.
-            // The JIT record is represented as a pointer-to-struct in cranelift, where
-            // each field is at a fixed byte offset.
-            //
-            // For correctness, use the runtime helper __sarif_list_from_record(record_ptr, len)
-            // which the C runtime will implement.
+            // Build a list from a fixed-size array (record with fields at consecutive 8-byte
+            // offsets). Delegate to sarif_list_from_raw(record_ptr, len) which does a single
+            // memcpy into a fresh allocation — cleaner and avoids the manual field loop.
             let array_val = native_value(values, *array, function, "list_from array", backend)?;
             let len_val = builder.ins().iconst(types::I64, *len as i64);
-            let helper = module.declare_func_in_func(list_new_id, builder.func);
-            // We don't have __sarif_list_from_record yet in the JIT function table;
-            // for now build the list manually: allocate with list_new(len, 0) then fill each field.
-            // Since we can't iterate record fields here, fall back to list_new with 0 as sentinel.
-            // TODO: add __sarif_list_from_record to native runtime function table.
-            let zero = builder.ins().iconst(types::I64, 0);
+            let helper = module.declare_func_in_func(list_from_raw_id, builder.func);
             let ptr = call_helper(
                 builder,
                 helper,
-                &[len_val, zero],
-                "list from (init)",
+                &[array_val, len_val],
+                "list from raw",
                 function,
                 backend,
             )?;
-            // Now fill each field from the record.
-            // The record in native.rs is a heap-allocated struct; field at offset i*8.
-            // We iterate len fields and copy from record_ptr + i*8 -> list_ptr + i*8.
-            let NativeValueKind::List(_) = value_kinds
-                .get(dest)
-                .cloned()
-                .unwrap_or(NativeValueKind::I32)
-            else {
-                unreachable!()
-            };
-            // Get list data pointer: load from ptr+8 (values_ptr field of list header)
-            let values_ptr = builder.ins().load(types::I64, MemFlags::trusted(), ptr, 8);
-            let array_ptr = array_val;
-            for i in 0..*len {
-                let field_offset = (i * 8) as i64;
-                let field_val = builder.ins().load(
-                    types::I64,
-                    MemFlags::trusted(),
-                    array_ptr,
-                    field_offset as i32,
-                );
-                let list_slot_offset = builder.ins().iconst(types::I64, field_offset);
-                let list_addr = builder.ins().iadd(values_ptr, list_slot_offset);
-                builder
-                    .ins()
-                    .store(MemFlags::trusted(), field_val, list_addr, 0);
-            }
             values.insert(*dest, NativeValueRepr::Native(ptr));
             Ok(true)
         }
@@ -4770,6 +4730,17 @@ pub fn declare_list_new<M: Module>(module: &mut M, backend: &str) -> Result<Func
         "sarif_list_new",
         backend,
         "list new helper",
+        &[types::I64, types::I64],
+        &[types::I64],
+    )
+}
+
+pub fn declare_list_from_raw<M: Module>(module: &mut M, backend: &str) -> Result<FuncId, String> {
+    declare_runtime_fn(
+        module,
+        "sarif_list_from_raw",
+        backend,
+        "list from raw helper",
         &[types::I64, types::I64],
         &[types::I64],
     )

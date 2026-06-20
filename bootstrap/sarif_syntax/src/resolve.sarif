@@ -33,63 +33,10 @@ fn symbol_table_add_name(table: Text, name: Text) -> Text {
 
 
 fn is_builtin_name(name: Text) -> Bool {
-    if text_eq_simple(name, "text_len") { true }
-    else if text_eq_simple(name, "text_byte") { true }
-    else if text_eq_simple(name, "text_cmp") { true }
-    else if text_eq_simple(name, "text_eq_range") { true }
-    else if text_eq_simple(name, "text_slice") { true }
-    else if text_eq_simple(name, "text_concat") { true }
-    else if text_eq_simple(name, "text_find_byte_range") { true }
-    else if text_eq_simple(name, "text_line_end") { true }
-    else if text_eq_simple(name, "text_next_line") { true }
-    else if text_eq_simple(name, "text_field_end") { true }
-    else if text_eq_simple(name, "text_next_field") { true }
-    else if text_eq_simple(name, "bytes_len") { true }
-    else if text_eq_simple(name, "bytes_byte") { true }
-    else if text_eq_simple(name, "bytes_slice") { true }
-    else if text_eq_simple(name, "bytes_find_byte_range") { true }
-    else if text_eq_simple(name, "text_builder_new") { true }
-    else if text_eq_simple(name, "text_builder_append") { true }
-    else if text_eq_simple(name, "text_builder_append_codepoint") { true }
-    else if text_eq_simple(name, "text_builder_append_ascii") { true }
-    else if text_eq_simple(name, "text_builder_append_slice") { true }
-    else if text_eq_simple(name, "text_builder_append_i32") { true }
-    else if text_eq_simple(name, "text_builder_finish") { true }
-    else if text_eq_simple(name, "text_intern") { true }
-    else if text_eq_simple(name, "text_promote") { true }
-    else if text_eq_simple(name, "text_index_new") { true }
-    else if text_eq_simple(name, "text_index_get") { true }
-    else if text_eq_simple(name, "text_index_contains") { true }
-    else if text_eq_simple(name, "text_index_get_or_insert") { true }
-    else if text_eq_simple(name, "text_index_set") { true }
-    else if text_eq_simple(name, "list_new") { true }
-    else if text_eq_simple(name, "list_len") { true }
-    else if text_eq_simple(name, "list_get") { true }
-    else if text_eq_simple(name, "list_set") { true }
-    else if text_eq_simple(name, "list_push") { true }
-    else if text_eq_simple(name, "list_sort_text") { true }
-    else if text_eq_simple(name, "list_sort_by_text_field") { true }
-    else if text_eq_simple(name, "parse_i32") { true }
-    else if text_eq_simple(name, "parse_i32_range") { true }
-    else if text_eq_simple(name, "parse_f64") { true }
-    else if text_eq_simple(name, "sqrt") { true }
-    else if text_eq_simple(name, "f64_from_i32") { true }
-    else if text_eq_simple(name, "stdout_write") { true }
-    else if text_eq_simple(name, "stdout_write_builder") { true }
-    else if text_eq_simple(name, "stdin_text") { true }
-    else if text_eq_simple(name, "stdin_bytes") { true }
-    else if text_eq_simple(name, "file_open") { true }
-    else if text_eq_simple(name, "file_read") { true }
-    else if text_eq_simple(name, "file_read_to_end") { true }
-    else if text_eq_simple(name, "file_write") { true }
-    else if text_eq_simple(name, "file_size") { true }
-    else if text_eq_simple(name, "file_seek") { true }
-    else if text_eq_simple(name, "file_tell") { true }
-    else if text_eq_simple(name, "arg_count") { true }
-    else if text_eq_simple(name, "arg_text") { true }
-    else if text_eq_simple(name, "is_empty") { true }
-    else if text_eq_simple(name, "len") { true }
-    else { false }
+    symbol_table_has_name(
+        "text_len\ntext_byte\ntext_cmp\ntext_eq_range\ntext_slice\ntext_concat\ntext_find_byte_range\ntext_line_end\ntext_next_line\ntext_field_end\ntext_next_field\nbytes_len\nbytes_byte\nbytes_slice\nbytes_find_byte_range\nbytes_field_end\nbytes_next_field\nbytes_materialize\nbytes_to_text\ntext_builder_new\ntext_builder_append\ntext_builder_append_codepoint\ntext_builder_append_ascii\ntext_builder_append_slice\ntext_builder_append_i32\ntext_builder_finish\nstdout_write_builder\ntext_index_new\ntext_index_get\ntext_index_contains\ntext_index_get_or_insert\ntext_index_set\ntext_index_keys\nlist_new\nlist_len\nlist_get\nlist_set\nlist_push\nlist_sort_text\nlist_sort_by_text_field\nparse_i32\nparse_i32_range\nparse_f64\nsqrt\nf64_from_i32\ntext_from_f64_fixed\narg_count\narg_text\nstdin_text\nstdin_bytes\nstdout_write\nalloc_push\nalloc_pop\ntext_intern\ntext_promote\nfile_open\nfile_read\nfile_read_to_end\nfile_write\nfile_size\nfile_seek\nfile_tell\nfile_close\nfile_exists\nfile_remove\nfile_is_valid\ncodepoint_to_text\nenum_to_i32\nenum_to_text\nconst_assert\nis_empty\nlen",
+        name,
+    )
 }
 
 fn check_duplicate_definitions(module: HirModuleData) -> Text {

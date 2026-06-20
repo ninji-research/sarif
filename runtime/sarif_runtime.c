@@ -795,6 +795,31 @@ int64_t sarif_list_len(void* list_ptr) {
     return (int64_t)list->len;
 }
 
+// Build a list by copying len uint64_t slots from a packed record pointer.
+// The record layout places fields consecutively at 8-byte offsets starting at ptr[0].
+// Returns NULL on allocation failure or invalid arguments.
+void* sarif_list_from_raw(void* raw_ptr, int64_t len) {
+    SarifList* vec = NULL;
+    if (raw_ptr == NULL || len <= 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
+        if (len == 0) {
+            return &sarif_empty_list;
+        }
+        return NULL;
+    }
+    vec = malloc(sizeof(SarifList));
+    if (vec == NULL) {
+        return NULL;
+    }
+    vec->len = (uint64_t)len;
+    vec->values = malloc((size_t)len * sizeof(uint64_t));
+    if (vec->values == NULL) {
+        free(vec);
+        return NULL;
+    }
+    memcpy(vec->values, raw_ptr, (size_t)len * sizeof(uint64_t));
+    return vec;
+}
+
 static int sarif_compare_text_handles(uint64_t left, uint64_t right) {
     return (int)sarif_text_cmp((const unsigned char*)left, (const unsigned char*)right);
 }
