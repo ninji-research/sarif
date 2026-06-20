@@ -2085,14 +2085,19 @@ uint64_t sarif_file_mmap(const unsigned char* path_handle) {
         return (uint64_t)NULL;
     }
     uint64_t path_len = sarif_load_u64(path_handle, 0);
-    char path[1024];
-    if (path_len >= 1024) {
+    if (path_len > (uint64_t)(SIZE_MAX - 1)) {
         return (uint64_t)NULL;
     }
-    memcpy(path, path_handle + 8, (size_t)path_len);
-    path[path_len] = '\0';
+    size_t path_size = (size_t)path_len;
+    char* path = (char*)malloc(path_size + 1);
+    if (path == NULL) {
+        return (uint64_t)NULL;
+    }
+    memcpy(path, path_handle + 8, path_size);
+    path[path_size] = '\0';
 
     int fd = open(path, O_RDONLY);
+    free(path);
     if (fd < 0) {
         return (uint64_t)NULL;
     }
