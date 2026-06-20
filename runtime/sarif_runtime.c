@@ -357,7 +357,10 @@ static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
 }
 
 static unsigned char* sarif_intern_alloc(uint64_t size) {
-    size_t aligned = (size + 7u) & ~(size_t)7u;
+    if (size > UINT64_MAX - 7u) {
+        sarif_fatal_error("size overflow in string interning pool alignment");
+    }
+    size_t aligned = (size_t)((size + 7u) & ~(uint64_t)7u);
     if (sarif_intern_chunk == NULL || aligned > sarif_intern_chunk->cap - sarif_intern_chunk->used) {
         size_t chunk_size = sizeof(struct SarifInternChunk) + SARIF_INTERN_CHUNK_SIZE;
         if (chunk_size < sizeof(struct SarifInternChunk) + aligned) {
