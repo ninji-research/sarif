@@ -224,7 +224,7 @@ static struct SarifAllocScope* sarif_alloc_push_scope(void) {
         return &sarif_scope_stack[sarif_scope_depth++];
     }
     struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
-    if (n == NULL) return NULL;
+    if (n == NULL) sarif_fatal_error("out of memory in sarif_alloc_push_scope");
     n->next = sarif_scope_overflow;
     sarif_scope_overflow = n;
     return &n->scope;
@@ -511,7 +511,7 @@ static inline __attribute__((always_inline)) SarifTextBuilder* sarif_text_builde
     } else {
         while (next_cap < required) {
             uint64_t growth = next_cap / 2u + 1u;
-            if (next_cap > UINT64_MAX - growth) {
+            if (UINT64_MAX - next_cap < growth) {
                 next_cap = required;
                 break;
             }
@@ -1539,10 +1539,11 @@ void* sarif_text_from_f64_fixed(double value, int64_t digits) {
     return result;
 }
 
-static int64_t sarif_parse_i32_core(const unsigned char* bytes, uint64_t index, uint64_t len) {
+static int sarif_parse_i32_core_checked(const unsigned char* bytes, uint64_t index, uint64_t len, int64_t* out_value) {
     uint64_t limit;
     int negative = 0;
     int64_t value = 0;
+    if (out_value == NULL) return 0;
     if (index == len) return 0;
     if (bytes[index] == '-') {
         negative = 1;
@@ -1562,7 +1563,14 @@ static int64_t sarif_parse_i32_core(const unsigned char* bytes, uint64_t index, 
         value = (int64_t)next;
         index += 1;
     }
-    return negative ? -value : value;
+    *out_value = negative ? -value : value;
+    return 1;
+}
+
+static int64_t sarif_parse_i32_core(const unsigned char* bytes, uint64_t index, uint64_t len) {
+    int64_t value = 0;
+    if (!sarif_parse_i32_core_checked(bytes, index, len, &value)) return 0;
+    return value;
 }
 
 int64_t sarif_parse_i32(const unsigned char* text) {
@@ -1895,8 +1903,12 @@ void sarif_file_close(uint64_t handle) {
 void sarif_file_sync(uint64_t handle) {
     FILE* f = (FILE*)(uintptr_t)handle;
     if (f != NULL) {
-        fflush(f);
-        fsync(fileno(f));
+        if (fflush(f) != 0) {
+            sarif_fatal_error("fflush failed in sarif_file_sync");
+        }
+        if (fsync(fileno(f)) != 0) {
+            sarif_fatal_error("fsync failed in sarif_file_sync");
+        }
     }
 }
 
