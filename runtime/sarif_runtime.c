@@ -360,6 +360,7 @@ static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
     return h;
 }
 
+// Caller must hold sarif_intern_mutex.
 static unsigned char* sarif_intern_alloc(uint64_t size) {
     if (size > UINT64_MAX - 7u) {
         sarif_fatal_error("size overflow in string interning pool alignment");
