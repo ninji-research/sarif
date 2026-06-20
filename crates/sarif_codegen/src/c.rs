@@ -2020,7 +2020,14 @@ fn infer_value_kinds_for_func(
     program: &Program,
 ) -> Result<BTreeMap<ValueId, CodegenValueKind>, String> {
     let mut kinds = BTreeMap::new();
-    infer_insts_kind_c(&func.instructions, func, program, &mut kinds)?;
+    let mut known_consts = BTreeMap::new();
+    infer_insts_kind_c(
+        &func.instructions,
+        func,
+        program,
+        &mut kinds,
+        &mut known_consts,
+    )?;
     Ok(kinds)
 }
 
@@ -2029,9 +2036,10 @@ fn infer_insts_kind_c(
     func: &Function,
     program: &Program,
     kinds: &mut BTreeMap<ValueId, CodegenValueKind>,
+    known_consts: &mut BTreeMap<ValueId, bool>,
 ) -> Result<(), String> {
     for inst in insts {
-        infer_inst_kind_c(inst, func, program, kinds)?;
+        infer_inst_kind_c(inst, func, program, kinds, known_consts)?;
     }
     Ok(())
 }
@@ -2042,6 +2050,7 @@ fn infer_inst_kind_c(
     func: &Function,
     program: &Program,
     kinds: &mut BTreeMap<ValueId, CodegenValueKind>,
+    known_consts: &mut BTreeMap<ValueId, bool>,
 ) -> Result<(), String> {
     match inst {
         Inst::LoadParam { dest, index } => {
@@ -2064,8 +2073,9 @@ fn infer_inst_kind_c(
         Inst::ConstInt { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::I32);
         }
-        Inst::ConstBool { dest, .. } => {
+        Inst::ConstBool { dest, value } => {
             kinds.insert(*dest, CodegenValueKind::Bool);
+            known_consts.insert(*dest, *value);
         }
         Inst::ConstText { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::Text);
@@ -2304,14 +2314,41 @@ fn infer_inst_kind_c(
         }
         Inst::If {
             dest,
+            condition,
             then_insts,
             then_result,
             else_insts,
-            ..
+            else_result,
         } => {
-            infer_insts_kind_c(then_insts, func, program, kinds)?;
-            infer_insts_kind_c(else_insts, func, program, kinds)?;
-            if let Some(r) = then_result {
+            let skip_then = known_consts.get(condition) == Some(&false);
+            let skip_else = known_consts.get(condition) == Some(&true);
+            if !skip_then {
+                infer_insts_kind_c(then_insts, func, program, kinds, known_consts)?;
+            }
+            if !skip_else {
+                infer_insts_kind_c(else_insts, func, program, kinds, known_consts)?;
+            }
+            if skip_then {
+                if let Some(r) = else_result {
+                    if let Some(k) = kinds.get(r) {
+                        kinds.insert(*dest, k.clone());
+                    } else {
+                        kinds.insert(*dest, CodegenValueKind::Unit);
+                    }
+                } else {
+                    kinds.insert(*dest, CodegenValueKind::Unit);
+                }
+            } else if skip_else {
+                if let Some(r) = then_result {
+                    if let Some(k) = kinds.get(r) {
+                        kinds.insert(*dest, k.clone());
+                    } else {
+                        kinds.insert(*dest, CodegenValueKind::Unit);
+                    }
+                } else {
+                    kinds.insert(*dest, CodegenValueKind::Unit);
+                }
+            } else if let Some(r) = then_result {
                 if let Some(k) = kinds.get(r) {
                     kinds.insert(*dest, k.clone());
                 } else {
@@ -2327,14 +2364,14 @@ fn infer_inst_kind_c(
             body_insts,
             ..
         } => {
-            infer_insts_kind_c(condition_insts, func, program, kinds)?;
-            infer_insts_kind_c(body_insts, func, program, kinds)?;
+            infer_insts_kind_c(condition_insts, func, program, kinds, known_consts)?;
+            infer_insts_kind_c(body_insts, func, program, kinds, known_consts)?;
             kinds.insert(*dest, CodegenValueKind::I32);
         }
         Inst::Repeat {
             dest, body_insts, ..
         } => {
-            infer_insts_kind_c(body_insts, func, program, kinds)?;
+            infer_insts_kind_c(body_insts, func, program, kinds, known_consts)?;
             kinds.insert(*dest, CodegenValueKind::I32);
         }
         Inst::Handle {
@@ -2343,7 +2380,7 @@ fn infer_inst_kind_c(
             body_result,
             ..
         } => {
-            infer_insts_kind_c(body_insts, func, program, kinds)?;
+            infer_insts_kind_c(body_insts, func, program, kinds, known_consts)?;
             if let Some(r) = body_result
                 && let Some(k) = kinds.get(r)
             {

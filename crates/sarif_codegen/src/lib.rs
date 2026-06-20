@@ -218,27 +218,42 @@ pub fn for_each_inst_recursive<F>(insts: &[Inst], f: &mut F)
 where
     F: FnMut(&Inst),
 {
+    for_each_inst_recursive_with_consts(insts, f, &BTreeMap::new());
+}
+
+pub fn for_each_inst_recursive_with_consts<F>(
+    insts: &[Inst],
+    f: &mut F,
+    known_consts: &BTreeMap<ValueId, bool>,
+) where
+    F: FnMut(&Inst),
+{
     for inst in insts {
         f(inst);
         match inst {
             Inst::If {
+                condition,
                 then_insts,
                 else_insts,
                 ..
             } => {
-                for_each_inst_recursive(then_insts, f);
-                for_each_inst_recursive(else_insts, f);
+                if known_consts.get(condition) != Some(&false) {
+                    for_each_inst_recursive_with_consts(then_insts, f, known_consts);
+                }
+                if known_consts.get(condition) != Some(&true) {
+                    for_each_inst_recursive_with_consts(else_insts, f, known_consts);
+                }
             }
             Inst::While {
                 condition_insts,
                 body_insts,
                 ..
             } => {
-                for_each_inst_recursive(condition_insts, f);
-                for_each_inst_recursive(body_insts, f);
+                for_each_inst_recursive_with_consts(condition_insts, f, known_consts);
+                for_each_inst_recursive_with_consts(body_insts, f, known_consts);
             }
             Inst::Repeat { body_insts, .. } => {
-                for_each_inst_recursive(body_insts, f);
+                for_each_inst_recursive_with_consts(body_insts, f, known_consts);
             }
             _ => {}
         }
