@@ -270,8 +270,10 @@ void sarif_alloc_push(void) {
     if (scope == NULL) {
         return;
     }
+    pthread_mutex_lock(&sarif_record_mutex);
     scope->chunk = sarif_record_current;
-    scope->used = sarif_record_current == NULL ? 0u : sarif_record_current->used;
+    scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
+    pthread_mutex_unlock(&sarif_record_mutex);
 }
 
 void sarif_alloc_pop(void) {
