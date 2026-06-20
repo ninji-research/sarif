@@ -198,27 +198,31 @@ void* sarif_record_alloc(uint64_t size) {
     SarifRecordChunk* chunk = NULL;
     size_t aligned = 0;
     size_t min_cap = 0;
+    void* result = NULL;
+
+    pthread_mutex_lock(&sarif_record_mutex);
+
     if (size == 0 || size > (uint64_t)SIZE_MAX) {
-        return NULL;
+        goto done;
     }
     aligned = (size_t)size;
     if (aligned > SIZE_MAX - (SARIF_RECORD_ALIGN - 1u)) {
-        return NULL;
+        goto done;
     }
     aligned = (aligned + (SARIF_RECORD_ALIGN - 1u)) & ~(SARIF_RECORD_ALIGN - 1u);
     chunk = sarif_record_current;
     if (chunk != NULL && aligned <= chunk->cap - chunk->used) {
-        void* ptr = chunk->data + chunk->used;
+        result = chunk->data + chunk->used;
         chunk->used += aligned;
-        return ptr;
+        goto done;
     }
     min_cap = sarif_record_next_chunk_cap(aligned);
     if (min_cap > SIZE_MAX - sizeof(SarifRecordChunk)) {
-        return NULL;
+        goto done;
     }
     chunk = malloc(sizeof(SarifRecordChunk) + min_cap);
     if (chunk == NULL) {
-        return NULL;
+        goto done;
     }
     chunk->next = NULL;
     chunk->used = aligned;
@@ -229,7 +233,11 @@ void* sarif_record_alloc(uint64_t size) {
         sarif_record_chunks = chunk;
     }
     sarif_record_current = chunk;
-    return chunk->data;
+    result = chunk->data;
+
+done:
+    pthread_mutex_unlock(&sarif_record_mutex);
+    return result;
 }
 
 static struct SarifAllocScope* sarif_alloc_push_scope(void) {
