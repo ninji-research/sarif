@@ -2362,6 +2362,9 @@ static const struct SarifEffectHandler* sarif_find_handler(
 int64_t sarif_perform_effect(const char* effect, const char* operation,
     uint64_t arg0, uint64_t arg1,
     uint64_t arg2, uint64_t arg3, int32_t nargs) {
+    if (nargs < 0 || nargs > 4) {
+        return 0;
+    }
     sarif_effect_handler_t handler = NULL;
     if (sarif_find_handler(effect, operation, &handler)) {
         uint64_t args[8];
