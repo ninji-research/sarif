@@ -34,7 +34,7 @@ Sarif keeps one declaration order:
 - named `enum`
 - fixed arrays `[T; N]`
 - repeat fixed-array literals `[value; N]` to produce `N` independent element values
-- const-generic array length names such as `N` are available as immutable `I32` values inside the same generic function body and contracts
+- const-generic array length names such as `N` are compile-time integer const parameters (not runtime variables) and may be referenced inside the same generic function body and contracts where integer constants are allowed
 - `TextBuilder` through maintained runtime builtins
   - `write(text)` convenience builtin (shorthand for `perform SystemIO.stdout_write(...)`)
   - `write_builder(builder)` convenience builtin for writing `TextBuilder` output (shorthand for `perform SystemIO.stdout_write(...)`)
@@ -49,7 +49,7 @@ Sarif keeps one declaration order:
 - `while`
 - `repeat n`
 - `repeat i in n`
-- `for i in lo..hi` for half-open integer ranges. If `lo < hi`, iteration is ascending and excludes `hi`; if `lo > hi`, iteration is descending and excludes `hi`; if `lo == hi`, the body does not run.
+- `for i in lo..hi` for half-open integer ranges. If `lo < hi`, iteration proceeds from `lo` up to (but not including) `hi`; if `lo > hi`, iteration proceeds from `lo` down to (but not including) `hi`; if `lo == hi`, the body does not run.
 - `with_arena { ... }` for scoped memory allocation (automatic alloc push/pop)
 - implicit tail-expression returns
 
