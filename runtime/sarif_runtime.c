@@ -2258,7 +2258,7 @@ uint64_t sarif_tcp_accept(uint64_t server_fd) {
 }
 
 uint64_t sarif_tcp_recv(uint64_t fd, int64_t max_len) {
-    if (fd == 0 || max_len <= 0) return (uint64_t)NULL;
+    if (max_len <= 0) return (uint64_t)NULL;
     unsigned char* bytes = sarif_bytes_alloc((uint64_t)max_len);
     if (bytes == NULL) return (uint64_t)NULL;
     ssize_t n = recv((int)fd, bytes + 8, (size_t)max_len, 0);
