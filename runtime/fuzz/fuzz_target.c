@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <limits.h>
 
+#if UINTPTR_MAX > UINT64_MAX
+#error "fuzz_target.c requires pointer width <= 64 bits because pointer handles are stored in uint64_t slots."
+#endif
+
 // Rename the runtime's main to avoid conflict with libFuzzer's main.
 // Provide a stub sarif_user_main so the renamed main can link if invoked.
 void sarif_user_main(void) {}
@@ -42,6 +46,11 @@ const size_t sarif_effect_table_len = 0;
 #define MAX_TEXT_XLARGE 4096U
 #define MAX_TEXT_XXLARGE 8192U
 
+// This harness stores pointer payloads in uint64_t list slots.
+// Enforce that uintptr_t fits in uint64_t to avoid truncation on exotic targets.
+_Static_assert(sizeof(uintptr_t) <= sizeof(uint64_t),
+               "uintptr_t must fit in uint64_t for SarifList value storage");
+
 // ---------------------------------------------------------------------------
 // Helper functions for constructing test inputs from fuzz data.
 // ---------------------------------------------------------------------------
@@ -57,10 +66,15 @@ static unsigned char* make_text(const uint8_t* data, size_t len, size_t max_len)
     return text;
 }
 
+// Convert an opaque pointer to the runtime's u64 handle representation.
+static uint64_t ptr_to_u64_handle(const void* ptr) {
+    return (uint64_t)(uintptr_t)ptr;
+}
+
 // Arena-allocated texts do not require manual freeing since they are automatically
 // cleaned up at the end of each iteration by fuzz_runtime_end_iteration (via sarif_alloc_pop).
-// We define sarif_text_free as a no-op to satisfy static analysis checks and API semantics.
-static void sarif_text_free(unsigned char* text) {
+// We define sarif_text_free_noop as a no-op to make the behavior explicit.
+static void sarif_text_free_noop(unsigned char* text) {
     (void)text;
 }
 
@@ -219,8 +233,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 void* tmp = sarif_text_builder_append_codepoint(
                     builder, extract_i64_abs_saturating(payload, payload_len, 0, DEFAULT_APPEND_CHAR_VALUE));
                 if (tmp) builder = tmp;
-                tmp = sarif_text_builder_append_ascii(
-                    builder, ((uint8_t)extract_i64_abs_saturating(payload, payload_len, 8, DEFAULT_APPEND_CHAR_VALUE)) & ASCII_7BIT_MASK);
+                uint8_t ascii_char = ((uint8_t)extract_i64_abs_saturating(
+                    payload, payload_len, 8, DEFAULT_APPEND_CHAR_VALUE)) & ASCII_7BIT_MASK;
+                tmp = sarif_text_builder_append_ascii(builder, ascii_char);
                 if (tmp) builder = tmp;
                 int64_t append_i32_raw = extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_APPEND_I32_VALUE);
                 if (append_i32_raw > INT32_MAX) append_i32_raw = INT32_MAX;
@@ -266,18 +281,18 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (list) {
                 SarifList* l = (SarifList*)list;
                 for (size_t i = 0; i < FUZZ_LIST_SIZE; i++) {
-                    l->values[i] = (uint64_t)(uintptr_t)texts[i];
+                    l->values[i] = ptr_to_u64_handle(texts[i]);
                 }
                 unsigned char* extra_text = make_text(payload, payload_len, MAX_TEXT_SMALL);
                 if (extra_text) {
                     // sarif_list_push may return a replacement list pointer; NULL indicates push failure.
-                    void* pushed_list = sarif_list_push(list, FUZZ_LIST_SIZE, (uint64_t)(uintptr_t)extra_text);
+                    void* pushed_list = sarif_list_push(list, FUZZ_LIST_SIZE, ptr_to_u64_handle(extra_text));
                     if (pushed_list) {
                         list = pushed_list;
                         sarif_list_sort_text(list, FUZZ_LIST_SIZE + 1);
                     } else {
                         // Push failed; extra_text was not inserted and must be freed explicitly.
-                        sarif_text_free(extra_text);
+                        sarif_text_free_noop(extra_text);
                         // Keep and sort the original list when push fails.
                         sarif_list_sort_text(list, FUZZ_LIST_SIZE);
                     }
@@ -338,7 +353,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (index) {
                 unsigned char* key = make_text(payload, payload_len, MAX_TEXT_SMALL);
                 if (key) {
-                    uint64_t key_handle = (uint64_t)(uintptr_t)key;
+                    uint64_t key_handle = ptr_to_u64_handle(key);
                     sarif_text_index_set(index, key_handle,
                                          extract_i64_abs_saturating(payload, payload_len, 0, 0));
                     sarif_text_index_get(index, key_handle);
