@@ -20,8 +20,9 @@ void sarif_user_main(void) {}
 #undef main
 
 // Stub declarations of the effect table needed by the runtime.
+// Keep one inert NULL entry for portable non-empty storage in this fuzz harness.
 const struct SarifEffectHandler sarif_effect_table[1] = { {NULL, NULL, NULL} };
-const size_t sarif_effect_table_len = 0;
+const size_t sarif_effect_table_len = 1;
 
 // Default fallback value used when appending i32 fields.
 #define DEFAULT_APPEND_I32_VALUE 42
@@ -45,6 +46,9 @@ const size_t sarif_effect_table_len = 0;
 #define MAX_TEXT_LARGE 1024U
 #define MAX_TEXT_XLARGE 4096U
 #define MAX_TEXT_XXLARGE 8192U
+
+// Fixed number of entries used when partitioning payloads for list fuzzing.
+#define FUZZ_LIST_SIZE 8U
 
 // Mask to ensure the character payload is constrained to valid 7-bit ASCII.
 #define ASCII_7BIT_MASK 0x7f
@@ -76,7 +80,8 @@ static uint64_t ptr_to_u64_handle(const void* ptr) {
 
 // Safely cast size_t to int64_t, clamping to INT64_MAX to prevent overflow.
 static inline int64_t safe_size_to_i64(size_t val) {
-    return val > (size_t)INT64_MAX ? INT64_MAX : (int64_t)val;
+    const size_t int64_max_as_size = (size_t)UINT64_C(0x7fffffffffffffff);
+    return val > int64_max_as_size ? INT64_MAX : (int64_t)val;
 }
 
 // Safely extract a non-negative, saturating magnitude of a signed 64-bit integer.
@@ -267,7 +272,6 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
         case 5: {
             // Create a list with valid text handles from the fuzzer payload.
-            enum { FUZZ_LIST_SIZE = 8 };
             size_t base = payload_len / FUZZ_LIST_SIZE;
             size_t rem = payload_len % FUZZ_LIST_SIZE;
             size_t offset = 0;
@@ -282,6 +286,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 }
             }
             void* list = sarif_list_new(FUZZ_LIST_SIZE, 0);
+            void* final_list = list;
             if (list) {
                 SarifList* l = (SarifList*)list;
                 for (size_t i = 0; i < FUZZ_LIST_SIZE; i++) {
@@ -292,18 +297,18 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                     // sarif_list_push may return a replacement list pointer; NULL indicates push failure.
                     void* pushed_list = sarif_list_push(list, FUZZ_LIST_SIZE, ptr_to_u64_handle(extra_text));
                     if (pushed_list) {
-                        list = pushed_list;
-                        sarif_list_sort_text(list, FUZZ_LIST_SIZE + 1);
+                        final_list = pushed_list;
+                        sarif_list_sort_text(final_list, FUZZ_LIST_SIZE + 1);
                     } else {
                         // Keep and sort the original list when push fails.
-                        sarif_list_sort_text(list, FUZZ_LIST_SIZE);
+                        sarif_list_sort_text(final_list, FUZZ_LIST_SIZE);
                     }
                 } else {
                     // Skip push when text allocation fails; sort the original valid entries.
-                    sarif_list_sort_text(list, FUZZ_LIST_SIZE);
+                    sarif_list_sort_text(final_list, FUZZ_LIST_SIZE);
                 }
             }
-            cleanup_list(list);
+            cleanup_list(final_list);
             break;
         }
         case 6: {
