@@ -426,7 +426,18 @@ static pthread_mutex_t sarif_intern_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
     uint64_t h = 14695981039346656037ULL;
-    for (uint64_t i = 0; i < len; i++) {
+    uint64_t i = 0;
+    for (; i + 8u <= len; i += 8u) {
+        h ^= (uint64_t)data[i + 0u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 1u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 2u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 3u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 4u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 5u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 6u]; h *= 1099511628211ULL;
+        h ^= (uint64_t)data[i + 7u]; h *= 1099511628211ULL;
+    }
+    for (; i < len; i++) {
         h ^= (uint64_t)data[i];
         h *= 1099511628211ULL;
     }
@@ -871,6 +882,9 @@ void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
     if (used == 0) {
         next_cap = 8u;
     } else if (used > UINT64_MAX / 2u) {
+        if (used == UINT64_MAX) {
+            return NULL;
+        }
         next_cap = used + 1u;
     } else {
         next_cap = used * 2u;
@@ -1630,9 +1644,9 @@ static void* sarif_slice_blob(const unsigned char* blob, uint64_t start, uint64_
         while (ce > 0 && ce < len && sarif_is_utf8_continuation(blob[8 + ce])) {
             ce--;
         }
-        if (ce <= cs) return sarif_empty_text;
+        if (ce <= cs) return sarif_text_alloc(0);
     } else {
-        if (ce <= cs) return sarif_empty_text;
+        if (ce <= cs) return sarif_text_alloc(0);
     }
     slen = (size_t)(ce - cs);
     result = sarif_text_alloc((uint64_t)slen);
