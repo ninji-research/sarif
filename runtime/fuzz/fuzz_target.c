@@ -180,10 +180,12 @@ static void fuzz_runtime_end_iteration(void) {
 // ---------------------------------------------------------------------------
 
 // Mask to extract the opcode from the first byte of fuzz input.
-// We use a 5-bit mask (0x1fU) providing 32 opcode slots (0-31) to accommodate
-// future API extensions. Currently, only opcodes 0-12 are implemented to cover
-// the existing core runtime built-in functions. Opcodes 13-31 are safely ignored
-// by the switch default case.
+// We intentionally use a 5-bit mask (0x1fU), yielding 32 opcode slots (0-31),
+// even though only opcodes 0-12 are currently implemented.
+// Rationale: keeping a stable, wider opcode domain improves forward-compatibility
+// for future runtime built-ins and helps fuzzing exercise unimplemented opcode
+// paths via the switch default case without changing input encoding.
+// Opcodes 13-31 are therefore reserved and intentionally treated as no-op paths.
 #define FUZZ_OP_MASK 0x1fU
 
 #define FUZZ_MAX_IMPLEMENTED_OPCODE 12U
