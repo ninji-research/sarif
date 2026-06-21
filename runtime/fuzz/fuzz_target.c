@@ -188,7 +188,7 @@ static void fuzz_runtime_end_iteration(void) {
 
 #define FUZZ_MAX_IMPLEMENTED_OPCODE 12U
 _Static_assert(FUZZ_MAX_IMPLEMENTED_OPCODE <= FUZZ_OP_MASK,
-               "Update FUZZ_OP_MASK if adding opcodes beyond its representable range.");
+               "FUZZ_MAX_IMPLEMENTED_OPCODE must not exceed FUZZ_OP_MASK");
 
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 1) return 0;
