@@ -258,6 +258,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             break;
         }
         case 8: {
+            enum { DEFAULT_FIELD_DELIMITER = 44 };
             unsigned char* text = make_text(payload, payload_len, 1024);
             if (text) {
                 int64_t start = extract_i64_abs(payload, payload_len, 0, 0);
@@ -267,9 +268,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 sarif_text_line_end(text, start);
                 sarif_text_next_line(text, start);
                 sarif_text_field_end(text, start, end,
-                                     extract_i64_abs(payload, payload_len, 16, 44));
+                                     extract_i64_abs(payload, payload_len, 16, DEFAULT_FIELD_DELIMITER));
                 sarif_text_next_field(text, start, end,
-                                      extract_i64_abs(payload, payload_len, 16, 44));
+                                      extract_i64_abs(payload, payload_len, 16, DEFAULT_FIELD_DELIMITER));
             }
             break;
         }
