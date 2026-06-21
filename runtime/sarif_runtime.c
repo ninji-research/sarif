@@ -969,8 +969,8 @@ static int sarif_qsort_compare_record_i32_field_handles(const void* left, const 
     if (right_record == NULL) {
         return 1;
     }
-    int64_t left_val = (int64_t)sarif_load_u64(left_record, offset);
-    int64_t right_val = (int64_t)sarif_load_u64(right_record, offset);
+    int64_t left_val = (int64_t)(int32_t)sarif_load_u32(left_record, offset);
+    int64_t right_val = (int64_t)(int32_t)sarif_load_u32(right_record, offset);
     if (left_val < right_val) return -1;
     if (left_val > right_val) return 1;
     return 0;
@@ -2405,15 +2405,9 @@ int32_t sarif_bytes_load_i32(const unsigned char* bytes, int32_t index) {
 
 void sarif_bytes_store_i32(unsigned char* bytes, int32_t index, int32_t value) {
     if (bytes == NULL) return;
-    unsigned char* data;
-    uint64_t len;
-    if (sarif_bytes_is_view(bytes)) {
-        len = sarif_bytes_view_len(bytes);
-        data = (unsigned char*)sarif_bytes_view_data(bytes);
-    } else {
-        len = sarif_load_u64(bytes, 0);
-        data = bytes + 8;
-    }
+    if (sarif_bytes_is_view(bytes)) return;
+    uint64_t len = sarif_load_u64(bytes, 0);
+    unsigned char* data = bytes + 8;
     if ((uint64_t)index + 4 > len) return;
     memcpy(data + index, &value, sizeof(int32_t));
 }
@@ -2437,15 +2431,9 @@ int64_t sarif_bytes_load_i64(const unsigned char* bytes, int32_t index) {
 
 void sarif_bytes_store_i64(unsigned char* bytes, int32_t index, int64_t value) {
     if (bytes == NULL) return;
-    unsigned char* data;
-    uint64_t len;
-    if (sarif_bytes_is_view(bytes)) {
-        len = sarif_bytes_view_len(bytes);
-        data = (unsigned char*)sarif_bytes_view_data(bytes);
-    } else {
-        len = sarif_load_u64(bytes, 0);
-        data = bytes + 8;
-    }
+    if (sarif_bytes_is_view(bytes)) return;
+    uint64_t len = sarif_load_u64(bytes, 0);
+    unsigned char* data = bytes + 8;
     if ((uint64_t)index + 8 > len) return;
     memcpy(data + index, &value, sizeof(int64_t));
 }
@@ -2469,15 +2457,9 @@ double sarif_bytes_load_f64(const unsigned char* bytes, int32_t index) {
 
 void sarif_bytes_store_f64(unsigned char* bytes, int32_t index, double value) {
     if (bytes == NULL) return;
-    unsigned char* data;
-    uint64_t len;
-    if (sarif_bytes_is_view(bytes)) {
-        len = sarif_bytes_view_len(bytes);
-        data = (unsigned char*)sarif_bytes_view_data(bytes);
-    } else {
-        len = sarif_load_u64(bytes, 0);
-        data = bytes + 8;
-    }
+    if (sarif_bytes_is_view(bytes)) return;
+    uint64_t len = sarif_load_u64(bytes, 0);
+    unsigned char* data = bytes + 8;
     if ((uint64_t)index + 8 > len) return;
     memcpy(data + index, &value, sizeof(double));
 }
@@ -2499,15 +2481,9 @@ uint8_t sarif_bytes_load_bool(const unsigned char* bytes, int32_t index) {
 
 void sarif_bytes_store_bool(unsigned char* bytes, int32_t index, uint8_t value) {
     if (bytes == NULL) return;
-    unsigned char* data;
-    uint64_t len;
-    if (sarif_bytes_is_view(bytes)) {
-        len = sarif_bytes_view_len(bytes);
-        data = (unsigned char*)sarif_bytes_view_data(bytes);
-    } else {
-        len = sarif_load_u64(bytes, 0);
-        data = bytes + 8;
-    }
+    if (sarif_bytes_is_view(bytes)) return;
+    uint64_t len = sarif_load_u64(bytes, 0);
+    unsigned char* data = bytes + 8;
     if ((uint64_t)index + 1 > len) return;
     data[index] = value != 0 ? 1 : 0;
 }
@@ -2707,6 +2683,7 @@ int64_t sarif_dir_create(const unsigned char* path_handle) {
     int result = mkdir(path, 0755);
     free(path);
     if (result == 0) return 1;
+    /* Intentionally idempotent: if the directory already exists, treat as success. */
     if (errno == EEXIST) return 1;
     return 0;
 }
