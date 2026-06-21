@@ -35,22 +35,20 @@ static unsigned char* make_text(const uint8_t* data, size_t len, size_t max_len)
 }
 
 // Safely extract the absolute value of a signed 64-bit integer from fuzz data.
-// Converts negative values to positive to return non-negative magnitudes.
-// To avoid undefined behavior (negation overflow) on INT64_MIN, we handle it
-// specially by capping it at INT64_MAX.
-static int64_t extract_i64_abs(const uint8_t* data, size_t len, size_t offset,
-                                int64_t default_val) {
+// Converts negative values to non-negative magnitudes.
+// Returns uint64_t so INT64_MIN maps exactly to 2^63.
+static uint64_t extract_i64_abs(const uint8_t* data, size_t len, size_t offset,
+                                uint64_t default_val) {
     if (offset + 8 > len) return default_val;
     int64_t val;
     memcpy(&val, data + offset, 8);
     if (val < 0) {
         if (val == INT64_MIN) {
-            val = INT64_MAX; // Cap to prevent two's complement negation overflow
-        } else {
-            val = -val;      // Safe negation in two's complement for val != INT64_MIN
+            return (uint64_t)INT64_MAX + 1ULL;
         }
+        return (uint64_t)(-val);
     }
-    return val;
+    return (uint64_t)val;
 }
 
 static uint64_t extract_u64(const uint8_t* data, size_t len, size_t offset,
