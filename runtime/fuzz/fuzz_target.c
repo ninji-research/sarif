@@ -87,8 +87,10 @@ static inline int64_t safe_size_to_i64(size_t val) {
 // Safely extract a non-negative, saturating magnitude of a signed 64-bit integer.
 // Converts negative values to non-negative magnitudes when representable in int64_t.
 // Note: mathematical |INT64_MIN| is 2^63, which cannot be represented as int64_t.
-// For that single case we intentionally clamp to INT64_MAX (saturating behavior).
+// For that single case, this helper returns INT64_MAX (saturating behavior).
+// In other words: decoded INT64_MIN input maps to INT64_MAX.
 // This helper returns a saturating int64 magnitude, not an exact absolute value.
+// @return For INT64_MIN input, returns INT64_MAX (saturating).
 static int64_t extract_i64_magnitude_saturating(const uint8_t* data, size_t len, size_t offset,
                                                 int64_t default_val) {
     if (offset + 8 > len) return default_val;
@@ -286,7 +288,6 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 }
             }
             void* list = sarif_list_new(FUZZ_LIST_SIZE, 0);
-            void* final_list = list;
             if (list) {
                 SarifList* l = (SarifList*)list;
                 for (size_t i = 0; i < FUZZ_LIST_SIZE; i++) {
@@ -297,26 +298,27 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                     // sarif_list_push may return a replacement list pointer; NULL indicates push failure.
                     void* pushed_list = sarif_list_push(list, FUZZ_LIST_SIZE, ptr_to_u64_handle(extra_text));
                     if (pushed_list) {
-                        final_list = pushed_list;
-                        sarif_list_sort_text(final_list, FUZZ_LIST_SIZE + 1);
+                        list = pushed_list;
+                        sarif_list_sort_text(list, FUZZ_LIST_SIZE + 1);
                     } else {
                         // Keep and sort the original list when push fails.
-                        sarif_list_sort_text(final_list, FUZZ_LIST_SIZE);
+                        sarif_list_sort_text(list, FUZZ_LIST_SIZE);
                     }
                 } else {
                     // Skip push when text allocation fails; sort the original valid entries.
-                    sarif_list_sort_text(final_list, FUZZ_LIST_SIZE);
+                    sarif_list_sort_text(list, FUZZ_LIST_SIZE);
                 }
             }
-            cleanup_list(final_list);
+            cleanup_list(list);
             break;
         }
         case 6: {
             unsigned char* text = make_text(payload, payload_len, MAX_TEXT_MEDIUM);
             if (text) {
                 sarif_parse_i32(text);
-                sarif_parse_i32_range(text, extract_i64_magnitude_saturating(payload, payload_len, 0, 0),
-                                      extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len)));
+                int64_t start = extract_i64_magnitude_saturating(payload, payload_len, 0, 0);
+                int64_t end = extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
+                sarif_parse_i32_range(text, start, end);
                 sarif_parse_f64(text);
             }
             break;
@@ -339,8 +341,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (text) {
                 int64_t start = extract_i64_magnitude_saturating(payload, payload_len, 0, 0);
                 int64_t end = extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
-                uint8_t needle = (uint8_t)extract_i64_magnitude_saturating(payload, payload_len, 16, DEFAULT_LINE_END_BYTE);
-                uint8_t field_delim = (uint8_t)extract_i64_magnitude_saturating(payload, payload_len, 24, DEFAULT_FIELD_DELIMITER);
+                uint8_t needle = (uint8_t)(extract_i64_magnitude_saturating(payload, payload_len, 16, DEFAULT_LINE_END_BYTE) & 0xFF); // Intentional low-byte truncation for byte-oriented API.
+                uint8_t field_delim = (uint8_t)(extract_i64_magnitude_saturating(payload, payload_len, 24, DEFAULT_FIELD_DELIMITER) & 0xFF); // Intentional low-byte truncation for byte-oriented API.
                 sarif_text_find_byte_range(text, start, end, needle);
                 sarif_text_line_end(text, start);
                 sarif_text_next_line(text, start);
