@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 
 // Rename the runtime's main to avoid conflict with libFuzzer's main.
 // Provide a stub sarif_user_main so the renamed main can link if invoked.
@@ -38,7 +39,13 @@ static int64_t extract_i64(const uint8_t* data, size_t len, size_t offset,
     if (offset + 8 > len) return default_val;
     int64_t val;
     memcpy(&val, data + offset, 8);
-    if (val < 0) val = -val;
+    if (val < 0) {
+        if (val == INT64_MIN) {
+            val = INT64_MAX;
+        } else {
+            val = -val;
+        }
+    }
     return val;
 }
 
@@ -78,12 +85,10 @@ static void cleanup_text_index(void* index_ptr) {
 }
 
 // ---------------------------------------------------------------------------
-// Fuzz target entry point.
+// Fuzz target isolation helpers.
 // ---------------------------------------------------------------------------
 
-int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    if (size < 1) return 0;
-
+static void fuzz_runtime_init_iteration(void) {
     // Reset arena for each fuzz iteration.
     sarif_record_chunks = NULL;
     sarif_record_current = NULL;
@@ -92,6 +97,27 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     // Open an alloc scope so arena allocations are cleaned up on exit.
     sarif_alloc_push();
+}
+
+static void fuzz_runtime_end_iteration(void) {
+    // Clean up arena allocations from this iteration.
+    sarif_alloc_pop();
+
+    // Free stdin cache if it was dynamically allocated
+    if (sarif_stdin_cache != NULL) {
+        free(sarif_stdin_cache);
+        sarif_stdin_cache = NULL;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Fuzz target entry point.
+// ---------------------------------------------------------------------------
+
+int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+    if (size < 1) return 0;
+
+    fuzz_runtime_init_iteration();
 
     uint8_t op = data[0];
     const uint8_t* payload = data + 1;
@@ -155,8 +181,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (builder) {
                 unsigned char* text = make_text(payload, payload_len, 256);
                 if (text) {
-                    int64_t start = (int64_t)extract_u64(payload, payload_len, 0, 0);
-                    int64_t end = (int64_t)extract_u64(payload, payload_len, 8, payload_len);
+                    int64_t start = extract_i64(payload, payload_len, 0, 0);
+                    int64_t end = extract_i64(payload, payload_len, 8, (int64_t)payload_len);
                     void* tmp = sarif_text_builder_append_slice(builder, text, start, end);
                     if (tmp) builder = tmp;
                 }
@@ -278,8 +304,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 }
                 unsigned char* big_text = make_text(payload, payload_len, 8192);
                 if (big_text) {
-                    int64_t start = (int64_t)extract_u64(payload, payload_len, 0, 0);
-                    int64_t end = (int64_t)extract_u64(payload, payload_len, 8, payload_len);
+                    int64_t start = extract_i64(payload, payload_len, 0, 0);
+                    int64_t end = extract_i64(payload, payload_len, 8, (int64_t)payload_len);
                     void* tmp = sarif_text_builder_append_slice(builder, big_text, start, end);
                     if (tmp) builder = tmp;
                 }
@@ -292,10 +318,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             break;
     }
 
-    // Clean up arena allocations from this iteration.
-    // Heap-allocated objects (builders, lists, indices) may still leak,
-    // but the arena is the primary allocator for most paths.
-    sarif_alloc_pop();
+    fuzz_runtime_end_iteration();
 
     return 0;
 }
