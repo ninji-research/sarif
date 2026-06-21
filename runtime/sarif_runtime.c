@@ -427,7 +427,8 @@ static pthread_mutex_t sarif_intern_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
     uint64_t h = 14695981039346656037ULL;
     uint64_t i = 0;
-    for (; i + 8u <= len; i += 8u) {
+    uint64_t limit = len & ~7ULL;
+    for (; i < limit; i += 8u) {
         h ^= (uint64_t)data[i + 0u]; h *= 1099511628211ULL;
         h ^= (uint64_t)data[i + 1u]; h *= 1099511628211ULL;
         h ^= (uint64_t)data[i + 2u]; h *= 1099511628211ULL;
@@ -1206,16 +1207,18 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
         goto done;
     }
     /* Keep current capacity while load factor is below 75%
-     * (len/cap < 0.75), expressed as len * 4 < cap * 3 to avoid
-     * floating-point arithmetic. Rehash once that condition is not met
-     * (len * 4 >= cap * 3). This table uses open addressing with linear
-     * probing (idx = (idx + 1) % cap) for collision resolution; rehashing
-     * at 75% also guarantees the table never becomes completely full, so
-     * probing always encounters an empty slot and cannot loop forever.
+     * (len/cap < 0.75), expressed with integer arithmetic as
+     * len < (cap * 3) / 4 to avoid floating-point arithmetic and
+     * avoid overflow from multiplying len by 4. Rehash once that
+     * threshold is met or exceeded (len * 4 >= cap * 3), including
+     * exactly 75% (len * 4 == cap * 3). This table uses open addressing
+     * with linear probing (idx = (idx + 1) % cap) for collision resolution;
+     * rehashing at 75% also guarantees the table never becomes completely full,
+     * so probing always encounters an empty slot and cannot loop forever.
      * At this threshold probe chains stay short enough for expected O(1)
      * operations while avoiding excessive memory use.
      */
-    if (index->len * 4 < index->cap * 3) {
+    if (index->len < (index->cap * 3) / 4) {
         ok = 1;
         goto done;
     }
@@ -1290,6 +1293,9 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         }
         idx = (idx + 1) % index->cap;
         if (idx == start) {
+            if (found == NULL) {
+                sarif_fatal_error("sarif_text_index_find_entry: text index is full; caller must ensure capacity before insertion");
+            }
             result = NULL;
             goto done;
         }
@@ -2303,7 +2309,7 @@ static void sarif_ignore_sigpipe_once(void) {
 static void sarif_init_sigpipe_handling_if_needed(void) {
     int rc = pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
     if (rc != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: pthread_once for SIGPIPE initialization failed: %d\n", rc);
+        fprintf(stderr, "SARIF RUNTIME WARNING: pthread_once failed to set up SIGPIPE handler: %d\n", rc);
     }
 }
 #else
