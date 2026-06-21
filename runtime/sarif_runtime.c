@@ -590,6 +590,10 @@ static inline __attribute__((always_inline)) SarifTextBuilder* sarif_text_builde
     } else {
         while (next_cap < required) {
             uint64_t growth = next_cap / 2u + 1u;
+            if (required - next_cap <= growth) {
+                next_cap = required;
+                break;
+            }
             if (UINT64_MAX - next_cap < growth) {
                 next_cap = required;
                 break;
@@ -1030,7 +1034,9 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         return NULL;
     }
     if (used > 1) {
-        if (pthread_mutex_lock(&sarif_sort_mutex) != 0) {
+        int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
+        if (lock_rc != 0) {
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", lock_rc, strerror(lock_rc));
             return NULL;
         }
         sarif_sort_text_field_offset = field_offset;
@@ -1040,7 +1046,9 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
             sizeof(uint64_t),
             sarif_qsort_compare_record_text_field_handles
         );
-        if (pthread_mutex_unlock(&sarif_sort_mutex) != 0) {
+        int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
+        if (unlock_rc != 0) {
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
             return NULL;
         }
     }
@@ -1060,7 +1068,9 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
         return NULL;
     }
     if (used > 1) {
-        if (pthread_mutex_lock(&sarif_sort_mutex) != 0) {
+        int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
+        if (lock_rc != 0) {
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d (%s)\n", lock_rc, strerror(lock_rc));
             return NULL;
         }
         sarif_sort_i32_field_offset = field_offset;
@@ -1070,7 +1080,9 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
             sizeof(uint64_t),
             sarif_qsort_compare_record_i32_field_handles
         );
-        if (pthread_mutex_unlock(&sarif_sort_mutex) != 0) {
+        int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
+        if (unlock_rc != 0) {
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
             return NULL;
         }
     }
@@ -1090,7 +1102,9 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
         return NULL;
     }
     if (used > 1) {
-        if (pthread_mutex_lock(&sarif_sort_mutex) != 0) {
+        int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
+        if (lock_rc != 0) {
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d (%s)\n", lock_rc, strerror(lock_rc));
             return NULL;
         }
         sarif_sort_f64_field_offset = field_offset;
@@ -1100,7 +1114,9 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
             sizeof(uint64_t),
             sarif_qsort_compare_record_f64_field_handles
         );
-        if (pthread_mutex_unlock(&sarif_sort_mutex) != 0) {
+        int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
+        if (unlock_rc != 0) {
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
             return NULL;
         }
     }
@@ -1144,7 +1160,16 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     if (index->len * 4 < index->cap * 3) {
         return 1;
     }
+    if (index->cap > UINT64_MAX / 2) {
+        return 0;
+    }
     uint64_t new_cap = index->cap * 2;
+    if (new_cap > (uint64_t)SIZE_MAX) {
+        return 0;
+    }
+    if ((size_t)new_cap > SIZE_MAX / sizeof(SarifTextIndexEntry)) {
+        return 0;
+    }
     SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
     if (new_entries == NULL) {
         return 0;
@@ -1173,11 +1198,14 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
     uint64_t idx = 0;
     uint64_t start = 0;
     SarifTextIndexEntry* result = NULL;
-    pthread_mutex_lock(&sarif_text_index_mutex);
     if (found != NULL) {
         *found = 0;
     }
-    if (index == NULL || index->entries == NULL || index->cap == 0) {
+    if (index == NULL) {
+        return NULL;
+    }
+    pthread_mutex_lock(&sarif_text_index_mutex);
+    if (index->entries == NULL || index->cap == 0) {
         result = NULL;
         goto done;
     }
