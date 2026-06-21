@@ -42,7 +42,7 @@ __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
     exit(1);
 }
-static unsigned char sarif_empty_text[8] = {0};
+static const unsigned char sarif_empty_text[8] = {0};
 
 #define SARIF_BYTES_VIEW_TAG (1ULL << 63)
 
