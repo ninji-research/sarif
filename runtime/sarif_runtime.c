@@ -2671,6 +2671,11 @@ int64_t sarif_env_keys(void) {
     return (int64_t)result;
 }
 
+/* Create a directory at the provided path using mode 0755.
+ * Returns 1 if mkdir succeeds.
+ * Returns 1 if the directory already exists (EEXIST), making this operation idempotent.
+ * Returns 0 on any other failure (including allocation failure or mkdir errors).
+ */
 int64_t sarif_dir_create(const unsigned char* path_handle) {
     uint64_t path_len = sarif_load_u64(path_handle, 0);
     const unsigned char* path_data = path_handle + 8;
@@ -2683,7 +2688,6 @@ int64_t sarif_dir_create(const unsigned char* path_handle) {
     int result = mkdir(path, 0755);
     free(path);
     if (result == 0) return 1;
-    /* Intentionally idempotent: if the directory already exists, treat as success. */
     if (errno == EEXIST) return 1;
     return 0;
 }
