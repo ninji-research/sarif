@@ -166,6 +166,8 @@ enum RawTokenKind {
     Integer,
     #[regex(r#""([^"\\]|\\.)*""#)]
     String,
+    #[regex(r"#\[repr\([A-Za-z0-9_]+\)\]")]
+    AttrRepr,
     #[regex(r"[A-Za-z][A-Za-z0-9_]*")]
     Ident,
 }
@@ -314,6 +316,7 @@ const fn map_token_kind(kind: RawTokenKind) -> TokenKind {
         RawTokenKind::Float => TokenKind::Float,
         RawTokenKind::Integer => TokenKind::Integer,
         RawTokenKind::String => TokenKind::String,
+        RawTokenKind::AttrRepr => TokenKind::AttrRepr,
         RawTokenKind::Ident => TokenKind::Ident,
         RawTokenKind::DotDot => TokenKind::DotDot,
     }

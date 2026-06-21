@@ -11,11 +11,7 @@ use cranelift_module::{DataId, FuncId, Linkage, Module};
 pub use crate::CodegenValueKind as NativeValueKind;
 use crate::{Function, Inst, Program, ValueId, insts_fall_through};
 
-static DEBUG_ENABLED: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
-
-pub fn set_debug(enabled: bool) {
-    DEBUG_ENABLED.store(enabled, Ordering::SeqCst);
-}
+pub use crate::is_debug_enabled;
 
 const LIST_LEN_OFFSET: i32 = 0;
 const LIST_VALUES_OFFSET: i32 = 8;
@@ -88,7 +84,7 @@ fn call_helper(
             ));
         }
     };
-    if DEBUG_ENABLED.load(Ordering::Relaxed) {
+    if is_debug_enabled() {
         let null = builder.ins().iconst(types::I64, 0);
         let is_null = builder.ins().icmp(IntCC::Equal, ptr, null);
         builder.ins().trapnz(is_null, TrapCode::HEAP_OUT_OF_BOUNDS);
@@ -2172,6 +2168,9 @@ pub fn lower_inst<M: Module>(
                 let in_bounds = builder
                     .ins()
                     .icmp(IntCC::UnsignedLessThan, index_val, header.len);
+                if is_debug_enabled() {
+                    builder.ins().trapz(in_bounds, cranelift_codegen::ir::TrapCode::HEAP_OUT_OF_BOUNDS);
+                }
                 let element_type = native_kind_type(element);
                 let in_block = builder.create_block();
                 let oob_block = builder.create_block();
@@ -2230,6 +2229,9 @@ pub fn lower_inst<M: Module>(
                 let in_bounds = builder
                     .ins()
                     .icmp(IntCC::UnsignedLessThan, index_val, header.len);
+                if is_debug_enabled() {
+                    builder.ins().trapz(in_bounds, cranelift_codegen::ir::TrapCode::HEAP_OUT_OF_BOUNDS);
+                }
                 let store_block = builder.create_block();
                 let skip_block = builder.create_block();
                 let end_block = builder.create_block();
@@ -2560,6 +2562,18 @@ pub fn lower_inst<M: Module>(
         Inst::TextByte { dest, text, index } => {
             let text_val = native_value(values, *text, function, "text_byte text", backend)?;
             let index_val = native_value(values, *index, function, "text_byte index", backend)?;
+            if is_debug_enabled() {
+                let len = builder.ins().load(
+                    types::I64,
+                    cranelift_codegen::ir::MemFlags::trusted(),
+                    text_val,
+                    0,
+                );
+                let in_bounds = builder
+                    .ins()
+                    .icmp(IntCC::UnsignedLessThan, index_val, len);
+                builder.ins().trapz(in_bounds, cranelift_codegen::ir::TrapCode::HEAP_OUT_OF_BOUNDS);
+            }
             let offset = builder.ins().iadd_imm(index_val, 8);
             let addr = builder.ins().iadd(text_val, offset);
             let byte = builder.ins().load(
@@ -2575,6 +2589,21 @@ pub fn lower_inst<M: Module>(
         Inst::BytesByte { dest, bytes, index } => {
             let bytes_val = native_value(values, *bytes, function, "bytes_byte bytes", backend)?;
             let index_val = native_value(values, *index, function, "bytes_byte index", backend)?;
+            if is_debug_enabled() {
+                let len_helper = module.declare_func_in_func(bytes_len_id, builder.func);
+                let len = call_helper(
+                    builder,
+                    len_helper,
+                    &[bytes_val],
+                    "bytes len",
+                    function,
+                    backend,
+                )?;
+                let in_bounds = builder
+                    .ins()
+                    .icmp(IntCC::UnsignedLessThan, index_val, len);
+                builder.ins().trapz(in_bounds, cranelift_codegen::ir::TrapCode::HEAP_OUT_OF_BOUNDS);
+            }
             let helper = module.declare_func_in_func(bytes_byte_id, builder.func);
             let byte_i64 = call_helper(
                 builder,

@@ -165,6 +165,7 @@ pub struct WithArenaStmt {
 pub struct Struct {
     pub name: String,
     pub fields: Vec<Field>,
+    pub repr: Option<String>,
     pub span: Span,
 }
 
@@ -746,7 +747,7 @@ impl Effect {
         }
     }
 
-    const fn rank(&self) -> usize {
+    pub const fn rank(&self) -> usize {
         match self {
             Self::Io => 0,
             Self::Alloc => 1,
@@ -1018,6 +1019,7 @@ fn lower_struct(item: &ast::Struct) -> Struct {
                 span: field.span,
             })
             .collect(),
+        repr: item.repr.clone(),
         span: item.span,
     }
 }

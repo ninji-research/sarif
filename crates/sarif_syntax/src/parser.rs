@@ -32,28 +32,41 @@ impl<'a> Parser<'a> {
         self.collect_trivia(&mut children);
 
         loop {
-            // Optional `pub` modifier — consumed and ignored by AST
+            let mut modifiers = Vec::new();
+            if self.at(TokenKind::AttrRepr) {
+                modifiers.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut modifiers);
+            }
             if self.at(TokenKind::KwPub) {
-                children.push(Element::Token(self.bump()));
-                self.collect_trivia(&mut children);
+                modifiers.push(Element::Token(self.bump()));
+                self.collect_trivia(&mut modifiers);
             }
-            if self.at(TokenKind::KwEnum) {
-                children.push(Element::Node(self.parse_enum_item()));
+
+            let mut node = if self.at(TokenKind::KwEnum) {
+                self.parse_enum_item()
             } else if self.at(TokenKind::KwStruct) {
-                children.push(Element::Node(self.parse_struct_item()));
+                self.parse_struct_item()
             } else if self.at(TokenKind::KwEffect) {
-                children.push(Element::Node(self.parse_effect_item()));
+                self.parse_effect_item()
             } else if self.at(TokenKind::KwExtern) {
-                children.push(Element::Node(self.parse_extern_block()));
+                self.parse_extern_block()
             } else if self.at(TokenKind::KwConst) {
-                children.push(Element::Node(self.parse_const_item()));
+                self.parse_const_item()
             } else if self.at(TokenKind::KwFn) {
-                children.push(Element::Node(self.parse_fn_item()));
+                self.parse_fn_item()
             } else if self.at(TokenKind::KwFrom) {
-                children.push(Element::Node(self.parse_import_item()));
+                self.parse_import_item()
             } else {
+                children.extend(modifiers);
                 break;
+            };
+
+            if !modifiers.is_empty() {
+                modifiers.append(&mut node.children);
+                node.children = modifiers;
+                node.span = crate::span_from_elements(&node.children);
             }
+            children.push(Element::Node(node));
             self.collect_trivia(&mut children);
         }
 

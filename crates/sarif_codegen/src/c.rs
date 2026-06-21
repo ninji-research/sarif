@@ -3,6 +3,20 @@ use std::fmt::Write;
 
 use crate::{CodegenValueKind, ContractKind, Function, Inst, Program, ValueId};
 
+fn type_size(ty: &str) -> u32 {
+    if ty.starts_with("List[") {
+        return 8;
+    }
+    match ty {
+        "I32" => 4,
+        "I64" => 8,
+        "F64" => 8,
+        "Bool" => 1,
+        "Unit" => 0,
+        _ => 8,
+    }
+}
+
 fn record_field_offset(
     structs: &[crate::StructType],
     record_name: &str,
@@ -10,7 +24,15 @@ fn record_field_offset(
 ) -> Option<u32> {
     let record = structs.iter().find(|s| s.name == record_name)?;
     let idx = record.fields.iter().position(|f| f.name == field_name)?;
-    Some(u32::try_from(idx).unwrap_or(0).checked_mul(8).unwrap_or(0))
+    if record.repr.as_deref() == Some("packed") {
+        let mut offset = 0;
+        for i in 0..idx {
+            offset += type_size(&record.fields[i].ty);
+        }
+        Some(offset)
+    } else {
+        Some(u32::try_from(idx).unwrap_or(0).checked_mul(8).unwrap_or(0))
+    }
 }
 
 fn record_field_kind(
@@ -39,6 +61,28 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     writeln!(out.buf, "#include <string.h>").map_err(to_string)?;
     writeln!(out.buf, "#include <math.h>").map_err(to_string)?;
     writeln!(out.buf).map_err(to_string)?;
+
+    for s in &program.structs {
+        let is_packed = s.repr.as_deref() == Some("packed");
+        writeln!(out.buf, "struct {} {{", s.name).map_err(to_string)?;
+        for f in &s.fields {
+            let c_type = match f.ty.as_str() {
+                "I32" => "int32_t",
+                "I64" => "int64_t",
+                "F64" => "double",
+                "Bool" => "uint8_t",
+                "Unit" => "uint8_t",
+                _ => "uint64_t",
+            };
+            writeln!(out.buf, "    {} {};", c_type, f.name).map_err(to_string)?;
+        }
+        if is_packed {
+            writeln!(out.buf, "}} __attribute__((packed));").map_err(to_string)?;
+        } else {
+            writeln!(out.buf, "}};").map_err(to_string)?;
+        }
+        writeln!(out.buf).map_err(to_string)?;
+    }
 
     out.line("typedef int64_t (*sarif_effect_handler_t)(uint64_t* args, int32_t nargs);")?;
     out.line("struct SarifEffectHandler {")?;
@@ -151,6 +195,30 @@ pub fn emit_c(program: &Program) -> Result<String, String> {
     out.line("static inline __attribute__((unused)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {")?;
     out.indent += 1;
     out.line("memcpy(base + offset, &value, sizeof(uint64_t));")?;
+    out.indent -= 1;
+    out.line("}")?;
+    out.line("static inline __attribute__((unused)) uint32_t sarif_load_u32(const unsigned char* base, uint64_t offset) {")?;
+    out.indent += 1;
+    out.line("uint32_t value;")?;
+    out.line("memcpy(&value, base + offset, sizeof(uint32_t));")?;
+    out.line("return value;")?;
+    out.indent -= 1;
+    out.line("}")?;
+    out.line("static inline __attribute__((unused)) void sarif_store_u32(unsigned char* base, uint64_t offset, uint32_t value) {")?;
+    out.indent += 1;
+    out.line("memcpy(base + offset, &value, sizeof(uint32_t));")?;
+    out.indent -= 1;
+    out.line("}")?;
+    out.line("static inline __attribute__((unused)) uint8_t sarif_load_bool(const unsigned char* base, uint64_t offset) {")?;
+    out.indent += 1;
+    out.line("uint8_t value;")?;
+    out.line("memcpy(&value, base + offset, sizeof(uint8_t));")?;
+    out.line("return value;")?;
+    out.indent -= 1;
+    out.line("}")?;
+    out.line("static inline __attribute__((unused)) void sarif_store_bool(unsigned char* base, uint64_t offset, uint8_t value) {")?;
+    out.indent += 1;
+    out.line("memcpy(base + offset, &value, sizeof(uint8_t));")?;
     out.indent -= 1;
     out.line("}")?;
     out.line("static inline __attribute__((unused)) double sarif_load_f64(const unsigned char* base, uint64_t offset) {")?;
@@ -855,6 +923,14 @@ fn emit_inst(
             ))?;
         }
         Inst::TextByte { dest, text, index } => {
+            if crate::is_debug_enabled() {
+                out.line(&format!(
+                    "if ((int64_t){} < 0 || (uint64_t){} >= *(const uint64_t*){}) {{ abort(); }}",
+                    vref(index),
+                    vref(index),
+                    vref(text)
+                ))?;
+            }
             out.line(&format!(
                 "v{} = (uint64_t)((const unsigned char*){})[8 + (uint64_t){}];",
                 dest.0,
@@ -863,6 +939,14 @@ fn emit_inst(
             ))?;
         }
         Inst::BytesByte { dest, bytes, index } => {
+            if crate::is_debug_enabled() {
+                out.line(&format!(
+                    "if ((int64_t){} < 0 || (uint64_t){} >= (uint64_t)sarif_bytes_len((const unsigned char*){})) {{ abort(); }}",
+                    vref(index),
+                    vref(index),
+                    vref(bytes)
+                ))?;
+            }
             out.line(&format!(
                 "v{} = sarif_bytes_byte((const unsigned char*){}, (uint64_t)(int64_t){});",
                 dest.0,
@@ -1304,6 +1388,14 @@ fn emit_inst(
             ))?;
         }
         Inst::ListGet { dest, list, index } => {
+            if crate::is_debug_enabled() {
+                out.line(&format!(
+                    "if ((int64_t){} < 0 || (uint64_t){} >= (uint64_t)sarif_list_len((void*){})) {{ abort(); }}",
+                    vref(index),
+                    vref(index),
+                    vref(list)
+                ))?;
+            }
             if is_f64(dest, value_kinds) {
                 out.line("{")?;
                 out.indent += 1;
@@ -1330,6 +1422,14 @@ fn emit_inst(
             index,
             value,
         } => {
+            if crate::is_debug_enabled() {
+                out.line(&format!(
+                    "if ((int64_t){} < 0 || (uint64_t){} >= (uint64_t)sarif_list_len((void*){})) {{ abort(); }}",
+                    vref(index),
+                    vref(index),
+                    vref(list)
+                ))?;
+            }
             if is_f64(value, value_kinds) {
                 out.line("{")?;
                 out.indent += 1;
@@ -1464,59 +1564,101 @@ fn emit_inst(
         }
         Inst::MakeRecord {
             dest,
-            name: _name,
+            name,
             fields,
         } => {
-            let size = fields.len() * 8;
+            let record = structs.iter().find(|s| s.name == *name);
+            let is_packed = record.map(|r| r.repr.as_deref() == Some("packed")).unwrap_or(false);
+            let size = if is_packed {
+                let r = record.unwrap();
+                let mut sz = 0;
+                for f in &r.fields {
+                    sz += type_size(&f.ty);
+                }
+                sz
+            } else {
+                (fields.len() * 8) as u32
+            };
             out.line(&format!(
                 "v{} = (uint64_t)sarif_record_alloc({}u);",
                 dest.0,
                 size.max(8)
             ))?;
-            for (i, (_fname, fval)) in fields.iter().enumerate() {
-                if is_f64(fval, value_kinds) {
-                    out.line(&format!(
-                        "sarif_store_f64((unsigned char*)v{}, {}u, {});",
-                        dest.0,
-                        i * 8,
-                        vref(fval)
-                    ))?;
+            for (i, (fname, fval)) in fields.iter().enumerate() {
+                let offset = if is_packed {
+                    record_field_offset(structs, name, fname).unwrap_or((i * 8) as u32)
                 } else {
-                    out.line(&format!(
-                        "sarif_store_u64((unsigned char*)v{}, {}u, {});",
-                        dest.0,
-                        i * 8,
-                        vref(fval)
-                    ))?;
-                }
+                    (i * 8) as u32
+                };
+                let field_ty = record
+                    .and_then(|r| r.fields.iter().find(|f| f.name == *fname))
+                    .map(|f| f.ty.as_str())
+                    .unwrap_or("");
+                let store_fn = if is_packed {
+                    match field_ty {
+                        "I32" => "sarif_store_u32",
+                        "Bool" => "sarif_store_bool",
+                        "Unit" => "sarif_store_bool",
+                        "F64" => "sarif_store_f64",
+                        _ => "sarif_store_u64",
+                    }
+                } else {
+                    if is_f64(fval, value_kinds) {
+                        "sarif_store_f64"
+                    } else {
+                        "sarif_store_u64"
+                    }
+                };
+                out.line(&format!(
+                    "{}((unsigned char*)v{}, {}u, {});",
+                    store_fn,
+                    dest.0,
+                    offset,
+                    vref(fval)
+                ))?;
             }
         }
         Inst::Field { dest, base, name } => {
-            let offset = value_kinds
+            let record_name = value_kinds
                 .get(base)
                 .and_then(|kind| {
                     if let CodegenValueKind::Record(record_name) = kind {
-                        record_field_offset(structs, record_name, name)
+                        Some(record_name.as_str())
                     } else {
                         None
                     }
-                })
+                });
+            let record = record_name.and_then(|rn| structs.iter().find(|s| s.name == rn));
+            let is_packed = record.map(|r| r.repr.as_deref() == Some("packed")).unwrap_or(false);
+            let offset = record_name
+                .and_then(|rn| record_field_offset(structs, rn, name))
                 .unwrap_or(0);
-            if is_f64(dest, value_kinds) {
-                out.line(&format!(
-                    "v{} = sarif_load_f64((const unsigned char*){}, {}u);",
-                    dest.0,
-                    vref(base),
-                    offset
-                ))?;
+            let field_ty = record
+                .and_then(|r| r.fields.iter().find(|f| f.name == *name))
+                .map(|f| f.ty.as_str())
+                .unwrap_or("");
+            let load_fn = if is_packed {
+                match field_ty {
+                    "I32" => "sarif_load_u32",
+                    "Bool" => "sarif_load_bool",
+                    "Unit" => "sarif_load_bool",
+                    "F64" => "sarif_load_f64",
+                    _ => "sarif_load_u64",
+                }
             } else {
-                out.line(&format!(
-                    "v{} = sarif_load_u64((const unsigned char*){}, {}u);",
-                    dest.0,
-                    vref(base),
-                    offset
-                ))?;
-            }
+                if is_f64(dest, value_kinds) {
+                    "sarif_load_f64"
+                } else {
+                    "sarif_load_u64"
+                }
+            };
+            out.line(&format!(
+                "v{} = {}((const unsigned char*){}, {}u);",
+                dest.0,
+                load_fn,
+                vref(base),
+                offset
+            ))?;
         }
         Inst::MakeEnum {
             dest,

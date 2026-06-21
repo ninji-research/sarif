@@ -214,6 +214,188 @@ fn link_env(linker: &mut Linker<()>, stdin: &[u8]) -> Result<(), String> {
     linker
         .func_wrap("env", "__sarif_clock_sleep", |_ms: i32| {})
         .map_err(|error| format!("failed to link env __sarif_clock_sleep: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_load_i32",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64| -> i64 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 4 > len {
+                    return 0;
+                }
+                let mut buf = [0u8; 4];
+                if memory.read(&caller, ptr + idx, &mut buf).is_err() {
+                    return 0;
+                }
+                i64::from(i32::from_le_bytes(buf))
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_load_i32: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_store_i32",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64, value: i64| {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 4 > len {
+                    return;
+                }
+                let _ = memory.write(&mut caller, ptr + idx, &(value as i32).to_le_bytes());
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_store_i32: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_load_i64",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64| -> i64 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 8 > len {
+                    return 0;
+                }
+                let mut buf = [0u8; 8];
+                if memory.read(&caller, ptr + idx, &mut buf).is_err() {
+                    return 0;
+                }
+                i64::from_le_bytes(buf)
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_load_i64: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_store_i64",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64, value: i64| {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 8 > len {
+                    return;
+                }
+                let _ = memory.write(&mut caller, ptr + idx, &value.to_le_bytes());
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_store_i64: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_load_f64",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64| -> f64 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0.0;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 8 > len {
+                    return 0.0;
+                }
+                let mut buf = [0u8; 8];
+                if memory.read(&caller, ptr + idx, &mut buf).is_err() {
+                    return 0.0;
+                }
+                f64::from_le_bytes(buf)
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_load_f64: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_store_f64",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64, value: f64| {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 8 > len {
+                    return;
+                }
+                let _ = memory.write(&mut caller, ptr + idx, &value.to_le_bytes());
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_store_f64: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_load_bool",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64| -> i64 {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return 0;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 1 > len {
+                    return 0;
+                }
+                let mut buf = [0u8; 1];
+                if memory.read(&caller, ptr + idx, &mut buf).is_err() {
+                    return 0;
+                }
+                if buf[0] != 0 {
+                    1
+                } else {
+                    0
+                }
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_load_bool: {error}"))?;
+
+    linker
+        .func_wrap(
+            "env",
+            "sarif_bytes_store_bool",
+            |mut caller: Caller<'_, ()>, bytes_packed: i64, index: i64, value: i64| {
+                let Some(Extern::Memory(memory)) = caller.get_export("memory") else {
+                    return;
+                };
+                let raw = bytes_packed as u64;
+                let ptr = (raw & 0xFFFF_FFFF) as usize;
+                let len = (raw >> 32) as usize;
+                let idx = index as usize;
+                if idx + 1 > len {
+                    return;
+                }
+                let byte = if value != 0 { [1u8] } else { [0u8] };
+                let _ = memory.write(&mut caller, ptr + idx, &byte);
+            },
+        )
+        .map_err(|error| format!("failed to link env sarif_bytes_store_bool: {error}"))?;
+
     Ok(())
 }
 

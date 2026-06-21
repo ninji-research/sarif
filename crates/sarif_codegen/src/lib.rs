@@ -19,12 +19,27 @@ mod object;
 #[cfg(feature = "backend-wasm")]
 mod wasm;
 
+use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static DEBUG_ENABLED: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
+
+pub fn set_debug(enabled: bool) {
+    DEBUG_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
+pub fn is_debug_enabled() -> bool {
+    DEBUG_ENABLED.load(Ordering::SeqCst)
+}
+
+pub use crate::set_debug as native_set_debug;
+
 #[cfg(feature = "backend-native")]
 pub use jit::{run_function_native, run_main_native_with_io_capture};
 #[cfg(feature = "backend-native")]
 pub use native::{
     NativeEnum, NativeRecord, NativeRecordField, NativeValueKind, collect_native_enums,
-    collect_native_records, native_enum_is_payload_free, set_debug as native_set_debug,
+    collect_native_records, native_enum_is_payload_free,
 };
 #[cfg(feature = "backend-native")]
 pub use object::{ENTRYPOINT_SYMBOL, ObjectError, emit_clif, emit_object};
@@ -2117,7 +2132,7 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
                             ty: field.ty.path.clone(),
                         })
                         .collect(),
-                    repr: None,
+                    repr: struct_item.repr.clone(),
                 });
             }
             Item::ExternBlock(block) => {
@@ -2151,6 +2166,22 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
             repr: None,
         });
     }
+
+    let mut add_extern = |name: &str, params: &[&str], ret_type: Option<&str>| {
+        externs.push(ExternFunction {
+            name: name.to_string(),
+            params: params.iter().map(|p| Param { name: String::new(), ty: p.to_string() }).collect(),
+            return_type: ret_type.map(|r| r.to_string()),
+        });
+    };
+    add_extern("sarif_bytes_load_i32", &["Bytes", "I32"], Some("I32"));
+    add_extern("sarif_bytes_store_i32", &["Bytes", "I32", "I32"], None);
+    add_extern("sarif_bytes_load_i64", &["Bytes", "I32"], Some("I64"));
+    add_extern("sarif_bytes_store_i64", &["Bytes", "I32", "I64"], None);
+    add_extern("sarif_bytes_load_f64", &["Bytes", "I32"], Some("F64"));
+    add_extern("sarif_bytes_store_f64", &["Bytes", "I32", "F64"], None);
+    add_extern("sarif_bytes_load_bool", &["Bytes", "I32"], Some("Bool"));
+    add_extern("sarif_bytes_store_bool", &["Bytes", "I32", "Bool"], None);
 
     functions.extend(shared.monomorphized_functions);
 
@@ -4292,6 +4323,86 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             "bytes_len" if self.builtin_is_available("bytes_len") => {
                 self.lower_bytes_len_expr(expr)
+            }
+            "bytes_load_i32" if self.builtin_is_available("bytes_load_i32") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_i32".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_store_i32" if self.builtin_is_available("bytes_store_i32") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_store_i32".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_load_i64" if self.builtin_is_available("bytes_load_i64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_i64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_store_i64" if self.builtin_is_available("bytes_store_i64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_store_i64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_load_f64" if self.builtin_is_available("bytes_load_f64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_f64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_store_f64" if self.builtin_is_available("bytes_store_f64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_store_f64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_load_bool" if self.builtin_is_available("bytes_load_bool") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_bool".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_store_bool" if self.builtin_is_available("bytes_store_bool") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_store_bool".to_string(),
+                    args,
+                });
+                dest
             }
             "bytes_to_text" if self.builtin_is_available("bytes_to_text") => {
                 self.lower_bytes_to_text_expr(expr)
@@ -12560,14 +12671,15 @@ fn main() -> I32 {
             "extern block should lower without diagnostics: {:#?}",
             mir.diagnostics
         );
+        let user_externs: Vec<_> = mir.program.externs.iter().filter(|e| !e.name.starts_with("sarif_bytes_")).collect();
         assert_eq!(
-            mir.program.externs.len(),
+            user_externs.len(),
             1,
             "should have one extern function"
         );
-        assert_eq!(mir.program.externs[0].name, "ffi_add");
-        assert_eq!(mir.program.externs[0].params.len(), 2);
-        assert_eq!(mir.program.externs[0].return_type, Some("I32".to_string()));
+        assert_eq!(user_externs[0].name, "ffi_add");
+        assert_eq!(user_externs[0].params.len(), 2);
+        assert_eq!(user_externs[0].return_type, Some("I32".to_string()));
     }
 
     #[test]
@@ -12609,9 +12721,10 @@ fn main() -> I32 {
             "void extern should lower cleanly: {:#?}",
             mir.diagnostics
         );
-        assert_eq!(mir.program.externs.len(), 1);
-        assert_eq!(mir.program.externs[0].name, "ffi_log");
-        assert_eq!(mir.program.externs[0].return_type, None);
+        let user_externs: Vec<_> = mir.program.externs.iter().filter(|e| !e.name.starts_with("sarif_bytes_")).collect();
+        assert_eq!(user_externs.len(), 1);
+        assert_eq!(user_externs[0].name, "ffi_log");
+        assert_eq!(user_externs[0].return_type, None);
     }
 
     #[test]
@@ -12629,10 +12742,11 @@ fn main() -> I32 {
             "multiple extern fns should lower cleanly: {:#?}",
             mir.diagnostics
         );
-        assert_eq!(mir.program.externs.len(), 3);
-        assert_eq!(mir.program.externs[0].name, "ffi_a");
-        assert_eq!(mir.program.externs[1].name, "ffi_b");
-        assert_eq!(mir.program.externs[2].name, "ffi_c");
+        let user_externs: Vec<_> = mir.program.externs.iter().filter(|e| !e.name.starts_with("sarif_bytes_")).collect();
+        assert_eq!(user_externs.len(), 3);
+        assert_eq!(user_externs[0].name, "ffi_a");
+        assert_eq!(user_externs[1].name, "ffi_b");
+        assert_eq!(user_externs[2].name, "ffi_c");
     }
 
     #[cfg(feature = "backend-c")]

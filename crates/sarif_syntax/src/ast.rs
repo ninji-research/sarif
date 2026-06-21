@@ -319,6 +319,7 @@ pub struct WithArenaStmt {
 pub struct Struct {
     pub name: String,
     pub fields: Vec<Field>,
+    pub repr: Option<String>,
     pub span: Span,
 }
 
@@ -1329,6 +1330,21 @@ impl Lowerer {
 
     fn lower_struct(&mut self, node: &Node) -> Option<Struct> {
         let name = self.ident_after(node, TokenKind::KwStruct)?;
+        let repr = node.children.iter().find_map(|child| match child {
+            Element::Token(token) if token.kind == TokenKind::AttrRepr => {
+                if let Some(start) = token.lexeme.find("repr(") {
+                    let inner = &token.lexeme[start + 5..];
+                    if let Some(end) = inner.find(')') {
+                        Some(inner[..end].to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
         let fields = node
             .children
             .iter()
@@ -1352,6 +1368,7 @@ impl Lowerer {
         Some(Struct {
             name,
             fields,
+            repr,
             span: node.span,
         })
     }

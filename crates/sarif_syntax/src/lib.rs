@@ -124,6 +124,7 @@ pub enum TokenKind {
     Percent,
     PercentEq,
     Underscore,
+    AttrRepr,
     Invalid,
     Eof,
 }

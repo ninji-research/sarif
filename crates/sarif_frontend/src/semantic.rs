@@ -187,6 +187,8 @@ pub fn analyze(
         known_types: _known_types,
     } = resolve_module(module, &mut diagnostics, imported_modules);
 
+    infer_effects(module, &mut functions);
+
     infer_param_modes(
         module,
         &mut functions,
@@ -989,6 +991,197 @@ pub(super) fn infer_expr(
     }
 }
 
+fn visit_body(body: &crate::hir::Body, direct: &mut HashSet<Effect>, calls: &mut HashSet<String>) {
+    for stmt in &body.statements {
+        visit_stmt(stmt, direct, calls);
+    }
+    if let Some(tail) = &body.tail {
+        visit_expr(tail, direct, calls);
+    }
+}
+
+fn visit_stmt(stmt: &crate::hir::Stmt, direct: &mut HashSet<Effect>, calls: &mut HashSet<String>) {
+    match stmt {
+        crate::hir::Stmt::Let(let_bind) => {
+            visit_expr(&let_bind.value, direct, calls);
+        }
+        crate::hir::Stmt::Assign(assign) => {
+            visit_expr(&assign.target, direct, calls);
+            visit_expr(&assign.value, direct, calls);
+        }
+        crate::hir::Stmt::Expr(expr_stmt) => {
+            visit_expr(&expr_stmt.expr, direct, calls);
+        }
+        crate::hir::Stmt::WithArena(with_arena) => {
+            visit_body(&with_arena.body, direct, calls);
+        }
+    }
+}
+
+fn visit_expr(expr: &crate::hir::Expr, direct: &mut HashSet<Effect>, calls: &mut HashSet<String>) {
+    match expr {
+        crate::hir::Expr::Integer(_)
+        | crate::hir::Expr::Float(_)
+        | crate::hir::Expr::String(_)
+        | crate::hir::Expr::Bool(_)
+        | crate::hir::Expr::Name(_)
+        | crate::hir::Expr::ContractResult(_) => {}
+        crate::hir::Expr::Call(call) => {
+            match call.callee.as_str() {
+                "tcp_send" => {
+                    direct.insert(Effect::Io);
+                }
+                "text_builder_new"
+                | "list_new"
+                | "list_push"
+                | "list_from"
+                | "text_index_new"
+                | "text_index_keys" => {
+                    direct.insert(Effect::Alloc);
+                }
+                _ => {
+                    calls.insert(call.callee.clone());
+                }
+            }
+            for arg in &call.args {
+                visit_expr(arg, direct, calls);
+            }
+        }
+        crate::hir::Expr::Array(array) => {
+            for elem in &array.elements {
+                visit_expr(elem, direct, calls);
+            }
+        }
+        crate::hir::Expr::Field(field) => {
+            visit_expr(&field.base, direct, calls);
+        }
+        crate::hir::Expr::Index(index) => {
+            visit_expr(&index.base, direct, calls);
+            visit_expr(&index.index, direct, calls);
+        }
+        crate::hir::Expr::If(if_expr) => {
+            visit_expr(&if_expr.condition, direct, calls);
+            visit_body(&if_expr.then_body, direct, calls);
+            visit_body(&if_expr.else_body, direct, calls);
+        }
+        crate::hir::Expr::Match(match_expr) => {
+            visit_expr(&match_expr.scrutinee, direct, calls);
+            for arm in &match_expr.arms {
+                visit_body(&arm.body, direct, calls);
+            }
+        }
+        crate::hir::Expr::Repeat(repeat_expr) => {
+            visit_expr(&repeat_expr.count, direct, calls);
+            visit_body(&repeat_expr.body, direct, calls);
+        }
+        crate::hir::Expr::While(while_expr) => {
+            visit_expr(&while_expr.condition, direct, calls);
+            visit_body(&while_expr.body, direct, calls);
+        }
+        crate::hir::Expr::Record(record) => {
+            for field in &record.fields {
+                visit_expr(&field.value, direct, calls);
+            }
+        }
+        crate::hir::Expr::RecordUpdate(update) => {
+            visit_expr(&update.base, direct, calls);
+            for field in &update.updates {
+                visit_expr(&field.value, direct, calls);
+            }
+        }
+        crate::hir::Expr::Unary(unary) => {
+            visit_expr(&unary.inner, direct, calls);
+        }
+        crate::hir::Expr::Binary(binary) => {
+            visit_expr(&binary.left, direct, calls);
+            visit_expr(&binary.right, direct, calls);
+        }
+        crate::hir::Expr::Group(group) => {
+            visit_expr(&group.inner, direct, calls);
+        }
+        crate::hir::Expr::Comptime(body) => {
+            visit_body(body, direct, calls);
+        }
+        crate::hir::Expr::Perform(perform) => {
+            if let Some(eff) = Effect::parse(&perform.effect) {
+                direct.insert(eff);
+            }
+            for arg in &perform.args {
+                visit_expr(arg, direct, calls);
+            }
+        }
+        crate::hir::Expr::Handle(handle) => {
+            visit_body(&handle.body, direct, calls);
+            for arm in &handle.arms {
+                visit_body(&arm.body, direct, calls);
+            }
+        }
+    }
+}
+
+fn infer_effects(module: &Module, functions: &mut BTreeMap<String, FunctionSignature>) {
+    let mut module_fns = HashMap::new(); // Map from fn_name -> (has_explicit_effects, direct_effects, call_deps)
+    
+    for item in &module.items {
+        if let crate::hir::Item::Function(f) = item {
+            let mut direct_effects = HashSet::new();
+            let mut call_deps = HashSet::new();
+            if let Some(body) = &f.body {
+                visit_body(body, &mut direct_effects, &mut call_deps);
+            }
+            let has_explicit = f.name == "main" || !f.effects.is_empty();
+            module_fns.insert(f.name.clone(), (has_explicit, direct_effects, call_deps));
+        }
+    }
+
+    let mut current_effects: BTreeMap<String, HashSet<Effect>> = BTreeMap::new();
+    for (name, sig) in functions.iter() {
+        current_effects.insert(name.clone(), sig.effects.iter().cloned().collect());
+    }
+
+    for (name, (has_explicit, direct, _)) in &module_fns {
+        if !*has_explicit {
+            current_effects.insert(name.clone(), direct.clone());
+        }
+    }
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (name, (has_explicit, _, call_deps)) in &module_fns {
+            if *has_explicit {
+                continue;
+            }
+            
+            let mut new_effects = current_effects.get(name).cloned().unwrap_or_default();
+            let orig_len = new_effects.len();
+            
+            for dep in call_deps {
+                if let Some(dep_effects) = current_effects.get(dep) {
+                    for eff in dep_effects {
+                        new_effects.insert(eff.clone());
+                    }
+                }
+            }
+            
+            if new_effects.len() > orig_len {
+                current_effects.insert(name.clone(), new_effects);
+                changed = true;
+            }
+        }
+    }
+
+    for (name, (has_explicit, _, _)) in &module_fns {
+        if !*has_explicit {
+            if let Some(sig) = functions.get_mut(name) {
+                let mut inferred: Vec<Effect> = current_effects.get(name).cloned().unwrap_or_default().into_iter().collect();
+                inferred.sort_by_key(|eff| (eff.rank(), eff.keyword().to_owned()));
+                sig.effects = inferred;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -1024,7 +1217,7 @@ fn mixed_math() -> F64 {
     #[test]
     fn alloc_effect_required_for_list_new() {
         let source = "
-fn creates_list() -> List[F64] {
+fn creates_list() -> List[F64] effects [io] {
     list_new(10, 0.0)
 }
 ";
@@ -1154,6 +1347,28 @@ fn creates_list() -> List[F64] {
                 .iter()
                 .any(|d| d.code == "semantic.builtin-shadow"),
             "expected builtin-shadow warning, got: {:#?}",
+            analysis.diagnostics
+        );
+    }
+
+    #[test]
+    fn infers_transitive_effects() {
+        let source = "
+fn alloc_helper() -> List[I32] {
+    list_new(5, 0)
+}
+fn caller() -> List[I32] {
+    alloc_helper()
+}
+fn main() -> I32 effects [alloc] {
+    let _ = caller();
+    0
+}
+";
+        let analysis = analyze_source(source);
+        assert!(
+            analysis.diagnostics.is_empty(),
+            "expected no diagnostics, but got: {:#?}",
             analysis.diagnostics
         );
     }
