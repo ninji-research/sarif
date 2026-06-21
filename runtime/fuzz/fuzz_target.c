@@ -5,7 +5,7 @@
 #include <limits.h>
 
 #if UINTPTR_MAX > UINT64_MAX
-#error "fuzz_target.c requires pointer width <= 64 bits because pointer handles are stored in uint64_t slots."
+#error "fuzz_target.c requires uintptr_t to be 64 bits or smaller because pointer handles are stored in uint64_t slots."
 #endif
 
 // Rename the runtime's main to avoid conflict with libFuzzer's main.
