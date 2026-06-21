@@ -37,6 +37,8 @@ static unsigned char* sarif_stdin_cache = NULL;
 static pthread_mutex_t sarif_env_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t sarif_scope_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t sarif_text_index_mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t sarif_sort_f64_field_offset = 0;
+static uint64_t sarif_sort_text_field_offset = 0;
 
 __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
@@ -938,6 +940,8 @@ typedef struct {
     uint64_t offset;
 } SarifSortOffsetContext;
 
+static uint64_t sarif_sort_i32_field_offset = 0;
+
 static int sarif_qsort_compare_text_handles_ctx(const void* left, const void* right, void* ctx) {
     (void)ctx;
     const uint64_t left_handle = *(const uint64_t*)left;
@@ -1050,7 +1054,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
             list->values,
             (size_t)used,
             sizeof(uint64_t),
-            sarif_qsort_compare_record_text_field_handles
+            sarif_qsort_compare_record_text_field_handle
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
