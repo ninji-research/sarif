@@ -1054,7 +1054,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
             list->values,
             (size_t)used,
             sizeof(uint64_t),
-            sarif_qsort_compare_record_text_field_handle
+            sarif_qsort_compare_record_text_field_handles
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
