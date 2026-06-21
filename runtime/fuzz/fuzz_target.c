@@ -5,7 +5,7 @@
 #include <limits.h>
 
 #if UINTPTR_MAX > UINT64_MAX
-#error "fuzz_target.c requires pointer width <= 64 bits because pointer handles are stored in uint64_t slots."
+#error "fuzz_target.c requires uintptr_t to be 64 bits or smaller because pointer handles are stored in uint64_t slots."
 #endif
 
 // Rename the runtime's main to avoid conflict with libFuzzer's main.
@@ -188,7 +188,7 @@ static void fuzz_runtime_end_iteration(void) {
 
 #define FUZZ_MAX_IMPLEMENTED_OPCODE 12U
 _Static_assert(FUZZ_MAX_IMPLEMENTED_OPCODE <= FUZZ_OP_MASK,
-               "Update FUZZ_OP_MASK if adding opcodes beyond its representable range.");
+               "FUZZ_MAX_IMPLEMENTED_OPCODE must not exceed FUZZ_OP_MASK");
 
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 1) return 0;
