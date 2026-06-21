@@ -960,6 +960,12 @@ static int sarif_qsort_compare_record_text_field_handles_ctx(const void* left, c
     );
 }
 
+static int sarif_qsort_compare_text_handles_noctx(const void* left, const void* right) {
+    const uint64_t left_handle = *(const uint64_t*)left;
+    const uint64_t right_handle = *(const uint64_t*)right;
+    return sarif_compare_text_handles(left_handle, right_handle);
+}
+
 static int sarif_qsort_compare_record_i32_field_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
     const uint64_t right_handle = *(const uint64_t*)right;
@@ -1021,7 +1027,7 @@ void* sarif_list_sort_text(void* list_ptr, int64_t len) {
             list->values,
             (size_t)used,
             sizeof(uint64_t),
-            sarif_qsort_compare_text_handles
+            sarif_qsort_compare_text_handles_noctx
         );
     }
     return list;
