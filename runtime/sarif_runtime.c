@@ -772,7 +772,7 @@ void* sarif_text_builder_finish(void* raw_builder) {
 }
 
 
-static SarifList sarif_empty_list = { 0, NULL };
+static const SarifList sarif_empty_list = { 0, NULL };
 
 void* sarif_list_new(int64_t len, uint64_t fill) {
   SarifList* list = NULL;
@@ -781,7 +781,7 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
     return NULL;
   }
   if ((size_t)len == 0) {
-    return &sarif_empty_list;
+    return (void*)&sarif_empty_list;
   }
   list = malloc(sizeof(SarifList));
   if (list == NULL) {
