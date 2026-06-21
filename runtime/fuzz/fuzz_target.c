@@ -34,20 +34,20 @@ static unsigned char* make_text(const uint8_t* data, size_t len, size_t max_len)
     return text;
 }
 
-// Safely extract a signed 64-bit integer from fuzz data.
-// Converts negative values to positive in the unsigned domain to avoid
-// undefined behavior when negating INT64_MIN, capping it at INT64_MAX.
-static int64_t extract_i64(const uint8_t* data, size_t len, size_t offset,
-                            int64_t default_val) {
+// Safely extract the absolute value of a signed 64-bit integer from fuzz data.
+// Converts negative values to positive to return non-negative magnitudes.
+// To avoid undefined behavior (negation overflow) on INT64_MIN, we handle it
+// specially by capping it at INT64_MAX.
+static int64_t extract_i64_abs(const uint8_t* data, size_t len, size_t offset,
+                                int64_t default_val) {
     if (offset + 8 > len) return default_val;
     int64_t val;
     memcpy(&val, data + offset, 8);
     if (val < 0) {
-        uint64_t mag = (~(uint64_t)val) + 1;  // abs(val) in unsigned domain
-        if (mag > (uint64_t)INT64_MAX) {
-            val = INT64_MAX;                  // Cap to prevent two's complement overflow
+        if (val == INT64_MIN) {
+            val = INT64_MAX; // Cap to prevent two's complement negation overflow
         } else {
-            val = (int64_t)mag;
+            val = -val;      // Safe negation in two's complement for val != INT64_MIN
         }
     }
     return val;
@@ -125,6 +125,9 @@ static void fuzz_runtime_end_iteration(void) {
 // by the switch default case.
 #define FUZZ_OP_MASK 0x1fU
 
+// Mask to ensure the character payload is constrained to valid 7-bit ASCII.
+#define ASCII_7BIT_MASK 0x7f
+
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 1) return 0;
 
@@ -174,13 +177,13 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                     if (tmp) builder = tmp;
                 }
                 void* tmp = sarif_text_builder_append_codepoint(
-                    builder, extract_i64(payload, payload_len, 0, 65));
+                    builder, extract_i64_abs(payload, payload_len, 0, 65));
                 if (tmp) builder = tmp;
                 tmp = sarif_text_builder_append_ascii(
-                    builder, extract_i64(payload, payload_len, 0, 65) & 0x7f);
+                    builder, extract_i64_abs(payload, payload_len, 0, 65) & ASCII_7BIT_MASK);
                 if (tmp) builder = tmp;
                 tmp = sarif_text_builder_append_i32(
-                    builder, extract_i64(payload, payload_len, 0, 42));
+                    builder, extract_i64_abs(payload, payload_len, 0, 42));
                 if (tmp) builder = tmp;
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
@@ -192,8 +195,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (builder) {
                 unsigned char* text = make_text(payload, payload_len, 256);
                 if (text) {
-                    int64_t start = extract_i64(payload, payload_len, 0, 0);
-                    int64_t end = extract_i64(payload, payload_len, 8, (int64_t)payload_len);
+                    int64_t start = extract_i64_abs(payload, payload_len, 0, 0);
+                    int64_t end = extract_i64_abs(payload, payload_len, 8, (int64_t)payload_len);
                     void* tmp = sarif_text_builder_append_slice(builder, text, start, end);
                     if (tmp) builder = tmp;
                 }
@@ -207,7 +210,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             enum { FUZZ_LIST_SIZE = 8 };
             size_t segment = payload_len / FUZZ_LIST_SIZE;
             unsigned char* texts[FUZZ_LIST_SIZE] = {NULL};
-            for (int i = 0; i < FUZZ_LIST_SIZE; i++) {
+            for (size_t i = 0; i < FUZZ_LIST_SIZE; i++) {
                 if (segment > 0) {
                     texts[i] = make_text(payload + i * segment, segment, 64);
                 } else {
@@ -217,7 +220,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             void* list = sarif_list_new(FUZZ_LIST_SIZE, 0);
             if (list) {
                 SarifList* l = (SarifList*)list;
-                for (int i = 0; i < FUZZ_LIST_SIZE; i++) {
+                for (size_t i = 0; i < FUZZ_LIST_SIZE; i++) {
                     l->values[i] = (uint64_t)(uintptr_t)texts[i];
                 }
                 unsigned char* extra_text = make_text(payload, payload_len, 64);
@@ -236,8 +239,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             unsigned char* text = make_text(payload, payload_len, 128);
             if (text) {
                 sarif_parse_i32(text);
-                sarif_parse_i32_range(text, extract_i64(payload, payload_len, 0, 0),
-                                      extract_i64(payload, payload_len, 8, payload_len));
+                sarif_parse_i32_range(text, extract_i64_abs(payload, payload_len, 0, 0),
+                                      extract_i64_abs(payload, payload_len, 8, payload_len));
                 sarif_parse_f64(text);
             }
             break;
@@ -249,30 +252,30 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (left && right) {
                 sarif_text_cmp(left, right);
                 sarif_text_eq(left, right);
-                sarif_text_eq_range(left, extract_i64(payload, payload_len, 0, 0),
-                                    extract_i64(payload, payload_len, 8, payload_len), right);
+                sarif_text_eq_range(left, extract_i64_abs(payload, payload_len, 0, 0),
+                                    extract_i64_abs(payload, payload_len, 8, payload_len), right);
             }
             break;
         }
         case 8: {
             unsigned char* text = make_text(payload, payload_len, 1024);
             if (text) {
-                int64_t start = extract_i64(payload, payload_len, 0, 0);
-                int64_t end = extract_i64(payload, payload_len, 8, payload_len);
+                int64_t start = extract_i64_abs(payload, payload_len, 0, 0);
+                int64_t end = extract_i64_abs(payload, payload_len, 8, payload_len);
                 sarif_text_find_byte_range(text, start, end,
-                                           extract_i64(payload, payload_len, 16, 10));
+                                           extract_i64_abs(payload, payload_len, 16, 10));
                 sarif_text_line_end(text, start);
                 sarif_text_next_line(text, start);
                 sarif_text_field_end(text, start, end,
-                                     extract_i64(payload, payload_len, 16, 44));
+                                     extract_i64_abs(payload, payload_len, 16, 44));
                 sarif_text_next_field(text, start, end,
-                                      extract_i64(payload, payload_len, 16, 44));
+                                      extract_i64_abs(payload, payload_len, 16, 44));
             }
             break;
         }
         case 9: {
             double value = extract_f64(payload, payload_len, 0);
-            int64_t digits = extract_i64(payload, payload_len, 8, 6);
+            int64_t digits = extract_i64_abs(payload, payload_len, 8, 6);
             void* result = sarif_text_from_f64_fixed(value, digits);
             (void)result;
             break;
@@ -284,10 +287,10 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 if (key) {
                     uint64_t key_handle = (uint64_t)(uintptr_t)key;
                     sarif_text_index_set(index, key_handle,
-                                         extract_i64(payload, payload_len, 0, 0));
+                                         extract_i64_abs(payload, payload_len, 0, 0));
                     sarif_text_index_get(index, key_handle);
                     sarif_text_index_get_or_insert(index, key_handle,
-                                                   extract_i64(payload, payload_len, 8, 0));
+                                                   extract_i64_abs(payload, payload_len, 8, 0));
                 }
             }
             cleanup_text_index(index);
@@ -316,8 +319,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 }
                 unsigned char* big_text = make_text(payload, payload_len, 8192);
                 if (big_text) {
-                    int64_t start = extract_i64(payload, payload_len, 0, 0);
-                    int64_t end = extract_i64(payload, payload_len, 8, (int64_t)payload_len);
+                    int64_t start = extract_i64_abs(payload, payload_len, 0, 0);
+                    int64_t end = extract_i64_abs(payload, payload_len, 8, (int64_t)payload_len);
                     void* tmp = sarif_text_builder_append_slice(builder, big_text, start, end);
                     if (tmp) builder = tmp;
                 }
