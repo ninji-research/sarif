@@ -84,13 +84,8 @@ static inline int64_t safe_size_to_i64(size_t val) {
     return val > int64_max_as_size ? INT64_MAX : (int64_t)val;
 }
 
-// Safely extract a non-negative, saturating magnitude of a signed 64-bit integer.
-// Converts negative values to non-negative magnitudes when representable in int64_t.
-// Note: mathematical |INT64_MIN| is 2^63, which cannot be represented as int64_t.
-// For that single case, this helper returns INT64_MAX (saturating behavior).
-// In other words: decoded INT64_MIN input maps to INT64_MAX.
-// This helper returns a saturating int64 magnitude, not an exact absolute value.
-// @return For INT64_MIN input, returns INT64_MAX (saturating).
+// Return the non-negative magnitude of a signed 64-bit value as int64_t.
+// For INT64_MIN, returns INT64_MAX (saturating, since |INT64_MIN| is not representable).
 static int64_t extract_i64_magnitude_saturating(const uint8_t* data, size_t len, size_t offset,
                                                 int64_t default_val) {
     if (offset + 8 > len) return default_val;
@@ -275,11 +270,11 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         case 5: {
             // Create a list with valid text handles from the fuzzer payload.
             size_t base = payload_len / FUZZ_LIST_SIZE;
-            size_t rem = payload_len % FUZZ_LIST_SIZE;
+            size_t remainder = payload_len % FUZZ_LIST_SIZE;
             size_t offset = 0;
             unsigned char* texts[FUZZ_LIST_SIZE] = {NULL};
             for (size_t i = 0; i < FUZZ_LIST_SIZE; i++) {
-                size_t seg_len = base + (i < rem ? 1 : 0);
+                size_t seg_len = base + (i < remainder ? 1 : 0);
                 if (seg_len > 0) {
                     texts[i] = make_text(payload + offset, seg_len, MAX_TEXT_SMALL);
                     offset += seg_len;
