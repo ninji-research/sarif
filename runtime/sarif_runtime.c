@@ -31,6 +31,10 @@ extern char** environ;
 #define SARIF_MAIN_PRINT 0
 #endif
 
+#ifndef SARIF_INTERN_ALIGN
+#define SARIF_INTERN_ALIGN 8u
+#endif
+
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
@@ -64,10 +68,13 @@ static const unsigned char sarif_empty_text[8] = {0};
 #define SARIF_F64_FIXED_FASTPATH_MAX (1000000000000.0)
 
 static int sarif_should_use_integer_fastpath(double value, int precision) {
-    int is_finite_value = isfinite(value);
-    int is_in_fastpath_range = is_finite_value &&
+    int is_finite = isfinite(value);
+    int is_in_fastpath_range = is_finite &&
         value >= SARIF_F64_FIXED_FASTPATH_MIN &&
         value <= SARIF_F64_FIXED_FASTPATH_MAX;
+    /* Safe cast: is_in_fastpath_range implies finite value within ±1e12,
+     * which is far inside int64_t's representable range.
+     */
     int is_integral_value = is_in_fastpath_range &&
         value == (double)(int64_t)value;
     return precision == 0 && is_integral_value;
@@ -416,10 +423,11 @@ static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
 
 // Caller must hold sarif_intern_mutex.
 static unsigned char* sarif_intern_alloc(uint64_t size) {
-    if (size > UINT64_MAX - 7u) {
+    const uint64_t align_mask = (uint64_t)(SARIF_INTERN_ALIGN - 1u);
+    if (size > UINT64_MAX - align_mask) {
         sarif_fatal_error("size overflow in string interning pool alignment");
     }
-    uint64_t aligned_u64 = (size + 7u) & ~(uint64_t)7u;
+    uint64_t aligned_u64 = (size + align_mask) & ~align_mask;
     if (aligned_u64 < size) {
         sarif_fatal_error("size overflow in string interning pool alignment");
     }
@@ -569,6 +577,36 @@ void* sarif_text_builder_new(void) {
     return builder;
 }
 
+static inline int sarif_compute_grown_capacity(
+    uint64_t current_cap,
+    uint64_t required,
+    uint64_t* out_next_cap
+) {
+    uint64_t next_cap = 0;
+    if (out_next_cap == NULL) {
+        return 0;
+    }
+    next_cap = current_cap;
+    if (next_cap == 0) {
+        *out_next_cap = required;
+        return 1;
+    }
+    while (next_cap < required) {
+        uint64_t growth = next_cap / 2u + 1u;
+        if (required - next_cap <= growth) {
+            next_cap = required;
+            break;
+        }
+        if (UINT64_MAX - next_cap < growth) {
+            next_cap = required;
+            break;
+        }
+        next_cap += growth;
+    }
+    *out_next_cap = next_cap;
+    return 1;
+}
+
 static inline __attribute__((always_inline)) SarifTextBuilder* sarif_text_builder_reserve(
     SarifTextBuilder* builder,
     uint64_t appended_len
@@ -586,22 +624,8 @@ static inline __attribute__((always_inline)) SarifTextBuilder* sarif_text_builde
     if (required <= builder->cap) {
         return builder;
     }
-    next_cap = builder->cap;
-    if (next_cap == 0) {
-        next_cap = required;
-    } else {
-        while (next_cap < required) {
-            uint64_t growth = next_cap / 2u + 1u;
-            if (required - next_cap <= growth) {
-                next_cap = required;
-                break;
-            }
-            if (UINT64_MAX - next_cap < growth) {
-                next_cap = required;
-                break;
-            }
-            next_cap += growth;
-        }
+    if (!sarif_compute_grown_capacity(builder->cap, required, &next_cap)) {
+        return NULL;
     }
     if (next_cap > (uint64_t)SIZE_MAX) {
         return NULL;
