@@ -932,25 +932,27 @@ static int sarif_compare_record_text_field_handles(uint64_t left, uint64_t right
     return sarif_compare_text_handles(left_text, right_text);
 }
 
-static uint64_t sarif_sort_text_field_offset = 0;
-static uint64_t sarif_sort_i32_field_offset = 0;
-static uint64_t sarif_sort_f64_field_offset = 0;
 static pthread_mutex_t sarif_sort_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int sarif_qsort_compare_text_handles(const void* left, const void* right) {
+typedef struct {
+    uint64_t offset;
+} SarifSortOffsetContext;
+
+static int sarif_qsort_compare_text_handles_ctx(const void* left, const void* right, void* ctx) {
+    (void)ctx;
     const uint64_t left_handle = *(const uint64_t*)left;
     const uint64_t right_handle = *(const uint64_t*)right;
     return sarif_compare_text_handles(left_handle, right_handle);
 }
 
-static int sarif_qsort_compare_record_text_field_handles(const void* left, const void* right) {
+static int sarif_qsort_compare_record_text_field_handles_ctx(const void* left, const void* right, void* ctx) {
     const uint64_t left_handle = *(const uint64_t*)left;
     const uint64_t right_handle = *(const uint64_t*)right;
-    uint64_t offset = sarif_sort_text_field_offset;
+    const SarifSortOffsetContext* sort_ctx = (const SarifSortOffsetContext*)ctx;
     return sarif_compare_record_text_field_handles(
         left_handle,
         right_handle,
-        offset
+        sort_ctx->offset
     );
 }
 
