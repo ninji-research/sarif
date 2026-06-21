@@ -220,10 +220,12 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                     builder, extract_i64_abs_saturating(payload, payload_len, 0, DEFAULT_APPEND_CHAR_VALUE));
                 if (tmp) builder = tmp;
                 tmp = sarif_text_builder_append_ascii(
-                    builder, extract_i64_abs_saturating(payload, payload_len, 8, DEFAULT_APPEND_CHAR_VALUE) & ASCII_7BIT_MASK);
+                    builder, ((uint8_t)extract_i64_abs_saturating(payload, payload_len, 8, DEFAULT_APPEND_CHAR_VALUE)) & ASCII_7BIT_MASK);
                 if (tmp) builder = tmp;
-                tmp = sarif_text_builder_append_i32(
-                    builder, extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_APPEND_I32_VALUE));
+                int64_t append_i32_raw = extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_APPEND_I32_VALUE);
+                if (append_i32_raw > INT32_MAX) append_i32_raw = INT32_MAX;
+                if (append_i32_raw < INT32_MIN) append_i32_raw = INT32_MIN;
+                tmp = sarif_text_builder_append_i32(builder, (int32_t)append_i32_raw);
                 if (tmp) builder = tmp;
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
@@ -315,14 +317,13 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (text) {
                 int64_t start = extract_i64_abs_saturating(payload, payload_len, 0, 0);
                 int64_t end = extract_i64_abs_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
-                sarif_text_find_byte_range(text, start, end,
-                                           extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_LINE_END_BYTE));
+                uint8_t needle = (uint8_t)extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_LINE_END_BYTE);
+                uint8_t field_delim = (uint8_t)extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_FIELD_DELIMITER);
+                sarif_text_find_byte_range(text, start, end, needle);
                 sarif_text_line_end(text, start);
                 sarif_text_next_line(text, start);
-                sarif_text_field_end(text, start, end,
-                                     extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_FIELD_DELIMITER));
-                sarif_text_next_field(text, start, end,
-                                      extract_i64_abs_saturating(payload, payload_len, 16, DEFAULT_FIELD_DELIMITER));
+                sarif_text_field_end(text, start, end, field_delim);
+                sarif_text_next_field(text, start, end, field_delim);
             }
             break;
         }
