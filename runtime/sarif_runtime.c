@@ -826,14 +826,15 @@ void* sarif_list_new(int64_t len, uint64_t fill) {
   if (len < 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
     return NULL;
   }
-  if ((size_t)len == 0) {
-    return (void*)&sarif_empty_list;
-  }
   list = malloc(sizeof(SarifList));
   if (list == NULL) {
     return NULL;
   }
   list->len = (uint64_t)len;
+  if ((size_t)len == 0) {
+    list->values = NULL;
+    return list;
+  }
   if (fill == 0) {
     list->values = calloc((size_t)len, sizeof(uint64_t));
     if (list->values == NULL) {
@@ -938,10 +939,16 @@ int64_t sarif_list_len(void* list_ptr) {
 // Returns NULL on allocation failure or invalid arguments.
 void* sarif_list_from_raw(void* raw_ptr, int64_t len) {
     SarifList* vec = NULL;
-    if (raw_ptr == NULL || len <= 0 || (uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
-        if (len == 0) {
-            return &sarif_empty_list;
-        }
+    if (len == 0) {
+        return &sarif_empty_list;
+    }
+    if (len < 0) {
+        return NULL;
+    }
+    if (raw_ptr == NULL) {
+        return NULL;
+    }
+    if ((uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
         return NULL;
     }
     vec = malloc(sizeof(SarifList));
@@ -1745,6 +1752,7 @@ static int sarif_parse_i32_validated(const unsigned char* bytes, uint64_t index,
     int negative = 0;
     int64_t value = 0;
     if (out_value == NULL) return 0;
+    if (bytes == NULL) return 0;
     if (index == len) return 0;
     if (bytes[index] == '-') {
         negative = 1;
@@ -2622,7 +2630,7 @@ int64_t sarif_perform_effect(const char* effect, const char* operation,
     }
     sarif_effect_handler_t handler = NULL;
     if (sarif_find_handler(effect, operation, &handler) != NULL) {
-        uint64_t args[8];
+        uint64_t args[8] = {0};
         args[0] = arg0; args[1] = arg1; args[2] = arg2; args[3] = arg3;
         return handler(args, nargs);
     }
@@ -2630,6 +2638,9 @@ int64_t sarif_perform_effect(const char* effect, const char* operation,
 }
 
 int64_t sarif_env_get(const unsigned char* key_handle) {
+    if (key_handle == NULL) {
+        return (int64_t)sarif_empty_text;
+    }
     uint64_t key_len = sarif_load_u64(key_handle, 0);
     const unsigned char* key_data = key_handle + 8;
     char* key = (char*)malloc(key_len + 1);
