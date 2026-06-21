@@ -936,34 +936,23 @@ static int sarif_compare_record_text_field_handles(uint64_t left, uint64_t right
 
 static pthread_mutex_t sarif_sort_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-typedef struct {
-    uint64_t offset;
-} SarifSortOffsetContext;
-
 static uint64_t sarif_sort_i32_field_offset = 0;
 
-static int sarif_qsort_compare_text_handles_ctx(const void* left, const void* right, void* ctx) {
-    (void)ctx;
+static int sarif_qsort_compare_text_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
     const uint64_t right_handle = *(const uint64_t*)right;
     return sarif_compare_text_handles(left_handle, right_handle);
 }
 
-static int sarif_qsort_compare_record_text_field_handles_ctx(const void* left, const void* right, void* ctx) {
+static int sarif_qsort_compare_record_text_field_handles(const void* left, const void* right) {
     const uint64_t left_handle = *(const uint64_t*)left;
     const uint64_t right_handle = *(const uint64_t*)right;
-    const SarifSortOffsetContext* sort_ctx = (const SarifSortOffsetContext*)ctx;
+    uint64_t offset = sarif_sort_text_field_offset;
     return sarif_compare_record_text_field_handles(
         left_handle,
         right_handle,
-        sort_ctx->offset
+        offset
     );
-}
-
-static int sarif_qsort_compare_text_handles_noctx(const void* left, const void* right) {
-    const uint64_t left_handle = *(const uint64_t*)left;
-    const uint64_t right_handle = *(const uint64_t*)right;
-    return sarif_compare_text_handles(left_handle, right_handle);
 }
 
 static int sarif_qsort_compare_record_i32_field_handles(const void* left, const void* right) {
@@ -1027,7 +1016,7 @@ void* sarif_list_sort_text(void* list_ptr, int64_t len) {
             list->values,
             (size_t)used,
             sizeof(uint64_t),
-            sarif_qsort_compare_text_handles_noctx
+            sarif_qsort_compare_text_handles
         );
     }
     return list;
@@ -1048,11 +1037,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            char lock_errbuf[128];
-            if (strerror_r(lock_rc, lock_errbuf, sizeof(lock_errbuf)) != 0) {
-                snprintf(lock_errbuf, sizeof(lock_errbuf), "unknown");
-            }
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", lock_rc, lock_errbuf);
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", lock_rc, strerror(lock_rc));
             return NULL;
         }
         sarif_sort_text_field_offset = field_offset;
@@ -1064,11 +1049,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            char unlock_errbuf[128];
-            if (strerror_r(unlock_rc, unlock_errbuf, sizeof(unlock_errbuf)) != 0) {
-                snprintf(unlock_errbuf, sizeof(unlock_errbuf), "unknown");
-            }
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", unlock_rc, unlock_errbuf);
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
             return NULL;
         }
     }
