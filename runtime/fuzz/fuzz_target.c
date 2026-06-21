@@ -125,6 +125,14 @@ static void fuzz_runtime_end_iteration(void) {
 // by the switch default case.
 #define FUZZ_OP_MASK 0x1fU
 
+// Named text-size limits used for fuzz-generated length-prefixed text values.
+#define MAX_TEXT_SMALL 64U
+#define MAX_TEXT_MEDIUM 128U
+#define MAX_TEXT_DEFAULT 256U
+#define MAX_TEXT_LARGE 1024U
+#define MAX_TEXT_XLARGE 4096U
+#define MAX_TEXT_XXLARGE 8192U
+
 // Mask to ensure the character payload is constrained to valid 7-bit ASCII.
 #define ASCII_7BIT_MASK 0x7f
 
@@ -140,8 +148,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     switch (op & FUZZ_OP_MASK) {
         case 0: {
             size_t half = payload_len / 2;
-            unsigned char* left = make_text(payload, half, 4096);
-            unsigned char* right = make_text(payload + half, payload_len - half, 4096);
+            unsigned char* left = make_text(payload, half, MAX_TEXT_XLARGE);
+            unsigned char* right = make_text(payload + half, payload_len - half, MAX_TEXT_XLARGE);
             if (left && right) {
                 void* result = sarif_text_concat(left, right);
                 (void)result;
@@ -149,7 +157,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             break;
         }
         case 1: {
-            unsigned char* text = make_text(payload, payload_len, 4096);
+            unsigned char* text = make_text(payload, payload_len, MAX_TEXT_XLARGE);
             uint64_t start = extract_u64(payload, payload_len, 0, 0);
             uint64_t end = extract_u64(payload, payload_len, 8, payload_len);
             if (text) {
