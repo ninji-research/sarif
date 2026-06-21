@@ -2315,6 +2315,7 @@ uint64_t sarif_tcp_listen(int64_t port) {
 }
 
 uint64_t sarif_tcp_accept(uint64_t server_fd) {
+    if (server_fd > (uint64_t)INT_MAX) return 0;
     struct sockaddr_in cli;
     socklen_t len = sizeof(cli);
     int client = accept((int)server_fd, (struct sockaddr*)&cli, &len);
@@ -2323,6 +2324,7 @@ uint64_t sarif_tcp_accept(uint64_t server_fd) {
 }
 
 uint64_t sarif_tcp_recv(uint64_t fd, int64_t max_len) {
+    if (fd > (uint64_t)INT_MAX) return (uint64_t)NULL;
     if (max_len <= 0) return (uint64_t)NULL;
     unsigned char* bytes = sarif_bytes_alloc((uint64_t)max_len);
     if (bytes == NULL) return (uint64_t)NULL;
@@ -2344,6 +2346,7 @@ int64_t sarif_tcp_send(uint64_t fd, const unsigned char* data_handle) {
 }
 
 void sarif_tcp_close(uint64_t fd) {
+    if (fd > (uint64_t)INT_MAX) return;
     int sock = (int)fd;
     if (sock >= 0) close(sock);
 }
