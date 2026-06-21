@@ -62,6 +62,10 @@ _Static_assert(sizeof(uintptr_t) <= sizeof(uint64_t),
 // Helper functions for constructing test inputs from fuzz data.
 // ---------------------------------------------------------------------------
 
+static inline void* update_builder_if_nonnull(void* current_builder, void* candidate) {
+    return candidate ? candidate : current_builder;
+}
+
 // Create a length-prefixed text from raw bytes, clamped to max_len.
 static unsigned char* make_text(const uint8_t* data, size_t len, size_t max_len) {
     size_t text_len = len < max_len ? len : max_len;
@@ -237,18 +241,16 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (builder) {
                 unsigned char* text = make_text(payload, payload_len, MAX_TEXT_DEFAULT);
                 if (text) {
-                    void* tmp = sarif_text_builder_append(builder, text);
-                    if (tmp) builder = tmp;
+                    builder = update_builder_if_nonnull(builder, sarif_text_builder_append(builder, text));
                 }
-                void* tmp = sarif_text_builder_append_codepoint(
-                    builder, extract_i64_magnitude_saturating(payload, payload_len, 0, DEFAULT_APPEND_CHAR_VALUE));
-                if (tmp) builder = tmp;
+                builder = update_builder_if_nonnull(
+                    builder, sarif_text_builder_append_codepoint(
+                                 builder, extract_i64_magnitude_saturating(payload, payload_len, 0, DEFAULT_APPEND_CHAR_VALUE)));
                 uint8_t ascii_char = extract_ascii_7bit(payload, payload_len, 8, DEFAULT_APPEND_CHAR_VALUE);
-                tmp = sarif_text_builder_append_ascii(builder, ascii_char);
-                if (tmp) builder = tmp;
+                builder = update_builder_if_nonnull(builder, sarif_text_builder_append_ascii(builder, ascii_char));
                 int64_t append_i32_raw = extract_i64_magnitude_saturating(payload, payload_len, 16, DEFAULT_APPEND_I32_VALUE);
-                tmp = sarif_text_builder_append_i32(builder, safe_i64_to_i32(append_i32_raw));
-                if (tmp) builder = tmp;
+                builder = update_builder_if_nonnull(
+                    builder, sarif_text_builder_append_i32(builder, safe_i64_to_i32(append_i32_raw)));
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
             }
@@ -261,8 +263,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 if (text) {
                     int64_t start = extract_i64_magnitude_saturating(payload, payload_len, 0, 0);
                     int64_t end = extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
-                    void* tmp = sarif_text_builder_append_slice(builder, text, start, end);
-                    if (tmp) builder = tmp;
+                    builder = update_builder_if_nonnull(builder, sarif_text_builder_append_slice(builder, text, start, end));
                 }
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
@@ -338,8 +339,8 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (text) {
                 int64_t start = extract_i64_magnitude_saturating(payload, payload_len, 0, 0);
                 int64_t end = extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
-                uint8_t needle = (uint8_t)(extract_i64_magnitude_saturating(payload, payload_len, 16, DEFAULT_LINE_END_BYTE) & 0xFF); // Intentional low-byte truncation for byte-oriented API.
-                uint8_t field_delim = (uint8_t)(extract_i64_magnitude_saturating(payload, payload_len, 24, DEFAULT_FIELD_DELIMITER) & 0xFF); // Intentional low-byte truncation for byte-oriented API.
+                uint8_t needle = (uint8_t)extract_i64_magnitude_saturating(payload, payload_len, 16, DEFAULT_LINE_END_BYTE); // Intentional low-byte truncation for byte-oriented API.
+                uint8_t field_delim = (uint8_t)extract_i64_magnitude_saturating(payload, payload_len, 24, DEFAULT_FIELD_DELIMITER); // Intentional low-byte truncation for byte-oriented API.
                 sarif_text_find_byte_range(text, start, end, needle);
                 sarif_text_line_end(text, start);
                 sarif_text_next_line(text, start);
@@ -389,15 +390,13 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 unsigned char* short_text = sarif_text_alloc(5);
                 if (short_text) {
                     memcpy(short_text + 8, "hello", 5);
-                    void* tmp = sarif_text_builder_append(builder, short_text);
-                    if (tmp) builder = tmp;
+                    builder = update_builder_if_nonnull(builder, sarif_text_builder_append(builder, short_text));
                 }
                 unsigned char* big_text = make_text(payload, payload_len, MAX_TEXT_XXLARGE);
                 if (big_text) {
                     int64_t start = extract_i64_magnitude_saturating(payload, payload_len, 0, 0);
                     int64_t end = extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
-                    void* tmp = sarif_text_builder_append_slice(builder, big_text, start, end);
-                    if (tmp) builder = tmp;
+                    builder = update_builder_if_nonnull(builder, sarif_text_builder_append_slice(builder, big_text, start, end));
                 }
                 void* result = sarif_text_builder_finish(builder);
                 (void)result;
