@@ -297,20 +297,28 @@ static void sarif_alloc_pop_scope(void) {
 }
 
 void sarif_alloc_push(void) {
+    pthread_mutex_lock(&sarif_scope_mutex);
+    pthread_mutex_lock(&sarif_record_mutex);
     struct SarifAllocScope* scope = sarif_alloc_push_scope();
     if (scope == NULL) {
+        pthread_mutex_unlock(&sarif_record_mutex);
+        pthread_mutex_unlock(&sarif_scope_mutex);
         sarif_fatal_error("sarif_alloc_push_scope returned NULL");
     }
-    pthread_mutex_lock(&sarif_record_mutex);
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
     pthread_mutex_unlock(&sarif_record_mutex);
+    pthread_mutex_unlock(&sarif_scope_mutex);
 }
 
 void sarif_alloc_pop(void) {
     SarifRecordChunk* chunk = NULL;
     SarifRecordChunk* next = NULL;
+    pthread_mutex_lock(&sarif_scope_mutex);
+    pthread_mutex_lock(&sarif_record_mutex);
     if (sarif_scope_depth == 0 && sarif_scope_overflow == NULL) {
+        pthread_mutex_unlock(&sarif_record_mutex);
+        pthread_mutex_unlock(&sarif_scope_mutex);
         return;
     }
     struct SarifAllocScope scope = {
@@ -331,6 +339,8 @@ void sarif_alloc_pop(void) {
         }
         sarif_record_chunks = NULL;
         sarif_record_current = NULL;
+        pthread_mutex_unlock(&sarif_record_mutex);
+        pthread_mutex_unlock(&sarif_scope_mutex);
         return;
     }
     chunk = scope.chunk->next;
@@ -342,6 +352,8 @@ void sarif_alloc_pop(void) {
     }
     sarif_record_current = scope.chunk;
     sarif_record_current->used = scope.used;
+    pthread_mutex_unlock(&sarif_record_mutex);
+    pthread_mutex_unlock(&sarif_scope_mutex);
 }
 
 static inline __attribute__((always_inline)) __attribute__((unused)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {
@@ -428,9 +440,6 @@ static unsigned char* sarif_intern_alloc(uint64_t size) {
         sarif_fatal_error("size overflow in string interning pool alignment");
     }
     uint64_t aligned_u64 = (size + align_mask) & ~align_mask;
-    if (aligned_u64 < size) {
-        sarif_fatal_error("size overflow in string interning pool alignment");
-    }
     size_t aligned = (size_t)aligned_u64;
     if (sarif_intern_chunk == NULL || aligned > sarif_intern_chunk->cap - sarif_intern_chunk->used) {
         size_t chunk_size = sizeof(struct SarifInternChunk) + SARIF_INTERN_CHUNK_SIZE;
@@ -1061,7 +1070,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", lock_rc, strerror(lock_rc));
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d\n", lock_rc);
             return NULL;
         }
         sarif_sort_text_field_offset = field_offset;
@@ -1073,7 +1082,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d\n", unlock_rc);
             return NULL;
         }
     }
@@ -1095,7 +1104,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d (%s)\n", lock_rc, strerror(lock_rc));
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d\n", lock_rc);
             return NULL;
         }
         sarif_sort_i32_field_offset = field_offset;
@@ -1107,7 +1116,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d\n", unlock_rc);
             return NULL;
         }
     }
@@ -1129,7 +1138,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d (%s)\n", lock_rc, strerror(lock_rc));
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d\n", lock_rc);
             return NULL;
         }
         sarif_sort_f64_field_offset = field_offset;
@@ -1141,7 +1150,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d\n", unlock_rc);
             return NULL;
         }
     }
@@ -1169,8 +1178,11 @@ typedef struct SarifTextIndex {
 static int sarif_text_handle_eq(uint64_t left, uint64_t right);
 
 static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
+    int ok = 0;
+    pthread_mutex_lock(&sarif_text_index_mutex);
     if (index == NULL || index->entries == NULL) {
-        return 0;
+        ok = 0;
+        goto done;
     }
     /* Keep current capacity while load factor is below 75%
      * (len/cap < 0.75), expressed as len * 4 < cap * 3 to avoid
@@ -1183,21 +1195,26 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
      * operations while avoiding excessive memory use.
      */
     if (index->len * 4 < index->cap * 3) {
-        return 1;
+        ok = 1;
+        goto done;
     }
     if (index->cap > UINT64_MAX / 2) {
-        return 0;
+        ok = 0;
+        goto done;
     }
     uint64_t new_cap = index->cap * 2;
     if (new_cap > (uint64_t)SIZE_MAX) {
-        return 0;
+        ok = 0;
+        goto done;
     }
     if ((size_t)new_cap > SIZE_MAX / sizeof(SarifTextIndexEntry)) {
-        return 0;
+        ok = 0;
+        goto done;
     }
     SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
     if (new_entries == NULL) {
-        return 0;
+        ok = 0;
+        goto done;
     }
     for (uint64_t i = 0; i < index->cap; i += 1) {
         if (index->entries[i].occupied) {
@@ -1211,7 +1228,10 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     free(index->entries);
     index->entries = new_entries;
     index->cap = new_cap;
-    return 1;
+    ok = 1;
+done:
+    pthread_mutex_unlock(&sarif_text_index_mutex);
+    return ok;
 }
 
 static SarifTextIndexEntry* sarif_text_index_find_entry(
@@ -2261,7 +2281,7 @@ static void sarif_ignore_sigpipe_once(void) {
 static void sarif_init_sigpipe_handling_if_needed(void) {
     int rc = pthread_once(&sarif_sigpipe_once, sarif_ignore_sigpipe_once);
     if (rc != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: pthread_once for SIGPIPE initialization failed: %s\n", strerror(rc));
+        fprintf(stderr, "SARIF RUNTIME WARNING: pthread_once for SIGPIPE initialization failed: %d\n", rc);
     }
 }
 #else
