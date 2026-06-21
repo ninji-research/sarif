@@ -80,7 +80,7 @@ static uint64_t ptr_to_u64_handle(const void* ptr) {
 
 // Safely cast size_t to int64_t, clamping to INT64_MAX to prevent overflow.
 static inline int64_t safe_size_to_i64(size_t val) {
-    const size_t int64_max_as_size = (size_t)UINT64_C(0x7fffffffffffffff);
+    const size_t int64_max_as_size = (size_t)INT64_MAX;
     return val > int64_max_as_size ? INT64_MAX : (int64_t)val;
 }
 
@@ -328,8 +328,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (left && right) {
                 sarif_text_cmp(left, right);
                 sarif_text_eq(left, right);
-                sarif_text_eq_range(left, extract_i64_magnitude_saturating(payload, payload_len, 0, 0),
-                                    extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len)), right);
+                int64_t range_start = extract_i64_magnitude_saturating(payload, payload_len, 0, 0);
+                int64_t range_end = extract_i64_magnitude_saturating(payload, payload_len, 8, safe_size_to_i64(payload_len));
+                sarif_text_eq_range(left, range_start, range_end, right);
             }
             break;
         }
