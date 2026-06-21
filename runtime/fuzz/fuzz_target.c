@@ -34,16 +34,20 @@ static unsigned char* make_text(const uint8_t* data, size_t len, size_t max_len)
     return text;
 }
 
+// Safely extract a signed 64-bit integer from fuzz data.
+// Converts negative values to positive in the unsigned domain to avoid
+// undefined behavior when negating INT64_MIN, capping it at INT64_MAX.
 static int64_t extract_i64(const uint8_t* data, size_t len, size_t offset,
                             int64_t default_val) {
     if (offset + 8 > len) return default_val;
     int64_t val;
     memcpy(&val, data + offset, 8);
     if (val < 0) {
-        if (val == INT64_MIN) {
-            val = INT64_MAX;
+        uint64_t mag = (~(uint64_t)val) + 1;  // abs(val) in unsigned domain
+        if (mag > (uint64_t)INT64_MAX) {
+            val = INT64_MAX;                  // Cap to prevent two's complement overflow
         } else {
-            val = -val;
+            val = (int64_t)mag;
         }
     }
     return val;
@@ -114,6 +118,13 @@ static void fuzz_runtime_end_iteration(void) {
 // Fuzz target entry point.
 // ---------------------------------------------------------------------------
 
+// Mask to extract the opcode from the first byte of fuzz input.
+// We use a 5-bit mask (0x1fU) providing 32 opcode slots (0-31) to accommodate
+// future API extensions. Currently, only opcodes 0-12 are implemented to cover
+// the existing core runtime built-in functions. Opcodes 13-31 are safely ignored
+// by the switch default case.
+#define FUZZ_OP_MASK 0x1fU
+
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 1) return 0;
 
@@ -123,7 +134,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     const uint8_t* payload = data + 1;
     size_t payload_len = size - 1;
 
-    switch (op & 0x1f) {
+    switch (op & FUZZ_OP_MASK) {
         case 0: {
             size_t half = payload_len / 2;
             unsigned char* left = make_text(payload, half, 4096);
@@ -193,28 +204,29 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
         case 5: {
             // Create a list with valid text handles from the fuzzer payload.
-            unsigned char* texts[8] = {NULL};
-            size_t segment = payload_len / 8;
-            for (int i = 0; i < 8; i++) {
+            enum { FUZZ_LIST_SIZE = 8 };
+            size_t segment = payload_len / FUZZ_LIST_SIZE;
+            unsigned char* texts[FUZZ_LIST_SIZE] = {NULL};
+            for (int i = 0; i < FUZZ_LIST_SIZE; i++) {
                 if (segment > 0) {
                     texts[i] = make_text(payload + i * segment, segment, 64);
                 } else {
                     texts[i] = sarif_text_alloc(0);
                 }
             }
-            void* list = sarif_list_new(8, 0);
+            void* list = sarif_list_new(FUZZ_LIST_SIZE, 0);
             if (list) {
                 SarifList* l = (SarifList*)list;
-                for (int i = 0; i < 8; i++) {
+                for (int i = 0; i < FUZZ_LIST_SIZE; i++) {
                     l->values[i] = (uint64_t)(uintptr_t)texts[i];
                 }
                 unsigned char* extra_text = make_text(payload, payload_len, 64);
-                void* updated = sarif_list_push(list, 8, (uint64_t)(uintptr_t)extra_text);
+                void* updated = sarif_list_push(list, FUZZ_LIST_SIZE, (uint64_t)(uintptr_t)extra_text);
                 if (updated) {
                     list = updated;
-                    sarif_list_sort_text(list, 9);
+                    sarif_list_sort_text(list, FUZZ_LIST_SIZE + 1);
                 } else {
-                    sarif_list_sort_text(list, 8);
+                    sarif_list_sort_text(list, FUZZ_LIST_SIZE);
                 }
             }
             cleanup_list(list);
