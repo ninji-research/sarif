@@ -1036,7 +1036,11 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", lock_rc, strerror(lock_rc));
+            char lock_errbuf[128];
+            if (strerror_r(lock_rc, lock_errbuf, sizeof(lock_errbuf)) != 0) {
+                snprintf(lock_errbuf, sizeof(lock_errbuf), "unknown");
+            }
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", lock_rc, lock_errbuf);
             return NULL;
         }
         sarif_sort_text_field_offset = field_offset;
@@ -1048,7 +1052,11 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", unlock_rc, strerror(unlock_rc));
+            char unlock_errbuf[128];
+            if (strerror_r(unlock_rc, unlock_errbuf, sizeof(unlock_errbuf)) != 0) {
+                snprintf(unlock_errbuf, sizeof(unlock_errbuf), "unknown");
+            }
+            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d (%s)\n", unlock_rc, unlock_errbuf);
             return NULL;
         }
     }
