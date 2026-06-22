@@ -48,6 +48,10 @@ __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
     exit(1);
 }
+
+static void sarif_report_mutex_error(const char* func_name, const char* op, int rc) {
+    fprintf(stderr, "SARIF RUNTIME ERROR: %s(sarif_sort_mutex) failed in %s: %d\n", op, func_name, rc);
+}
 static const unsigned char sarif_empty_text[8] = {0};
 
 #define SARIF_BYTES_VIEW_TAG (1ULL << 63)
@@ -303,7 +307,7 @@ void sarif_alloc_push(void) {
     if (scope == NULL) {
         pthread_mutex_unlock(&sarif_record_mutex);
         pthread_mutex_unlock(&sarif_scope_mutex);
-        sarif_fatal_error("Failed to allocate overflow scope in sarif_alloc_push");
+        sarif_fatal_error("failed to allocate overflow scope in sarif_alloc_push");
     }
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
@@ -449,7 +453,7 @@ static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
 static unsigned char* sarif_intern_alloc(uint64_t size) {
     const uint64_t align_mask = (uint64_t)(SARIF_INTERN_ALIGN - 1u);
     if (size > UINT64_MAX - align_mask) {
-        sarif_fatal_error("size overflow in string interning pool alignment");
+        sarif_fatal_error("string size too large for interning pool alignment");
     }
     uint64_t aligned_u64 = (size + align_mask) & ~align_mask;
     size_t aligned = (size_t)aligned_u64;
@@ -1092,7 +1096,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d\n", lock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_text_field", "pthread_mutex_lock", lock_rc);
             return NULL;
         }
         sarif_sort_text_field_offset = field_offset;
@@ -1104,7 +1108,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_text_field: %d\n", unlock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_text_field", "pthread_mutex_unlock", unlock_rc);
             return NULL;
         }
     }
@@ -1126,7 +1130,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d\n", lock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_i32_field", "pthread_mutex_lock", lock_rc);
             return NULL;
         }
         sarif_sort_i32_field_offset = field_offset;
@@ -1138,7 +1142,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_i32_field: %d\n", unlock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_i32_field", "pthread_mutex_unlock", unlock_rc);
             return NULL;
         }
     }
@@ -1160,7 +1164,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_lock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d\n", lock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_f64_field", "pthread_mutex_lock", lock_rc);
             return NULL;
         }
         sarif_sort_f64_field_offset = field_offset;
@@ -1172,7 +1176,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            fprintf(stderr, "SARIF RUNTIME ERROR: pthread_mutex_unlock(sarif_sort_mutex) failed in sarif_list_sort_by_f64_field: %d\n", unlock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_f64_field", "pthread_mutex_unlock", unlock_rc);
             return NULL;
         }
     }
@@ -1294,7 +1298,7 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         idx = (idx + 1) % index->cap;
         if (idx == start) {
             if (found == NULL) {
-                sarif_fatal_error("sarif_text_index_find_entry: invariant violated (programming error): full table reached while searching insertion slot; capacity should have been ensured by caller");
+                sarif_fatal_error("sarif_text_index_find_entry: text index table is full; internal error");
             }
             result = NULL;
             goto done;
@@ -2298,11 +2302,11 @@ static void sarif_ignore_sigpipe_once(void) {
     sa.sa_handler = SIG_IGN;
     sa.sa_flags = 0;
     if (sigemptyset(&sa.sa_mask) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed for SIGPIPE handler: %s\n", strerror(errno));
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed while configuring SIGPIPE handling; SIGPIPE may remain unignored and writes to closed sockets may terminate the process: %s\n", strerror(errno));
         return;
     }
     if (sigaction(SIGPIPE, &sa, NULL) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: sigaction(SIGPIPE, SIG_IGN) failed: %s\n", strerror(errno));
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigaction(SIGPIPE, SIG_IGN) failed; SIGPIPE may remain unignored and writes to closed sockets may terminate the process: %s\n", strerror(errno));
     }
 }
 
