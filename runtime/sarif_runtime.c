@@ -303,7 +303,7 @@ void sarif_alloc_push(void) {
     if (scope == NULL) {
         pthread_mutex_unlock(&sarif_record_mutex);
         pthread_mutex_unlock(&sarif_scope_mutex);
-        sarif_fatal_error("sarif_alloc_push_scope returned NULL");
+        sarif_fatal_error("Failed to allocate overflow scope in sarif_alloc_push");
     }
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
@@ -1294,7 +1294,7 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         idx = (idx + 1) % index->cap;
         if (idx == start) {
             if (found == NULL) {
-                sarif_fatal_error("sarif_text_index_find_entry: text index is full; caller must ensure capacity before insertion");
+                sarif_fatal_error("sarif_text_index_find_entry: invariant violated (programming error): full table reached while searching insertion slot; capacity should have been ensured by caller");
             }
             result = NULL;
             goto done;
@@ -2298,7 +2298,7 @@ static void sarif_ignore_sigpipe_once(void) {
     sa.sa_handler = SIG_IGN;
     sa.sa_flags = 0;
     if (sigemptyset(&sa.sa_mask) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: Failed to initialize signal mask for SIGPIPE handler (sigemptyset): %s\n", strerror(errno));
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed for SIGPIPE handler: %s\n", strerror(errno));
         return;
     }
     if (sigaction(SIGPIPE, &sa, NULL) != 0) {
