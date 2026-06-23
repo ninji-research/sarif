@@ -1268,7 +1268,6 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
 ) {
     uint64_t idx = 0;
     uint64_t start = 0;
-    SarifTextIndexEntry* result = NULL;
     if (found != NULL) {
         *found = 0;
     }
