@@ -40,6 +40,11 @@ extern char** environ;
 /* One extra byte for scratch-space headroom/documented size invariant. */
 #define SARIF_I64_FORMAT_SCRATCH_SIZE (SARIF_I64_DECIMAL_WIDTH + 1)
 
+/* Max printed width for int64_t in base-10 without terminator (e.g. "-9223372036854775808"). */
+#define SARIF_I64_DECIMAL_WIDTH 20
+/* One extra byte for scratch-space headroom/documented size invariant. */
+#define SARIF_I64_FORMAT_SCRATCH_SIZE (SARIF_I64_DECIMAL_WIDTH + 1)
+
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
@@ -49,10 +54,13 @@ static pthread_mutex_t sarif_text_index_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t sarif_sort_f64_field_offset = 0;
 static uint64_t sarif_sort_text_field_offset = 0;
 
-__attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
-    fprintf(stderr, "SARIF RUNTIME ERROR: %s\n", msg);
+__attribute__((noreturn)) static void sarif_fatal_error(const char* func_name, const char* msg) {
+    fprintf(stderr, "SARIF RUNTIME ERROR [%s]: %s\n", func_name, msg);
     exit(1);
 }
+
+#define SARIF_FATAL_ERROR(msg) sarif_fatal_error(__func__, (msg))
+#define sarif_fatal_error(msg) sarif_fatal_error(__func__, (msg))
 
 static void sarif_report_mutex_error(const char* func_name, const char* op, const char* mutex_name, int rc) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s(%s) failed in %s: %d\n", op, mutex_name, func_name, rc);
@@ -870,11 +878,11 @@ void* sarif_list_push(void* list_ptr, int64_t len, uint64_t value) {
         grown = malloc((size_t)next_cap * sizeof(uint64_t));
         if (grown == NULL) { return NULL; }
         grown[0] = value;
-        SarifList* vec = malloc(sizeof(SarifList));
-        if (vec == NULL) { free(grown); return NULL; }
-        vec->values = grown;
-        vec->len = next_cap;
-        return vec;
+        list = malloc(sizeof(SarifList));
+        if (list == NULL) { free(grown); return NULL; }
+        list->values = grown;
+        list->len = next_cap;
+        return list;
     }
     if (list->values == NULL && list->len > 0) { return NULL; }
     used = (uint64_t)len;
@@ -943,7 +951,7 @@ int64_t sarif_list_len(void* list_ptr) {
 // The record layout places fields consecutively at 8-byte offsets starting at ptr[0].
 // Returns NULL on allocation failure or invalid arguments.
 void* sarif_list_from_raw(void* raw_ptr, int64_t len) {
-    SarifList* vec = NULL;
+    SarifList* list = NULL;
     if (len == 0) {
         return &sarif_empty_list;
     }
@@ -956,18 +964,18 @@ void* sarif_list_from_raw(void* raw_ptr, int64_t len) {
     if ((uint64_t)len > (uint64_t)SIZE_MAX / sizeof(uint64_t)) {
         return NULL;
     }
-    vec = malloc(sizeof(SarifList));
-    if (vec == NULL) {
+    list = malloc(sizeof(SarifList));
+    if (list == NULL) {
         return NULL;
     }
-    vec->len = (uint64_t)len;
-    vec->values = malloc((size_t)len * sizeof(uint64_t));
-    if (vec->values == NULL) {
-        free(vec);
+    list->len = (uint64_t)len;
+    list->values = malloc((size_t)len * sizeof(uint64_t));
+    if (list->values == NULL) {
+        free(list);
         return NULL;
     }
-    memcpy(vec->values, raw_ptr, (size_t)len * sizeof(uint64_t));
-    return vec;
+    memcpy(list->values, raw_ptr, (size_t)len * sizeof(uint64_t));
+    return list;
 }
 
 static int sarif_compare_text_handles(uint64_t left, uint64_t right) {
@@ -1204,10 +1212,10 @@ typedef struct SarifTextIndex {
 static int sarif_text_handle_eq(uint64_t left, uint64_t right);
 
 static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
-    int ok = 0;
+    int capacity_ready = 0;
     pthread_mutex_lock(&sarif_text_index_mutex);
     if (index == NULL || index->entries == NULL) {
-        ok = 0;
+        capacity_ready = 0;
         goto done;
     }
     /* Keep current capacity while load factor is below 75%
@@ -1228,25 +1236,25 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     uint64_t cap_rem = index->cap % 4;
     uint64_t load_threshold = cap_quarter * 3 + (cap_rem * 3) / 4;
     if (index->len < load_threshold) {
-        ok = 1;
+        capacity_ready = 1;
         goto done;
     }
     if (index->cap > UINT64_MAX / 2) {
-        ok = 0;
+        capacity_ready = 0;
         goto done;
     }
     uint64_t new_cap = index->cap * 2;
     if (new_cap > (uint64_t)SIZE_MAX) {
-        ok = 0;
+        capacity_ready = 0;
         goto done;
     }
     if ((size_t)new_cap > SIZE_MAX / sizeof(SarifTextIndexEntry)) {
-        ok = 0;
+        capacity_ready = 0;
         goto done;
     }
     SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
     if (new_entries == NULL) {
-        ok = 0;
+        capacity_ready = 0;
         goto done;
     }
     for (uint64_t i = 0; i < index->cap; i += 1) {
@@ -1261,10 +1269,10 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     free(index->entries);
     index->entries = new_entries;
     index->cap = new_cap;
-    ok = 1;
+    capacity_ready = 1;
 done:
     pthread_mutex_unlock(&sarif_text_index_mutex);
-    return ok;
+    return capacity_ready;
 }
 
 static SarifTextIndexEntry* sarif_text_index_find_entry(
@@ -1303,7 +1311,14 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         idx = (idx + 1) % index->cap;
         if (idx == start) {
             if (found != NULL) {
-                sarif_fatal_error("sarif_text_index_find_entry: text index table is full; internal error");
+                char errbuf[128];
+                (void)snprintf(
+                    errbuf,
+                    sizeof(errbuf),
+                    "%s: text index table is full; internal error",
+                    __func__
+                );
+                sarif_fatal_error(errbuf);
             }
             result = NULL;
             goto done;
@@ -2307,7 +2322,7 @@ static void sarif_ignore_sigpipe_once(void) {
     sa.sa_handler = SIG_IGN;
     sa.sa_flags = 0;
     if (sigemptyset(&sa.sa_mask) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed while configuring SIGPIPE handling; SIGPIPE may remain unignored and writes to closed sockets may terminate the process: %s\n", strerror(errno));
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed during SIGPIPE setup; SIGPIPE may remain unignored: %s\n", strerror(errno));
         return;
     }
     if (sigaction(SIGPIPE, &sa, NULL) != 0) {
