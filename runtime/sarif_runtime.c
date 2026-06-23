@@ -35,6 +35,11 @@ extern char** environ;
 #define SARIF_INTERN_ALIGN 8u
 #endif
 
+/* Max printed width for int64_t in base-10 without terminator (e.g. "-9223372036854775808"). */
+#define SARIF_I64_DECIMAL_WIDTH 20
+/* One extra byte for scratch-space headroom/documented size invariant. */
+#define SARIF_I64_FORMAT_SCRATCH_SIZE (SARIF_I64_DECIMAL_WIDTH + 1)
+
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
@@ -49,8 +54,8 @@ __attribute__((noreturn)) static void sarif_fatal_error(const char* msg) {
     exit(1);
 }
 
-static void sarif_report_mutex_error(const char* func_name, const char* op, int rc) {
-    fprintf(stderr, "SARIF RUNTIME ERROR: %s(sarif_sort_mutex) failed in %s: %d\n", op, func_name, rc);
+static void sarif_report_mutex_error(const char* func_name, const char* op, const char* mutex_name, int rc) {
+    fprintf(stderr, "SARIF RUNTIME ERROR: %s(%s) failed in %s: %d\n", op, mutex_name, func_name, rc);
 }
 static const unsigned char sarif_empty_text[8] = {0};
 
@@ -304,11 +309,6 @@ void sarif_alloc_push(void) {
     pthread_mutex_lock(&sarif_scope_mutex);
     pthread_mutex_lock(&sarif_record_mutex);
     struct SarifAllocScope* scope = sarif_alloc_push_scope();
-    if (scope == NULL) {
-        pthread_mutex_unlock(&sarif_record_mutex);
-        pthread_mutex_unlock(&sarif_scope_mutex);
-        sarif_fatal_error("failed to allocate overflow scope in sarif_alloc_push");
-    }
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
     pthread_mutex_unlock(&sarif_record_mutex);
@@ -767,7 +767,7 @@ void* sarif_text_builder_append_slice(
 
 
 static int sarif_format_i64(char* scratch, int64_t value) {
-    int index = 20;
+    int index = SARIF_I64_DECIMAL_WIDTH;
     uint64_t magnitude;
     int negative = (value < 0);
     if (negative) {
@@ -782,12 +782,12 @@ static int sarif_format_i64(char* scratch, int64_t value) {
     if (negative) {
         scratch[--index] = '-';
     }
-    return 20 - index;
+    return SARIF_I64_DECIMAL_WIDTH - index;
 }
 
 void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
     SarifTextBuilder* builder = (SarifTextBuilder*)raw_builder;
-    char scratch[21];
+    char scratch[SARIF_I64_FORMAT_SCRATCH_SIZE];
     int len;
     if (builder == NULL) {
         return NULL;
@@ -797,7 +797,7 @@ void* sarif_text_builder_append_i32(void* raw_builder, int64_t value) {
     if (builder == NULL) {
         return NULL;
     }
-    memcpy(builder->bytes + builder->len, scratch + (20 - len), (size_t)len);
+    memcpy(builder->bytes + builder->len, scratch + (SARIF_I64_DECIMAL_WIDTH - len), (size_t)len);
     builder->len += (uint64_t)len;
     return builder;
 }
@@ -1096,7 +1096,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            sarif_report_mutex_error("sarif_list_sort_by_text_field", "pthread_mutex_lock", lock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_text_field", "pthread_mutex_lock", "sarif_sort_mutex", lock_rc);
             return NULL;
         }
         sarif_sort_text_field_offset = field_offset;
@@ -1108,7 +1108,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            sarif_report_mutex_error("sarif_list_sort_by_text_field", "pthread_mutex_unlock", unlock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_text_field", "pthread_mutex_unlock", "sarif_sort_mutex", unlock_rc);
             return NULL;
         }
     }
@@ -1130,7 +1130,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            sarif_report_mutex_error("sarif_list_sort_by_i32_field", "pthread_mutex_lock", lock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_i32_field", "pthread_mutex_lock", "sarif_sort_mutex", lock_rc);
             return NULL;
         }
         sarif_sort_i32_field_offset = field_offset;
@@ -1142,7 +1142,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            sarif_report_mutex_error("sarif_list_sort_by_i32_field", "pthread_mutex_unlock", unlock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_i32_field", "pthread_mutex_unlock", "sarif_sort_mutex", unlock_rc);
             return NULL;
         }
     }
@@ -1164,7 +1164,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
     if (used > 1) {
         int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
         if (lock_rc != 0) {
-            sarif_report_mutex_error("sarif_list_sort_by_f64_field", "pthread_mutex_lock", lock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_f64_field", "pthread_mutex_lock", "sarif_sort_mutex", lock_rc);
             return NULL;
         }
         sarif_sort_f64_field_offset = field_offset;
@@ -1176,7 +1176,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
         );
         int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
         if (unlock_rc != 0) {
-            sarif_report_mutex_error("sarif_list_sort_by_f64_field", "pthread_mutex_unlock", unlock_rc);
+            sarif_report_mutex_error("sarif_list_sort_by_f64_field", "pthread_mutex_unlock", "sarif_sort_mutex", unlock_rc);
             return NULL;
         }
     }
@@ -1212,17 +1212,22 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     }
     /* Keep current capacity while load factor is below 75%
      * (len/cap < 0.75), expressed with integer arithmetic as
-     * len < (cap * 3) / 4 to avoid floating-point arithmetic and
-     * avoid overflow from multiplying len by 4. Rehash once that
-     * threshold is met or exceeded (len * 4 >= cap * 3), including
-     * exactly 75% (len * 4 == cap * 3). This table uses open addressing
-     * with linear probing (idx = (idx + 1) % cap) for collision resolution;
-     * rehashing at 75% also guarantees the table never becomes completely full,
+     * len < floor((cap * 3) / 4). Compute this threshold in an
+     * overflow-safe way as:
+     *   floor((cap * 3) / 4) = (cap / 4) * 3 + ((cap % 4) * 3) / 4
+     * so we avoid overflowing on (cap * 3). Rehash once that
+     * threshold is met or exceeded, including exactly 75%.
+     * This table uses open addressing with linear probing
+     * (idx = (idx + 1) % cap) for collision resolution; rehashing
+     * at 75% also guarantees the table never becomes completely full,
      * so probing always encounters an empty slot and cannot loop forever.
      * At this threshold probe chains stay short enough for expected O(1)
      * operations while avoiding excessive memory use.
      */
-    if (index->len < (index->cap * 3) / 4) {
+    uint64_t cap_quarter = index->cap / 4;
+    uint64_t cap_rem = index->cap % 4;
+    uint64_t load_threshold = cap_quarter * 3 + (cap_rem * 3) / 4;
+    if (index->len < load_threshold) {
         ok = 1;
         goto done;
     }
@@ -1297,7 +1302,7 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         }
         idx = (idx + 1) % index->cap;
         if (idx == start) {
-            if (found == NULL) {
+            if (found != NULL) {
                 sarif_fatal_error("sarif_text_index_find_entry: text index table is full; internal error");
             }
             result = NULL;
@@ -1979,9 +1984,9 @@ static int sarif_write_value(
 #endif
 
 static int __attribute__((unused)) sarif_write_i64(int64_t value, int newline) {
-    char scratch[21];
+    char scratch[SARIF_I64_FORMAT_SCRATCH_SIZE];
     int len = sarif_format_i64(scratch, value);
-    if (sarif_write_all((const unsigned char*)(scratch + (20 - len)), (uint64_t)len) != 0) {
+    if (sarif_write_all((const unsigned char*)(scratch + (SARIF_I64_DECIMAL_WIDTH - len)), (uint64_t)len) != 0) {
         return 1;
     }
     if (newline && sarif_write_byte('\n') != 0) {
