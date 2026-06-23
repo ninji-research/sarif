@@ -40,10 +40,6 @@ extern char** environ;
 /* One extra byte for scratch-space headroom/documented size invariant. */
 #define SARIF_I64_FORMAT_SCRATCH_SIZE (SARIF_I64_DECIMAL_WIDTH + 1)
 
-/* Max printed width for int64_t in base-10 without terminator (e.g. "-9223372036854775808"). */
-#define SARIF_I64_DECIMAL_WIDTH 20
-/* One extra byte for scratch-space headroom/documented size invariant. */
-#define SARIF_I64_FORMAT_SCRATCH_SIZE (SARIF_I64_DECIMAL_WIDTH + 1)
 
 static int sarif_argc = 0;
 static char** sarif_argv = NULL;
@@ -60,7 +56,12 @@ __attribute__((noreturn)) static void sarif_fatal_error(const char* func_name, c
 }
 
 #define SARIF_FATAL_ERROR(msg) sarif_fatal_error(__func__, (msg))
-#define sarif_fatal_error(msg) sarif_fatal_error(__func__, (msg))
+
+#define GET_FATAL_MACRO(_1, _2, NAME, ...) NAME
+#define sarif_fatal_error(...) GET_FATAL_MACRO(__VA_ARGS__, sarif_fatal_error_2, sarif_fatal_error_1)(__VA_ARGS__)
+
+#define sarif_fatal_error_1(msg) sarif_fatal_error(__func__, (msg))
+#define sarif_fatal_error_2(func_name, msg) sarif_fatal_error((func_name), (msg))
 
 static void sarif_report_mutex_error(const char* func_name, const char* op, const char* mutex_name, int rc) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s(%s) failed in %s: %d\n", op, mutex_name, func_name, rc);
@@ -294,7 +295,7 @@ static struct SarifAllocScope* sarif_alloc_push_scope(void) {
     }
     struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
     if (n == NULL) {
-        sarif_fatal_error("out of memory in sarif_alloc_push_scope");
+        sarif_fatal_error("out of memory");
     }
     n->next = sarif_scope_overflow;
     sarif_scope_overflow = n;
@@ -1315,10 +1316,9 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
                 (void)snprintf(
                     errbuf,
                     sizeof(errbuf),
-                    "%s: text index table is full; internal error",
-                    __func__
+                    "text index table is full; internal error"
                 );
-                sarif_fatal_error(errbuf);
+                sarif_fatal_error(__func__, errbuf);
             }
             result = NULL;
             goto done;
