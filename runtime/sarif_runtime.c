@@ -45,23 +45,22 @@ static int sarif_argc = 0;
 static char** sarif_argv = NULL;
 static unsigned char* sarif_stdin_cache = NULL;
 static pthread_mutex_t sarif_env_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t sarif_scope_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t sarif_text_index_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t sarif_sort_f64_field_offset = 0;
 static uint64_t sarif_sort_text_field_offset = 0;
 
-__attribute__((noreturn)) static void sarif_fatal_error(const char* func_name, const char* msg) {
+__attribute__((noreturn)) static void sarif_fatal_error_impl(const char* func_name, const char* msg) {
     fprintf(stderr, "SARIF RUNTIME ERROR [%s]: %s\n", func_name, msg);
     exit(1);
 }
 
-#define SARIF_FATAL_ERROR(msg) sarif_fatal_error(__func__, (msg))
+#define SARIF_FATAL_ERROR(msg) sarif_fatal_error_impl(__func__, (msg))
 
 #define GET_FATAL_MACRO(_1, _2, NAME, ...) NAME
 #define sarif_fatal_error(...) GET_FATAL_MACRO(__VA_ARGS__, sarif_fatal_error_2, sarif_fatal_error_1)(__VA_ARGS__)
 
-#define sarif_fatal_error_1(msg) sarif_fatal_error(__func__, (msg))
-#define sarif_fatal_error_2(func_name, msg) sarif_fatal_error((func_name), (msg))
+#define sarif_fatal_error_1(msg) sarif_fatal_error_impl(__func__, (msg))
+#define sarif_fatal_error_2(func_name, msg) sarif_fatal_error_impl((func_name), (msg))
 
 static void sarif_report_mutex_error(const char* func_name, const char* op, const char* mutex_name, int rc) {
     fprintf(stderr, "SARIF RUNTIME ERROR: %s(%s) failed in %s: %d\n", op, mutex_name, func_name, rc);
@@ -290,7 +289,6 @@ done:
 }
 
 void sarif_alloc_push(void) {
-    pthread_mutex_lock(&sarif_scope_mutex);
     pthread_mutex_lock(&sarif_record_mutex);
     struct SarifAllocScope* scope = NULL;
     if (sarif_scope_depth < SARIF_SCOPE_STACK_CAP) {
@@ -299,7 +297,6 @@ void sarif_alloc_push(void) {
         struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
         if (n == NULL) {
             pthread_mutex_unlock(&sarif_record_mutex);
-            pthread_mutex_unlock(&sarif_scope_mutex);
             sarif_fatal_error("out of memory");
         }
         n->next = sarif_scope_overflow;
@@ -309,17 +306,14 @@ void sarif_alloc_push(void) {
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
     pthread_mutex_unlock(&sarif_record_mutex);
-    pthread_mutex_unlock(&sarif_scope_mutex);
 }
 
 void sarif_alloc_pop(void) {
     SarifRecordChunk* chunk = NULL;
     SarifRecordChunk* next = NULL;
-    pthread_mutex_lock(&sarif_scope_mutex);
     pthread_mutex_lock(&sarif_record_mutex);
     if (sarif_scope_depth == 0 && sarif_scope_overflow == NULL) {
         pthread_mutex_unlock(&sarif_record_mutex);
-        pthread_mutex_unlock(&sarif_scope_mutex);
         return;
     }
     struct SarifAllocScope scope = {
@@ -349,7 +343,6 @@ void sarif_alloc_pop(void) {
         sarif_record_chunks = NULL;
         sarif_record_current = NULL;
         pthread_mutex_unlock(&sarif_record_mutex);
-        pthread_mutex_unlock(&sarif_scope_mutex);
         return;
     }
     chunk = scope.chunk->next;
@@ -362,7 +355,6 @@ void sarif_alloc_pop(void) {
     sarif_record_current = scope.chunk;
     sarif_record_current->used = scope.used;
     pthread_mutex_unlock(&sarif_record_mutex);
-    pthread_mutex_unlock(&sarif_scope_mutex);
 }
 
 static inline __attribute__((always_inline)) __attribute__((unused)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {
@@ -1210,10 +1202,8 @@ static int sarif_text_handle_eq(uint64_t left, uint64_t right);
 
 static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     int capacity_ready = 0;
-    pthread_mutex_lock(&sarif_text_index_mutex);
     if (index == NULL || index->entries == NULL) {
-        capacity_ready = 0;
-        goto done;
+        return capacity_ready;
     }
     /* Keep current capacity while load factor is below 75%
      * (len/cap < 0.75), expressed with integer arithmetic as
@@ -1234,25 +1224,25 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     uint64_t load_threshold = cap_quarter * 3 + (cap_rem * 3) / 4;
     if (index->len < load_threshold) {
         capacity_ready = 1;
-        goto done;
+        return capacity_ready;
     }
     if (index->cap > UINT64_MAX / 2) {
         capacity_ready = 0;
-        goto done;
+        return capacity_ready;
     }
     uint64_t new_cap = index->cap * 2;
     if (new_cap > (uint64_t)SIZE_MAX) {
         capacity_ready = 0;
-        goto done;
+        return capacity_ready;
     }
     if ((size_t)new_cap > SIZE_MAX / sizeof(SarifTextIndexEntry)) {
         capacity_ready = 0;
-        goto done;
+        return capacity_ready;
     }
     SarifTextIndexEntry* new_entries = calloc((size_t)new_cap, sizeof(SarifTextIndexEntry));
     if (new_entries == NULL) {
         capacity_ready = 0;
-        goto done;
+        return capacity_ready;
     }
     for (uint64_t i = 0; i < index->cap; i += 1) {
         if (index->entries[i].occupied) {
@@ -1267,8 +1257,6 @@ static int sarif_text_index_ensure_capacity(SarifTextIndex* index) {
     index->entries = new_entries;
     index->cap = new_cap;
     capacity_ready = 1;
-done:
-    pthread_mutex_unlock(&sarif_text_index_mutex);
     return capacity_ready;
 }
 
@@ -1287,10 +1275,8 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
     if (index == NULL) {
         return NULL;
     }
-    pthread_mutex_lock(&sarif_text_index_mutex);
     if (index->entries == NULL || index->cap == 0) {
-        result = NULL;
-        goto done;
+        return NULL;
     }
     idx = hash % index->cap;
     start = idx;
@@ -1302,28 +1288,21 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
             if (found != NULL) {
                 *found = 1;
             }
-            result = &index->entries[idx];
-            goto done;
+            return &index->entries[idx];
         }
         idx = (idx + 1) % index->cap;
         if (idx == start) {
-            if (found != NULL) {
-                char errbuf[128];
-                (void)snprintf(
-                    errbuf,
-                    sizeof(errbuf),
-                    "text index table is full; internal error"
-                );
-                sarif_fatal_error(__func__, errbuf);
-            }
-            result = NULL;
-            goto done;
+            char errbuf[128];
+            (void)snprintf(
+                errbuf,
+                sizeof(errbuf),
+                "text index table is full; internal error"
+            );
+            sarif_fatal_error(__func__, errbuf);
+            return NULL;
         }
     }
-    result = &index->entries[idx];
-done:
-    pthread_mutex_unlock(&sarif_text_index_mutex);
-    return result;
+    return &index->entries[idx];
 }
 
 static uint32_t sarif_text_hash_handle(uint64_t key) {
@@ -1388,12 +1367,15 @@ void* sarif_text_index_set(void* index_ptr, uint64_t key, int64_t value) {
     if (index == NULL || index->entries == NULL) {
         return NULL;
     }
+    pthread_mutex_lock(&sarif_text_index_mutex);
     if (!sarif_text_index_ensure_capacity(index)) {
+        pthread_mutex_unlock(&sarif_text_index_mutex);
         return NULL;
     }
     hash = sarif_text_hash_handle(key);
     entry = sarif_text_index_find_entry(index, key, hash, &found);
     if (entry == NULL) {
+        pthread_mutex_unlock(&sarif_text_index_mutex);
         return NULL;
     }
     entry->key = key;
@@ -1403,22 +1385,26 @@ void* sarif_text_index_set(void* index_ptr, uint64_t key, int64_t value) {
         entry->occupied = 1;
         index->len += 1;
     }
+    pthread_mutex_unlock(&sarif_text_index_mutex);
     return index;
 }
 
 int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
     int found = 0;
+    pthread_mutex_lock(&sarif_text_index_mutex);
     SarifTextIndexEntry* entry = sarif_text_index_find_entry(
         index,
         key,
         sarif_text_hash_handle(key),
         &found
     );
+    int64_t result = -1;
     if (entry != NULL && found) {
-        return entry->value;
+        result = entry->value;
     }
-    return -1;
+    pthread_mutex_unlock(&sarif_text_index_mutex);
+    return result;
 }
 
 int64_t sarif_text_index_contains(void* index_ptr, uint64_t key) {
@@ -1427,12 +1413,14 @@ int64_t sarif_text_index_contains(void* index_ptr, uint64_t key) {
     if (index == NULL || index->entries == NULL) {
         return 0;
     }
+    pthread_mutex_lock(&sarif_text_index_mutex);
     sarif_text_index_find_entry(
         index,
         key,
         sarif_text_hash_handle(key),
         &found
     );
+    pthread_mutex_unlock(&sarif_text_index_mutex);
     return found;
 }
 
@@ -1444,23 +1432,29 @@ int64_t sarif_text_index_get_or_insert(void* index_ptr, uint64_t key, int64_t ne
     if (index == NULL || index->entries == NULL) {
         return -1;
     }
+    pthread_mutex_lock(&sarif_text_index_mutex);
     if (!sarif_text_index_ensure_capacity(index)) {
+        pthread_mutex_unlock(&sarif_text_index_mutex);
         return -1;
     }
     hash = sarif_text_hash_handle(key);
     entry = sarif_text_index_find_entry(index, key, hash, &found);
     if (entry == NULL) {
+        pthread_mutex_unlock(&sarif_text_index_mutex);
         return -1;
     }
+    int64_t result = next;
     if (found) {
-        return entry->value;
+        result = entry->value;
+    } else {
+        entry->key = key;
+        entry->value = next;
+        entry->hash = hash;
+        entry->occupied = 1;
+        index->len += 1;
     }
-    entry->key = key;
-    entry->value = next;
-    entry->hash = hash;
-    entry->occupied = 1;
-    index->len += 1;
-    return next;
+    pthread_mutex_unlock(&sarif_text_index_mutex);
+    return result;
 }
 void* sarif_text_index_keys(void* index_ptr) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
@@ -1469,15 +1463,23 @@ void* sarif_text_index_keys(void* index_ptr) {
     }
     void* builder = sarif_text_builder_new();
     if (builder == NULL) return NULL;
+    pthread_mutex_lock(&sarif_text_index_mutex);
     for (uint64_t i = 0; i < index->cap; i++) {
         if (index->entries[i].occupied) {
             unsigned char* key_text = (unsigned char*)index->entries[i].key;
             builder = sarif_text_builder_append(builder, key_text);
-            if (builder == NULL) { return NULL; }
+            if (builder == NULL) {
+                pthread_mutex_unlock(&sarif_text_index_mutex);
+                return NULL;
+            }
             builder = sarif_text_builder_append_ascii(builder, (int64_t)'\n');
-            if (builder == NULL) { return NULL; }
+            if (builder == NULL) {
+                pthread_mutex_unlock(&sarif_text_index_mutex);
+                return NULL;
+            }
         }
     }
+    pthread_mutex_unlock(&sarif_text_index_mutex);
     return sarif_text_builder_finish(builder);
 }
 
