@@ -8,7 +8,7 @@
 #include <limits.h>
 
 #if UINTPTR_MAX > UINT64_MAX
-#error "sarif_runtime.c requires uintptr_t to be 64 bits or smaller because pointer handles are stored in uint64_t slots."
+#error "sarif_runtime.c requires uintptr_t to fit within 64 bits because pointer handles are stored in uint64_t slots."
 #endif
 
 #include <string.h>
@@ -467,7 +467,7 @@ static uint64_t sarif_intern_hash(const unsigned char* data, uint64_t len) {
 static unsigned char* sarif_intern_alloc(uint64_t size) {
     const uint64_t align_mask = (uint64_t)(SARIF_INTERN_ALIGN - 1u);
     if (size > UINT64_MAX - align_mask) {
-        sarif_fatal_error("string size too large for interning pool alignment");
+        sarif_fatal_error("string size causes overflow when computing aligned allocation size");
     }
     uint64_t aligned_u64 = (size + align_mask) & ~align_mask;
     size_t aligned = (size_t)aligned_u64;
@@ -521,7 +521,7 @@ static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uin
         idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
     }
     SARIF_MUTEX_UNLOCK(&sarif_intern_mutex);
-    sarif_fatal_error("string interning table capacity exhausted; consider increasing SARIF_INTERN_BUCKET_COUNT");
+    sarif_fatal_error("string interning table capacity exhausted; SARIF_INTERN_BUCKET_COUNT is a compile-time constant, so increase it and recompile");
 }
 
 // Intern a runtime text value into the persistent pool.
@@ -1260,7 +1260,7 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         }
         idx = (idx + 1) % index->cap;
         if (idx == start) {
-            sarif_fatal_error(__func__, "text index table is full; internal error");
+            sarif_fatal_error(__func__, "text index table is full despite rehashing; this indicates a logic error in capacity management");
             return NULL;
         }
     }
@@ -2125,10 +2125,16 @@ void sarif_file_sync(uint64_t handle) {
     FILE* f = (FILE*)(uintptr_t)handle;
     if (f != NULL) {
         if (fflush(f) != 0) {
-            sarif_fatal_error("fflush failed in sarif_file_sync");
+            int saved_errno = errno;
+            char msg[160];
+            snprintf(msg, sizeof(msg), "fflush failed in sarif_file_sync: errno=%d (%s)", saved_errno, strerror(saved_errno));
+            sarif_fatal_error_impl(__func__, msg);
         }
         if (fsync(fileno(f)) != 0) {
-            sarif_fatal_error("fsync failed in sarif_file_sync");
+            int saved_errno = errno;
+            char msg[160];
+            snprintf(msg, sizeof(msg), "fsync failed in sarif_file_sync: errno=%d (%s)", saved_errno, strerror(saved_errno));
+            sarif_fatal_error_impl(__func__, msg);
         }
     }
 }
