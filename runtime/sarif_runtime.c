@@ -289,35 +289,23 @@ done:
     return result;
 }
 
-static struct SarifAllocScope* sarif_alloc_push_scope(void) {
-    if (sarif_scope_depth < SARIF_SCOPE_STACK_CAP) {
-        return &sarif_scope_stack[sarif_scope_depth++];
-    }
-    struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
-    if (n == NULL) {
-        sarif_fatal_error("out of memory");
-    }
-    n->next = sarif_scope_overflow;
-    sarif_scope_overflow = n;
-    return &n->scope;
-}
-
-static void sarif_alloc_pop_scope(void) {
-    if (sarif_scope_depth > 0) {
-        sarif_scope_depth--;
-        return;
-    }
-    struct SarifAllocScopeOverflow* n = sarif_scope_overflow;
-    if (n != NULL) {
-        sarif_scope_overflow = n->next;
-        free(n);
-    }
-}
-
 void sarif_alloc_push(void) {
     pthread_mutex_lock(&sarif_scope_mutex);
     pthread_mutex_lock(&sarif_record_mutex);
-    struct SarifAllocScope* scope = sarif_alloc_push_scope();
+    struct SarifAllocScope* scope = NULL;
+    if (sarif_scope_depth < SARIF_SCOPE_STACK_CAP) {
+        scope = &sarif_scope_stack[sarif_scope_depth++];
+    } else {
+        struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
+        if (n == NULL) {
+            pthread_mutex_unlock(&sarif_record_mutex);
+            pthread_mutex_unlock(&sarif_scope_mutex);
+            sarif_fatal_error("out of memory");
+        }
+        n->next = sarif_scope_overflow;
+        sarif_scope_overflow = n;
+        scope = &n->scope;
+    }
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
     pthread_mutex_unlock(&sarif_record_mutex);
@@ -342,7 +330,15 @@ void sarif_alloc_pop(void) {
             ? sarif_scope_stack[sarif_scope_depth - 1].used
             : sarif_scope_overflow->scope.used,
     };
-    sarif_alloc_pop_scope();
+    if (sarif_scope_depth > 0) {
+        sarif_scope_depth--;
+    } else {
+        struct SarifAllocScopeOverflow* n = sarif_scope_overflow;
+        if (n != NULL) {
+            sarif_scope_overflow = n->next;
+            free(n);
+        }
+    }
     if (scope.chunk == NULL) {
         chunk = sarif_record_chunks;
         while (chunk != NULL) {
@@ -2322,7 +2318,7 @@ static void sarif_ignore_sigpipe_once(void) {
     sa.sa_handler = SIG_IGN;
     sa.sa_flags = 0;
     if (sigemptyset(&sa.sa_mask) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed during SIGPIPE setup; SIGPIPE may remain unignored: %s\n", strerror(errno));
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigemptyset failed during SIGPIPE setup; SIGPIPE may remain unignored.\n");
         return;
     }
     if (sigaction(SIGPIPE, &sa, NULL) != 0) {
