@@ -10,6 +10,7 @@ CORPUS_DIR="${2:-$SCRIPT_DIR/corpus}"
 mkdir -p "$CORPUS_DIR"
 
 clang -fsanitize=fuzzer,address \
+    -Wall -Wextra -Werror \
     -g -O1 \
     -o "$FUZZ_TARGET" \
     "$SCRIPT_DIR/fuzz_target.c"

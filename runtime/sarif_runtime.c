@@ -1,4 +1,6 @@
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
+#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -65,14 +67,18 @@ __attribute__((noreturn)) static void sarif_fatal_error_impl(const char* func_na
 #define SARIF_MUTEX_LOCK(mutex) do { \
     int _rc = pthread_mutex_lock(mutex); \
     if (_rc != 0) { \
-        sarif_fatal_error_impl(__func__, "pthread_mutex_lock failed"); \
+        char _errbuf[128]; \
+        snprintf(_errbuf, sizeof(_errbuf), "pthread_mutex_lock failed: %s (%d)", strerror(_rc), _rc); \
+        sarif_fatal_error_impl(__func__, _errbuf); \
     } \
 } while (0)
 
 #define SARIF_MUTEX_UNLOCK(mutex) do { \
     int _rc = pthread_mutex_unlock(mutex); \
     if (_rc != 0) { \
-        sarif_fatal_error_impl(__func__, "pthread_mutex_unlock failed"); \
+        char _errbuf[128]; \
+        snprintf(_errbuf, sizeof(_errbuf), "pthread_mutex_unlock failed: %s (%d)", strerror(_rc), _rc); \
+        sarif_fatal_error_impl(__func__, _errbuf); \
     } \
 } while (0)
 
@@ -258,7 +264,7 @@ void* sarif_record_alloc(uint64_t size) {
     SARIF_MUTEX_LOCK(&sarif_record_mutex);
 
     if (size == 0) {
-        result = sarif_empty_text;
+        result = (void*)(uintptr_t)sarif_empty_text;
         goto done;
     }
     if (size > (uint64_t)SIZE_MAX) {
@@ -515,7 +521,7 @@ static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uin
         idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
     }
     SARIF_MUTEX_UNLOCK(&sarif_intern_mutex);
-    sarif_fatal_error("string interning table overflow");
+    sarif_fatal_error("string interning table capacity exhausted; consider increasing SARIF_INTERN_BUCKET_COUNT");
 }
 
 // Intern a runtime text value into the persistent pool.
@@ -953,7 +959,7 @@ int64_t sarif_list_len(void* list_ptr) {
 void* sarif_list_from_raw(void* raw_ptr, int64_t len) {
     SarifList* list = NULL;
     if (len == 0) {
-        return &sarif_empty_list;
+        return (void*)(uintptr_t)&sarif_empty_list;
     }
     if (len < 0) {
         return NULL;
@@ -1254,13 +1260,7 @@ static SarifTextIndexEntry* sarif_text_index_find_entry(
         }
         idx = (idx + 1) % index->cap;
         if (idx == start) {
-            char errbuf[128];
-            (void)snprintf(
-                errbuf,
-                sizeof(errbuf),
-                "text index table is full; internal error"
-            );
-            sarif_fatal_error(__func__, errbuf);
+            sarif_fatal_error(__func__, "text index table is full; internal error");
             return NULL;
         }
     }
@@ -1677,7 +1677,7 @@ void* sarif_bytes_slice(const unsigned char* bytes, uint64_t start, uint64_t end
     }
     uint64_t cs = start < src_len ? start : src_len;
     uint64_t ce = end < src_len ? end : src_len;
-    if (ce <= cs) return sarif_empty_text;
+    if (ce <= cs) return (void*)(uintptr_t)sarif_empty_text;
     uint64_t view_len = ce - cs;
     unsigned char* view = (unsigned char*)sarif_record_alloc(24);
     if (view == NULL) return NULL;

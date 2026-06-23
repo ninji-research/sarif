@@ -12966,4 +12966,23 @@ fn main() -> I32 {
             );
         });
     }
+
+    #[test]
+    fn test_c_runtime_static_analysis() {
+        let runtime_path = format!("{}/../../runtime/sarif_runtime.c", env!("CARGO_MANIFEST_DIR"));
+        let output = std::process::Command::new("clang")
+            .arg("-fsyntax-only")
+            .arg("-Wall")
+            .arg("-Wextra")
+            .arg("-Werror")
+            .arg(&runtime_path)
+            .output()
+            .expect("failed to run clang check");
+        assert!(
+            output.status.success(),
+            "clang static analysis failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
+
