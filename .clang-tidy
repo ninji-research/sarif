@@ -1,0 +1,20 @@
+# .clang-tidy
+Checks: >
+  -*,
+  bugprone-unused-return-value,
+  bugprone-undefined-memory-manipulation,
+  bugprone-suspicious-semicolon,
+  cert-*,
+  clang-analyzer-core.*,
+  clang-analyzer-security.*,
+  clang-analyzer-unix.*
+
+WarningsAsErrors: >
+  bugprone-unused-return-value,
+  cert-*,
+  clang-analyzer-core.*,
+  clang-analyzer-security.*
+
+CheckOptions:
+  - key:             bugprone-unused-return-value.CheckedFunctions
+    value:           '::pthread_mutex_lock;::pthread_mutex_unlock;::malloc;::calloc;::realloc;::getenv;::setenv;::unsetenv'
