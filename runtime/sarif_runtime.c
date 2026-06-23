@@ -243,8 +243,12 @@ void* sarif_record_alloc(uint64_t size) {
     size_t aligned = 0;
     size_t min_cap = 0;
     void* result = NULL;
+    int rc = 0;
 
-    pthread_mutex_lock(&sarif_record_mutex);
+    rc = pthread_mutex_lock(&sarif_record_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("failed to lock record mutex");
+    }
 
     if (size == 0) {
         result = sarif_empty_text;
@@ -284,19 +288,28 @@ void* sarif_record_alloc(uint64_t size) {
     result = chunk->data;
 
 done:
-    pthread_mutex_unlock(&sarif_record_mutex);
+    rc = pthread_mutex_unlock(&sarif_record_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("failed to unlock record mutex");
+    }
     return result;
 }
 
 void sarif_alloc_push(void) {
-    pthread_mutex_lock(&sarif_record_mutex);
+    int rc = pthread_mutex_lock(&sarif_record_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_alloc_push");
+    }
     struct SarifAllocScope* scope = NULL;
     if (sarif_scope_depth < SARIF_SCOPE_STACK_CAP) {
         scope = &sarif_scope_stack[sarif_scope_depth++];
     } else {
         struct SarifAllocScopeOverflow* n = malloc(sizeof(struct SarifAllocScopeOverflow));
         if (n == NULL) {
-            pthread_mutex_unlock(&sarif_record_mutex);
+            rc = pthread_mutex_unlock(&sarif_record_mutex);
+            if (rc != 0) {
+                sarif_fatal_error("pthread_mutex_unlock failed in sarif_alloc_push");
+            }
             sarif_fatal_error("out of memory");
         }
         n->next = sarif_scope_overflow;
@@ -305,15 +318,24 @@ void sarif_alloc_push(void) {
     }
     scope->chunk = sarif_record_current;
     scope->used = scope->chunk == NULL ? 0u : scope->chunk->used;
-    pthread_mutex_unlock(&sarif_record_mutex);
+    rc = pthread_mutex_unlock(&sarif_record_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_alloc_push");
+    }
 }
 
 void sarif_alloc_pop(void) {
     SarifRecordChunk* chunk = NULL;
     SarifRecordChunk* next = NULL;
-    pthread_mutex_lock(&sarif_record_mutex);
+    int rc = pthread_mutex_lock(&sarif_record_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_alloc_pop");
+    }
     if (sarif_scope_depth == 0 && sarif_scope_overflow == NULL) {
-        pthread_mutex_unlock(&sarif_record_mutex);
+        rc = pthread_mutex_unlock(&sarif_record_mutex);
+        if (rc != 0) {
+            sarif_fatal_error("pthread_mutex_unlock failed in sarif_alloc_pop");
+        }
         return;
     }
     struct SarifAllocScope scope = {
@@ -342,7 +364,10 @@ void sarif_alloc_pop(void) {
         }
         sarif_record_chunks = NULL;
         sarif_record_current = NULL;
-        pthread_mutex_unlock(&sarif_record_mutex);
+        rc = pthread_mutex_unlock(&sarif_record_mutex);
+        if (rc != 0) {
+            sarif_fatal_error("pthread_mutex_unlock failed in sarif_alloc_pop");
+        }
         return;
     }
     chunk = scope.chunk->next;
@@ -354,7 +379,10 @@ void sarif_alloc_pop(void) {
     }
     sarif_record_current = scope.chunk;
     sarif_record_current->used = scope.used;
-    pthread_mutex_unlock(&sarif_record_mutex);
+    rc = pthread_mutex_unlock(&sarif_record_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_alloc_pop");
+    }
 }
 
 static inline __attribute__((always_inline)) __attribute__((unused)) void sarif_store_u64(unsigned char* base, uint64_t offset, uint64_t value) {
@@ -475,7 +503,10 @@ static unsigned char* sarif_intern_alloc(uint64_t size) {
 }
 
 static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uint64_t len) {
-    pthread_mutex_lock(&sarif_intern_mutex);
+    int rc = pthread_mutex_lock(&sarif_intern_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("failed to lock interning mutex");
+    }
     uint64_t hash = sarif_intern_hash(data, len);
     if (hash == 0) {
         hash = 1;
@@ -491,19 +522,28 @@ static unsigned char* sarif_intern_find_or_insert(const unsigned char* data, uin
             }
             b->hash = hash;
             b->text = interned;
-            pthread_mutex_unlock(&sarif_intern_mutex);
+            rc = pthread_mutex_unlock(&sarif_intern_mutex);
+            if (rc != 0) {
+                sarif_fatal_error("failed to unlock interning mutex");
+            }
             return interned;
         }
         if (b->hash == hash) {
             uint64_t existing_len = sarif_load_u64(b->text, 0);
             if (existing_len == len && memcmp(b->text + 8, data, (size_t)len) == 0) {
-                pthread_mutex_unlock(&sarif_intern_mutex);
+                rc = pthread_mutex_unlock(&sarif_intern_mutex);
+                if (rc != 0) {
+                    sarif_fatal_error("failed to unlock interning mutex");
+                }
                 return b->text;
             }
         }
         idx = (idx + 1) % SARIF_INTERN_BUCKET_COUNT;
     }
-    pthread_mutex_unlock(&sarif_intern_mutex);
+    rc = pthread_mutex_unlock(&sarif_intern_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("failed to unlock interning mutex");
+    }
     sarif_fatal_error("string interning table overflow");
 }
 
@@ -1363,18 +1403,28 @@ void* sarif_text_index_set(void* index_ptr, uint64_t key, int64_t value) {
     uint32_t hash = 0;
     int found = 0;
     SarifTextIndexEntry* entry = NULL;
+    int rc = 0;
     if (index == NULL || index->entries == NULL) {
         return NULL;
     }
-    pthread_mutex_lock(&sarif_text_index_mutex);
+    rc = pthread_mutex_lock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_text_index_set");
+    }
     if (!sarif_text_index_ensure_capacity(index)) {
-        pthread_mutex_unlock(&sarif_text_index_mutex);
+        rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+        if (rc != 0) {
+            sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_set");
+        }
         return NULL;
     }
     hash = sarif_text_hash_handle(key);
     entry = sarif_text_index_find_entry(index, key, hash, &found);
     if (entry == NULL) {
-        pthread_mutex_unlock(&sarif_text_index_mutex);
+        rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+        if (rc != 0) {
+            sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_set");
+        }
         return NULL;
     }
     entry->key = key;
@@ -1384,14 +1434,24 @@ void* sarif_text_index_set(void* index_ptr, uint64_t key, int64_t value) {
         entry->occupied = 1;
         index->len += 1;
     }
-    pthread_mutex_unlock(&sarif_text_index_mutex);
+    rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_set");
+    }
     return index;
 }
 
 int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
     int found = 0;
-    pthread_mutex_lock(&sarif_text_index_mutex);
+    int rc = 0;
+    if (index == NULL || index->entries == NULL) {
+        return -1;
+    }
+    rc = pthread_mutex_lock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_text_index_get");
+    }
     SarifTextIndexEntry* entry = sarif_text_index_find_entry(
         index,
         key,
@@ -1402,24 +1462,34 @@ int64_t sarif_text_index_get(void* index_ptr, uint64_t key) {
     if (entry != NULL && found) {
         result = entry->value;
     }
-    pthread_mutex_unlock(&sarif_text_index_mutex);
+    rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_get");
+    }
     return result;
 }
 
 int64_t sarif_text_index_contains(void* index_ptr, uint64_t key) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
     int found = 0;
+    int rc = 0;
     if (index == NULL || index->entries == NULL) {
         return 0;
     }
-    pthread_mutex_lock(&sarif_text_index_mutex);
+    rc = pthread_mutex_lock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_text_index_contains");
+    }
     sarif_text_index_find_entry(
         index,
         key,
         sarif_text_hash_handle(key),
         &found
     );
-    pthread_mutex_unlock(&sarif_text_index_mutex);
+    rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_contains");
+    }
     return found;
 }
 
@@ -1428,18 +1498,28 @@ int64_t sarif_text_index_get_or_insert(void* index_ptr, uint64_t key, int64_t ne
     int found = 0;
     uint32_t hash = 0;
     SarifTextIndexEntry* entry = NULL;
+    int rc = 0;
     if (index == NULL || index->entries == NULL) {
         return -1;
     }
-    pthread_mutex_lock(&sarif_text_index_mutex);
+    rc = pthread_mutex_lock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_text_index_get_or_insert");
+    }
     if (!sarif_text_index_ensure_capacity(index)) {
-        pthread_mutex_unlock(&sarif_text_index_mutex);
+        rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+        if (rc != 0) {
+            sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_get_or_insert");
+        }
         return -1;
     }
     hash = sarif_text_hash_handle(key);
     entry = sarif_text_index_find_entry(index, key, hash, &found);
     if (entry == NULL) {
-        pthread_mutex_unlock(&sarif_text_index_mutex);
+        rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+        if (rc != 0) {
+            sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_get_or_insert");
+        }
         return -1;
     }
     int64_t result = next;
@@ -1452,33 +1532,49 @@ int64_t sarif_text_index_get_or_insert(void* index_ptr, uint64_t key, int64_t ne
         entry->occupied = 1;
         index->len += 1;
     }
-    pthread_mutex_unlock(&sarif_text_index_mutex);
+    rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_get_or_insert");
+    }
     return result;
 }
 void* sarif_text_index_keys(void* index_ptr) {
     SarifTextIndex* index = (SarifTextIndex*)index_ptr;
+    int rc = 0;
     if (index == NULL || index->entries == NULL) {
         return NULL;
     }
     void* builder = sarif_text_builder_new();
     if (builder == NULL) return NULL;
-    pthread_mutex_lock(&sarif_text_index_mutex);
+    rc = pthread_mutex_lock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_lock failed in sarif_text_index_keys");
+    }
     for (uint64_t i = 0; i < index->cap; i++) {
         if (index->entries[i].occupied) {
             unsigned char* key_text = (unsigned char*)index->entries[i].key;
             builder = sarif_text_builder_append(builder, key_text);
             if (builder == NULL) {
-                pthread_mutex_unlock(&sarif_text_index_mutex);
+                rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+                if (rc != 0) {
+                    sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_keys");
+                }
                 return NULL;
             }
             builder = sarif_text_builder_append_ascii(builder, (int64_t)'\n');
             if (builder == NULL) {
-                pthread_mutex_unlock(&sarif_text_index_mutex);
+                rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+                if (rc != 0) {
+                    sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_keys");
+                }
                 return NULL;
             }
         }
     }
-    pthread_mutex_unlock(&sarif_text_index_mutex);
+    rc = pthread_mutex_unlock(&sarif_text_index_mutex);
+    if (rc != 0) {
+        sarif_fatal_error("pthread_mutex_unlock failed in sarif_text_index_keys");
+    }
     return sarif_text_builder_finish(builder);
 }
 
