@@ -76,9 +76,6 @@ __attribute__((noreturn)) static void sarif_fatal_error_impl(const char* func_na
     } \
 } while (0)
 
-static void sarif_report_mutex_error(const char* func_name, const char* op, const char* mutex_name, int rc) {
-    fprintf(stderr, "SARIF RUNTIME ERROR: %s(%s) failed in %s: %d\n", op, mutex_name, func_name, rc);
-}
 static const unsigned char sarif_empty_text[8] = {0};
 
 #define SARIF_BYTES_VIEW_TAG (1ULL << 63)
@@ -1097,8 +1094,7 @@ static void* sarif_list_sort_by_field_helper(
     int64_t len,
     int64_t offset,
     uint64_t* global_offset_ptr,
-    int (*compare_fn)(const void*, const void*),
-    const char* func_name
+    int (*compare_fn)(const void*, const void*)
 ) {
     SarifList* list = (SarifList*)list_ptr;
     uint64_t used = 0;
@@ -1110,11 +1106,7 @@ static void* sarif_list_sort_by_field_helper(
         return NULL;
     }
     if (used > 1) {
-        int lock_rc = pthread_mutex_lock(&sarif_sort_mutex);
-        if (lock_rc != 0) {
-            sarif_report_mutex_error(func_name, "pthread_mutex_lock", "sarif_sort_mutex", lock_rc);
-            return NULL;
-        }
+        SARIF_MUTEX_LOCK(&sarif_sort_mutex);
         *global_offset_ptr = (uint64_t)offset;
         qsort(
             list->values,
@@ -1122,11 +1114,7 @@ static void* sarif_list_sort_by_field_helper(
             sizeof(uint64_t),
             compare_fn
         );
-        int unlock_rc = pthread_mutex_unlock(&sarif_sort_mutex);
-        if (unlock_rc != 0) {
-            sarif_report_mutex_error(func_name, "pthread_mutex_unlock", "sarif_sort_mutex", unlock_rc);
-            return NULL;
-        }
+        SARIF_MUTEX_UNLOCK(&sarif_sort_mutex);
     }
     return list;
 }
@@ -1135,8 +1123,7 @@ void* sarif_list_sort_by_text_field(void* list_ptr, int64_t len, int64_t offset)
     return sarif_list_sort_by_field_helper(
         list_ptr, len, offset,
         &sarif_sort_text_field_offset,
-        sarif_qsort_compare_record_text_field_handles,
-        __func__
+        sarif_qsort_compare_record_text_field_handles
     );
 }
 
@@ -1144,8 +1131,7 @@ void* sarif_list_sort_by_i32_field(void* list_ptr, int64_t len, int64_t offset) 
     return sarif_list_sort_by_field_helper(
         list_ptr, len, offset,
         &sarif_sort_i32_field_offset,
-        sarif_qsort_compare_record_i32_field_handles,
-        __func__
+        sarif_qsort_compare_record_i32_field_handles
     );
 }
 
@@ -1153,8 +1139,7 @@ void* sarif_list_sort_by_f64_field(void* list_ptr, int64_t len, int64_t offset) 
     return sarif_list_sort_by_field_helper(
         list_ptr, len, offset,
         &sarif_sort_f64_field_offset,
-        sarif_qsort_compare_record_f64_field_handles,
-        __func__
+        sarif_qsort_compare_record_f64_field_handles
     );
 }
 
@@ -2304,7 +2289,8 @@ static void sarif_ignore_sigpipe_once(void) {
         return;
     }
     if (sigaction(SIGPIPE, &sa, NULL) != 0) {
-        fprintf(stderr, "SARIF RUNTIME WARNING: sigaction(SIGPIPE, SIG_IGN) failed; SIGPIPE may remain unignored and writes to closed sockets may terminate the process: %s\n", strerror(errno));
+        int saved_errno = errno;
+        fprintf(stderr, "SARIF RUNTIME WARNING: sigaction(SIGPIPE, SIG_IGN) failed; SIGPIPE may remain unignored and writes to closed sockets may terminate the process: %s\n", strerror(saved_errno));
     }
 }
 
@@ -2357,8 +2343,17 @@ uint64_t sarif_file_mmap(const unsigned char* path_handle) {
         return (uint64_t)NULL;
     }
     uint64_t file_data_len = 0;
-    memcpy(&file_data_len, addr, sizeof(file_data_len));
-    if (file_data_len + 8 > size) {
+    const unsigned char* header = (const unsigned char*)addr;
+    file_data_len =
+        ((uint64_t)header[0]) |
+        ((uint64_t)header[1] << 8) |
+        ((uint64_t)header[2] << 16) |
+        ((uint64_t)header[3] << 24) |
+        ((uint64_t)header[4] << 32) |
+        ((uint64_t)header[5] << 40) |
+        ((uint64_t)header[6] << 48) |
+        ((uint64_t)header[7] << 56);
+    if (file_data_len > ((uint64_t)size - 8u)) {
         munmap(addr, size);
         return (uint64_t)NULL;
     }
@@ -2726,28 +2721,74 @@ int64_t sarif_env_keys(void) {
     char** envp = environ;
 #endif
     uint64_t total_len = 0;
+    char** names = NULL;
+    size_t names_count = 0;
+    size_t names_capacity = 0;
+
     SARIF_MUTEX_LOCK(&sarif_env_mutex);
     for (int i = 0; envp[i] != NULL; i++) {
         char* eq = strchr(envp[i], '=');
-        total_len += (eq ? (uint64_t)(eq - envp[i]) : strlen(envp[i]));
-        if (i > 0) total_len += 1;
+        uint64_t name_len = eq ? (uint64_t)(eq - envp[i]) : (uint64_t)strlen(envp[i]);
+        char* name_copy = (char*)malloc((size_t)name_len + 1);
+        if (name_copy == NULL) {
+            for (size_t j = 0; j < names_count; j++) {
+                free(names[j]);
+            }
+            free(names);
+            SARIF_MUTEX_UNLOCK(&sarif_env_mutex);
+            return (int64_t)sarif_empty_text;
+        }
+        memcpy(name_copy, envp[i], (size_t)name_len);
+        name_copy[name_len] = '\0';
+
+        if (names_count == names_capacity) {
+            size_t new_capacity = (names_capacity == 0) ? 16 : (names_capacity * 2);
+            char** new_names = (char**)realloc(names, new_capacity * sizeof(char*));
+            if (new_names == NULL) {
+                free(name_copy);
+                for (size_t j = 0; j < names_count; j++) {
+                    free(names[j]);
+                }
+                free(names);
+                SARIF_MUTEX_UNLOCK(&sarif_env_mutex);
+                return (int64_t)sarif_empty_text;
+            }
+            names = new_names;
+            names_capacity = new_capacity;
+        }
+
+        names[names_count++] = name_copy;
+        total_len += name_len;
+        if (names_count > 1) {
+            total_len += 1;
+        }
     }
+
     unsigned char* result = sarif_text_alloc(total_len);
     if (result == NULL) {
+        for (size_t j = 0; j < names_count; j++) {
+            free(names[j]);
+        }
+        free(names);
         SARIF_MUTEX_UNLOCK(&sarif_env_mutex);
         return (int64_t)sarif_empty_text;
     }
+
     uint64_t offset = 0;
-    for (int i = 0; envp[i] != NULL; i++) {
+    for (size_t i = 0; i < names_count; i++) {
         if (i > 0) {
             result[8 + offset] = '\n';
             offset += 1;
         }
-        char* eq = strchr(envp[i], '=');
-        uint64_t name_len = eq ? (uint64_t)(eq - envp[i]) : strlen(envp[i]);
-        memcpy(result + 8 + offset, envp[i], name_len);
+        uint64_t name_len = (uint64_t)strlen(names[i]);
+        memcpy(result + 8 + offset, names[i], (size_t)name_len);
         offset += name_len;
     }
+
+    for (size_t j = 0; j < names_count; j++) {
+        free(names[j]);
+    }
+    free(names);
     SARIF_MUTEX_UNLOCK(&sarif_env_mutex);
     return (int64_t)result;
 }
