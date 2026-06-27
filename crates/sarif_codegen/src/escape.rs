@@ -372,6 +372,7 @@ impl Env<'_> {
             | Inst::ParseF64 { .. }
             | Inst::F64FromI32 { .. }
             | Inst::I64FromI32 { .. }
+            | Inst::F64FromI64 { .. }
             | Inst::TextLen { .. }
             | Inst::BytesLen { .. }
             | Inst::TextCmp { .. }

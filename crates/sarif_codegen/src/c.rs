@@ -474,6 +474,7 @@ fn inst_dest(inst: &Inst) -> Option<ValueId> {
         Inst::TextFromF64Fixed { dest, .. } => Some(*dest),
         Inst::F64FromI32 { dest, .. } => Some(*dest),
         Inst::I64FromI32 { dest, .. } => Some(*dest),
+        Inst::F64FromI64 { dest, .. } => Some(*dest),
         Inst::TextBuilderNew { dest } => Some(*dest),
         Inst::TextBuilderAppend { dest, .. } => Some(*dest),
         Inst::TextBuilderAppendCodepoint { dest, .. } => Some(*dest),
@@ -907,6 +908,9 @@ fn emit_inst(
         }
         Inst::I64FromI32 { dest, value } => {
             out.line(&format!("v{} = (int64_t)(int32_t){};", dest.0, vref(value)))?;
+        }
+        Inst::F64FromI64 { dest, value } => {
+            out.line(&format!("v{} = (double){};", dest.0, vref(value)))?;
         }
         Inst::TextLen { dest, text } => {
             out.line(&format!(
@@ -2260,6 +2264,9 @@ fn infer_inst_kind_c(
         }
         Inst::I64FromI32 { dest, .. } => {
             kinds.insert(*dest, CodegenValueKind::I64);
+        }
+        Inst::F64FromI64 { dest, .. } => {
+            kinds.insert(*dest, CodegenValueKind::F64);
         }
         Inst::TextLen { dest, .. }
         | Inst::BytesLen { dest, .. }

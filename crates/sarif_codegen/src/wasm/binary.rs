@@ -1256,6 +1256,7 @@ fn collect_locals_binary(
             | Inst::Or { dest, .. }
             | Inst::F64FromI32 { dest, .. }
             | Inst::I64FromI32 { dest, .. }
+            | Inst::F64FromI64 { dest, .. }
             | Inst::Sqrt { dest, .. }
             | Inst::Perform { dest, .. }
             | Inst::Handle { dest, .. }
@@ -2410,6 +2411,13 @@ fn emit_inst_binary(
             let dest_idx = env.get_or_alloc_value(*dest);
             f.instruction(&Instruction::LocalGet(src_idx));
             f.instruction(&Instruction::I64ExtendI32S);
+            f.instruction(&Instruction::LocalSet(dest_idx));
+        }
+        Inst::F64FromI64 { dest, value } => {
+            let src_idx = env.get_value(*value);
+            let dest_idx = env.get_or_alloc_value(*dest);
+            f.instruction(&Instruction::LocalGet(src_idx));
+            f.instruction(&Instruction::F64ConvertI64S);
             f.instruction(&Instruction::LocalSet(dest_idx));
         }
         Inst::Sqrt { dest, value } => {

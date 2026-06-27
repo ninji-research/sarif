@@ -329,7 +329,7 @@ fn infer_inst_kinds(
                 kinds.insert(*dest, NativeValueKind::I32);
             }
             Inst::AllocPush | Inst::AllocPop => {}
-            Inst::ParseF64 { dest, .. } | Inst::F64FromI32 { dest, .. } => {
+            Inst::ParseF64 { dest, .. } | Inst::F64FromI32 { dest, .. } | Inst::F64FromI64 { dest, .. } => {
                 kinds.insert(*dest, NativeValueKind::F64);
             }
             Inst::I64FromI32 { dest, .. } => {
@@ -2463,6 +2463,12 @@ pub fn lower_inst<M: Module>(
             values.insert(*dest, NativeValueRepr::Native(extended));
             Ok(true)
         }
+        Inst::F64FromI64 { dest, value } => {
+            let int_val = native_value(values, *value, function, "f64_from_i64 value", backend)?;
+            let float = builder.ins().fcvt_from_sint(types::F64, int_val);
+            values.insert(*dest, NativeValueRepr::Native(float));
+            Ok(true)
+        }
         Inst::TextLen { dest, text } => {
             let text_val = native_value(values, *text, function, "text_len", backend)?;
             let len = builder.ins().load(
@@ -4369,6 +4375,7 @@ fn collect_defined_values(instructions: &[Inst], defined: &mut BTreeSet<ValueId>
             | Inst::ListGet { dest, .. }
             | Inst::F64FromI32 { dest, .. }
             | Inst::I64FromI32 { dest, .. }
+            | Inst::F64FromI64 { dest, .. }
             | Inst::TextLen { dest, .. }
             | Inst::BytesLen { dest, .. }
             | Inst::TextConcat { dest, .. }

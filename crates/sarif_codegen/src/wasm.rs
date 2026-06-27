@@ -571,6 +571,7 @@ impl<'a> WasmEmitter<'a> {
                 | Inst::Or { dest, .. }
                 | Inst::F64FromI32 { dest, .. }
                 | Inst::I64FromI32 { dest, .. }
+                | Inst::F64FromI64 { dest, .. }
                 | Inst::Sqrt { dest, .. }
                 | Inst::Perform { dest, .. }
                 | Inst::Handle { dest, .. }
@@ -1463,6 +1464,9 @@ impl<'a> WasmEmitter<'a> {
             Inst::I64FromI32 { dest, value } => {
                 w_unary(output, *dest, *value, "i64.extend_i32_s");
             }
+            Inst::F64FromI64 { dest, value } => {
+                w_unary(output, *dest, *value, "f64.convert_i64_s");
+            }
             Inst::Sqrt { dest, value } => {
                 w_unary(output, *dest, *value, "f64.sqrt");
             }
@@ -2263,6 +2267,7 @@ pub(crate) fn collect_inst_kinds(
             | Inst::ParseF64 { dest, .. }
             | Inst::F64FromI32 { dest, .. }
             | Inst::Sqrt { dest, .. }
+            | Inst::F64FromI64 { dest, .. }
             | Inst::ClockNow { dest } => {
                 kinds.insert(*dest, WasmValueKind::F64);
             }

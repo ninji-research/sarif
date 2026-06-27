@@ -494,6 +494,10 @@ pub enum Inst {
         dest: ValueId,
         value: ValueId,
     },
+    F64FromI64 {
+        dest: ValueId,
+        value: ValueId,
+    },
     TextLen {
         dest: ValueId,
         text: ValueId,
@@ -536,16 +540,16 @@ pub enum Inst {
         text: ValueId,
         index: ValueId,
     },
-    BytesByte {
-        dest: ValueId,
-        bytes: ValueId,
-        index: ValueId,
-    },
-    TextCmp {
-        dest: ValueId,
-        left: ValueId,
-        right: ValueId,
-    },
+BytesByte {
+    dest: ValueId,
+    bytes: ValueId,
+    index: ValueId,
+},
+TextCmp {
+    dest: ValueId,
+    left: ValueId,
+    right: ValueId,
+},
     TextEqRange {
         dest: ValueId,
         source: ValueId,
@@ -1182,6 +1186,9 @@ impl Inst {
             }
             Self::I64FromI32 { dest, value } => {
                 format!("{} = i64-from-i32 {}", dest.render(), value.render())
+            }
+            Self::F64FromI64 { dest, value } => {
+                format!("{} = f64-from-i64 {}", dest.render(), value.render())
             }
             Self::TextLen { dest, text } => {
                 format!("{} = text-len {}", dest.render(), text.render())
@@ -2178,6 +2185,11 @@ pub fn lower_with_imports(module: &Module, imported_info: &ImportedInfo) -> MirL
     add_extern("sarif_bytes_store_i32", &["Bytes", "I32", "I32"], None);
     add_extern("sarif_bytes_load_i64", &["Bytes", "I32"], Some("I64"));
     add_extern("sarif_bytes_store_i64", &["Bytes", "I32", "I64"], None);
+add_extern("sarif_bytes_load_i32_i64", &["Bytes", "I64"], Some("I32"));
+add_extern("sarif_bytes_load_i64_i64", &["Bytes", "I64"], Some("I64"));
+add_extern("sarif_bytes_load_f32_i64", &["Bytes", "I64"], Some("F64"));
+add_extern("sarif_bytes_slice_i64", &["Bytes", "I64", "I64"], Some("Bytes"));
+add_extern("sarif_bytes_byte_i64", &["Bytes", "I64"], Some("I32"));
     add_extern("sarif_bytes_load_f64", &["Bytes", "I32"], Some("F64"));
     add_extern("sarif_bytes_store_f64", &["Bytes", "I32", "F64"], None);
     add_extern("sarif_bytes_load_bool", &["Bytes", "I32"], Some("Bool"));
@@ -2982,6 +2994,19 @@ impl ConstEvaluator<'_, '_> {
                 return Err(ConstEvalError::new(expr.span, "i64_from_i32 expects Int"));
             };
             return Ok(ConstFlow::Value(RuntimeValue::I64(value)));
+        }
+        if expr.callee == "f64_from_i64" && !self.functions.contains_key("f64_from_i64") {
+            let [arg] = expr.args.as_slice() else {
+                return Err(ConstEvalError::new(
+                    expr.span,
+                    "f64_from_i64 expects 1 argument",
+                ));
+            };
+            let value = self.eval_expr_value(arg, env)?;
+            let RuntimeValue::I64(value) = value else {
+                return Err(ConstEvalError::new(expr.span, "f64_from_i64 expects I64"));
+            };
+            return Ok(ConstFlow::Value(RuntimeValue::F64(value as f64)));
         }
         if expr.callee == "parse_i32" && !self.functions.contains_key("parse_i32") {
             let [arg] = expr.args.as_slice() else {
@@ -3867,6 +3892,7 @@ pub(crate) fn insts_fall_through(instructions: &[Inst]) -> bool {
             | Inst::ListSortRecordField { .. }
             | Inst::F64FromI32 { .. }
             | Inst::I64FromI32 { .. }
+            | Inst::F64FromI64 { .. }
             | Inst::TextLen { .. }
             | Inst::BytesLen { .. }
             | Inst::TextConcat { .. }
@@ -4321,6 +4347,9 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "i64_from_i32" if self.builtin_is_available("i64_from_i32") => {
                 self.lower_i64_from_i32_expr(expr)
             }
+            "f64_from_i64" if self.builtin_is_available("f64_from_i64") => {
+                self.lower_f64_from_i64_expr(expr)
+            }
             "bytes_len" if self.builtin_is_available("bytes_len") => {
                 self.lower_bytes_len_expr(expr)
             }
@@ -4360,6 +4389,36 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
                 self.instructions.push(Inst::Call {
                     dest,
                     callee: "sarif_bytes_store_i64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_load_i32_i64" if self.builtin_is_available("bytes_load_i32_i64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_i32_i64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_load_i64_i64" if self.builtin_is_available("bytes_load_i64_i64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_i64_i64".to_string(),
+                    args,
+                });
+                dest
+            }
+            "bytes_load_f32_i64" if self.builtin_is_available("bytes_load_f32_i64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_load_f32_i64".to_string(),
                     args,
                 });
                 dest
@@ -4422,12 +4481,32 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "bytes_slice" if self.builtin_is_available("bytes_slice") => {
                 self.lower_bytes_slice_expr(expr)
             }
+            "bytes_slice_i64" if self.builtin_is_available("bytes_slice_i64") => {
+                let dest = self.fresh_value();
+                let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+                self.instructions.push(Inst::Call {
+                    dest,
+                    callee: "sarif_bytes_slice_i64".to_string(),
+                    args,
+                });
+                dest
+            }
             "text_byte" if self.builtin_is_available("text_byte") => {
                 self.lower_text_byte_expr(expr)
             }
-            "bytes_byte" if self.builtin_is_available("bytes_byte") => {
-                self.lower_bytes_byte_expr(expr)
-            }
+"bytes_byte" if self.builtin_is_available("bytes_byte") => {
+    self.lower_bytes_byte_expr(expr)
+}
+"bytes_byte_i64" if self.builtin_is_available("bytes_byte_i64") => {
+    let dest = self.fresh_value();
+    let args = expr.args.iter().map(|arg| self.lower_expr(arg)).collect();
+    self.instructions.push(Inst::Call {
+        dest,
+        callee: "sarif_bytes_byte_i64".to_string(),
+        args,
+    });
+    dest
+}
             "text_cmp" if self.builtin_is_available("text_cmp") => self.lower_text_cmp_expr(expr),
             "text_eq_range" if self.builtin_is_available("text_eq_range") => {
                 self.lower_text_eq_range_expr(expr)
@@ -4758,6 +4837,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             "bytes_len" if self.builtin_is_available("bytes_len") => LowerType::I32,
             "text_byte" if self.builtin_is_available("text_byte") => LowerType::I32,
             "bytes_byte" if self.builtin_is_available("bytes_byte") => LowerType::I32,
+"bytes_byte_i64" if self.builtin_is_available("bytes_byte_i64") => LowerType::I32,
             "text_cmp" if self.builtin_is_available("text_cmp") => LowerType::I32,
             "text_eq_range" if self.builtin_is_available("text_eq_range") => LowerType::Bool,
             "text_find_byte_range" if self.builtin_is_available("text_find_byte_range") => {
@@ -4860,6 +4940,7 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
             }
             "f64_from_i32" if self.builtin_is_available("f64_from_i32") => LowerType::F64,
             "i64_from_i32" if self.builtin_is_available("i64_from_i32") => LowerType::I64,
+            "f64_from_i64" if self.builtin_is_available("f64_from_i64") => LowerType::F64,
             "text_concat" if self.builtin_is_available("text_concat") => LowerType::Text,
             "text_slice" if self.builtin_is_available("text_slice") => LowerType::Text,
             "bytes_slice" if self.builtin_is_available("bytes_slice") => LowerType::Bytes,
@@ -8421,6 +8502,16 @@ impl<'a, 'shared> FunctionLowerer<'a, 'shared> {
         dest
     }
 
+    fn lower_f64_from_i64_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
+        let Some(arg) = expr.args.first() else {
+            return self.emit_unit_value();
+        };
+        let value = self.lower_expr(arg);
+        let dest = self.fresh_value();
+        self.instructions.push(Inst::F64FromI64 { dest, value });
+        dest
+    }
+
     fn lower_text_concat_expr(&mut self, expr: &sarif_frontend::hir::CallExpr) -> ValueId {
         let Some(arg0) = expr.args.first() else {
             return self.emit_unit_value();
@@ -9994,6 +10085,13 @@ impl<'a> Interpreter<'a> {
                         return Err(RuntimeError::new("expected Int"));
                     };
                     values[dest.0 as usize] = RuntimeValue::I64(value);
+                }
+                Inst::F64FromI64 { dest, value } => {
+                    let value_val = extract_value(values, *value)?;
+                    let RuntimeValue::I64(value) = value_val else {
+                        return Err(RuntimeError::new("expected I64"));
+                    };
+                    values[dest.0 as usize] = RuntimeValue::F64(value as f64);
                 }
                 Inst::TextLen { dest, text } => {
                     let text_val = extract_value(values, *text)?;

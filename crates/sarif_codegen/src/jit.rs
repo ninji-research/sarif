@@ -396,6 +396,89 @@ pub unsafe extern "C" fn sarif_bytes_store_i64(ptr: i64, index: i64, value: i64)
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_slice_i64(ptr: i64, start: i64, length: i64) -> i64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() || start < 0 || length < 0 {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
+        let src_len = text_len(ptr);
+        let s = (start as u64).min(src_len);
+        let cl = (length as u64).min(src_len - s);
+        if cl == 0 {
+            return EMPTY_TEXT.as_ptr() as i64;
+        }
+        let result = alloc_text(cl);
+        std::ptr::copy_nonoverlapping(
+            text_data(ptr).add(s as usize),
+            text_data_mut(result),
+            cl as usize,
+        );
+        result
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_load_i32_i64(ptr: i64, index: i64) -> i64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
+            return 0;
+        }
+        let len = text_len(ptr);
+        let idx = index as usize;
+        if idx + 4 > len as usize {
+            return 0;
+        }
+        std::ptr::read_unaligned(text_data(ptr).add(idx) as *const i32) as i64
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_byte_i64(ptr: i64, index: i64) -> i64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
+            return 0;
+        }
+        let len = text_len(ptr);
+        if index < 0 || index >= len as i64 {
+            return 0;
+        }
+        let idx = index as usize;
+        i64::from(*text_data(ptr).add(idx))
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_load_i64_i64(ptr: i64, index: i64) -> i64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
+            return 0;
+        }
+        let len = text_len(ptr);
+        let idx = index as usize;
+        if idx + 8 > len as usize {
+            return 0;
+        }
+        std::ptr::read_unaligned(text_data(ptr).add(idx) as *const i64)
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sarif_bytes_load_f32_i64(ptr: i64, index: i64) -> f64 {
+    unsafe {
+        if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
+            return 0.0;
+        }
+        let len = text_len(ptr);
+        let idx = index as usize;
+        if idx + 4 > len as usize {
+            return 0.0;
+        }
+        let val = std::ptr::read_unaligned(text_data(ptr).add(idx) as *const f32);
+        val as f64
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sarif_bytes_load_f64(ptr: i64, index: i64) -> f64 {
     unsafe {
         if ptr == 0 || ptr as *const u8 == EMPTY_TEXT.as_ptr() {
@@ -1929,6 +2012,11 @@ fn register_runtime_helpers(builder: &mut JITBuilder) {
         ("sarif_bytes_store_i32", sarif_bytes_store_i32 as *const u8),
         ("sarif_bytes_load_i64", sarif_bytes_load_i64 as *const u8),
         ("sarif_bytes_store_i64", sarif_bytes_store_i64 as *const u8),
+("sarif_bytes_load_i32_i64", sarif_bytes_load_i32_i64 as *const u8),
+("sarif_bytes_load_i64_i64", sarif_bytes_load_i64_i64 as *const u8),
+("sarif_bytes_load_f32_i64", sarif_bytes_load_f32_i64 as *const u8),
+("sarif_bytes_byte_i64", sarif_bytes_byte_i64 as *const u8),
+        ("sarif_bytes_slice_i64", sarif_bytes_slice_i64 as *const u8),
         ("sarif_bytes_load_f64", sarif_bytes_load_f64 as *const u8),
         ("sarif_bytes_store_f64", sarif_bytes_store_f64 as *const u8),
         ("sarif_bytes_load_bool", sarif_bytes_load_bool as *const u8),
